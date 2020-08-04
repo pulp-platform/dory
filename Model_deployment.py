@@ -445,7 +445,7 @@ class Model_deployment():
         self.copy_backend(optional, BitIn, BitW, BitOut, BitActivation)
         # create L3 files for weights. These files are .hex which are copied in hyperflash then
         PULP_Nodes_Graph, weights_files_list, weights_to_write = self.create_weights_files(PULP_Nodes_Graph, number_of_deployed_layers, BitActivation)
-        fileh = logging.FileHandler('logs/Tiling_profiling.log', 'a')
+        fileh = logging.FileHandler('Tiling_profiling.log', 'a')
         formatter = logging.Formatter('%(asctime)s - %(message)s')
         fileh.setFormatter(formatter)
         fileh.setLevel(logging.DEBUG)

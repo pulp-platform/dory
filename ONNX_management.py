@@ -255,7 +255,7 @@ class ONNX_management():
     def print_PULP_graph(self, PULP_Nodes_Graph):
         # Logging function to report exported graph of PULP
         print("Creating annotated graph in Network_annotated_graph.log")
-        logging.basicConfig(filename='logs/Network_annotated_graph.log',
+        logging.basicConfig(filename='Network_annotated_graph.log',
                             format='%(asctime)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p', level=logging.DEBUG)
         for nodes in PULP_Nodes_Graph:
             logging.debug(f'New node_iterating: {nodes.name}')
@@ -362,7 +362,7 @@ class ONNX_management():
                 PULP_Nodes_Graph[i].branch_out = 1
             if 'Add' in nodes.name:
                 PULP_Nodes_Graph[i].branch_in = 1
-        os.system('rm -rf logs/*log')
+        os.system('rm -rf *log')
         # computing MACs per layer
         for i, nodes in enumerate(PULP_Nodes_Graph):
             PULP_Nodes_Graph[i].MACs = nodes.filter_size_h * nodes.filter_size_w * \
