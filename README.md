@@ -18,7 +18,7 @@ If you use the DORY tool to deploy your models, please make sure to cite ...
 
 Abstract
 --------
-DORY is an automatic tool to deploy DNNs on low cost MCUs with typically less than 1MB of on-chip SRAM memory. 
+DORY is an automatic tool to deploy DNNs on low-cost MCUs with typically less than 1MB of on-chip SRAM memory. 
 DORY abstracts tiling as a Constraint Programming~(CP) problem: it maximizes L1 memory utilization under the topological constraints imposed by each DNN layer.
 Then, it generates ANSI C code to orchestrate off- and on-chip transfers and computation phases.
 Layer tiling is depicted in Fig.1.
@@ -35,8 +35,8 @@ The current platform supported is GAP8 v3. Future work will include the support 
 
 Limitations
 -----------
-The DORY framework is currently tested on feed-forward networks with single-wire residual connections. The input ONNXs are produced by NEMO.
-To use GAP8 v2 boards or v1 boards, use the "v2" chip flag in DORY parameters. Further, you have to manually flash weights by using the old pulpbridge.
+The DORY framework is currently tested on feed-forward networks with single-wire residual connections. NEMO produces the input ONNXs.
+You have to set the "v2" chip flag in DORY parameters to use GAP8 v2 boards or v1 boards. Further, you have to flash weights by using the old pulpbridge manually.
 
 Layer supported
 ---------------
@@ -60,7 +60,7 @@ Requirements
 
 ### Backend
 The DORY framework can be tested using the gvsoc of GAP8 from GreenWaves.
-A detailed guide on how to install and set up the latest version can be found at [link](https://greenwaves-technologies.com/manuals/BUILD/HOME/html/index.html#section7).
+A detailed guide on installing and setting up the latest version can be found at [link](https://greenwaves-technologies.com/manuals/BUILD/HOME/html/index.html#section7).
 The DORY tool is tested using 3.6 Realase of gap_sdk, commit: *c6494b97314470446674bb468d31e4391fb187e9* .
 
 ### Python
@@ -75,18 +75,18 @@ The following packages are needed:
 
 ### Input
 The framework receives as input:
-1. an onnx quantized network generated with the Nemo tool. Refer to [nemo](https://github.com/pulp-platform/nemo) for Nemo framework installation and execution.
+1. an ONNX quantized network generated with the Nemo tool. Refer to [nemo](https://github.com/pulp-platform/nemo) for Nemo framework installation and execution.
 
-Note that only a standard format 8-bit quantized produced by nemo can be read; key features:
+Note that only a standard format 8-bit quantized produced by NEMO can be read; key features:
 1. Convolution, Pooling or Matmul/Gemm layers supported;
-2. Sequences of Mul-Add and Mul-Div recognized as batchnorm and requantization;
-Note that other kind of sequences are not supported (e.g. individual Mul operators).
+2. Sequences of Mul-Add and Mul-Div recognized as Batch normalization and re-quantization;
+Note that other kinds of sequences are not supported (e.g. individual Mul operators).
 Examples are given inside [DORY examples](https://github.com/pulp-platform/dory_examples)
 
 Installation
 ------------
 The execution of dory requires the following folders:
-1. dory: repository with framework
+1. dory: repository with the framework
 2. backend: backend kernels developed for DORY flow execution
 
 Execute the following commands to clone DORY: 
@@ -96,8 +96,8 @@ git clone https://github.com/pulp-platform/dory
 
 Execution
 ---------
-There are 2 functions to call to generate a network:
-1. extrapolating parameters from onnx file: 
+There are two functions to call to generate a network:
+1. extrapolating parameters from ONNX file: 
 
 	*ONNX_management(args).parameters_from_onnx(args)*
 2. starting from a custom graph, create the layers and network file to run on PULP
