@@ -115,7 +115,7 @@ git submodule update --init --recursive
 ```
 The power profiling on a GAP8 v3 of a 1.0-MobilenetV1-128 is reported in Fig.2.
 <p align="center">
-  <img src="images/network_power.png" align="middle" width="1024">
+  <img src="images/network_power.PNG" align="middle" width="1024">
   <br>
   <em> Fig.2 In the left part, the 1.0-MobileNet-128 power profile when running on GAP-8 @ fc cluster = 100 MHz and VDD = 1V. On the right, number of MAC operations, average power, and time for each layer of the network. Power was sampled at 64 KHz and then filtered with a moving average of 300 micro seconds. </em>
 </p>
