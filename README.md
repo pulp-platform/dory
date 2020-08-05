@@ -3,12 +3,40 @@ DORY: Deployment ORiented to memorY
 
 This is the official public repository for the DORY tool.
 
+### Reference
+If you use the DORY tool to deploy your models, please make sure to cite ...
+\citation to be defined
+
+### Contributions
++ **Alessio Burrello**, *University of Bologna*, [email](mailto:alessio.burrello@unibo.it)
++ **Angelo Garofalo**, *University of Bologna*, [email](mailto:angelo.garofalo@unibo.it)
++ **Nazareno Bruschi**, *University of Bologna*, [email](mailto:nazareno.bruschi@unibo.it)
++ **Giuseppe Tagliavini**, *University of Bologna*, [email](mailto:giuseppe.tagliavini@unibo.it)
++ **Davide Rossi**, *University of Bologna*, [email](mailto:davide.rossi@unibo.it)
++ **Francesco Conti**, *University of Bologna*, [email](mailto:f.conti@unibo.it)
++ **Luca Benini**, *University of Bologna* and *ETH Zurich*, [email](mailto:luca.benini@unibo.it)
+
 Abstract
 --------
 DORY is an automatic tool to deploy DNNs on low cost MCUs with typically less than 1MB of on-chip SRAM memory. 
 DORY abstracts tiling as a Constraint Programming~(CP) problem: it maximizes L1 memory utilization under the topological constraints imposed by each DNN layer.
 Then, it generates ANSI C code to orchestrate off- and on-chip transfers and computation phases.
-The current implementation supports PULP RISC-V backend.
+Layer tiling is depicted in Fig.1.
+<p align="center">
+  <img src="images/L3_L2_L1_layer_NEW.png" align="middle" width="1024">
+  <br>
+  <em> Fig.1 DORY L3-L2-L1 layer routine example. On the left, the I/O DMA copies weights tile in case only Cy is L3-tiled. Two different buffers are used for L2w. Then, the Cluster DMA manages L2-L1 communication using double-buffering, while the cores compute a kernel on the current tile stored in one of the L1 buffers. </em>
+</p>
+
+
+Platform Supported
+------------------
+The current platform supported is GAP8 v3. Future work will include the support of the latest version of OPEN-PULP and ARM processors.
+
+Limitations
+-----------
+The DORY framework is currently tested on feed-forward networks with single-wire residual connections. The input ONNXs are produced by NEMO.
+To use GAP8 v2 boards or v1 boards, use the "v2" chip flag in DORY parameters. Further, you have to manually flash weights by using the old pulpbridge.
 
 Layer supported
 ---------------
@@ -85,8 +113,12 @@ To download the examples built on DORY, clone the internal dory_example submodul
 cd dory
 git submodule update --init --recursive
 ```
+The power profiling on a GAP8 v3 of a 1.0-MobilenetV1-128 is reported in Fig.2.
+<p align="center">
+  <img src="images/network_power.png" align="middle" width="1024">
+  <br>
+  <em> Fig.2 In the left part, the 1.0-MobileNet-128 power profile when running on GAP-8 @ fc cluster = 100 MHz and VDD = 1V. On the right, number of MAC operations, average power, and time for each layer of the network. Power was sampled at 64 KHz and then filtered with a moving average of 300 micro seconds. </em>
+</p>
 
-
-### Reference
-If you use the DORY tool to deploy your models, please make sure to cite ...
-\citation to be defined
+### License
+DORY is released under Apache 2.0, see the LICENSE file in the root of this repository for details

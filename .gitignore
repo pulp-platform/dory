@@ -1,0 +1,7 @@
+# ignore all logs
+*.log
+__pycache__
+application/BUILD
+application
+.DS_Store
+*DS_Store
