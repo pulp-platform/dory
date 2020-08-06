@@ -9,11 +9,11 @@ If you use the DORY tool to deploy your models, please make sure to cite ...
 
 ### Contributions
 + **Alessio Burrello**, *University of Bologna*, [email](mailto:alessio.burrello@unibo.it)
++ **Francesco Conti**, *University of Bologna*, [email](mailto:f.conti@unibo.it)
 + **Angelo Garofalo**, *University of Bologna*, [email](mailto:angelo.garofalo@unibo.it)
 + **Nazareno Bruschi**, *University of Bologna*, [email](mailto:nazareno.bruschi@unibo.it)
 + **Giuseppe Tagliavini**, *University of Bologna*, [email](mailto:giuseppe.tagliavini@unibo.it)
 + **Davide Rossi**, *University of Bologna*, [email](mailto:davide.rossi@unibo.it)
-+ **Francesco Conti**, *University of Bologna*, [email](mailto:f.conti@unibo.it)
 + **Luca Benini**, *University of Bologna* and *ETH Zurich*, [email](mailto:luca.benini@unibo.it)
 
 Abstract
@@ -87,11 +87,12 @@ Installation
 ------------
 The execution of dory requires the following folders:
 1. dory: repository with the framework
-2. backend: backend kernels developed for DORY flow execution
+2. pulp-nn: repository with backend kernels developed for DORY flow execution
 
-Execute the following commands to clone DORY: 
+Execute the following commands to clone DORY and pulp-nn backend: 
 ```
 git clone https://github.com/pulp-platform/dory
+git submodule update --init --recursive
 ```
 
 Execution

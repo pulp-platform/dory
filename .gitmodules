@@ -1,3 +1,6 @@
 [submodule "dory_examples"]
 	path = dory_examples
 	url = https://github.com/pulp-platform/dory_examples
+[submodule "pulp-nn"]
+	path = pulp-nn
+	url = https://iis-git.ee.ethz.ch/nazareno.bruschi/pulp-nn
