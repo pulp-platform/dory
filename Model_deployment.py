@@ -64,8 +64,6 @@ class Model_deployment():
             f.write(s)
         os.system('cp ../templates/test_template.c ./application/DORY_network/src/')
         os.system('cp ../templates/network.h ./application/DORY_network/inc/')
-        os.system('cp ../pulp-nn/8bit/' + version +'/pulp_nn_utils.h ./application/DORY_network/inc/')
-        os.system('cp ../pulp-nn/8bit/' + version +'/pulp_nn_utils.c ./application/DORY_network/src/')
         os.system('cp ../pulp-nn/8bit/' + version +'/include/*  ./application/DORY_network/inc/')
         os.system('cp ../pulp-nn/8bit/' + version +'/src/* ./application/DORY_network/src/')
 
