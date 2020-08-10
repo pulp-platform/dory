@@ -20,17 +20,13 @@
 import onnx
 from onnx import numpy_helper
 from onnx import helper, shape_inference
-import torch
-import torch.optim as optim
-import torch.nn as nn
-import torch.nn.functional as F
 import numpy as np
 import os
 import pandas as pd
 from collections import OrderedDict
 import logging
 
-class node_element(nn.Module):
+class node_element():
     # A node allocated in the PULP_Graph
     def __init__(self):
         self.name = 'empty'

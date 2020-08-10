@@ -57,7 +57,6 @@ def print_template_network(
     act_compare=0,
     act_size=[0, 0, 0],
     class_out=0,
-    Mobilenet_bit=0,
     l1_buffer=35000,
     master_stack = 4096,
     slave_stack = 3072,
@@ -102,7 +101,6 @@ def print_template_network(
     tk['MACs'] = MACs
     tk['files_list'] = print_file_list(file_list_w)
     tk['test'] = test
-    tk['Mobilenet_bit'] = Mobilenet_bit
     tk['check_layer'] = check_layer
     tk['act_size'] = act_size
     tk['nof_check'] = act_size[2]

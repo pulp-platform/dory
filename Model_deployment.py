@@ -16,7 +16,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
 import numpy as np
 from tiling import Tiling
 import template as template
@@ -426,7 +425,6 @@ class Model_deployment():
                             check_layer=0,
                             verbose_level='None',
                             performance_single_layer='Yes',
-                            Mobilenet_bit=0,
                             L1_dimension = 35000,
                             master_stack = 4096,
                             slave_stack = 3072,
@@ -487,10 +485,9 @@ class Model_deployment():
                 BitOut,
                 optional)
         else:
-            x_in = torch.Tensor(1, PULP_Nodes_Graph[0].input_channels, PULP_Nodes_Graph[0].input_h, PULP_Nodes_Graph[0].input_w).uniform_(0, (2**(9)))
+            x_in = np.random.randint(2**9, size=(1, PULP_Nodes_Graph[0].input_channels, PULP_Nodes_Graph[0].input_h, PULP_Nodes_Graph[0].input_w))
             x_in[x_in > (2**8 - 1)] = 0
-            x_in = torch.round(x_in)
-            x_in = x_in.flatten().numpy().astype(int)
+            x_in = x_in.flatten().astype(int)
             for i, _ in enumerate(x_in):
                 x_in[i] = np.uint8(x_in[i])
             BitOut = 8
@@ -520,7 +517,6 @@ class Model_deployment():
             act_compare=act_compare,
             act_size=act_size,
             class_out=class_out,
-            Mobilenet_bit=Mobilenet_bit,
             l1_buffer=L1_dimension,
             master_stack = master_stack,
             slave_stack = slave_stack,

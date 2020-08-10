@@ -68,8 +68,7 @@ The framework has been developed using python 3.6.8.
 The following packages are needed:
 * Mako (1.0.12)
 * numpy (1.18.4) 
-* onnx (1.5.0)  
-* torch (1.5.0)   
+* onnx (1.5.0)    
 * pandas (1.0.3)
 * ortools (7.5.7466)
 
