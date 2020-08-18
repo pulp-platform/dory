@@ -1,24 +1,23 @@
 DORY: Deployment ORiented to memorY
 ===================================
 
-This is the official public repository for the DORY tool.
+DORY is an automatic tool to deploy DNNs on low-cost MCUs with typically less than 1MB of on-chip SRAM memory. 
 
 ### Reference
-If you use the DORY tool to deploy your models, please make sure to cite ...
-\citation to be defined
+If you use the DORY tool to deploy your models, please make sure to cite our paper: https://arxiv.org/abs/2008.07127
+```
+@misc{burrello2020dory,
+    title={DORY: Automatic End-to-End Deployment of Real-World DNNs on Low-Cost IoT MCUs},
+    author={Alessio Burrello and Angelo Garofalo and Nazareno Bruschi and Giuseppe Tagliavini and Davide Rossi and Francesco Conti},
+    year={2020},
+    eprint={2008.07127},
+    archivePrefix={arXiv},
+    primaryClass={cs.DC}
+}
+```
 
-### Contributions
-+ **Alessio Burrello**, *University of Bologna*, [email](mailto:alessio.burrello@unibo.it)
-+ **Francesco Conti**, *University of Bologna*, [email](mailto:f.conti@unibo.it)
-+ **Angelo Garofalo**, *University of Bologna*, [email](mailto:angelo.garofalo@unibo.it)
-+ **Nazareno Bruschi**, *University of Bologna*, [email](mailto:nazareno.bruschi@unibo.it)
-+ **Giuseppe Tagliavini**, *University of Bologna*, [email](mailto:giuseppe.tagliavini@unibo.it)
-+ **Davide Rossi**, *University of Bologna*, [email](mailto:davide.rossi@unibo.it)
-+ **Luca Benini**, *University of Bologna* and *ETH Zurich*, [email](mailto:luca.benini@unibo.it)
-
-Abstract
+Highlights
 --------
-DORY is an automatic tool to deploy DNNs on low-cost MCUs with typically less than 1MB of on-chip SRAM memory. 
 DORY abstracts tiling as a Constraint Programming~(CP) problem: it maximizes L1 memory utilization under the topological constraints imposed by each DNN layer.
 Then, it generates ANSI C code to orchestrate off- and on-chip transfers and computation phases.
 Layer tiling is depicted in Fig.1.
@@ -38,8 +37,8 @@ Limitations
 The DORY framework is currently tested on feed-forward networks with single-wire residual connections. NEMO produces the input ONNXs.
 You have to set the "v2" chip flag in DORY parameters to use GAP8 v2 boards or v1 boards. Further, you have to flash weights by using the old pulpbridge manually.
 
-Layer supported
----------------
+Supported layer types
+---------------------
 * Pointwise Convolution (+ BatchNorm + Relu)
 * DepthWise Convolution (+ BatchNorm + Relu)
 * Max Pooling (+ BatchNorm)
@@ -120,5 +119,15 @@ The power profiling on a GAP8 v3 of a 1.0-MobilenetV1-128 is reported in Fig.2.
   <em> Fig.2 In the left part, the 1.0-MobileNet-128 power profile when running on GAP-8 @ fc cluster = 100 MHz and VDD = 1V. On the right, number of MAC operations, average power, and time for each layer of the network. Power was sampled at 64 KHz and then filtered with a moving average of 300 micro seconds. </em>
 </p>
 
+
+### Contributors
++ **Alessio Burrello**, *University of Bologna*, [email](mailto:alessio.burrello@unibo.it)
++ **Francesco Conti**, *University of Bologna*, [email](mailto:f.conti@unibo.it)
++ **Angelo Garofalo**, *University of Bologna*, [email](mailto:angelo.garofalo@unibo.it)
++ **Nazareno Bruschi**, *University of Bologna*, [email](mailto:nazareno.bruschi@unibo.it)
++ **Giuseppe Tagliavini**, *University of Bologna*, [email](mailto:giuseppe.tagliavini@unibo.it)
++ **Davide Rossi**, *University of Bologna*, [email](mailto:davide.rossi@unibo.it)
++ **Luca Benini**, *University of Bologna* and *ETH Zurich*, [email](mailto:luca.benini@unibo.it)
+
 ### License
-DORY is released under Apache 2.0, see the LICENSE file in the root of this repository for details
+DORY is released under Apache 2.0, see the LICENSE file in the root of this repository for details.
