@@ -18,7 +18,7 @@
  */
 #include "mem_controller.h"
 #include "network.h"
-#include "pulp.h"
+//#include "pulp.h"
 #include "dory.h"
 % for layer in list_h:
 #include "${layer}"
@@ -38,6 +38,12 @@
 % if verbose:
 #define VERBOSE 1
 % endif
+
+unsigned int PMU_set_voltage(unsigned int Voltage, unsigned int CheckFrequencies)
+{
+  return 0;
+}
+
 // allocation of buffers with parameters needed by the network execution
 const char * L3_weights_files[] = {
   ${files_list}
@@ -376,8 +382,7 @@ void network_run_FabricController()
   struct pi_cluster_conf conf;
   struct pi_cluster_task cluster_task = {0};
   // task parameters allocation
-  cluster_task.arg = arg;
-  cluster_task.entry = (void *) pulp_parallel;
+  pi_cluster_task(&cluster_task, pulp_parallel, arg);
   cluster_task.stack_size = ${master_stack};
   cluster_task.slave_stack_size = ${slave_stack};
   // First open the cluster

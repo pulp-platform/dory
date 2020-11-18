@@ -18,7 +18,7 @@
  */
 
 #include "mchan_test.h"
-#include "pulp.h"
+//#include "pulp.h"
 unsigned int dory_get_tile_1d(
   unsigned x,
   int tile_ii,
