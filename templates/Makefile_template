@@ -28,8 +28,12 @@ else
 CORE= $(CORE)
 endif
 
-APP_CFLAGS += -DNUM_CORES=$(CORE) -IDORY_network/inc -O3 -w -g3 -fno-tree-loop-distribute-patterns -flto
-APP_LDFLAGS = -lm -lg -flto
+APP_CFLAGS += -DNUM_CORES=$(CORE) -IDORY_network/inc -O3 -w -g3 -fno-tree-loop-distribute-patterns #-flto
+APP_LDFLAGS = -lm #-flto #-lg
+
+# To load all srcs for hyperbus devices
+CONFIG_HYPERRAM = 1
+CONFIG_HYPERFLASH = 1
 
 % for i,layer in enumerate(layers_w):
 % if i==0:

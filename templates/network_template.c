@@ -18,7 +18,6 @@
  */
 #include "mem_controller.h"
 #include "network.h"
-//#include "pulp.h"
 #include "dory.h"
 % for layer in list_h:
 #include "${layer}"
