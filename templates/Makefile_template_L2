@@ -15,11 +15,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-APP = main
-APP_SRCS = DORY_network/src/${build_layers[0]}
+PULP_APP = main
+PULP_APP_FC_SRCS = DORY_network/src/${build_layers[0]}
 
 % for layer in build_layers[1:]:
-APP_SRCS+=DORY_network/src/${layer}
+PULP_APP_FC_SRCS+=DORY_network/src/${layer}
 % endfor
 
 ifndef CORE
@@ -28,34 +28,10 @@ else
 CORE= $(CORE)
 endif
 
-% if sdk == 'gap_sdk':
-APP_CFLAGS += -DNUM_CORES=$(CORE) -IDORY_network/inc -O3 -w -g3 -fno-tree-loop-distribute-patterns -flto
-APP_LDFLAGS = -lm -lg -flto
-% elif sdk == 'pulp_sdk':
-APP_CFLAGS += -DNUM_CORES=$(CORE) -IDORY_network/inc -O3 -w -g3 -fno-tree-loop-distribute-patterns
-APP_LDFLAGS = -lm
-% endif
-
-% if sdk == 'pulp_sdk':
-CONFIG_HYPERRAM = 1
-CONFIG_HYPERFLASH = 1
-% endif
-
-% for i,layer in enumerate(layers_w):
-% if i==0:
-FLASH_FILES = DORY_network/${layer}
-% else:
-FLASH_FILES += DORY_network/${layer}
-%endif
-% endfor
-FLASH_FILES += DORY_network/inputs.hex
-READFS_FILES := $(FLASH_FILES)
+PULP_CFLAGS += -DNUM_CORES=$(CORE) -IDORY_network/inc -O3 -g3  -fno-tree-loop-distribute-patterns -flto
+PULP_LDFLAGS = -lm -lg -flto
 % if platform == 'GAP8':
-PLPBRIDGE_FLAGS += -f
-% endif
-
-% if platform == 'GAP8':
-include $(RULES_DIR)/pmsis_rules.mk
+include $(GAP_SDK_HOME)/tools/rules/pulp_rules.mk
 % elif platform == 'FPGA':
 include $(PULP_SDK_HOME)/tools/rules/pulp_rt.mk
 %endif

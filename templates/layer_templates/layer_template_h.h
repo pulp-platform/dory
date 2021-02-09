@@ -18,8 +18,9 @@
  */
 
 ${verbose_log}
-
+% if sdk == 'gap_sdk':
 #include "pulp.h"
+% endif
 #include "dory.h"
 
 void  ${func_name}(

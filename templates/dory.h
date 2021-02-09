@@ -18,7 +18,9 @@
  */
 
 #include "mchan_test.h"
+% if sdk == 'gap_sdk':
 #include "pulp.h"
+% endif
 unsigned int dory_get_tile_1d(
   unsigned x,
   int tile_ii,

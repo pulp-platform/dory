@@ -4,3 +4,9 @@
 [submodule "pulp-nn"]
 	path = pulp-nn
 	url = https://github.com/pulp-platform/pulp-nn
+[submodule "pulp-nn-1d"]
+	path = pulp-nn-1d
+	url = https://github.com/pulp-platform/pulp-nn-1d
+[submodule "pulp-nn-mixed"]
+	path = pulp-nn-mixed
+	url = https://github.com/pulp-platform/pulp-nn-mixed

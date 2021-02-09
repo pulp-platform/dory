@@ -49,10 +49,6 @@ void ${func_name}(
   //////////////////////////
   unsigned int dma_evt;
   volatile int p_r, p_l, p_t, p_b;
-  int last_nof_exec;
-  int last_nif_exec;
-  int last_h_exec;
-  int last_w_exec;
 % if tile_dim_nif*tile_dim_h*tile_dim_w != 1:
   volatile  unsigned short x_tile_size_nif;
   volatile unsigned short  x_tile_size_h;
@@ -88,25 +84,25 @@ void ${func_name}(
   volatile int y_length_nof_byte;
   volatile int db_x;
   volatile int db_W;
+  volatile int db_act;
   volatile int db_y;
   volatile int exec_db_x;
   volatile int exec_db_W;
+  volatile int exec_db_act;
+  volatile pi_cl_dma_copy_t copy_k;
+  volatile pi_cl_dma_copy_t copy_lambda;
   // double buffering state
   int db_state_x=0;
-  int db_state_acc_in=0;
   int db_state_W=0;
   int db_state_y=1;
-  int db_state_acc_out=1;
   // last-tile flags
-  int last_nof_load = (${tile_dim_nof} == 1) ? 1 : 0;
-  int last_nif_load = (${tile_dim_nif} == 1) ? 1 : 0;
-  int last_h_load = (${tile_dim_h} == 1) ? 1 : 0;
-  int last_w_load = (${tile_dim_w} == 1) ? 1 : 0;
   int iter;
   // tile loop indeces
   int _i_nof_load=0, _i_nif_load=0, _i_h_load=0, _i_w_load=0;
   int _i_nof_exec=0, _i_nif_exec=0, _i_h_exec=0, _i_w_exec=0;
+% if has_bias == 1:
   int has_bias = ${has_bias};
+% endif
   volatile ${type} *im2col;
   im2col = l1_buffer + ${buffer_l1_all};
 % if flag_DW == 1:
@@ -137,18 +133,16 @@ void ${func_name}(
 % if FLAG_BATCHNORM == 1:
   if(pi_core_id()==0)
   {
-    pi_cl_dma_copy_t copy_k;
     copy_k.dir = PI_CL_DMA_DIR_EXT2LOC;
     copy_k.merge = 0;
-    copy_k.size = (uint16_t) ${k_size_byte};
+    copy_k.size = (uint16_t) ${k_tile_size_byte_transfer};
     copy_k.id = 0;
     copy_k.ext = (uint32_t) l2_W+${l2_off_k};
     copy_k.loc = (uint32_t) l1_buffer + ${l1_k_offset};
     pi_cl_dma_memcpy(&copy_k);   
-    pi_cl_dma_copy_t copy_lambda;
     copy_lambda.dir = PI_CL_DMA_DIR_EXT2LOC;
     copy_lambda.merge = 0;
-    copy_lambda.size = (uint16_t) ${lambda_size_byte};
+    copy_lambda.size = (uint16_t) ${lambda_tile_size_byte_transfer};
     copy_lambda.id = 0;
     copy_lambda.ext = (uint32_t) l2_W+${l2_off_lambda};
     copy_lambda.loc = (uint32_t) l1_buffer + ${l1_lambda_offset};
@@ -158,15 +152,24 @@ void ${func_name}(
   }
 % endif
   pi_cl_team_barrier(0);
-  % if chip == 'GAP8v3':
+% if chip == 'GAP8v3':
   //////////////////////////////////////////////////////////////
   // Allocation of one channel per each core for DMA transfer //
   //////////////////////////////////////////////////////////////
+% if dma_parallelization == '8-cores':
   dma_evt = mchan_alloc();
-  % endif
+% elif dma_parallelization == '1-core':
+  if (pi_core_id()==0)
+    dma_evt = mchan_alloc();
+% endif
+% endif
   ////////////////////////////
   // First tile transfering //
   ////////////////////////////
+% if dma_parallelization == '1-core':
+  if (pi_core_id()==0)
+  {
+% endif
   % if flag_DW == 1:
   dory_dma_memcpy_3d_custom_hwc_to_chw(
   % else:
@@ -200,15 +203,12 @@ void ${func_name}(
   % if chip == 'GAP8v3':
   mchan_barrier(dma_evt);
   % endif
+% if dma_parallelization == '1-core':
+  }
+% endif
   pi_cl_team_barrier(0);
 
-% if 'performance' in test_location:  
-  // perf measurement begin
-  pi_perf_conf(1<<PI_PERF_CYCLES);          
-  pi_perf_reset();                      
-  pi_perf_stop();                       
-  pi_perf_start();
-% endif
+
   // tile loop nest
 % if flag_DW == 0:
   for(iter=0; iter<${tile_dim_nof}*${tile_dim_nif}*${tile_dim_h}*${tile_dim_w}; iter++) {
@@ -251,23 +251,14 @@ void ${func_name}(
     }
   % endif
     // check if last in any dimension
-    last_nof_exec = last_nof_load;
-    last_nif_exec = last_nif_load;
-    last_h_exec = last_h_load;
-    last_w_exec = last_w_load;
-    last_nof_load = (_i_nof_load+1 == ${tile_dim_nof}) ? 1 : 0;
-  % if flag_DW == 0:
-    last_nif_load = (_i_nif_load+1 == ${tile_dim_nif}) ? 1 : 0;
-  % else:
-    last_nif_load = (_i_nof_load+1 == ${tile_dim_nif}) ? 1 : 0;
-  % endif
-    last_h_load = (_i_h_load+1 == ${tile_dim_h}) ? 1 : 0;
-    last_w_load = (_i_w_load+1 == ${tile_dim_w}) ? 1 : 0;
 
     // compute double buffering offsets and update db state
     db_x = !db_state_x ? ${x_tile_size_byte} : 0;
     db_W = !db_state_W ? ${W_tile_size_byte} : 0;
     db_y = !db_state_y ? ${y_tile_size_byte} : 0;
+% if FLAG_BATCHNORM == 1:
+    db_act = !db_state_W ? ${k_tile_size_byte_transfer} : 0;
+% endif
   % if tile_dim_nif*tile_dim_h*tile_dim_w != 1:
     exec_db_x = db_state_x ? ${x_tile_size_byte} : 0;
   % else:
@@ -275,11 +266,14 @@ void ${func_name}(
   % endif
     db_state_x = ! db_state_x;
     exec_db_W = db_state_W ? ${W_tile_size_byte} : 0;
+% if FLAG_BATCHNORM == 1:
+    exec_db_act = db_state_W ? ${k_tile_size_byte_transfer} : 0;
+% endif
     if (_i_nif_load!=_i_nif_exec || _i_nof_load!=_i_nof_exec)
       db_state_W = ! db_state_W;
     //switch all double buffering offset and y only after that all n_input_features have been analyzed: we need to pass all n_in to produce a single fil
   % if flag_DW == 0:
-    if(last_nif_exec) 
+    if(_i_nif_load == 0) 
       db_state_y = ! db_state_y;
   % endif
     // double buffered reads
@@ -292,11 +286,11 @@ void ${func_name}(
       asm volatile("": : :"memory");
   % endif
     % if tile_dim_nif*tile_dim_h*tile_dim_w != 1:
-      x_tile_size_nif = (last_nif_load) ? ${x_tile_size_nif_last} : ${x_tile_size_nif};
-      x_tile_size_h   = (last_h_load)   ? ${x_tile_size_h_last} : ${x_tile_size_h};
-      x_tile_size_w   = (last_w_load)   ? ${x_tile_size_w_last} : ${x_tile_size_w};
+      x_tile_size_nif = (_i_nif_load+1 == ${tile_dim_nif}) ? ${x_tile_size_nif_last} : ${x_tile_size_nif};
+      x_tile_size_h   = (_i_h_load+1 == ${tile_dim_h})   ? ${x_tile_size_h_last} : ${x_tile_size_h};
+      x_tile_size_w   = (_i_w_load+1 == ${tile_dim_w})   ? ${x_tile_size_w_last} : ${x_tile_size_w};
       x_tile_size_byte = x_tile_size_nif*x_tile_size_h*x_tile_size_w*${x_data_size_byte}/8;
-      x_length_nif_byte = (last_nif_load)   ? ${x_tile_size_nif_byte_last} : ${x_tile_size_nif_byte};
+      x_length_nif_byte = (_i_nif_load+1 == ${tile_dim_nif})   ? ${x_tile_size_nif_byte_last} : ${x_tile_size_nif_byte};
       // additionally overlap by padding for the first tile after a border one
       //this because in the first tile we use less pixels from x_buffer, since we have the ones of padding
       pad_offset_h=0, pad_offset_w=0;
@@ -305,18 +299,22 @@ void ${func_name}(
       if(_i_w_load > 0)
         pad_offset_w = ${padding_left};
     % endif
-      y_tile_size_h   = (last_h_load)   ? ${y_tile_size_h_last} : ${y_tile_size_h};
-      y_tile_size_w   = (last_w_load)   ? ${y_tile_size_w_last} : ${y_tile_size_w};
-      W_tile_size_nof = (last_nof_load) ? ${W_tile_size_nof_last} : ${W_tile_size_nof};
-      W_tile_size_nif = (last_nif_load) ? ${W_tile_size_nif_last} : ${W_tile_size_nif};
+      y_tile_size_h   = (_i_h_load+1 == ${tile_dim_h})   ? ${y_tile_size_h_last} : ${y_tile_size_h};
+      y_tile_size_w   = (_i_w_load+1 == ${tile_dim_w})   ? ${y_tile_size_w_last} : ${y_tile_size_w};
+      W_tile_size_nof = (_i_nof_load+1 == ${tile_dim_nof}) ? ${W_tile_size_nof_last} : ${W_tile_size_nof};
+      W_tile_size_nif = (_i_nif_load+1 == ${tile_dim_nif}) ? ${W_tile_size_nif_last} : ${W_tile_size_nif};
     % if flag_DW == 1:
       W_tile_size_byte = W_tile_size_nof*W_tile_size_nif*${fs1}*${fs2};
     % else:
       W_tile_size_byte = W_tile_size_nof*W_tile_size_nif*${W_data_size_byte}*${fs1}*${fs2}/8;
     % endif
-      W_length_nif_byte = (last_nif_load) ? ${W_tile_size_nif_byte_last} : ${W_tile_nif_byte};
+      W_length_nif_byte = (_i_nif_load+1 == ${tile_dim_nif}) ? ${W_tile_size_nif_byte_last} : ${W_tile_nif_byte};
     // transfer of next input tile in double buffering
     % if tile_dim_nif*tile_dim_h*tile_dim_w != 1:
+% if dma_parallelization == '1-core':
+      if (pi_core_id()==0)
+      {
+% endif
     % if flag_DW == 1:
       dory_dma_memcpy_3d_custom_hwc_to_chw(
     % else:
@@ -332,9 +330,17 @@ void ${func_name}(
       1, // dir
       &dma_evt // copy
       );
+% if dma_parallelization == '1-core':
+      }
+% endif
     % endif
       // transfer of next weight tile if changed input or output channels
       if (_i_nif_load!=_i_nif_exec || _i_nof_load!=_i_nof_exec)
+      {
+% if dma_parallelization == '1-core':
+        if (pi_core_id()==0)
+        {
+% endif
         % if flag_DW == 1:
         dory_dma_memcpy_3d_custom_blocking(
         % else:
@@ -354,6 +360,29 @@ void ${func_name}(
         1, // dir
         &dma_evt // copy
         );
+% if dma_parallelization == '1-core':
+        }
+% endif
+% if FLAG_BATCHNORM == 1:
+        if(pi_core_id()==0)
+        {
+          copy_k.dir = PI_CL_DMA_DIR_EXT2LOC;
+          copy_k.merge = 0;
+          copy_k.size = (uint16_t) W_tile_size_nof * ${int(act_dim_bit/8)};
+          copy_k.id = 0;
+          copy_k.ext = (uint32_t) l2_W+${l2_off_k} + ${k_tile_size_byte_transfer}*_i_nof_load;
+          copy_k.loc = (uint32_t) l1_buffer + ${l1_k_offset} + db_act;
+          pi_cl_dma_memcpy(&copy_k);   
+          copy_lambda.dir = PI_CL_DMA_DIR_EXT2LOC;
+          copy_lambda.merge = 0;
+          copy_lambda.size = (uint16_t) W_tile_size_nof * ${int(act_dim_bit/8)};
+          copy_lambda.id = 0;
+          copy_lambda.ext = (uint32_t) l2_W+${l2_off_lambda} + ${lambda_tile_size_byte_transfer}*_i_nof_load;
+          copy_lambda.loc = (uint32_t) l1_buffer + ${l1_lambda_offset} + db_act;
+          pi_cl_dma_memcpy(&copy_lambda);      
+        }
+% endif
+      }
     }
     // creation of the pointers to input, output, weights, lambda and k
 % if flag_DW == 1:
@@ -362,11 +391,11 @@ void ${func_name}(
     x = (${type} *) (l1_buffer + ${l1_x_offset} + exec_db_x);
 % if FLAG_BATCHNORM == 1:
 % if act_dim_bit == 32:
-    k = (int32_t *) (l1_buffer + ${l1_k_offset} + _i_nof_exec*${k_tile_size_byte});
-    lambda = (int32_t *) (l1_buffer + ${l1_lambda_offset} + _i_nof_exec*${lambda_tile_size_byte});
+    k = (int32_t *) (l1_buffer + ${l1_k_offset} + exec_db_act);
+    lambda = (int32_t *) (l1_buffer + ${l1_lambda_offset} + exec_db_act);
 % else:
-    k = (int64_t *) (l1_buffer + ${l1_k_offset} + _i_nof_exec*${k_tile_size_byte});
-    lambda = (int64_t *) (l1_buffer + ${l1_lambda_offset} + _i_nof_exec*${lambda_tile_size_byte});
+    k = (int64_t *) (l1_buffer + ${l1_k_offset} + exec_db_act);
+    lambda = (int64_t *) (l1_buffer + ${l1_lambda_offset} + exec_db_act);
 % endif
 % endif
 % if has_bias == 1:
@@ -375,14 +404,14 @@ void ${func_name}(
     W = (${type} *) (l1_buffer + ${l1_W_offset} + exec_db_W);
     y = (${type} *) (l1_buffer + ${l1_y_offset} + db_y);
     // parameter passed to the kernel. Input and output sizes
-    x_tile_size_nif_exec = (last_nif_exec) ? ${x_tile_size_nif_last} : ${x_tile_size_nif};
-    x_tile_size_h_exec   = (last_h_exec)   ? ${x_tile_size_h_last} : ${x_tile_size_h};
-    x_tile_size_w_exec   = (last_w_exec)   ? ${x_tile_size_w_last} : ${x_tile_size_w};
-    y_tile_size_nof = (last_nof_exec) ? ${y_tile_size_nof_last} : ${y_tile_size_nof};
-    y_tile_size_h   = (last_h_exec)   ? ${y_tile_size_h_last} : ${y_tile_size_h};
-    y_tile_size_w   = (last_w_exec)   ? ${y_tile_size_w_last} : ${y_tile_size_w};
+    x_tile_size_nif_exec = (_i_nif_exec+1 == ${tile_dim_nif}) ? ${x_tile_size_nif_last} : ${x_tile_size_nif};
+    x_tile_size_h_exec   = (_i_h_exec+1 == ${tile_dim_h})   ? ${x_tile_size_h_last} : ${x_tile_size_h};
+    x_tile_size_w_exec   = (_i_w_exec+1 == ${tile_dim_w})   ? ${x_tile_size_w_last} : ${x_tile_size_w};
+    y_tile_size_nof = (_i_nof_exec+1 == ${tile_dim_nof}) ? ${y_tile_size_nof_last} : ${y_tile_size_nof};
+    y_tile_size_h   = (_i_h_exec+1 == ${tile_dim_h})   ? ${y_tile_size_h_last} : ${y_tile_size_h};
+    y_tile_size_w   = (_i_w_exec+1 == ${tile_dim_w})   ? ${y_tile_size_w_last} : ${y_tile_size_w};
     y_tile_size_byte = y_tile_size_nof*y_tile_size_h*y_tile_size_w*${y_data_size_byte}/8;
-    y_length_nof_byte = (last_nof_exec)   ? ${y_length_nof_byte_last} : ${y_tile_size_nof_byte};
+    y_length_nof_byte = (_i_nof_exec+1 == ${tile_dim_nof})   ? ${y_length_nof_byte_last} : ${y_tile_size_nof_byte};
     p_r = 0;
     p_l = 0;
     p_t = 0;
@@ -403,11 +432,11 @@ void ${func_name}(
   % if flag_DW==1:
     asm volatile("": : :"memory");
   % endif
-  % if flag_DW == 0:
-  % if optional_type == '8bit':
-  % if 'Relu0' in func_name:
+% if flag_DW == 0:
+  % if optional_type == '8bit' or optional_type == '1D_Conv':
+    % if 'Relu0' in func_name:
     pulp_nn_conv(
-  % elif '_last' in func_name and ('Gemm' in func_name or 'MatMul' in func_name):
+    % elif '_last' in func_name and ('Gemm' in func_name or 'MatMul' in func_name):
     pulp_nn_linear_out_32( 
     x,
     W,
@@ -416,47 +445,70 @@ void ${func_name}(
     0, 0, 1, 1, 0, 0,
     y,
     0, 0, &dma_evt );
-  % elif 'Gemm' in func_name or 'MatMul' in func_name:
+    % elif 'Gemm' in func_name or 'MatMul' in func_name:
     pulp_nn_linear( 
     x,
     W,
     x_tile_size_nif_exec,
     y_tile_size_nof,
     0, 0, 
-% if FLAG_RELU == 1:
+      % if FLAG_RELU == 1:
     out_shift,
     out_mult,
-% else:
+      % else:
     0,
     0,
-% endif
-% if FLAG_BATCHNORM == 1:
+      % endif
+      % if FLAG_BATCHNORM == 1:
     k,
     lambda,
-% else:
+      % else:
     0,
     0,
-% endif
+      % endif
     y,
     ${FLAG_RELU}, ${FLAG_BATCHNORM}, &dma_evt );  
-  % elif fs1*fs2>1 or 'Gemm' in func_name or stride>1:
+    % elif fs1*fs2>1 or 'Gemm' in func_name or stride>1:
     pulp_nn_conv(
-  % elif y_tile_size_h > 7 and y_tile_size_h_last > 7:
+    % elif y_tile_size_h > 7 and y_tile_size_h_last > 7:
     pulp_nn_conv_pointwise(
-  % else:
+    % else:
     pulp_nn_conv_pointwise_small_spatial_dim(
-  % endif
-  % elif optional_type == 'mixed':
+    % endif
+  % elif optional_type == 'mixed' and ('Conv' in func_name):
     pulp_nn_conv_u${x_data_size_byte}_u${y_data_size_byte}_i${W_data_size_byte}(
+  % elif optional_type == 'mixed' and ('Gemm' in func_name or 'MatMul' in func_name):
+    pulp_nn_linear_u${x_data_size_byte}_i${y_data_size_byte}_i${W_data_size_byte}( 
+      x,
+      W,
+      x_tile_size_nif_exec,
+      y_tile_size_nof,
+      0, 0, 
+      % if FLAG_RELU == 1:
+      out_shift,
+      out_mult,
+      % else:
+      0,
+      0,
+      % endif
+      % if FLAG_BATCHNORM == 1:
+      k,
+      lambda,
+      % else:
+      0,
+      0,
+      % endif
+      y,
+      ${FLAG_RELU}, ${FLAG_BATCHNORM}, &dma_evt );  
   % endif
-  % else:
+% else:
   % if optional_type == '8bit':
     pulp_nn_conv_depthwise(
   % elif optional_type == 'mixed':
     pulp_nn_dw_u${x_data_size_byte}_u${y_data_size_byte}_i${W_data_size_byte}(
   % endif
-  % endif
-  % if 'Gemm' not in func_name and 'MatMul' not in func_name:
+% endif
+% if 'Gemm' not in func_name and 'MatMul' not in func_name:
     x,
     x_tile_size_w_exec,
     x_tile_size_h_exec,
@@ -471,52 +523,79 @@ void ${func_name}(
     p_r,
     ${stride},
     ${stride},
-% if has_bias:
+  % if has_bias:
     b,
-% else:
+  % else:
     NULL,
-% endif
+  % endif
     ${has_bias},
-% if FLAG_RELU == 1:
+  % if FLAG_RELU == 1:
     out_shift,
     out_mult,
-% else:
+  % else:
     0,
     0,
-% endif
+  % endif
     y,
     y_tile_size_w,
     y_tile_size_h,
-% if FLAG_BATCHNORM == 1:
+  % if FLAG_BATCHNORM == 1:
     k,
     lambda,
-% else:
+  % else:
     0,
     0,
-% endif
+  % endif
     im2col,
-% if flag_DW == 1:
+  % if flag_DW == 1:
     pwt_buffer,
-% endif
+  % endif
     ${FLAG_RELU},
     ${FLAG_BATCHNORM},
     &dma_evt
     );
 % endif
     pi_cl_team_barrier(0);
-  % if tile_dim_nif != 1 and flag_DW == 0:
-    if(last_nif_exec) 
+% if tile_dim_nif != 1 and flag_DW == 0:
+    if(_i_nif_load == 0) 
     {
-  % endif
+% endif
       // wait for DMA write/read
-      % if chip == 'GAP8v3':
+% if chip == 'GAP8v3':
+% if dma_parallelization == '1-core':
+      if (pi_core_id()==0)
+      {
+% endif
       mchan_barrier(dma_evt);
-      % endif
-        % if flag_DW == 1:
+% if dma_parallelization == '1-core':
+      }
+% endif
+% endif   
+
+% if FLAG_BATCHNORM == 1:    
+% if flag_DW == 0:
+    if(iter<${tile_dim_nof}*${tile_dim_nif}*${tile_dim_h}*${tile_dim_w}-1) 
+    {
+% else:
+    if(iter<${tile_dim_nof}*${tile_dim_h}*${tile_dim_w}-1) 
+    {  
+% endif 
+      if(pi_core_id()==0 && (_i_nif_load!=_i_nif_exec || _i_nof_load!=_i_nof_exec))
+      {                                       
+        pi_cl_dma_wait(&copy_k);                                                    
+        pi_cl_dma_wait(&copy_lambda);
+      }
+    }
+% endif       
+% if dma_parallelization == '1-core':
+        if (pi_core_id()==0)
+        {
+% endif                        
+% if flag_DW == 1:
         dory_dma_memcpy_3d_custom_blocking(
-        % else:
+% else:
         dory_dma_memcpy_3d_custom_out(
-        % endif
+% endif
         dory_get_tile_3d(l2_y, _i_h_exec, _i_w_exec, _i_nof_exec, ${y_tile_size_h}, ${y_tile_size_w}, ${y_tile_size_nof}, ${y_w}, ${int(nof*factor)}, 0, 0, 0, 0, 0, 0, ${y_data_size_byte}), // ext
         (l1_buffer + ${l1_y_offset}) + db_y, // loc
         y_tile_size_byte, // size
@@ -526,7 +605,10 @@ void ${func_name}(
         y_length_nof_byte, // length_0
         0, // dir
         &dma_evt // copy
-      );
+        );
+% if dma_parallelization == '1-core':
+        }
+% endif
 % if tile_dim_nif != 1 and flag_DW == 0:
     }
 % endif
@@ -537,32 +619,19 @@ void ${func_name}(
     _i_w_exec = _i_w_load;
     pi_cl_team_barrier(0);
   }
+
 % if not TEST:
   // wait for final write
   % if chip == 'GAP8v3':
+% if dma_parallelization == '1-core':
+  if (pi_core_id()==0)
+  {
+% endif
   mchan_barrier(dma_evt);
   mchan_free(dma_evt);
-  % endif
-% endif
-% if 'performance' in test_location:
-  // performance measurements: end
-  pi_perf_stop();          
-  int cid = pi_core_id();   
-  int perf_cyc =  pi_perf_read(PI_PERF_CYCLES); 
-% if flag_DW == 1:
-  int MACs = ${nof*y_h*y_w*fs1*fs2};  
-% else:
-  int MACs = ${nof*nif*y_h*y_w*fs1*fs2}; 
-% endif
-  float perf_MAC =  (float)MACs/perf_cyc;
-  if (cid == 0)
-  {
-    printf("[%d] : num_cycles: %d\n",cid,perf_cyc); 
-    printf("[%d] : MACs: %d\n",cid,MACs ); 
-    printf("[%d] : MAC/cycle: %f\n",cid,perf_MAC ); 
-    printf("[%d] : n. of Cores: %d\n",cid,NUM_CORES); 
+% if dma_parallelization == '1-core':
   }
 % endif
-
-
+  % endif
+% endif
 }

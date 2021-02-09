@@ -186,10 +186,15 @@ void __attribute__ ((noinline)) dory_dma_memcpy_3d_custom_weights(
   unsigned short length_0,
   unsigned int dir,
   unsigned int *id
-) {
+) 
+{
   // parallelization
   if (pi_core_id()==0)
-       mchan_transfer(size, dir, 1, 0, 1, 0, 0, (unsigned int)(ext), (unsigned int)(loc), 0, 0);
+#if (MCHAN_VERSION < 7)
+    mchan_transfer(size, dir, 1, 0, 1, 0, 0, (unsigned int)(ext), (unsigned int)(loc), 0, 0);
+#elif (MCHAN_VERSION == 7)
+    mchan_transfer(size, dir, 1, 0, 0, 1, 0, 0, (unsigned int)(ext), (unsigned int)(loc), 0, 0, 0, 0);
+#endif
 }
 
 void __attribute__ ((noinline)) dory_dma_memcpy_3d_custom_out(
@@ -202,29 +207,39 @@ void __attribute__ ((noinline)) dory_dma_memcpy_3d_custom_out(
   unsigned short length_0,
   unsigned int dir,
   unsigned int *id
-) {
+) 
+{
   // parallelization
   int core_id = pi_core_id();
   int Log2Core = log2(NUM_CORES);
+% if dma_parallelization == '8-cores':
   int chunk = (length_2 >> Log2Core) + ((length_2 & (NUM_CORES-1))!=0);
-   unsigned short length_1 = size / (length_2*length_0);
+% elif dma_parallelization == '1-core':
+  int chunk = length_2;
+% endif
+  unsigned short length_1 = size / (length_2*length_0);
   int start_pixel, stop_pixel;
   start_pixel = MIN(chunk * core_id, length_2);
   stop_pixel = MIN(start_pixel+chunk, length_2);
-   int offs_remote = stride_1*start_pixel;
-   int offs_local = length_0*length_1*start_pixel;
-   for ( int i=start_pixel; i<stop_pixel; i++) {
-     for ( int j=0; j<length_1; j++) {
-       mchan_transfer(length_0, dir, 1, 0, 1, 0, 0, (unsigned int)(ext + offs_remote), (unsigned int)(loc + offs_local), 0, 0);
-       offs_local  += length_0;
-       offs_remote += stride_0;
-     }
-     offs_remote = offs_remote - stride_0*length_1 + stride_1;
-   }
+  int offs_remote = stride_1*start_pixel;
+  int offs_local = length_0*length_1*start_pixel;
+  for ( int i=start_pixel; i<stop_pixel; i++) 
+  {
+    for ( int j=0; j<length_1; j++) 
+    {
+#if (MCHAN_VERSION < 7)
+      mchan_transfer(length_0, dir, 1, 0, 1, 0, 0, (unsigned int)(ext + offs_remote), (unsigned int)(loc + offs_local), 0, 0);
+#elif (MCHAN_VERSION == 7)
+      mchan_transfer(length_0, dir, 1, 0, 0, 1, 0, 0, (unsigned int)(ext + offs_remote), (unsigned int)(loc + offs_local), 0, 0, 0, 0);
+#endif
+      offs_local  += length_0;
+      offs_remote += stride_0;
+    }
+    offs_remote = offs_remote - stride_0*length_1 + stride_1;
+  }
 }
 
 // copies are managed by 8 cores parallely. By now, 3d copies are a serie of 1d copy. In future, will be a serie of 2d copies.
-% if platform == 'GAP8':
 void __attribute__ ((noinline)) dory_dma_memcpy_3d_custom(
   unsigned int ext,
   unsigned int loc,
@@ -235,59 +250,41 @@ void __attribute__ ((noinline)) dory_dma_memcpy_3d_custom(
   unsigned short length_0,
   unsigned int dir,
   unsigned int *id
-) {
+) 
+{
   // parallelization
   int core_id = pi_core_id();
   int Log2Core = log2(NUM_CORES);
+% if dma_parallelization == '8-cores':
   int chunk = (length_2 >> Log2Core) + ((length_2 & (NUM_CORES-1))!=0);
-   unsigned short length_1 = size / (length_2*length_0);
+% elif dma_parallelization == '1-core':
+  int chunk = length_2;
+% endif
+  unsigned short length_1 = size / (length_2*length_0);
   int start_pixel, stop_pixel;
   start_pixel = MIN(chunk * core_id, length_2);
   stop_pixel = MIN(start_pixel+chunk, length_2);
-   int offs_remote = stride_1*start_pixel;
-   int offs_local = length_0*length_1*start_pixel;
-   for ( int i=start_pixel; i<stop_pixel; i++) {
-      % if chip == 'GAP8v2':
-       // alloc channels with barrier after if we consider v2 chips, with DMA issue 
-       int dma_evt = mchan_alloc();
-      % endif
-       mchan_transfer(length_0*length_1, dir, 1, 0, 1, 0, 0, (unsigned int)(ext + offs_remote), (unsigned int)(loc + offs_local), 0, 0);
-      % if chip == 'GAP8v2':
-       mchan_barrier(dma_evt);
-       mchan_free(dma_evt);
-      % endif
-       offs_local  += length_0*length_1;
-     offs_remote = offs_remote + stride_1;
-   }
-}
-% elif platform == 'FPGA':
-void __attribute__ ((noinline)) dory_dma_memcpy_3d_custom(
-  unsigned int ext,
-  unsigned int loc,
-  unsigned short size,
-  unsigned short stride_1,
-  unsigned short stride_0,
-  unsigned short length_2,
-  unsigned short length_0,
-  unsigned int dir,
-  unsigned int *id
-) {
-   unsigned short length_1 = size / (length_2*length_0);
-   int offs_remote = 0;
-   int offs_local = 0;
-
-   *id = mchan_alloc();
-   //funziona per i char solo
-   for ( int i=0; i<length_2; i++) {
-     for ( int j=0; j<length_1; j++) {
-       mchan_transfer(length_0, dir, 1, 0, 0, 1, 0, 0, (unsigned int)(ext + offs_remote), (unsigned int)(loc + offs_local), 0, 0, 0, 0);
-       offs_local  += length_0;
-       offs_remote += stride_0;
-     }
-     offs_remote = offs_remote - stride_0*length_1 + stride_1;
-   }
-}
+  int offs_remote = stride_1*start_pixel;
+  int offs_local = length_0*length_1*start_pixel;
+  for ( int i=start_pixel; i<stop_pixel; i++) 
+  {
+% if chip == 'GAP8v2':
+    // alloc channels with barrier after if we consider v2 chips, with DMA issue 
+    int dma_evt = mchan_alloc();
 % endif
+#if (MCHAN_VERSION < 7)
+    mchan_transfer(length_0*length_1, dir, 1, 0, 1, 0, 0, (unsigned int)(ext + offs_remote), (unsigned int)(loc + offs_local), 0, 0);
+#elif (MCHAN_VERSION == 7)
+    mchan_transfer(length_0*length_1, dir, 1, 0, 0, 1, 0, 0, (unsigned int)(ext + offs_remote), (unsigned int)(loc + offs_local), 0, 0, 0, 0);
+#endif
+% if chip == 'GAP8v2':
+    mchan_barrier(dma_evt);
+    mchan_free(dma_evt);
+% endif
+    offs_local  += length_0*length_1;
+    offs_remote = offs_remote + stride_1;
+  }
+}
 
 void __attribute__ ((noinline)) dory_dma_memcpy_3d_custom_blocking(
   unsigned int ext,
@@ -299,11 +296,16 @@ void __attribute__ ((noinline)) dory_dma_memcpy_3d_custom_blocking(
   unsigned short length_0,
   unsigned int dir,
   unsigned int *id
-) {
+) 
+{
   // parallelization
   int core_id = pi_core_id();
   int Log2Core = log2(NUM_CORES);
+% if dma_parallelization == '8-cores':
   int chunk = (length_2 >> Log2Core) + ((length_2 & (NUM_CORES-1))!=0);
+% elif dma_parallelization == '1-core':
+  int chunk = length_2;
+% endif
   unsigned short length_1 = size / (length_2*length_0);
   int start_pixel, stop_pixel;
   start_pixel = MIN(chunk * core_id, length_2);
@@ -311,10 +313,16 @@ void __attribute__ ((noinline)) dory_dma_memcpy_3d_custom_blocking(
   int offs_remote = stride_1*start_pixel;
   int offs_local = length_0*length_1*start_pixel;
   int dma_evt = mchan_alloc();
-  for ( int i=start_pixel; i<stop_pixel; i++) {
-    for ( int j=0; j<length_1; j++) {
+  for ( int i=start_pixel; i<stop_pixel; i++) 
+  {
+    for ( int j=0; j<length_1; j++) 
+    {
       // alloc channels with barrier after if we consider v2 chips, with DMA issue 
+#if (MCHAN_VERSION < 7)
       mchan_transfer(length_0, dir, 1, 0, 1, 0, 0, (unsigned int)(ext + offs_remote), (unsigned int)(loc + offs_local), 0, 0);
+#elif (MCHAN_VERSION == 7)
+      mchan_transfer(length_0, dir, 1, 0, 0, 1, 0, 0, (unsigned int)(ext + offs_remote), (unsigned int)(loc + offs_local), 0, 0, 0, 0);
+#endif
       offs_local  += length_0;
       offs_remote += stride_0;
     }
@@ -325,7 +333,6 @@ void __attribute__ ((noinline)) dory_dma_memcpy_3d_custom_blocking(
 }
 
 // using DMA to move from a chw to an hwc layout. We use copies of 1 single bit at the time.
-% if platform == 'GAP8':
 void __attribute__ ((noinline)) dory_dma_memcpy_3d_custom_hwc_to_chw(
   unsigned int ext,
   unsigned int loc,
@@ -339,7 +346,11 @@ void __attribute__ ((noinline)) dory_dma_memcpy_3d_custom_hwc_to_chw(
 ) {
   int core_id = pi_core_id();
   int Log2Core = log2(NUM_CORES);
+% if dma_parallelization == '8-cores':
   int chunk = (length_0 >> Log2Core) + ((length_0 & (NUM_CORES-1))!=0);
+% elif dma_parallelization == '1-core':
+  int chunk = length_0;
+% endif
   unsigned short length_1 = size / (length_2*length_0);
   int start_pixel, stop_pixel;
   start_pixel = MIN(chunk * core_id, length_0);
@@ -349,36 +360,14 @@ void __attribute__ ((noinline)) dory_dma_memcpy_3d_custom_hwc_to_chw(
   int dma_evt = mchan_alloc();
   for ( int i=start_pixel; i<stop_pixel; i++) 
   {
+#if (MCHAN_VERSION < 7)
     mchan_transfer(length_1*length_2, dir, 1, 1, 1, 0, 0, (unsigned int)(ext + offs_remote), (unsigned int)(loc + offs_local), 1, stride_0);
+#elif (MCHAN_VERSION == 7)
+    mchan_transfer(length_1*length_2, dir, 1, 1, 0, 1, 0, 0, (unsigned int)(ext + offs_remote), (unsigned int)(loc + offs_local), 1, stride_0, 0, 0);
+#endif
     mchan_barrier(dma_evt);
     offs_local  += length_1*length_2;
     offs_remote = offs_remote + 1;
   }
   mchan_free(dma_evt);
 }
-% elif platform == 'FPGA':
-void __attribute__ ((noinline)) dory_dma_memcpy_3d_custom_hwc_to_chw(
-  unsigned int ext,
-  unsigned int loc,
-  unsigned short size,
-  unsigned short stride_1,
-  unsigned short stride_0,
-  unsigned short length_2,
-  unsigned short length_0,
-  unsigned int dir,
-  unsigned int *id
-) {
-   unsigned short length_1 = size / (length_2*length_0);
-   int offs_remote = 0;
-   int offs_local = 0;
-   *id = mchan_alloc();
-   for ( int i=0; i<length_0; i++) {
-    for ( int j=0; j<length_2; j++) {
-      mchan_transfer(length_1, dir, 1, 1, 0, 1, 0, 0, (unsigned int)(ext + offs_remote), (unsigned int)(loc + offs_local), 1, stride_0, 0, 0);
-      offs_local  += length_1;
-    offs_remote = offs_remote + stride_1;
-    }
-    offs_remote = offs_remote + 1 - stride_1*length_2;
-   }
-}
-% endif

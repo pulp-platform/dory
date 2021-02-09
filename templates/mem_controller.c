@@ -18,7 +18,7 @@
  */
 
 #include "mem_controller.h"
-// #define VERBOSE
+//#define VERBOSE
 
 /* allocation and de-allocation functions for manually manage L2 and L1 memory.
    The allocation in L2 is made in a bidirectional way inside an allocator.

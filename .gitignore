@@ -1,5 +1,6 @@
 # ignore all logs
 *.log
+logs
 __pycache__
 application/BUILD
 application

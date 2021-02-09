@@ -16,9 +16,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import torch
 import numpy as np
-from tiling import Tiling
-import template as template
+from dory.tiling import Tiling
+import dory.template as template
 import os
 import pandas as pd
 from mako.template import Template
@@ -34,39 +35,60 @@ class Model_deployment():
         self.platform = platform
         self.chip = chip
 
-    def copy_files(self, optional, layer_mixed_list,version):
+    def copy_files(self, optional, layer_mixed_list,version, sdk, dma_parallelization):
         ## copy backend and necessary files in the application folder
         os.system('rm -rf application')
         os.system('mkdir application')
         os.system('mkdir application/DORY_network')
         os.system('mkdir application/DORY_network/inc')
         os.system('mkdir application/DORY_network/src')
-        os.system('cp ../templates/dory.h ./application/DORY_network/inc/')
-        os.system('cp ../templates/mem_controller.c  ./application/DORY_network/src/')
-        os.system('cp ../templates/mem_controller.h  ./application/DORY_network/inc/')
         tk = OrderedDict([])
-        tk['platform'] = self.platform
-        root = '/'.join(os.getcwd().split('/')[:-1])
-        tmpl = Template(filename=root + "/templates/mchan_test.h")
+        tk['sdk'] = sdk
+        tmpl = Template(filename="dory/templates/dory.h")
+        s = tmpl.render(**tk)
+        save_string = './application/DORY_network/inc/dory.h'
+        with open(save_string, "w") as f:
+            f.write(s)
+        os.system('cp ./dory/templates/mem_controller.c  ./application/DORY_network/src/')
+        os.system('cp ./dory/templates/mem_controller.h  ./application/DORY_network/inc/')
+        tk = OrderedDict([])
+        tk['sdk'] = sdk
+        tmpl = Template(filename="dory/templates/mchan_test.h")
         s = tmpl.render(**tk)
         save_string = './application/DORY_network/inc/mchan_test.h'
         with open(save_string, "w") as f:
             f.write(s)
         tk = OrderedDict([])
-        tk['platform'] = self.platform
         tk['chip'] = self.chip
-        root = '/'.join(os.getcwd().split('/')[:-1])
-        tmpl = Template(filename= root + "/templates/dory.c")
+        tk['dma_parallelization'] = dma_parallelization
+        tmpl = Template(filename="dory/templates/dory.c")
         s = tmpl.render(**tk)
         save_string = './application/DORY_network/src/dory.c'
         with open(save_string, "w") as f:
             f.write(s)
-        os.system('cp ../templates/test_template.c ./application/DORY_network/src/')
-        os.system('cp ../templates/network.h ./application/DORY_network/inc/')
-        os.system('cp ../pulp-nn/8bit/' + version +'/include/*  ./application/DORY_network/inc/')
-        os.system('cp ../pulp-nn/8bit/' + version +'/src/* ./application/DORY_network/src/')
+        os.system('cp ./dory/templates/test_template.c ./application/DORY_network/src/')
+        os.system('cp ./dory/templates/network.h ./application/DORY_network/inc/')
+        tk = OrderedDict([])
+        tk['sdk'] = sdk
+        tmpl = Template(filename="dory/pulp-nn-q/" + version +"/pulp_nn_utils.h")
+        s = tmpl.render(**tk)
+        save_string = './application/DORY_network/inc/pulp_nn_utils.h'
+        with open(save_string, "w") as f:
+            f.write(s)
+        os.system('cp ./dory/pulp-nn-q/' + version +'/pulp_nn_utils.c ./application/DORY_network/src/')
+        if optional == "1D_Conv":
+            os.system('cp ./dory/pulp-nn-q/' + version +'/1D_Conv/include/*  ./application/DORY_network/inc/')
+            os.system('cp ./dory/pulp-nn-q/' + version +'/1D_Conv/src/* ./application/DORY_network/src/')
+        elif optional == "8bit":
+            os.system('cp ./dory/pulp-nn-q/' + version +'/8bit/include/*  ./application/DORY_network/inc/')
+            os.system('cp ./dory/pulp-nn-q/' + version +'/8bit/src/* ./application/DORY_network/src/')
+        elif optional == "mixed":
+            os.system(
+                'cp ./dory/pulp-nn-q/' + version +'/mixed/include/*  ./application/DORY_network/inc/')
+            for layer in layer_mixed_list:
+                os.system('cp ./dory/pulp-nn-q/' + version +'/mixed/src/' + layer + ' ./application/DORY_network/src/')
 
-    def copy_backend(self, optional, BitIn, BitW, BitOut, BitActivation):
+    def copy_backend(self, optional, BitIn, BitW, BitOut, BitActivation, PULP_Nodes_Graph, number_of_deployed_layers, precision_dict, sdk, dma_parallelization):
         layer_mixed_list = []
         ####################################################################################
         ###### SECTION 1: BACKEND FILE SELECTING. SELECTING CORRECT KERNELS TO IMPORT ######
@@ -75,20 +97,22 @@ class Model_deployment():
             for i, nodes_to_deploy in enumerate(PULP_Nodes_Graph[:number_of_deployed_layers]):
                 BitIn = BitOut
                 if nodes_to_deploy.outshift != 'empty':
-                    BitOut = 32 - int(nodes_to_deploy.outshift)
+                    BitOut = precision_dict[i]
                 BitW = 8
-                if BitOut != 2 and BitOut!= 4 and BitOut!= 8:
-                    BitOut = 8
                 if nodes_to_deploy.groups > 1:
                     layer_mixed_list.append(f'pulp_nn_dw_u{BitIn}_u{BitOut}_i{BitW}.c')
                 else:
                     layer_mixed_list.append(f'pulp_nn_conv_u{BitIn}_u{BitOut}_i{BitW}.c')
                 layer_mixed_list.append(f'pulp_nn_matmul_u{BitOut}_i{BitW}.c')
+                if i == len(PULP_Nodes_Graph[:number_of_deployed_layers]) - 1:
+                    BitOut = 32
+                if 'Gemm' in nodes_to_deploy.name or 'MatMul' in nodes_to_deploy.name:
+                    layer_mixed_list.append(f'pulp_nn_linear_u{BitIn}_i{BitOut}_i{BitW}.c')
             layer_mixed_list.append('pulp_nn_add_u8_u8.c')
             layer_mixed_list.append('pulp_nn_avgpool_u8.c')
             layer_mixed_list.append('pulp_nn_maxpool_u8.c')
         version = str(BitActivation) + 'bit'
-        self.copy_files(optional, layer_mixed_list, version)
+        self.copy_files(optional, layer_mixed_list, version, sdk, dma_parallelization)
 
     def create_weights_files(self, PULP_Nodes_Graph, number_of_deployed_layers, BitActivation):
         ####################################################################################
@@ -131,6 +155,10 @@ class Model_deployment():
                 weights = np.concatenate((weights, nodes_to_deploy.k))
             if str(nodes_to_deploy.lambd) != 'empty':
                 lambd = np.float64(nodes_to_deploy.lambd.flatten()) * out_mult
+                try:
+                    lambd.shape[0]
+                except:
+                    lambd = np.asarray([np.float64(nodes_to_deploy.lambd.flatten()) * out_mult])
                 lambd_byte = []
                 for i_l, _ in enumerate(nodes_to_deploy.lambd.flatten()):
                     if BitActivation == 64:
@@ -163,6 +191,7 @@ class Model_deployment():
                 string_layer = nodes_to_deploy.name + str(i) + "_weights.hex"
                 file_list_w.append(string_layer)
                 save_s = './application/DORY_network/' + string_layer
+                print(weights)
                 with open(save_s, 'wb') as f:
                     for l in weights.astype('uint8').flatten():
                         f.write(bytes((l,)))
@@ -177,7 +206,10 @@ class Model_deployment():
                             performance_single_layer, 
                             BitIn,
                             BitW,
-                            BitOut):
+                            BitOut,
+                            precision_dict,
+                            sdk,
+                            dma_parallelization):
         ####################################################################################
         ###### SECTION 3: PARSING OF EACH LAYER INDEPENDENT. TILING + LAYER CREATION  ######
         ####################################################################################
@@ -192,36 +224,38 @@ class Model_deployment():
         Layers_L3_output_act = 0
         Layers_L3_weights = 0
         L2_memory_occupation = 0
+        factor_h_out = 1
         for i, nodes_to_deploy in enumerate(PULP_Nodes_Graph[:number_of_deployed_layers]):
-            if 'Conv' in nodes_to_deploy.name or 'Gemm' in nodes_to_deploy.name or 'MatMul' in nodes_to_deploy.name:
+            if('Conv1D' in nodes_to_deploy.name):
+                layer = 'Conv1D'
+            elif('Conv' in nodes_to_deploy.name or 'Gemm' in nodes_to_deploy.name or 'MatMul' in nodes_to_deploy.name):
                 layer = 'Conv'
-            if 'Pool' in nodes_to_deploy.name:
+            elif('Pool' in nodes_to_deploy.name):
                 layer = 'Pool'
-            if 'Add' in nodes_to_deploy.name:
+            elif('Add' in nodes_to_deploy.name):
                 layer = 'Add'
 
             name_layer = "layer" + nodes_to_deploy.name + str(i)
             ######################## NEED A  FIX ####################################################
             #### OTHERWISE ONLY WEIGHT < L2/2 GO in L2 --> much more L3 tiling not needed############
             #########################################################################################
+            tile_factor = 2
             if (i < len(PULP_Nodes_Graph)-1) and ('Conv' in PULP_Nodes_Graph[i+1].name or 'Gemm' in PULP_Nodes_Graph[i+1].name or 'MatMul' in PULP_Nodes_Graph[i+1].name):
-                if PULP_Nodes_Graph[i+1].input_channels*PULP_Nodes_Graph[i+1].output_channels*PULP_Nodes_Graph[i+1].filter_size_h*PULP_Nodes_Graph[i+1].filter_size_w > int(l2_buffer_size/2):
-                    weight_overhead = int(l2_buffer_size/2)
+                if PULP_Nodes_Graph[i+1].input_channels*PULP_Nodes_Graph[i+1].output_channels*PULP_Nodes_Graph[i+1].filter_size_h*PULP_Nodes_Graph[i+1].filter_size_w > int(l2_buffer_size/tile_factor):
+                    weight_overhead = int(l2_buffer_size/tile_factor)
                 else:
                     weight_overhead = PULP_Nodes_Graph[i+1].input_channels*PULP_Nodes_Graph[i+1].output_channels*PULP_Nodes_Graph[i+1].filter_size_h*PULP_Nodes_Graph[i+1].filter_size_w +int(PULP_Nodes_Graph[i+1].output_channels*BitActivation/8*2)
             else:
                 weight_overhead = 0
-            if optional != '8bit':
+            if(optional != '8bit' and optional != '1D_Conv'):
                 BitIn = BitOut
                 if nodes_to_deploy.outshift != 'empty':
-                    BitOut = 32 - int(nodes_to_deploy.outshift)
+                    BitOut = precision_dict[i]
                 BitW = 8
-                if BitOut != 2 and BitOut!= 4 and BitOut!= 8:
-                    BitOut = 8
             if i == len(PULP_Nodes_Graph)-1:
                 name_layer = name_layer + '_last'
                 BitOut = 32
-            if performance_single_layer == 'Yes':
+            if(performance_single_layer == 'Yes'):
                 test_location = 'L3+performance'
             else:
                 test_location = 'L3'
@@ -242,12 +276,21 @@ class Model_deployment():
                               BitW=BitW,
                               BitOut=BitOut,
                               BitActivation = BitActivation,
-                              optional_type=optional)
-            str_l = 'ch_in' + str(nodes_to_deploy.input_channels) + 'ch_out' + str(nodes_to_deploy.output_channels) + 'groups' + str(
-                nodes_to_deploy.groups) + 'dim_image' + str(nodes_to_deploy.input_h,) + 'stride' + str(nodes_to_deploy.stride)
+                              optional_type=optional,
+                              sdk = sdk,
+                              dma_parallelization = dma_parallelization)
+            if(nodes_to_deploy.conv_1d == 0):
+                str_l = 'ch_in' + str(nodes_to_deploy.input_channels) + 'ch_out' + str(nodes_to_deploy.output_channels) + 'groups' + str(
+                    nodes_to_deploy.groups) + 'dim_image' + str(nodes_to_deploy.input_h,) + 'stride' + str(nodes_to_deploy.stride) + 'kernel'+ str(
+                    nodes_to_deploy.filter_size_h) + 'kernel' + str(nodes_to_deploy.filter_size_w) + 'BitIn' + str(BitIn) + 'BitOut' + str(BitOut) + 'BitW' + str(BitW)
+            else:
+                str_l = 'ch_in' + str(nodes_to_deploy.input_channels) + 'ch_out' + str(nodes_to_deploy.output_channels) + 'groups' + str(
+                    nodes_to_deploy.groups) + 'dim_image' + str(nodes_to_deploy.input_w,) + 'stride' + str(nodes_to_deploy.stride) + 'kernel'+ str(
+                    nodes_to_deploy.filter_size_h) + 'kernel' + str(nodes_to_deploy.filter_size_w) + 'BitIn' + str(BitIn) + 'BitOut' + str(BitOut) + 'BitW' + str(
+                        BitW) + 'Dilation' + str(nodes_to_deploy.dilation)
             name = nodes_to_deploy.name
             for scan_i, _ in enumerate(stringa_features):
-                if str_l == stringa_features[scan_i] and str(layer) == str(layer_list[scan_i]):
+                if(str_l == stringa_features[scan_i] and str(layer) == str(layer_list[scan_i])):
                     name_layer = name_layer_list[scan_i]
                     name = name_layer_list_internal[scan_i]
             stringa_features.append(str_l)
@@ -259,23 +302,39 @@ class Model_deployment():
             DW = 0
             input_dim_constraint = 0
             output_weights_dim_constraint = 0
-            if i == 0:
+            if(i == 0):
                 weight_constraint = 0
-            if i == 0:
+            if(i == 0):
                 input_L3 = 0
-            elif factor_h_out > 1:
+            elif(factor_h_out > 1):
                 input_L3 = 1
                 input_dim_constraint = out_dim2
                 output_weights_dim_constraint = l2_buffer_size - weight_overhead - out_dim2_old
+                if(output_weights_dim_constraint < 0):
+                    print("Problems with current implementation on L3 tiling. Prediction of weights of next layer not accurate. Exiting...")
+                    os._exit(0)
             else:
                 input_L3 = 0
-            if 'Relu' in nodes_to_deploy.name:
+            if('Relu' in nodes_to_deploy.name):
                 relu = 1
-            if 'BN' in nodes_to_deploy.name:
+            if('BN' in nodes_to_deploy.name):
                 BN = 1
-            if 'DW' in nodes_to_deploy.name:
+            if('DW' in nodes_to_deploy.name):
                 DW = 1
-            if 'Gemm' in nodes_to_deploy.name or 'Conv' in nodes_to_deploy.name or 'MatMul' in nodes_to_deploy.name:
+            if('Conv1D' in nodes_to_deploy.name):
+                in_dim2, out_dim2, weights_dim, l1_dim2 = tile_gen.get_tiling(X=0, Y=0, W=0,
+                                                                            relu=relu, BN=BN,
+                                                                            dilation=nodes_to_deploy.dilation,
+                                                                            has_bias=0,
+                                                                            out_mul=nodes_to_deploy.outmul,
+                                                                            out_shift=nodes_to_deploy.outshift,
+                                                                            name=name_layer)
+                if(i == 0):
+                    out_dim2_old = in_dim2
+                out_dim2_old = out_dim2
+                L3_tiling = 0
+                factor_ch_out = 1
+            elif('Gemm' in nodes_to_deploy.name or 'Conv' in nodes_to_deploy.name or 'MatMul' in nodes_to_deploy.name):
                 in_dim2, out_dim2, weights_dim, l1_dim2, L3_tiling, factor_ch_out, factor_h_out, factor_h_in = tile_gen.get_tiling(X=0, Y=0, W=0,
                                                                             relu=relu, BN=BN, DW=DW,
                                                                             has_bias=0,
@@ -286,27 +345,36 @@ class Model_deployment():
                                                                             input_dim_constraint = input_dim_constraint,
                                                                             output_weights_dim_constraint = output_weights_dim_constraint,
                                                                             weight_constraint = weight_constraint)
-                if factor_ch_out > 1:
+                if(factor_ch_out > 1):
                     PULP_Nodes_Graph[i].L3_allocation = 1
                 else:
                     PULP_Nodes_Graph[i].L3_allocation = 0
                 Layers_L3_input_act += int(factor_h_in > 1)
                 Layers_L3_output_act += int(factor_h_out > 1)
                 Layers_L3_weights += int(factor_ch_out > 1)
-                if i == 0:
+                if(i == 0):
                     out_dim2_old = in_dim2
-                if factor_h_out > 1:
+                if(factor_h_out > 1):
                     out_dim2 = l2_buffer_size - weight_overhead - out_dim2_old - weights_dim
                 out_dim2_old = out_dim2
-            elif 'Pool' in nodes_to_deploy.name:
-                in_dim2, out_dim2, l1_dim2 = tile_gen.get_tiling(X=0, Y=0, W=0,
-                                                                 relu=relu,
+            elif('Pool' in nodes_to_deploy.name):
+                in_dim2, out_dim2, l1_dim2, L3_tiling, factor_h_out, factor_h_in = tile_gen.get_tiling(X=0, Y=0, W=0,
+                                                                 relu=relu, BN = BN,
                                                                  out_mul=nodes_to_deploy.outmul,
                                                                  out_shift=nodes_to_deploy.outshift,
                                                                  name=name_layer,
+                                                                 input_L3 = input_L3,
+                                                                 input_dim_constraint = input_dim_constraint,
+                                                                 output_weights_dim_constraint = output_weights_dim_constraint,
                                                                  type=name)
-                L3_tiling = 0
-            elif 'Add' in nodes_to_deploy.name:
+                Layers_L3_input_act += int(factor_h_in > 1)
+                Layers_L3_output_act += int(factor_h_out > 1)
+                if(i == 0):
+                    out_dim2_old = in_dim2
+                if(factor_h_out > 1):
+                    out_dim2 = l2_buffer_size - weight_overhead - out_dim2_old - weights_dim
+                out_dim2_old = out_dim2
+            elif('Add' in nodes_to_deploy.name):
                 in_dim2, out_dim2, l1_dim2 = tile_gen.get_tiling(X=0, Y=0, W=0,
                                                                  relu=relu,
                                                                  out_mul1=nodes_to_deploy.inmul1,
@@ -315,28 +383,28 @@ class Model_deployment():
                                                                  name=name_layer,
                                                                  type=name)
                 L3_tiling = 0
-            if weight_overhead == int(l2_buffer_size/2):
+            if(weight_overhead == int(l2_buffer_size/2)):
                 weight_constraint = int(l2_buffer_size/2)
             else:
                 weight_constraint = 0
-            if L3_tiling == 1:
+            if(L3_tiling == 1):
                 name_layer = name_layer + 'L3'
             name_list.append(name_layer)
-            if 'Gemm' in nodes_to_deploy.name or 'Conv' in nodes_to_deploy.name or 'MatMul' in nodes_to_deploy.name:
-                if i > 0:
+            if('Gemm' in nodes_to_deploy.name or 'Conv' in nodes_to_deploy.name or 'MatMul' in nodes_to_deploy.name):
+                if(i > 0):
                     PULP_Nodes_Graph[i].weights_dimension = PULP_Nodes_Graph[i-1].weights_dimension + weights_dim
                 else:
                     PULP_Nodes_Graph[i].weights_dimension = weights_dim
             else:
                 PULP_Nodes_Graph[i].weights_dimension = PULP_Nodes_Graph[i-1].weights_dimension
-            if 'Gemm' in nodes_to_deploy.name or 'Conv' in nodes_to_deploy.name or 'MatMul' in nodes_to_deploy.name:
-                if factor_ch_out == 1:
-                    if i > 0:
+            if('Gemm' in nodes_to_deploy.name or 'Conv' in nodes_to_deploy.name or 'MatMul' in nodes_to_deploy.name):
+                if(factor_ch_out == 1):
+                    if(i > 0):
                         PULP_Nodes_Graph[i].weights_dimension_L3 = PULP_Nodes_Graph[i-1].weights_dimension_L3 + weights_dim
                     else:
                         PULP_Nodes_Graph[i].weights_dimension_L3 = weights_dim
                 else:
-                    if i > 0:
+                    if(i > 0):
                         PULP_Nodes_Graph[i].weights_dimension_L3 = PULP_Nodes_Graph[i-1].weights_dimension_L3 + int(weights_dim*factor_ch_out/2)
                     else:
                         PULP_Nodes_Graph[i].weights_dimension_L3 = int(weights_dim*factor_ch_out/2)                    
@@ -344,11 +412,12 @@ class Model_deployment():
                 PULP_Nodes_Graph[i].weights_dimension_L3 = PULP_Nodes_Graph[i-1].weights_dimension_L3
             PULP_Nodes_Graph[i].input_activation_dimensions = int(in_dim2*BitIn/8)
             PULP_Nodes_Graph[i].output_activation_dimensions = int(out_dim2*BitOut/8)
-            if i > 0:
-                if PULP_Nodes_Graph[i].input_activation_dimensions != PULP_Nodes_Graph[i-1].output_activation_dimensions:
+            if(i > 0):
+                if(PULP_Nodes_Graph[i].input_activation_dimensions != PULP_Nodes_Graph[i-1].output_activation_dimensions):
                     PULP_Nodes_Graph[i].input_activation_dimensions = PULP_Nodes_Graph[i-1].output_activation_dimensions
             PULP_Nodes_Graph[i].l1_dimensions = l1_dim2
-            MAC_total += nodes_to_deploy.MACs
+            if('Pool' not in nodes_to_deploy.name):
+                MAC_total += nodes_to_deploy.MACs
         return PULP_Nodes_Graph, Layers_L3_input_act, Layers_L3_output_act, Layers_L3_weights, name_layer_list, name_list, MAC_total
 
     def generate_intermediate_activations(self, PULP_Nodes_Graph, 
@@ -359,7 +428,8 @@ class Model_deployment():
                                         BitIn,
                                         BitW,
                                         BitOut,
-                                        optional):
+                                        optional,
+                                        precision_dict):
         ######################################################################################
         ###### SECTION 4: GENERATE CHECKSUM BY USING WEIGHT AND OUT_LAYER{i}.TXT FILES  ######
         ######################################################################################
@@ -378,28 +448,30 @@ class Model_deployment():
         f_w = 0
         for f, nodes_to_deploy in enumerate(PULP_Nodes_Graph[:number_of_deployed_layers]):
             X_in = pd.read_csv(load_dir + 'out_layer' + str(f) + '.txt')
+            # import pdb;pdb.set_trace()
             X_in = X_in.values[:, 0].astype(int)
             if f == len(PULP_Nodes_Graph[:number_of_deployed_layers]) - 1:
                 class_out = np.where(X_in == np.max(X_in))[0][0]
             for i, _ in enumerate(X_in):
                 X_in[i] = np.uint8(X_in[i])
-            if optional != '8bit':
+            if(optional != '8bit' and optional != '1D_Conv'):
                 BitIn = BitOut
                 if nodes_to_deploy.outshift != 'empty':
-                    BitOut = 32 - int(nodes_to_deploy.outshift)
+                    BitOut = precision_dict[f]
                 BitW = 8
-                if BitOut != 2 and BitOut!= 4 and BitOut!= 8:
-                    BitOut = 8
+                if f == len(PULP_Nodes_Graph[:number_of_deployed_layers]) - 1:
+                    BitOut = 32
             Input_compressed = []
             z = 0
             import copy
             Loop_over = copy.deepcopy(X_in)
-            for _, i_x in enumerate(Loop_over):
-                if (z % int(8 / BitOut)) == 0:
-                    Input_compressed.append(int(i_x.item()))
-                else:
-                    Input_compressed[-1] += int(i_x.item()) << (BitOut * (z % int(8 / BitOut)))
-                z += 1
+            if f != len(PULP_Nodes_Graph[:number_of_deployed_layers]) - 1:
+                for _, i_x in enumerate(Loop_over):
+                    if (z % int(8 / BitOut)) == 0:
+                        Input_compressed.append(int(i_x.item()))
+                    else:
+                        Input_compressed[-1] += int(i_x.item()) << (BitOut * (z % int(8 / BitOut)))
+                    z += 1
             if check_layer == f:
                 act_compare = Input_compressed
             PULP_Nodes_Graph[f].check_sum_out = sum(Input_compressed)
@@ -425,6 +497,7 @@ class Model_deployment():
                             check_layer=0,
                             verbose_level='None',
                             performance_single_layer='Yes',
+                            Mobilenet_bit=0,
                             L1_dimension = 35000,
                             master_stack = 4096,
                             slave_stack = 3072,
@@ -435,13 +508,16 @@ class Model_deployment():
                             BitW=8,
                             BitOut=8,
                             BitActivation = 32,
-                            optional='8bit'):
+                            sdk='gap_sdk', 
+                            dma_parallelization='8-cores',
+                            optional='8bit',
+                            precision_dict = 'None'):
         # Function used to create all the files for the application
         # copy backend is used to copy all the files of the backend
-        self.copy_backend(optional, BitIn, BitW, BitOut, BitActivation)
+        self.copy_backend(optional, BitIn, BitW, BitOut, BitActivation, PULP_Nodes_Graph, number_of_deployed_layers, precision_dict, sdk, dma_parallelization)
         # create L3 files for weights. These files are .hex which are copied in hyperflash then
         PULP_Nodes_Graph, weights_files_list, weights_to_write = self.create_weights_files(PULP_Nodes_Graph, number_of_deployed_layers, BitActivation)
-        fileh = logging.FileHandler('Tiling_profiling.log', 'a')
+        fileh = logging.FileHandler('logs/Tiling_profiling.log', 'a')
         formatter = logging.Formatter('%(asctime)s - %(message)s')
         fileh.setFormatter(formatter)
         fileh.setLevel(logging.DEBUG)
@@ -460,7 +536,10 @@ class Model_deployment():
             performance_single_layer,
             BitIn,
             BitW,
-            BitOut)
+            BitOut,
+            precision_dict,
+            sdk,
+            dma_parallelization)
 
         logging.debug("  ")
         logging.debug("  Layers with L3 input activation: " + str(num_L3_input_tile))
@@ -483,11 +562,13 @@ class Model_deployment():
                 BitIn,
                 BitW,
                 BitOut,
-                optional)
+                optional,
+                precision_dict)
         else:
-            x_in = np.random.randint(2**9, size=(1, PULP_Nodes_Graph[0].input_channels, PULP_Nodes_Graph[0].input_h, PULP_Nodes_Graph[0].input_w))
+            x_in = torch.Tensor(1, PULP_Nodes_Graph[0].input_channels, PULP_Nodes_Graph[0].input_h, PULP_Nodes_Graph[0].input_w).uniform_(0, (2**(9)))
             x_in[x_in > (2**8 - 1)] = 0
-            x_in = x_in.flatten().astype(int)
+            x_in = torch.round(x_in)
+            x_in = x_in.flatten().numpy().astype(int)
             for i, _ in enumerate(x_in):
                 x_in[i] = np.uint8(x_in[i])
             BitOut = 8
@@ -513,10 +594,12 @@ class Model_deployment():
             test=True,
             has_bias=True,
             verbose_level=verbose_level,
+            performance_single_layer = performance_single_layer,
             check_layer=check_layer,
             act_compare=act_compare,
             act_size=act_size,
             class_out=class_out,
+            Mobilenet_bit=Mobilenet_bit,
             l1_buffer=L1_dimension,
             master_stack = master_stack,
             slave_stack = slave_stack,
@@ -527,6 +610,8 @@ class Model_deployment():
             platform=self.platform,
             BitIn=BitIn,
             BitW=BitW,
-            BitOut=BitOut)
+            BitOut=BitOut,
+            sdk = sdk,
+            dma_parallelization = dma_parallelization)
         # create the Makefile for the application
-        template.print_template_Makefile(weights_files_list, self.platform)
+        template.print_template_Makefile(weights_files_list, self.platform, sdk)
