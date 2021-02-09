@@ -27,10 +27,10 @@ from ortools.constraint_solver import pywrapcp
 from ortools.constraint_solver import solver_parameters_pb2
 
 # template for output
-from dory.template import print_template_layer
-from dory.template import print_template_layer_1D
-from dory.template import print_template_layer_L3
-from dory.template import print_pool_template_layer_L3
+from template import print_template_layer
+from template import print_template_layer_1D
+from template import print_template_layer_L3
+from template import print_pool_template_layer_L3
 import logging
 import os
 import sys

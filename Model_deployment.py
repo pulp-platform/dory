@@ -18,8 +18,8 @@
 
 import torch
 import numpy as np
-from dory.tiling import Tiling
-import dory.template as template
+from tiling import Tiling
+import template as template
 import os
 import pandas as pd
 from mako.template import Template
@@ -44,16 +44,17 @@ class Model_deployment():
         os.system('mkdir application/DORY_network/src')
         tk = OrderedDict([])
         tk['sdk'] = sdk
-        tmpl = Template(filename="dory/templates/dory.h")
+        root = '/'.join(os.getcwd().split('/')[:-1])
+        tmpl = Template(filename=root + "/templates/dory.h")
         s = tmpl.render(**tk)
         save_string = './application/DORY_network/inc/dory.h'
         with open(save_string, "w") as f:
             f.write(s)
-        os.system('cp ./dory/templates/mem_controller.c  ./application/DORY_network/src/')
-        os.system('cp ./dory/templates/mem_controller.h  ./application/DORY_network/inc/')
+        os.system('cp ../templates/mem_controller.c  ./application/DORY_network/src/')
+        os.system('cp ../templates/mem_controller.h  ./application/DORY_network/inc/')
         tk = OrderedDict([])
         tk['sdk'] = sdk
-        tmpl = Template(filename="dory/templates/mchan_test.h")
+        tmpl = Template(filename=root+"/templates/mchan_test.h")
         s = tmpl.render(**tk)
         save_string = './application/DORY_network/inc/mchan_test.h'
         with open(save_string, "w") as f:
@@ -61,32 +62,25 @@ class Model_deployment():
         tk = OrderedDict([])
         tk['chip'] = self.chip
         tk['dma_parallelization'] = dma_parallelization
-        tmpl = Template(filename="dory/templates/dory.c")
+        tmpl = Template(filename=root+"/templates/dory.c")
         s = tmpl.render(**tk)
         save_string = './application/DORY_network/src/dory.c'
         with open(save_string, "w") as f:
             f.write(s)
-        os.system('cp ./dory/templates/test_template.c ./application/DORY_network/src/')
-        os.system('cp ./dory/templates/network.h ./application/DORY_network/inc/')
-        tk = OrderedDict([])
-        tk['sdk'] = sdk
-        tmpl = Template(filename="dory/pulp-nn-q/" + version +"/pulp_nn_utils.h")
-        s = tmpl.render(**tk)
-        save_string = './application/DORY_network/inc/pulp_nn_utils.h'
-        with open(save_string, "w") as f:
-            f.write(s)
-        os.system('cp ./dory/pulp-nn-q/' + version +'/pulp_nn_utils.c ./application/DORY_network/src/')
+        os.system('cp ../templates/test_template.c ./application/DORY_network/src/')
+        os.system('cp ../templates/network.h ./application/DORY_network/inc/')
         if optional == "1D_Conv":
-            os.system('cp ./dory/pulp-nn-q/' + version +'/1D_Conv/include/*  ./application/DORY_network/inc/')
-            os.system('cp ./dory/pulp-nn-q/' + version +'/1D_Conv/src/* ./application/DORY_network/src/')
+            os.system('cp ../pulp-nn-1d/' + version +'/include/*  ./application/DORY_network/inc/')
+            os.system('cp ../pulp-nn-1d/' + version +'/src/* ./application/DORY_network/src/')
         elif optional == "8bit":
-            os.system('cp ./dory/pulp-nn-q/' + version +'/8bit/include/*  ./application/DORY_network/inc/')
-            os.system('cp ./dory/pulp-nn-q/' + version +'/8bit/src/* ./application/DORY_network/src/')
+            os.system('cp ../pulp-nn/' + version +'/include/*  ./application/DORY_network/inc/')
+            os.system('cp ../pulp-nn/' + version +'/src/* ./application/DORY_network/src/')
         elif optional == "mixed":
-            os.system(
-                'cp ./dory/pulp-nn-q/' + version +'/mixed/include/*  ./application/DORY_network/inc/')
+            pass
+            print("Going to support mixed kernels very soon.")
+            os.system('cp ../pulp-nn-mixed/XpulpV2/' + version +'/include/*  ./application/DORY_network/inc/')
             for layer in layer_mixed_list:
-                os.system('cp ./dory/pulp-nn-q/' + version +'/mixed/src/' + layer + ' ./application/DORY_network/src/')
+                os.system('cp ../pulp-nn-mixed/XpulpV2/' + version +'/src/' + layer + ' ./application/DORY_network/src/')
 
     def copy_backend(self, optional, BitIn, BitW, BitOut, BitActivation, PULP_Nodes_Graph, number_of_deployed_layers, precision_dict, sdk, dma_parallelization):
         layer_mixed_list = []
@@ -191,7 +185,6 @@ class Model_deployment():
                 string_layer = nodes_to_deploy.name + str(i) + "_weights.hex"
                 file_list_w.append(string_layer)
                 save_s = './application/DORY_network/' + string_layer
-                print(weights)
                 with open(save_s, 'wb') as f:
                     for l in weights.astype('uint8').flatten():
                         f.write(bytes((l,)))

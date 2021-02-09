@@ -332,6 +332,8 @@ class ONNX_management():
     def print_PULP_graph(self, PULP_Nodes_Graph):
         # Logging function to report exported graph of PULP
         print("Creating annotated graph in Network_annotated_graph.log")
+        os.system('rm -rf logs')
+        os.system('mkdir logs')
         logging.basicConfig(filename='logs/Network_annotated_graph.log',
                             format='%(asctime)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p', level=logging.DEBUG)
         for nodes in PULP_Nodes_Graph:
