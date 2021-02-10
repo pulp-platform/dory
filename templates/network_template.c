@@ -33,9 +33,6 @@
 #include "bsp/flash/hyperflash.h"
 #include "bsp/ram/hyperram.h"
 
-% if Mobilenet_bit == 1:
-# define MOBILENET 1
-% endif
 #define FLASH_BUFF_SIZE 128
 % if verbose:
 #define VERBOSE 1
@@ -717,11 +714,7 @@ void network_run(unsigned int L3_weights_size)
       printf(" n. of Cores: %d\n",NUM_CORES); 
     }
 % endif
-// definition only to met the golden wrongly exported activations. To remove for applications.
-#ifdef MOBILENET
-    if (i==0 && pi_core_id()==0)
-      L2_output[3*32*64+6*32+28] +=1;
-#endif    
+
     // prevents error from compiler
     if (pi_core_id()==0)
     {

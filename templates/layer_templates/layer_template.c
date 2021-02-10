@@ -435,7 +435,7 @@ void ${func_name}(
 % if flag_DW == 0:
   % if optional_type == '8bit' or optional_type == '1D_Conv':
     % if 'Relu0' in func_name:
-    pulp_nn_conv(
+    pulp_nn_conv_Ho_parallel(
     % elif '_last' in func_name and ('Gemm' in func_name or 'MatMul' in func_name):
     pulp_nn_linear_out_32( 
     x,
@@ -469,11 +469,9 @@ void ${func_name}(
     y,
     ${FLAG_RELU}, ${FLAG_BATCHNORM}, &dma_evt );  
     % elif fs1*fs2>1 or 'Gemm' in func_name or stride>1:
-    pulp_nn_conv(
-    % elif y_tile_size_h > 7 and y_tile_size_h_last > 7:
-    pulp_nn_conv_pointwise(
+    pulp_nn_conv_Ho_parallel(
     % else:
-    pulp_nn_conv_pointwise_small_spatial_dim(
+    pulp_nn_pointwise_HoWo_parallel(
     % endif
   % elif optional_type == 'mixed' and ('Conv' in func_name):
     pulp_nn_conv_u${x_data_size_byte}_u${y_data_size_byte}_i${W_data_size_byte}(
@@ -503,7 +501,11 @@ void ${func_name}(
   % endif
 % else:
   % if optional_type == '8bit':
-    pulp_nn_conv_depthwise(
+    % if fs1 == 3 and fs2 == 3 and stride==1:
+    pulp_nn_depthwise_generic(
+    % else:
+    pulp_nn_depthwise_generic(
+    % endif
   % elif optional_type == 'mixed':
     pulp_nn_dw_u${x_data_size_byte}_u${y_data_size_byte}_i${W_data_size_byte}(
   % endif

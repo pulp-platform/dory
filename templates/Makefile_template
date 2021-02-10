@@ -29,11 +29,11 @@ CORE= $(CORE)
 endif
 
 % if sdk == 'gap_sdk':
-APP_CFLAGS += -DNUM_CORES=$(CORE) -IDORY_network/inc -O3 -w -g3 -fno-tree-loop-distribute-patterns -flto
+APP_CFLAGS += -DNUM_CORES=$(CORE) -DGAP_SDK=1 -IDORY_network/inc -O3 -w -g3 -fno-tree-loop-distribute-patterns -flto
 APP_LDFLAGS = -lm -lg -flto
 % elif sdk == 'pulp_sdk':
-APP_CFLAGS += -DNUM_CORES=$(CORE) -IDORY_network/inc -O3 -w -g3 -fno-tree-loop-distribute-patterns
-APP_LDFLAGS = -lm
+APP_CFLAGS += -DNUM_CORES=$(CORE) -IDORY_network/inc -O3 -w -g3 -fno-tree-loop-distribute-patterns -flto
+APP_LDFLAGS = -lm -lg -flto
 % endif
 
 % if sdk == 'pulp_sdk':
