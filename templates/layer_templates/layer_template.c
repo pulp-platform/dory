@@ -435,7 +435,7 @@ void ${func_name}(
 % if flag_DW == 0:
   % if optional_type == '8bit' or optional_type == '1D_Conv':
     % if 'Relu0' in func_name:
-    pulp_nn_conv_HoWo_parallel(
+    pulp_nn_conv_Ho_parallel(
     % elif '_last' in func_name and ('Gemm' in func_name or 'MatMul' in func_name):
     pulp_nn_linear_out_32( 
     x,
@@ -469,7 +469,7 @@ void ${func_name}(
     y,
     ${FLAG_RELU}, ${FLAG_BATCHNORM}, &dma_evt );  
     % elif fs1*fs2>1 or 'Gemm' in func_name or stride>1:
-    pulp_nn_conv_HoWo_parallel(
+    pulp_nn_conv_Ho_parallel(
     % else:
     pulp_nn_pointwise_HoWo_parallel(
     % endif
