@@ -1,3 +1,4 @@
+# -*- coding: future_fstrings -*-     # should work even without -*-
 # -*- coding: utf-8 -*-
 # Model_deployment.py
 # Alessio Burrello <alessio.burrello@unibo.it>
@@ -382,6 +383,8 @@ class Model_deployment():
                 weight_constraint = 0
             if(L3_tiling == 1):
                 name_layer = name_layer + 'L3'
+                PULP_Nodes_Graph[i].input_activation_dimensions_L3 = PULP_Nodes_Graph[i].input_h * PULP_Nodes_Graph[i].input_w * PULP_Nodes_Graph[i].input_channels
+                PULP_Nodes_Graph[i].output_activation_dimensions_L3 = PULP_Nodes_Graph[i].output_h * PULP_Nodes_Graph[i].output_w * PULP_Nodes_Graph[i].output_channels
             name_list.append(name_layer)
             if('Gemm' in nodes_to_deploy.name or 'Conv' in nodes_to_deploy.name or 'MatMul' in nodes_to_deploy.name):
                 if(i > 0):
@@ -441,7 +444,6 @@ class Model_deployment():
         f_w = 0
         for f, nodes_to_deploy in enumerate(PULP_Nodes_Graph[:number_of_deployed_layers]):
             X_in = pd.read_csv(load_dir + 'out_layer' + str(f) + '.txt')
-            # import pdb;pdb.set_trace()
             X_in = X_in.values[:, 0].astype(int)
             if f == len(PULP_Nodes_Graph[:number_of_deployed_layers]) - 1:
                 class_out = np.where(X_in == np.max(X_in))[0][0]

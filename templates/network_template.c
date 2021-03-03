@@ -143,6 +143,16 @@ static int check_activations_dimension[${len(PULP_Nodes_Graph)}] = {\
 ${int(PULP_Nodes_Graph[i].input_activation_dimensions)}${'' if loop.last else ', '}\
 % endfor
 };
+static int check_activations_dimension_L3_in[${len(PULP_Nodes_Graph)}] = {\
+% for i in range(len(PULP_Nodes_Graph)):
+${int(PULP_Nodes_Graph[i].input_activation_dimensions_L3)}${'' if loop.last else ', '}\
+% endfor
+};
+static int check_activations_dimension_L3_out[${len(PULP_Nodes_Graph)}] = {\
+% for i in range(len(PULP_Nodes_Graph)):
+${int(PULP_Nodes_Graph[i].output_activation_dimensions_L3)}${'' if loop.last else ', '}\
+% endfor
+};
 static int out_mult_vector[${len(PULP_Nodes_Graph)}] = {\
 % for i in range(len(PULP_Nodes_Graph)):
 % if PULP_Nodes_Graph[i].outmul == 'empty':
@@ -640,7 +650,10 @@ void network_run(unsigned int L3_weights_size)
       }
       else
       {
-        check_layer(L2_input, check_activations[i], check_activations_dimension[i]);
+        if (L3_layers[i-1]==1 && allocate_layer[i-1]==1 && check_activations_dimension_L3_in[i]!=0)
+          printf("In in L3\n");
+        else
+          check_layer(L2_input, check_activations[i], check_activations_dimension[i]);
       }
       if(branch_input[i] == 1 && keeping == 1)
       {
@@ -733,7 +746,10 @@ void network_run(unsigned int L3_weights_size)
       printf("Layer %d ended \n", i);
       if (i < ${len(PULP_Nodes_Graph) - 1})
       {
-        check_layer(L2_output, check_activations_out[i], check_activations_out_dimension[i]);
+        if (L3_layers[i]==1 && allocate_layer[i]==1 && L3_layers[i+1]==1 && allocate_layer[i]==1 && check_activations_dimension_L3_out[i]!=0)
+          printf("Out in L3\n");
+        else
+          check_layer(L2_output, check_activations_out[i], check_activations_out_dimension[i]);
       }
       else
       {

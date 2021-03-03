@@ -1,3 +1,4 @@
+# -*- coding: future_fstrings -*-     # should work even without -*-
 # -*- coding: utf-8 -*-
 #!/bin/bash
 # ONNX_management.py
@@ -61,7 +62,9 @@ class node_element(nn.Module):
         self.output_w = 0
         self.L3_allocation = 0
         self.input_activation_dimensions = 0
+        self.input_activation_dimensions_L3 = 0
         self.output_activation_dimensions = 0
+        self.output_activation_dimensions_L3 = 0
         self.check_sum_in = 0
         self.check_sum_out = 0
         self.check_sum_w = 0
