@@ -145,6 +145,9 @@ class ONNX_management():
         if 'Conv' in node_iterating.op_type:
             if(len(node_iterating.attribute[0].ints) == 1):
                 new_node.conv_1d = 1
+        if 'Pool' in node_iterating.op_type:
+            if(len(node_iterating.attribute[0].ints) == 1):
+                new_node.conv_1d = 1
         # scan 2 successive Pad layers
         for node in model.graph.node:
             if node.output[0] in new_node.input_index and node.op_type == 'Pad':
