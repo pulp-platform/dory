@@ -249,12 +249,8 @@ void ${func_name}(
     x_tile_size_w_exec,
     x_tile_size_h_exec,
     x_tile_size_nif_exec,
-% if 'Max' in optional:
-    ${fs1},
-% else:
     ${fs2},
     ${fs1},
-% endif
     p_t,
 % if 'Max' in optional:
     p_b,

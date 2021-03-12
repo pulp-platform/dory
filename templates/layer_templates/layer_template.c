@@ -503,6 +503,8 @@ void ${func_name}(
   % if optional_type == '8bit':
     % if fs1 == 3 and fs2 == 3 and stride==1:
     pulp_nn_depthwise_generic(
+    % elif fs1*fs2 < 4:
+    pulp_nn_depthwise_generic_less_4_weights(
     % else:
     pulp_nn_depthwise_generic(
     % endif

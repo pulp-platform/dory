@@ -275,8 +275,8 @@ class Model_deployment():
                               dma_parallelization = dma_parallelization)
             if(nodes_to_deploy.conv_1d == 0):
                 str_l = 'ch_in' + str(nodes_to_deploy.input_channels) + 'ch_out' + str(nodes_to_deploy.output_channels) + 'groups' + str(
-                    nodes_to_deploy.groups) + 'dim_image' + str(nodes_to_deploy.input_h,) + 'stride' + str(nodes_to_deploy.stride) + 'kernel'+ str(
-                    nodes_to_deploy.filter_size_h) + 'kernel' + str(nodes_to_deploy.filter_size_w) + 'BitIn' + str(BitIn) + 'BitOut' + str(BitOut) + 'BitW' + str(BitW)
+                    nodes_to_deploy.groups) + 'dim_image' + str(nodes_to_deploy.input_h,) + str(nodes_to_deploy.input_w,) + 'stride' + str(nodes_to_deploy.stride) + 'kernel'+ str(
+                    nodes_to_deploy.filter_size_h) + str(nodes_to_deploy.filter_size_w) + 'kernel' + str(nodes_to_deploy.filter_size_h) + str(nodes_to_deploy.filter_size_w) + 'BitIn' + str(BitIn) + 'BitOut' + str(BitOut) + 'BitW' + str(BitW)
             else:
                 str_l = 'ch_in' + str(nodes_to_deploy.input_channels) + 'ch_out' + str(nodes_to_deploy.output_channels) + 'groups' + str(
                     nodes_to_deploy.groups) + 'dim_image' + str(nodes_to_deploy.input_w,) + 'stride' + str(nodes_to_deploy.stride) + 'kernel'+ str(

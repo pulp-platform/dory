@@ -254,6 +254,8 @@ class ONNX_management():
                         new_node.padding_right  += field.ints[3]
                     if field.name == 'strides':
                         new_node.stride = field.ints[0]
+                        if field.ints[0]==1 and field.ints[1]!=1:
+                            new_node.stride = field.ints[1]
                     if field.name == 'group':
                         new_node.groups = field.i
             else:
