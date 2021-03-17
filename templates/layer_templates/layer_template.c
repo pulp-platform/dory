@@ -274,10 +274,6 @@ void ${func_name}(
     //switch all double buffering offset and y only after that all n_input_features have been analyzed: we need to pass all n_in to produce a single fil
 ///////// POSSIBLE BUG FIX!!!!! DB_STATE_Y NOT SWITCHED /////////////
 
-  % if flag_DW == 0:
-    if(_i_nif_load == 0) 
-      db_state_y = ! db_state_y; 
-  % endif
     // double buffered reads
   % if flag_DW == 0:
     if(iter<${tile_dim_nof}*${tile_dim_nif}*${tile_dim_h}*${tile_dim_w}-1) 
@@ -619,6 +615,7 @@ void ${func_name}(
     }
 % endif
     // update prev iterators
+    db_state_y = ! db_state_y; 
     _i_nof_exec = _i_nof_load;
     _i_nif_exec = _i_nif_load;
     _i_h_exec = _i_h_load;
