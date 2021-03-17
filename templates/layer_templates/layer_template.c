@@ -272,9 +272,11 @@ void ${func_name}(
     if (_i_nif_load!=_i_nif_exec || _i_nof_load!=_i_nof_exec)
       db_state_W = ! db_state_W;
     //switch all double buffering offset and y only after that all n_input_features have been analyzed: we need to pass all n_in to produce a single fil
+///////// POSSIBLE BUG FIX!!!!! DB_STATE_Y NOT SWITCHED /////////////
+
   % if flag_DW == 0:
     if(_i_nif_load == 0) 
-      db_state_y = ! db_state_y;
+      db_state_y = ! db_state_y; 
   % endif
     // double buffered reads
   % if flag_DW == 0:

@@ -17,7 +17,6 @@
  * limitations under the License. 
  */
 
-${verbose_log}
 % if sdk == 'gap_sdk':
 #include "pulp.h"
 % endif
