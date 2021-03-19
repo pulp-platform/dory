@@ -123,7 +123,8 @@ void __attribute__ ((noinline)) ${func_name_L3}(void *args)
       else
         shift = ${dim_in-conv_overlap1*n_in*w_in - padding*n_in*w_in} + j*${dim_in-conv_overlap1*n_in*w_in};
       // read from L3 of the new input tile. The shift is computed based on the overlap
-      pi_cl_ram_read(hyperram, l3_x + shift, transfer_input, ${dim_in}, &buff_req_x1);
+      if (j<${n_tile_x-1})
+        pi_cl_ram_read(hyperram, l3_x + shift, transfer_input, ${dim_in}, &buff_req_x1);
     }    
     input_t = !input_t;
     transfer_input = input_t ? L2_input_2 : L2_input_1;
@@ -144,7 +145,8 @@ void __attribute__ ((noinline)) ${func_name_L3}(void *args)
       else
         shift = ${dim_in-conv_overlap1*n_in*w_in - padding*n_in*w_in} + j*${dim_in-conv_overlap1*n_in*w_in};
       // read from L3 of the new input tile. The shift is computed based on the overlap
-      pi_cl_ram_read(hyperram, l3_x + shift, transfer_input, ${dim_in}, &buff_req_x1);
+      if (j<${n_tile_x-1})
+        pi_cl_ram_read(hyperram, l3_x + shift, transfer_input, ${dim_in}, &buff_req_x1);
     }    
     input_t = !input_t;
     transfer_input = input_t ? L2_input_2 : L2_input_1;
