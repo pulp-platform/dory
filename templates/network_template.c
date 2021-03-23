@@ -657,7 +657,7 @@ void network_run(unsigned int L3_weights_size)
       }
       if(branch_input[i] == 1 && keeping == 1)
       {
-        check_layer(activation_to_keep, check_activations[keep_index],check_activations_dimension[keep_index]);
+        check_layer(activation_to_keep, check_activations_out[keep_index],check_activations_out_dimension[keep_index]);
       }
       else if (branch_input[i] == 1 && keeping == 0)
       {
@@ -684,7 +684,7 @@ void network_run(unsigned int L3_weights_size)
       inmul1,
       inmul2, 
       out_shift};
-    if(branch_last[i] == 1)
+    if (branch_change[i-1] == 1 && branch_input[i] == 0)
     {
       args[0] = bypass_L3_input;
       args[1] = bypass_L3_output;
@@ -773,7 +773,7 @@ void network_run(unsigned int L3_weights_size)
     }     
 #endif   
 % endif
-    if(branch_last[i] == 1)
+    if(branch_change[i] == 1)
     {
       keep_index = i;
     }
@@ -838,10 +838,10 @@ void network_run(unsigned int L3_weights_size)
           bypass_to_dealloc = 0;
         }
         // Keep last layer of left side until add layer is encountered.
-        if (branch_change[i] == 1)
+        if (branch_change[i] == 1 && branch_output[i] == 0 && branch_last[i] == 0)
         {
           activation_to_keep = L2_output;
-          activation_dimension = check_activations_dimension[i];
+          activation_dimension = check_activations_out_dimension[i];
           keeping = 1;
           branch_keep_active = 1;
           activation_to_keep_delloced = 1;
