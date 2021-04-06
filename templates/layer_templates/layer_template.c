@@ -469,7 +469,7 @@ void ${func_name}(
     % elif fs1*fs2>1 or 'Gemm' in func_name or stride>1:
     pulp_nn_conv_Ho_parallel(
     % else:
-    pulp_nn_pointwise_HoWo_parallel(
+    pulp_nn_conv_Ho_parallel(
     % endif
   % elif optional_type == 'mixed' and ('Conv' in func_name):
     pulp_nn_conv_u${x_data_size_byte}_u${y_data_size_byte}_i${W_data_size_byte}(
