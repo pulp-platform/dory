@@ -4,15 +4,17 @@ DORY: Deployment ORiented to memorY
 DORY is an automatic tool to deploy DNNs on low-cost MCUs with typically less than 1MB of on-chip SRAM memory. 
 
 ### Reference
-If you use the DORY tool to deploy your models, please make sure to cite our paper: https://arxiv.org/abs/2008.07127
+If you use the DORY tool to deploy your models, please make sure to cite our paper: https://ieeexplore.ieee.org/document/9381618 (preprint available also at https://arxiv.org/abs/2008.07127)
 ```
-@misc{burrello2020dory,
-    title={DORY: Automatic End-to-End Deployment of Real-World DNNs on Low-Cost IoT MCUs},
-    author={Alessio Burrello and Angelo Garofalo and Nazareno Bruschi and Giuseppe Tagliavini and Davide Rossi and Francesco Conti},
-    year={2020},
-    eprint={2008.07127},
-    archivePrefix={arXiv},
-    primaryClass={cs.DC}
+@article{burrello2020dory,
+  author={A. {Burrello} and A. {Garofalo} and N. {Bruschi} and G. {Tagliavini} and D. {Rossi} and F. {Conti}},
+  journal={IEEE Transactions on Computers}, 
+  title={DORY: Automatic End-to-End Deployment of Real-World DNNs on Low-Cost IoT MCUs}, 
+  year={2021},
+  volume={},
+  number={},
+  pages={1-1},
+  doi={10.1109/TC.2021.3066883}
 }
 ```
 

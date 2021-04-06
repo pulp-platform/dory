@@ -479,20 +479,30 @@ class ONNX_management():
         index_of_first_add = 0
         index_of_second_add = 0
         for i, node in enumerate(PULP_Nodes_Graph):
+            # if 'Add' in node.name:
+            #     if(node.input_index == PULP_Nodes_Graph[i-1].output_index):
+            #         first_add = node.input_index_add
+            #     else:
+            #         first_add = node.input_index
+            #     second_add = PULP_Nodes_Graph[i-1].output_index
+            #     for j, node_two in enumerate(PULP_Nodes_Graph):
+            #         if node_two.output_index == first_add:
+            #             index_of_first_add = j
+            #         elif node_two.output_index == second_add:
+            #             index_of_second_add = j
+            #     if PULP_Nodes_Graph[index_of_second_add].branch_out == 0:
+            #         branch_change[index_of_first_add] = 1
+            #         branch_last[index_of_second_add] = 1
             if 'Add' in node.name:
-                if(node.input_index == PULP_Nodes_Graph[i-1].output_index):
-                    first_add = node.input_index_add
-                else:
-                    first_add = node.input_index
-                second_add = PULP_Nodes_Graph[i-1].output_index
+                second_add = node.input_index_add
+                first_add = node.input_index
+                if int(first_add) > int(second_add):
+                    second_add = first_add
                 for j, node_two in enumerate(PULP_Nodes_Graph):
                     if node_two.output_index == first_add:
-                        index_of_first_add = j
-                    elif node_two.output_index == second_add:
-                        index_of_second_add = j
-                if PULP_Nodes_Graph[index_of_second_add].branch_out == 0:
-                    branch_change[index_of_first_add] = 1
-                    branch_last[index_of_second_add] = 1
+                        branch_change[j] = 1
+                    if node_two.output_index == second_add:
+                        branch_last[j] = 1
         for i, node in enumerate(PULP_Nodes_Graph):
             PULP_Nodes_Graph[i].branch_change = branch_change[i]
             PULP_Nodes_Graph[i].branch_last = branch_last[i]
