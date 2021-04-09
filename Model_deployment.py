@@ -605,6 +605,7 @@ class Model_deployment():
             BitW=BitW,
             BitOut=BitOut,
             sdk = sdk,
-            dma_parallelization = dma_parallelization)
+            dma_parallelization = dma_parallelization,
+            optional_type = optional)
         # create the Makefile for the application
         template.print_template_Makefile(weights_files_list, self.platform, sdk)

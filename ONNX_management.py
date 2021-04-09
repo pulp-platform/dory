@@ -499,7 +499,14 @@ class ONNX_management():
                         branch_change[index_of_second_add] = 1
                     else:
                         branch_change[index_of_first_add] = 1
-                
+            if 'Add' in node.name:
+                second_add_last = node.input_index_add
+                first_add_last = node.input_index
+                if int(first_add_last) > int(second_add_last):
+                    second_add_last = first_add_last
+                for p, node_two_last in enumerate(PULP_Nodes_Graph):
+                    if node_two_last.output_index == second_add:
+                        branch_last[p] = 1    
         for i, node in enumerate(PULP_Nodes_Graph):
             PULP_Nodes_Graph[i].branch_change = branch_change[i]
             PULP_Nodes_Graph[i].branch_last = branch_last[i]

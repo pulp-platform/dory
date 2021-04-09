@@ -314,7 +314,8 @@ def print_template_network(
     BitW = 8,
     BitOut = 8,
     sdk = 'gap_sdk',
-    dma_parallelization = '8-cores'
+    dma_parallelization = '8-cores',
+    optional_type = 'conv'
 ):
     # Generate the Network management c file.
     tk = OrderedDict([])
@@ -381,7 +382,10 @@ def print_template_network(
             except TypeError:
                 l += "// %s %s\n" % (k.ljust(30), v)
     root = '/'.join(os.getcwd().split('/')[:-1])
-    tmpl = Template(filename=root + "/templates/network_template.c")
+    if(optional_type == '1D_Conv'):
+        tmpl = Template(filename=root + "/templates/network_template_1D.c")
+    else:
+        tmpl = Template(filename=root + "/templates/network_template.c")
     tk['PULP_Nodes_Graph'] = PULP_Nodes_Graph
     s = tmpl.render(verbose_log=l,**tk)
     save_string = './application/DORY_network/src/network.c'
@@ -839,7 +843,10 @@ def print_template_layer(x, y_gold, W,
     elif conv_order == 'PULP-NN-MAX':
         tmpl = Template(filename=root+"/templates/layer_templates/pooling_layer_template.c")
     elif conv_order == 'PULP-NN-ADD':
-        tmpl = Template(filename=root+"/templates/layer_templates/add_layer_template.c")
+        if(optional_type == '1D_Conv'):
+            tmpl = Template(filename=root+"/templates/layer_templates/add_layer_1D_template.c")
+        else:
+            tmpl = Template(filename=root+"/templates/layer_templates/add_layer_template.c")
     s = tmpl.render(TEST=test,VERBOSE=False,ULTRA_VERBOSE=ultra_verbose,PULP_TEST=True,verbose_log=l,**tk)
     if 'L2' in test_location:
         save_string = './application/DORY_network/src/' + name_layer.replace("h", "c")
