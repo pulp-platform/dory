@@ -52,6 +52,7 @@ class node_element(nn.Module):
         self.inmul1 = 'empty'
         self.inmul2 = 'empty'
         self.outshift = 'empty'
+        self.outshift2 = 'empty'
         self.bias = 'empty'
         self.input_index = 0
         self.input_index_add = 0
@@ -296,6 +297,7 @@ class ONNX_management():
     def search_constant(self, index, model):
         ## searching for the parameters of BN abd Relu
         constant = 'empty'
+        
         for node_iterating in (model.graph.initializer):
             if node_iterating.name == index:
                 constant = numpy_helper.to_array(node_iterating)
@@ -303,7 +305,6 @@ class ONNX_management():
             if node_iterating.op_type == 'Constant' and node_iterating.output[0] == index:
                 constant = numpy_helper.to_array(node_iterating.attribute[0].t)
         return constant
-
     def update_node(self, PULP_node, out_index, const, op_type):
         # Add BN and Relu to the nodes.
         PULP_node.output_index = out_index
@@ -312,6 +313,12 @@ class ONNX_management():
                 PULP_node.lambd = const
                 PULP_node.name = PULP_node.name + 'BN'
             elif op_type == 'Div':
+                if(PULP_node.name == 'AddRelu'):
+                    try:
+                        const[0]
+                        PULP_node.outshift2 = round(np.log2(const[0]))
+                    except:
+                        PULP_node.outshift2 = round(np.log2(const))
                 if 'Relu' not in PULP_node.name:
                     try:
                         const[0]

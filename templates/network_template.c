@@ -171,6 +171,15 @@ ${PULP_Nodes_Graph[i].outshift}${'' if loop.last else ', '}\
 % endif
 % endfor
 };
+static int out_shift2_vector[${len(PULP_Nodes_Graph)}] = {\
+% for i in range(len(PULP_Nodes_Graph)):
+% if PULP_Nodes_Graph[i].outshift2 == 'empty':
+0${'' if loop.last else ', '}\
+% else:
+${PULP_Nodes_Graph[i].outshift2}${'' if loop.last else ', '}\
+% endif
+% endfor
+};
 static int inmul1_vector[${len(PULP_Nodes_Graph)}] = {\
 % for i in range(len(PULP_Nodes_Graph)):
 % if PULP_Nodes_Graph[i].inmul1 == 'empty':
@@ -431,7 +440,7 @@ void pulp_parallel(void *arg)
 void network_run_FabricController()
 {
   int arg[1];
-  arg[0] = (unsigned int) L3_weights_size;
+  //arg[0] = (unsigned int) L3_weights_size;
   PMU_set_voltage(1000, 0);
   pi_time_wait_us(10000);
   pi_freq_set(PI_FREQ_DOMAIN_FC, ${fc_frequency});
@@ -473,7 +482,7 @@ uint8_t * activation_to_keep;
 char *exec_weights, *transfer_weights, *bypass_weights;
 int L3_weights_internal;
 
-void network_run(unsigned int L3_weights_size)
+void network_run()
 {   
 
 /* 
@@ -485,6 +494,7 @@ void network_run(unsigned int L3_weights_size)
 /* ---------------------------------- */
   uint16_t out_mult = 0;
   uint16_t out_shift = 0;
+  uint16_t out_shift2 = 0;
   uint16_t inmul1 = 0;
   uint16_t inmul2 = 0;
   int branch_active = 0;
@@ -619,6 +629,7 @@ void network_run(unsigned int L3_weights_size)
 /* ---------------------------------- */
 /* -------- SECTION 2 BEGIN --------- */
 /* ---------------------------------- */
+int counter_for_size = 0;
   for(int i = 0; i < ${len(PULP_Nodes_Graph)}; i++)
   {
     if(pi_core_id()==0)
@@ -633,7 +644,8 @@ void network_run(unsigned int L3_weights_size)
         {
           if (L3_layers[i-1] == 0 && i > 0)
             pi_cl_ram_read_wait(&buff_req1);
-          pi_cl_ram_read(&ram, L3_weights_internal + cumulative_weights_dimension[i+1], transfer_weights, check_weights_dimension[i+1], &buff_req1);
+          pi_cl_ram_read(&ram, L3_weights_internal + L3_weights_size[counter_for_size], transfer_weights, check_weights_dimension[i+1], &buff_req1);
+          counter_for_size = counter_for_size + 1;
           if (L3_layers[i] == 1)
             pi_cl_ram_read_wait(&buff_req1);
         }
@@ -657,7 +669,7 @@ void network_run(unsigned int L3_weights_size)
       }
       if(branch_input[i] == 1 && keeping == 1)
       {
-        check_layer(activation_to_keep, check_activations_out[keep_index],check_activations_out_dimension[keep_index]);
+        check_layer(activation_to_keep, check_activations[keep_index],check_activations_dimension[keep_index]);
       }
       else if (branch_input[i] == 1 && keeping == 0)
       {
@@ -668,10 +680,11 @@ void network_run(unsigned int L3_weights_size)
 % endif
     out_mult = out_mult_vector[i];
     out_shift = out_shift_vector[i];
+    out_shift2 = out_shift2_vector[i];
     inmul1 = inmul1_vector[i];
     inmul2 = inmul2_vector[i];
     pi_cl_team_barrier(0);
-    unsigned int args[13] = {L3_input,
+    unsigned int args[14] = {L3_input,
       L3_output,
       L3_weights_internal + cumulative_weights_dimension[i],
       L2_input,
@@ -683,12 +696,18 @@ void network_run(unsigned int L3_weights_size)
       out_mult,
       inmul1,
       inmul2, 
-      out_shift};
-    if (branch_change[i-1] == 1 && branch_input[i] == 0)
+      out_shift,
+      out_shift2};
+    if (branch_change[i-1] == 1)
     {
       args[0] = bypass_L3_input;
       args[1] = bypass_L3_output;
       args[3] = bypass_activations;
+    }
+    if(branch_change[i-2] == 1)
+    {
+      args[10] = inmul2;
+      args[11] = inmul1;
     }
     if(branch_input[i] == 1 && keeping == 1)
     {
@@ -773,7 +792,7 @@ void network_run(unsigned int L3_weights_size)
     }     
 #endif   
 % endif
-    if(branch_change[i] == 1)
+    if(branch_change[i-1] == 1)
     {
       keep_index = i;
     }
@@ -838,7 +857,7 @@ void network_run(unsigned int L3_weights_size)
           bypass_to_dealloc = 0;
         }
         // Keep last layer of left side until add layer is encountered.
-        if (branch_change[i] == 1 && branch_output[i] == 0 && branch_last[i] == 0)
+        if (branch_change[i] == 1)
         {
           activation_to_keep = L2_output;
           activation_dimension = check_activations_out_dimension[i];
