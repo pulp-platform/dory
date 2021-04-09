@@ -43,6 +43,7 @@ void ${func_name}(
   unsigned int inmul1_in = (unsigned int) real_arg[10];
   unsigned int inmul2_in = (unsigned int) real_arg[11];
   unsigned int out_shift_in = (unsigned int) real_arg[12];
+  unsigned int out_shift2_in = (unsigned int) real_arg[13];
   unsigned int dma_evt;
 
 //DMA events
@@ -148,6 +149,8 @@ void ${func_name}(
   uint16_t out_mult1 = inmul2_in;
   uint16_t out_mult2 = inmul1_in;
   uint16_t out_shift = out_shift_in;
+  uint16_t out_shift2 = out_shift2_in;
+  uint16_t out_mult3 = out_mult_in;
   // tile loop nest
   for(iter=0; iter<${tile_dim_nof}*${tile_dim_h}*${tile_dim_w}; iter++) {
     // loop nest is nof,h,w,(nif=0)
@@ -252,7 +255,9 @@ void ${func_name}(
       y,
       out_mult1,
       out_mult2,
-      out_shift
+      out_mult3,
+      out_shift,
+      out_shift2
       );
     pi_cl_team_barrier(0);
     // wait for DMA write
