@@ -2074,9 +2074,10 @@ class Tiling():
         min_tile_h_out = 1
         # this is to renormalize all costs
         max_obj_value = sys.maxsize
-        memory = self.BitIn * n_in * h_in * w_in + self.BitOut * n_out * h_out * w_out
+        memory = self.BitIn * n_in * h_in * w_in + self.BitOut * n_out * h_out * w_out + 4 * 8 * h_out * w_out
         if memory <= self.buffer_size * 8:
             db = 1
+            return (n_in, n_out, h_in, h_out, w_in, w_out)
         else:
             db = 2
         # integer positive variables.

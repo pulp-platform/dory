@@ -377,6 +377,9 @@ class Model_deployment():
                                                                  name=name_layer,
                                                                  type=name)
                 L3_tiling = 0
+
+            while weights_dim % 4 != 0:
+                weights_dim += 1
             if(weight_overhead == int(l2_buffer_size/2)):
                 weight_constraint = int(l2_buffer_size/2)
             else:
