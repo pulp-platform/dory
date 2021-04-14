@@ -438,6 +438,7 @@ class ONNX_management():
             if node_iterating.op_type in layers_to_node:
                 new_node = self.create_node(node_element(), first_node, node_iterating, model, PULP_Nodes_Graph)
                 PULP_Nodes_Graph.append(new_node)
+                PULP_node = PULP_Nodes_Graph[-1]
                 first_node = 0
                 continue
             # Adding an addition layer
