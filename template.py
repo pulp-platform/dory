@@ -841,7 +841,10 @@ def print_template_layer(x, y_gold, W,
     if conv_order == 'PULP-NN':
         tmpl = Template(filename=root+"/templates/layer_templates/layer_template.c")
     elif conv_order == 'PULP-NN-MAX':
-        tmpl = Template(filename=root+"/templates/layer_templates/pooling_layer_template.c")
+        if(optional_type == '1D_Conv'):
+            tmpl = Template(filename=root+"/templates/layer_templates/pooling_layer_1D_template.c")
+        else:
+            tmpl = Template(filename=root+"/templates/layer_templates/pooling_layer_template.c")
     elif conv_order == 'PULP-NN-ADD':
         if(optional_type == '1D_Conv'):
             tmpl = Template(filename=root+"/templates/layer_templates/add_layer_1D_template.c")
