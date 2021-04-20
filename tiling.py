@@ -3,6 +3,7 @@
 # tiling.py
 # Alessio Burrello <alessio.burrello@unibo.it>
 # Francesco Conti <f.conti@unibo.it>
+# Thorir Mar Ingolfsson <thoriri@iis.ee.ethz.ch>
 #
 # Copyright (C) 2018-2020 University of Bologna
 # 
