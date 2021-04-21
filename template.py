@@ -199,15 +199,12 @@ def print_template_layer_1D(x, y_gold, W,
         tk['W_tile_size_nif_last'] = tk['W_tile_size_nif']
         tk['W_tile_size_nif_byte_last'] = int(math.ceil(tk['W_tile_size_nif_last'] * ds_W / 8.0))
     # y last
-    """
+
     tk['y_tile_size_nof_last'] = n_out % tile_n_out if (n_out % tile_n_out) > 0 else tile_n_out
     tk['y_tile_size_h_last'] = w_out % tile_w_out if (w_out % tile_w_out) > 0 else tile_w_out
-    print(w_out)
-    print(tile_w_out)
-    print(w_out % tile_w_out)
-    """
-    tk['y_tile_size_nof_last'] = n_in
-    tk['y_tile_size_h_last'] = w_in
+
+    #tk['y_tile_size_nof_last'] = n_in
+    #tk['y_tile_size_h_last'] = w_in
     tk['y_length_nof_byte_last'] = int(math.ceil(tk['y_tile_size_nof_last'] * ds_y / 8.0))
     l = ""
     for k, v in tk.items():
