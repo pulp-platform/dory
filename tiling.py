@@ -108,7 +108,7 @@ class Tiling():
         output_dim = 8 * n_out * h_out
         weight_dim = 8 * n_in * n_out * fs
         im2col_dim = 8 * 2 * 8 * fs * n_in
-        bn_dim = 32 * n_out * 2
+        bn_dim = self.BitActivation * n_out * 2
         buffer_total = input_dim + output_dim + weight_dim + im2col_dim + bn_dim
         if BN == 0:
             buffer_total -= bn_dim
@@ -143,8 +143,8 @@ class Tiling():
         constr_out = db * 8 * tile_n_out * tile_h_out #* tile_w_out
         constr_weight = db * 8 * tile_n_in * tile_n_out * fs
         constr_im2col = 2 * 8 * 8 * fs * tile_n_in
-        constr_bn = 32 * n_out * 2
-        constraint_all = constr_in + constr_out + constr_weight + constr_bn + constr_im2col + 20*8 # 20 are the + 4 added between buffers
+        constr_bn = self.BitActivation * n_out * 2
+        constraint_all = constr_in + constr_out + constr_weight + constr_bn + constr_im2col + 20*32 # 20 are the + 4 added between buffers
         if BN == 0:
             constraint_all -= constr_bn
         solver.Add(constraint_all <= buffer_size * 8)
@@ -285,7 +285,7 @@ class Tiling():
         input_dim = 8 * n_in * h_in
         output_dim = 8 * n_out * h_out
         weight_dim = 8 * n_in * n_out * fs
-        bn_dim = 32 * n_out * 2
+        bn_dim = self.BitActivation * n_out * 2
         buffer_total = input_dim + output_dim + weight_dim + bn_dim
         if BN == 0:
             buffer_total -= bn_dim
@@ -313,8 +313,8 @@ class Tiling():
         constr_in = db * 8 * tile_n_in * tile_h_in #* tile_w_in
         constr_out = db * 8 * tile_n_out * tile_h_out #* tile_w_out
         constr_weight = db * 8 * tile_n_in * tile_n_out * fs
-        constr_bn = 32 * n_out * 2
-        constraint_all = constr_in + constr_out + constr_weight + constr_bn + 20*8 # 20 are the + 4 added between buffers
+        constr_bn = self.BitActivation * n_out * 2
+        constraint_all = constr_in + constr_out + constr_weight + constr_bn + 20*32 # 20 are the + 4 added between buffers
         if BN == 0:
             constraint_all -= constr_bn
         solver.Add(constraint_all <= buffer_size * 8)
@@ -445,7 +445,7 @@ class Tiling():
         input_dim = 8 * n_in * h_in
         output_dim = 8 * n_out * h_out
         weight_dim = 8 * n_in * n_out * fs
-        bn_dim = 32 * n_out * 2
+        bn_dim = self.BitActivation * n_out * 2
         buffer_total = input_dim + output_dim + weight_dim + bn_dim
         if BN == 0:
             buffer_total -= bn_dim
@@ -481,8 +481,8 @@ class Tiling():
         constr_in = db * 8 * tile_n_in * tile_h_in #* tile_w_in
         constr_out = db * 8 * tile_n_out * tile_h_out #* tile_w_out
         constr_weight = db * 8 * tile_n_in * tile_n_out * fs
-        constr_bn = 32 * n_out * 2
-        constraint_all = constr_in + constr_out + constr_weight + constr_bn + 20*8 # 20 are the + 4 added between buffers
+        constr_bn = self.BitActivation * n_out * 2
+        constraint_all = constr_in + constr_out + constr_weight + constr_bn + 20*32 # 20 are the + 4 added between buffers
         if BN == 0:
             constraint_all -= constr_bn
         solver.Add(constraint_all <= buffer_size * 8)
@@ -706,7 +706,7 @@ class Tiling():
             W_size_str = '%.2f KiB' % (1. / 1024. / 8. * (ds_W * tile_n_out * tile_n_in * fs1)) if (ds_W * tile_n_out * tile_n_in * fs1) > 1024 else '%d B' % (ds_W * tile_n_out * tile_n_in * fs1 * 1 / 8.)
             W_no_str = '%d' % (max(math.ceil((n_out - tile_n_out) / (tile_n_out) + 1), 1) * 1)
             x_no_str = '%d' % (int(int(y_no_str)/int(W_no_str)) * pow(max(math.ceil((n_in - tile_n_in) / (tile_n_in) + 1), 1),2))
-            L1_tiles_size = ds_x * tile_n_in * tile_w_in / 8. * (1 + int(int(x_no_str) > 1)) + ds_y * tile_n_out * tile_w_out / 8. * (1 + int(int(y_no_str) > 1)) + n_out * 8
+            L1_tiles_size = ds_x * tile_n_in * tile_w_in / 8. * (1 + int(int(x_no_str) > 1)) + ds_y * tile_n_out * tile_w_out / 8. * (1 + int(int(y_no_str) > 1)) + n_out * 8 * 2
             L1_tiles_size += (ds_W * tile_n_out * tile_n_in * fs1 / 8.) * (1 + int(int(W_no_str) > 1))
             logging.debug("    L2 size:".ljust(18) + "x: " + x_tot_str.ljust(15) +"y: " + y_tot_str.ljust(15) + "W: " + W_tot_str.ljust(15))
             logging.debug("    L2 buff:".ljust(18) + "x: " + x_tot_size_str.ljust(15) +"y: " + y_tot_size_str.ljust(15) + "W: " + W_tot_size_str.ljust(15))
@@ -1123,6 +1123,7 @@ class Tiling():
             im2col_dim = 0
         bn_dim = self.BitActivation * n_out * 2
         buffer_total = input_dim + output_dim + weight_dim + im2col_dim + bn_dim
+
         if DW == 1:
             buffer_total+= weight_full_prec_dim
         if BN == 0:
@@ -1490,7 +1491,8 @@ class Tiling():
                 L1_tiles_size += (8 * fs1 * (tile_h_in) + 3) * int( 8 / min(self.BitIn, self.BitOut, self.BitW))
             else:
                 L1_tiles_size += (ds_W * tile_n_out * tile_n_in * fs1 * fs2 / 8.) * (1 + int(int(W_no_str) > 1))
-                L1_tiles_size += (8 * tile_n_in * fs1 * fs2 / 8. * 8 * 2.)
+                if(BN == 1):
+                    L1_tiles_size += (8 * tile_n_in * fs1 * fs2 / 8. * 8 * 2.)
             if g > 1:
                 logging.debug("    groups:".ljust(18) + '%d' % g)
             logging.debug("    L2 size:".ljust(18) + "x: " + x_tot_str.ljust(15) +
