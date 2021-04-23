@@ -169,7 +169,7 @@ class Model_deployment():
         version = str(BitActivation) + 'bit'
         self.copy_files(optional, layer_mixed_list, version, sdk, dma_parallelization)
 
-    def create_weights_files(self, PULP_Nodes_Graph, number_of_deployed_layers, BitActivation):
+    def create_weights_files(self, PULP_Nodes_Graph, number_of_deployed_layers, BitActivation, precision_dict_weights):
         ####################################################################################
         ###### SECTION 2: WEIGHTS FILES CREATION. CREATING .HEX FILES FOR EACH LAYER  ######
         ####################################################################################
@@ -182,6 +182,26 @@ class Model_deployment():
                 nodes_to_deploy.weights = nodes_to_deploy.weights.flatten().tolist()
                 for i_w, _ in enumerate(nodes_to_deploy.weights):
                     nodes_to_deploy.weights[i_w] = np.uint8(nodes_to_deploy.weights[i_w])
+                if precision_dict_weights[i] == 4:
+                    temp = []
+                    z = 0
+                    for _, i_x in enumerate(nodes_to_deploy.weights):
+                        if (z % 2) == 0:
+                            temp.append(nodes_to_deploy.weights[i_w]& 0x0F)
+                        else:
+                            temp[-1] += i_x << 4
+                        z += 1
+                    nodes_to_deploy.weights = temp
+                elif precision_dict_weights[i] == 2:
+                    temp = []
+                    z = 0
+                    for _, i_x in enumerate(nodes_to_deploy.weights):
+                        if (z % 4) == 0:
+                            temp.append(nodes_to_deploy.weights[i_w]& 0x03)
+                        else:
+                            temp[-1] += i_x << 2 * (z % 4)
+                        z += 1
+                    nodes_to_deploy.weights = temp
                 weights = nodes_to_deploy.weights
             if str(nodes_to_deploy.bias) != 'empty':
                 nodes_to_deploy.bias = nodes_to_deploy.bias.flatten().tolist()
@@ -587,7 +607,7 @@ class Model_deployment():
         # copy backend is used to copy all the files of the backend
         self.copy_backend(optional, BitIn, BitW, BitOut, BitActivation, PULP_Nodes_Graph, number_of_deployed_layers, precision_dict_act, precision_dict_weights, sdk, dma_parallelization)
         # create L3 files for weights. These files are .hex which are copied in hyperflash then
-        PULP_Nodes_Graph, weights_files_list, weights_to_write = self.create_weights_files(PULP_Nodes_Graph, number_of_deployed_layers, BitActivation)
+        PULP_Nodes_Graph, weights_files_list, weights_to_write = self.create_weights_files(PULP_Nodes_Graph, number_of_deployed_layers, BitActivation, precision_dict_weights)
         fileh = logging.FileHandler('logs/Tiling_profiling.log', 'a')
         formatter = logging.Formatter('%(asctime)s - %(message)s')
         fileh.setFormatter(formatter)

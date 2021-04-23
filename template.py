@@ -834,9 +834,9 @@ def print_template_layer(x, y_gold, W,
     l2_dim_input = (n_in) * tk['x_h'] * tk['x_w']
     l2_dim_output = (tk['nof']) * tk['y_h'] * tk['y_w']
     if DW == 0:
-        l2_dim_weights = tk['nof'] * tk['nif'] * tk['fs1'] * tk['fs2']
+        l2_dim_weights = int(tk['nof'] * tk['nif'] * tk['fs1'] * tk['fs2'] * ds_W / 8.0)
     else:
-        l2_dim_weights = tk['nof'] * 1 * tk['fs1'] * tk['fs2']
+        l2_dim_weights = int(tk['nof'] * 1 * tk['fs1'] * tk['fs2'] * ds_W / 8.0)
     l2_dim_k = k_buffer_size
     l2_dim_lambda = lambd_buffer_size
     root = '/'.join(os.getcwd().split('/')[:-1])
@@ -878,8 +878,7 @@ def print_template_layer(x, y_gold, W,
         tk['check_sum'] = sum(y_gold)
         tk['W_content'] = print_test_vector(W, 'char')
         tk['buffer_l1_all'] = buffer_l1_all
-        tk['l2_dim_weights'] = int(
-            math.ceil((l2_dim_weights) * ds_W / 8.0) + (l2_dim_k + l2_dim_lambda))
+        tk['l2_dim_weights'] = int(l2_dim_weights + (l2_dim_k + l2_dim_lambda))
         tk['w_out'] = tk['y_w']
         tk['h_out'] = tk['y_h']
         tk['ultra_test'] = True

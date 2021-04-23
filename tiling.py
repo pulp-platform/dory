@@ -1698,9 +1698,9 @@ class Tiling():
                 n_in_temp = self.x_shape[0]
                 n_out_temp = self.out_ch
                 if self.groups > 1:
-                    weights_dim = n_in_temp * fs1 *fs2 + bias_dim1
+                    weights_dim = int(n_in_temp * fs1 *fs2 * self.BitW / 8) + bias_dim1
                 else:
-                    weights_dim = n_in_temp * n_out_temp * fs1 *fs2 + bias_dim1
+                    weights_dim = int(n_in_temp * n_out_temp * fs1 *fs2 * self.BitW / 8) + bias_dim1
                 if BN == 1:
                     weights_dim +=n_out_temp * int(self.BitActivation / 4)
             return in_dim1, out_dim1, weights_dim, l1_dim1, L3_tiling, factor_ch_out, factor_h_out, factor_h_in
