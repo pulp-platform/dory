@@ -693,7 +693,10 @@ def print_template_layer(x, y_gold, W,
         tk['W_tile_size_nof'] = tile_n_out 
     else:
         tk['W_tile_size_nof'] = int(tile_n_out * ds_W / 8.0)
-    tk['b_size_byte'] = int(math.ceil(n_out * ds_W / 8.0))
+    if tk['has_bias'] == 1:
+        tk['b_size_byte'] = int(math.ceil(n_out * ds_W / 8.0))
+    else:
+        tk['b_size_byte'] = 0
 
     if DW == 0:
         tk['W_tile_size_nif'] = tile_n_in
@@ -709,11 +712,11 @@ def print_template_layer(x, y_gold, W,
     # l2 parameters
     if tk['FLAG_BATCHNORM'] == 1:
         tk['l2_off_k'] = int(
-            math.ceil(tk['nof'] * tk['nif'] * fs1 * fs2 * ds_W / 8.0))
+            math.ceil(tk['nof'] * tk['nif'] * fs1 * fs2 * ds_W / 8.0 + tk['b_size_byte']))
         tk['l2_off_lambda'] = int(
-            math.ceil((tk['nof'] * tk['nif'] * fs1 * fs2 * ds_W + tk['nof'] * ds_act) / 8.0))
+            math.ceil((tk['nof'] * tk['nif'] * fs1 * fs2 * ds_W + tk['nof'] * ds_act) / 8.0 + tk['b_size_byte']))
     if has_bias == 1:
-        tk['l2_off_bias'] = 0
+        tk['l2_off_bias'] = int(math.ceil(tk['nof'] * tk['nif'] * fs1 * fs2 * ds_W / 8.0 ))
     if n_in == tile_n_in and w_in == tile_w_in and h_in == tile_h_in:
         x_buffer_size = int(math.ceil(ds_x * tile_n_in * tile_h_in * tile_w_in / 8.0))
     else:
@@ -756,6 +759,9 @@ def print_template_layer(x, y_gold, W,
         if has_bias == 1:
             tk['bias_tile_size_byte'] = tile_n_out
             tk['b_size_byte'] = int(n_out)
+        else:
+            tk['bias_tile_size_byte'] = 0
+            tk['b_size_byte'] = 0
     if conv_order == 'PULP-NN-MAX' or conv_order == 'PULP-NN-ADD':
         W_buffer_size = 0
     # l1 parameters
@@ -818,12 +824,12 @@ def print_template_layer(x, y_gold, W,
             except TypeError:
                 l += "// %s %s\n" % (k.ljust(30), v)
     if conv_order == 'PULP-NN':
-        buffer_l1_all = W_buffer_size + x_buffer_size + y_buffer_size + tk['k_tile_size_byte'] + tk['lambda_tile_size_byte'] + 40
+        buffer_l1_all = W_buffer_size + x_buffer_size + y_buffer_size + tk['k_tile_size_byte'] + tk['lambda_tile_size_byte'] + 40 + tk['b_size_byte']
         tk['im2col_dim'] = (8 * (fs1 * (h_in + 2 * padding_top) + 3)) * int( 8 / min(ds_x, ds_y, ds_W))
     elif conv_order == 'PULP-NN-ADD':
-        buffer_l1_all = x_buffer_size * 2 + y_buffer_size + tk['k_tile_size_byte'] + tk['lambda_tile_size_byte'] + 40
+        buffer_l1_all = x_buffer_size * 2 + y_buffer_size + tk['k_tile_size_byte'] + tk['lambda_tile_size_byte'] + 40 + tk['b_size_byte']
     elif conv_order == 'PULP-NN-MAX':
-        buffer_l1_all = x_buffer_size + y_buffer_size + tk['k_tile_size_byte'] + tk['lambda_tile_size_byte'] + 40
+        buffer_l1_all = x_buffer_size + y_buffer_size + tk['k_tile_size_byte'] + tk['lambda_tile_size_byte'] + 40 + tk['b_size_byte']
     tk['buffer_l1_all'] = buffer_l1_all
     l2_dim_input = (n_in) * tk['x_h'] * tk['x_w']
     l2_dim_output = (tk['nof']) * tk['y_h'] * tk['y_w']
@@ -896,7 +902,7 @@ def print_template_layer(x, y_gold, W,
         save_string = './application/Makefile'
         with open(save_string, "w") as f:
             f.write(s)
-    return l2_dim_input, l2_dim_output, l2_dim_weights, l2_dim_k, l2_dim_lambda, tk['nof'], buffer_l1_all, n_out, w_out, h_out
+    return l2_dim_input, l2_dim_output, l2_dim_weights, l2_dim_k, l2_dim_lambda, tk['b_size_byte'], buffer_l1_all, n_out, w_out, h_out
 
 
 def print_test_vector(x, type_data):

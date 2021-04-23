@@ -469,11 +469,36 @@ void ${func_name}(
     % elif fs1*fs2>1 or 'Gemm' in func_name or stride>1:
     pulp_nn_conv_Ho_parallel(
     % else:
-    pulp_nn_conv_Ho_parallel(
+    pulp_nn_pointwise_HoWo_parallel(
     % endif
-  % elif optional_type == 'mixed' and ('Conv' in func_name):
+  % elif 'mixed-sw' in optional_type  and ('Conv' in func_name):
     pulp_nn_conv_u${x_data_size_byte}_u${y_data_size_byte}_i${W_data_size_byte}(
-  % elif optional_type == 'mixed' and ('Gemm' in func_name or 'MatMul' in func_name):
+  % elif 'mixed-hw' in optional_type  and ('Conv' in func_name):
+    xpulp_nn_conv_u${x_data_size_byte}_u${y_data_size_byte}_i${W_data_size_byte}(
+  % elif 'mixed-sw' in optional_type  and ('Gemm' in func_name or 'MatMul' in func_name):
+    pulp_nn_linear_u${x_data_size_byte}_i${y_data_size_byte}_i${W_data_size_byte}( 
+      x,
+      W,
+      x_tile_size_nif_exec,
+      y_tile_size_nof,
+      0, 0, 
+      % if FLAG_RELU == 1:
+      out_shift,
+      out_mult,
+      % else:
+      0,
+      0,
+      % endif
+      % if FLAG_BATCHNORM == 1:
+      k,
+      lambda,
+      % else:
+      0,
+      0,
+      % endif
+      y,
+      ${FLAG_RELU}, ${FLAG_BATCHNORM}, &dma_evt );  
+  % elif 'mixed-hw' in optional_type  and ('Gemm' in func_name or 'MatMul' in func_name):
     pulp_nn_linear_u${x_data_size_byte}_i${y_data_size_byte}_i${W_data_size_byte}( 
       x,
       W,
@@ -506,8 +531,10 @@ void ${func_name}(
     % else:
     pulp_nn_depthwise_generic(
     % endif
-  % elif optional_type == 'mixed':
-    pulp_nn_dw_u${x_data_size_byte}_u${y_data_size_byte}_i${W_data_size_byte}(
+  % elif optional_type == 'mixed-sw':
+    pulp_nn_depthwise_u${x_data_size_byte}_u${y_data_size_byte}_i${W_data_size_byte}(
+  % elif optional_type == 'mixed-hw':
+    xpulp_nn_depthwise_u${x_data_size_byte}_u${y_data_size_byte}_i${W_data_size_byte}( 
   % endif
 % endif
 % if 'Gemm' not in func_name and 'MatMul' not in func_name:

@@ -76,26 +76,60 @@ class Model_deployment():
         elif optional == "8bit":
             os.system('cp ../pulp-nn/' + version +'/include/*  ./application/DORY_network/inc/')
             os.system('cp ../pulp-nn/' + version +'/src/* ./application/DORY_network/src/')
-        elif optional == "mixed":
-            pass
-            print("Going to support mixed kernels very soon.")
+        elif optional == "mixed-sw":
             os.system('cp ../pulp-nn-mixed/XpulpV2/' + version +'/include/*  ./application/DORY_network/inc/')
             for layer in layer_mixed_list:
-                os.system('cp ../pulp-nn-mixed/XpulpV2/' + version +'/src/' + layer + ' ./application/DORY_network/src/')
+                if layer.split('_')[2] == 'conv':
+                    os.system('cp ../pulp-nn-mixed/XpulpV2/' + version +'/src/Convolution/' + layer + ' ./application/DORY_network/src/')
+                elif layer.split('_')[2] == 'depthwise':
+                    os.system('cp ../pulp-nn-mixed/XpulpV2/' + version +'/src/Depthwise/' + layer + ' ./application/DORY_network/src/')
+                elif layer.split('_')[2] == 'matmul':
+                    os.system('cp ../pulp-nn-mixed/XpulpV2/' + version +'/src/MatrixMultiplication/' + layer + ' ./application/DORY_network/src/')
+                elif layer.split('_')[2] == 'linear':
+                    if layer.split('_')[4] == 'i32':
+                        os.system('cp ../pulp-nn-mixed/XpulpV2/' + version +'/src/LinearNoQuant/' + layer + ' ./application/DORY_network/src/')
+                    else:
+                        os.system('cp ../pulp-nn-mixed/XpulpV2/' + version +'/src/LinearQuant/' + layer + ' ./application/DORY_network/src/')
+                elif 'avgpool' in layer.split('_')[2]:
+                    os.system('cp ../pulp-nn-mixed/XpulpV2/' + version +'/src/Pooling/AvgPool/' + layer + ' ./application/DORY_network/src/')
+                elif 'maxpool' in layer.split('_')[2]:
+                    os.system('cp ../pulp-nn-mixed/XpulpV2/' + version +'/src/Pooling/MaxPool/' + layer + ' ./application/DORY_network/src/')
+                elif layer.split('_')[2] == 'add':
+                    os.system('cp ../pulp-nn-mixed/XpulpV2/' + version +'/src/Add/' + layer + ' ./application/DORY_network/src/')
+        elif optional == "mixed-hw":
+            os.system('cp ../pulp-nn-mixed/XpulpNN/' + version +'/include/*  ./application/DORY_network/inc/')
+            for layer in layer_mixed_list:
+                if layer.split('_')[2] == 'conv':
+                    os.system('cp ../pulp-nn-mixed/XpulpNN/' + version +'/src/Convolution/' + layer + ' ./application/DORY_network/src/')
+                elif layer.split('_')[2] == 'depthwise':
+                    os.system('cp ../pulp-nn-mixed/XpulpNN/' + version +'/src/Depthwise/' + layer + ' ./application/DORY_network/src/')
+                elif layer.split('_')[2] == 'matmul':
+                    os.system('cp ../pulp-nn-mixed/XpulpNN/' + version +'/src/MatrixMultiplication/' + layer + ' ./application/DORY_network/src/')
+                elif layer.split('_')[2] == 'linear':
+                    if layer.split('_')[4] == 'i32':
+                        os.system('cp ../pulp-nn-mixed/XpulpNN/' + version +'/src/LinearNoQuant/' + layer + ' ./application/DORY_network/src/')
+                    else:
+                        os.system('cp ../pulp-nn-mixed/XpulpNN/' + version +'/src/LinearQuant/' + layer + ' ./application/DORY_network/src/')
+                elif 'avgpool' in layer.split('_')[2]:
+                    os.system('cp ../pulp-nn-mixed/XpulpNN/' + version +'/src/Pooling/AvgPool/' + layer + ' ./application/DORY_network/src/')
+                elif 'maxpool' in layer.split('_')[2]:
+                    os.system('cp ../pulp-nn-mixed/XpulpNN/' + version +'/src/Pooling/MaxPool/' + layer + ' ./application/DORY_network/src/')
+                elif layer.split('_')[2] == 'add':
+                    os.system('cp ../pulp-nn-mixed/XpulpNN/' + version +'/src/Add/' + layer + ' ./application/DORY_network/src/')
 
-    def copy_backend(self, optional, BitIn, BitW, BitOut, BitActivation, PULP_Nodes_Graph, number_of_deployed_layers, precision_dict, sdk, dma_parallelization):
+    def copy_backend(self, optional, BitIn, BitW, BitOut, BitActivation, PULP_Nodes_Graph, number_of_deployed_layers, precision_dict_act, precision_dict_weights, sdk, dma_parallelization):
         layer_mixed_list = []
         ####################################################################################
         ###### SECTION 1: BACKEND FILE SELECTING. SELECTING CORRECT KERNELS TO IMPORT ######
         ####################################################################################
-        if optional == 'mixed':
+        if 'mixed-sw' in optional:
             for i, nodes_to_deploy in enumerate(PULP_Nodes_Graph[:number_of_deployed_layers]):
                 BitIn = BitOut
                 if nodes_to_deploy.outshift != 'empty':
-                    BitOut = precision_dict[i]
-                BitW = 8
+                    BitOut = precision_dict_act[i]
+                BitW = precision_dict_weights[i]
                 if nodes_to_deploy.groups > 1:
-                    layer_mixed_list.append(f'pulp_nn_dw_u{BitIn}_u{BitOut}_i{BitW}.c')
+                    layer_mixed_list.append(f'pulp_nn_depthwise_u{BitIn}_u{BitOut}_i{BitW}.c')
                 else:
                     layer_mixed_list.append(f'pulp_nn_conv_u{BitIn}_u{BitOut}_i{BitW}.c')
                 layer_mixed_list.append(f'pulp_nn_matmul_u{BitOut}_i{BitW}.c')
@@ -106,6 +140,32 @@ class Model_deployment():
             layer_mixed_list.append('pulp_nn_add_u8_u8.c')
             layer_mixed_list.append('pulp_nn_avgpool_u8.c')
             layer_mixed_list.append('pulp_nn_maxpool_u8.c')
+            layer_mixed_list.append('pulp_nn_avgpool_u4.c')
+            layer_mixed_list.append('pulp_nn_maxpool_u4.c')
+            layer_mixed_list.append('pulp_nn_avgpool_u2.c')
+            layer_mixed_list.append('pulp_nn_maxpool_u2.c')
+        if 'mixed-hw' in optional:
+            for i, nodes_to_deploy in enumerate(PULP_Nodes_Graph[:number_of_deployed_layers]):
+                BitIn = BitOut
+                if nodes_to_deploy.outshift != 'empty':
+                    BitOut = precision_dict_act[i]
+                BitW = precision_dict_weights[i]
+                if nodes_to_deploy.groups > 1:
+                    layer_mixed_list.append(f'xpulp_nn_depthwise_u{BitIn}_u{BitOut}_i{BitW}.c')
+                else:
+                    layer_mixed_list.append(f'xpulp_nn_conv_u{BitIn}_u{BitOut}_i{BitW}.c')
+                layer_mixed_list.append(f'xpulp_nn_matmul_u{BitIn}_u{BitOut}_i{BitW}.c')
+                if i == len(PULP_Nodes_Graph[:number_of_deployed_layers]) - 1:
+                    BitOut = 32
+                if 'Gemm' in nodes_to_deploy.name or 'MatMul' in nodes_to_deploy.name:
+                    layer_mixed_list.append(f'pulp_nn_linear_u{BitIn}_i{BitOut}_i{BitW}.c')
+            layer_mixed_list.append('pulp_nn_add_u8_u8.c')
+            layer_mixed_list.append('pulp_nn_avgpool_u8.c')
+            layer_mixed_list.append('pulp_nn_maxpool_u8.c')
+            layer_mixed_list.append('pulp_nn_avgpool_u4.c')
+            layer_mixed_list.append('pulp_nn_maxpool_u4.c')
+            layer_mixed_list.append('pulp_nn_avgpool_u2.c')
+            layer_mixed_list.append('pulp_nn_maxpool_u2.c')
         version = str(BitActivation) + 'bit'
         self.copy_files(optional, layer_mixed_list, version, sdk, dma_parallelization)
 
@@ -123,6 +183,11 @@ class Model_deployment():
                 for i_w, _ in enumerate(nodes_to_deploy.weights):
                     nodes_to_deploy.weights[i_w] = np.uint8(nodes_to_deploy.weights[i_w])
                 weights = nodes_to_deploy.weights
+            if str(nodes_to_deploy.bias) != 'empty':
+                nodes_to_deploy.bias = nodes_to_deploy.bias.flatten().tolist()
+                for i_w, _ in enumerate(nodes_to_deploy.bias):
+                    nodes_to_deploy.bias[i_w] = np.uint8(nodes_to_deploy.bias[i_w])
+                weights = np.concatenate((weights, nodes_to_deploy.bias))
             if str(nodes_to_deploy.k) != 'empty':
                 if str(nodes_to_deploy.outmul) != 'empty':
                     out_mult = np.int32(nodes_to_deploy.outmul)
@@ -201,7 +266,8 @@ class Model_deployment():
                             BitIn,
                             BitW,
                             BitOut,
-                            precision_dict,
+                            precision_dict_act,
+                            precision_dict_weights,
                             sdk,
                             dma_parallelization):
         ####################################################################################
@@ -244,8 +310,8 @@ class Model_deployment():
             if(optional != '8bit' and optional != '1D_Conv'):
                 BitIn = BitOut
                 if nodes_to_deploy.outshift != 'empty':
-                    BitOut = precision_dict[i]
-                BitW = 8
+                    BitOut = precision_dict_act[i]
+                BitW = precision_dict_weights[i]
             if i == len(PULP_Nodes_Graph)-1:
                 name_layer = name_layer + '_last'
                 BitOut = 32
@@ -316,10 +382,14 @@ class Model_deployment():
             if('DW' in nodes_to_deploy.name):
                 DW = 1
             if('Conv1D' in nodes_to_deploy.name):
+                if nodes_to_deploy.bias == 'empty':
+                    h_b = 0
+                else:
+                    h_b = 1
                 in_dim2, out_dim2, weights_dim, l1_dim2 = tile_gen.get_tiling(X=0, Y=0, W=0,
                                                                             relu=relu, BN=BN,
                                                                             dilation=nodes_to_deploy.dilation,
-                                                                            has_bias=0,
+                                                                            has_bias=h_b,
                                                                             out_mul=nodes_to_deploy.outmul,
                                                                             out_shift=nodes_to_deploy.outshift,
                                                                             name=name_layer)
@@ -329,9 +399,13 @@ class Model_deployment():
                 L3_tiling = 0
                 factor_ch_out = 1
             elif('Gemm' in nodes_to_deploy.name or 'Conv' in nodes_to_deploy.name or 'MatMul' in nodes_to_deploy.name):
+                if nodes_to_deploy.bias == 'empty':
+                    h_b = 0
+                else:
+                    h_b = 1
                 in_dim2, out_dim2, weights_dim, l1_dim2, L3_tiling, factor_ch_out, factor_h_out, factor_h_in = tile_gen.get_tiling(X=0, Y=0, W=0,
                                                                             relu=relu, BN=BN, DW=DW,
-                                                                            has_bias=0,
+                                                                            has_bias=h_b,
                                                                             out_mul=nodes_to_deploy.outmul,
                                                                             out_shift=nodes_to_deploy.outshift,
                                                                             name=name_layer,
@@ -386,8 +460,8 @@ class Model_deployment():
                 weight_constraint = 0
             if(L3_tiling == 1):
                 name_layer = name_layer + 'L3'
-                PULP_Nodes_Graph[i].input_activation_dimensions_L3 = PULP_Nodes_Graph[i].input_h * PULP_Nodes_Graph[i].input_w * PULP_Nodes_Graph[i].input_channels
-                PULP_Nodes_Graph[i].output_activation_dimensions_L3 = PULP_Nodes_Graph[i].output_h * PULP_Nodes_Graph[i].output_w * PULP_Nodes_Graph[i].output_channels
+                PULP_Nodes_Graph[i].input_activation_dimensions_L3 = int(PULP_Nodes_Graph[i].input_h * PULP_Nodes_Graph[i].input_w * PULP_Nodes_Graph[i].input_channels*BitIn/8)
+                PULP_Nodes_Graph[i].output_activation_dimensions_L3 = int(PULP_Nodes_Graph[i].output_h * PULP_Nodes_Graph[i].output_w * PULP_Nodes_Graph[i].output_channels*BitOut/8)
             name_list.append(name_layer)
             if('Gemm' in nodes_to_deploy.name or 'Conv' in nodes_to_deploy.name or 'MatMul' in nodes_to_deploy.name):
                 if(i > 0):
@@ -456,7 +530,6 @@ class Model_deployment():
                 BitIn = BitOut
                 if nodes_to_deploy.outshift != 'empty':
                     BitOut = precision_dict[f]
-                BitW = 8
                 if f == len(PULP_Nodes_Graph[:number_of_deployed_layers]) - 1:
                     BitOut = 32
             Input_compressed = []
@@ -508,10 +581,11 @@ class Model_deployment():
                             sdk='gap_sdk', 
                             dma_parallelization='8-cores',
                             optional='8bit',
-                            precision_dict = 'None'):
+                            precision_dict_act = 'None',
+                            precision_dict_weights = 'None'):
         # Function used to create all the files for the application
         # copy backend is used to copy all the files of the backend
-        self.copy_backend(optional, BitIn, BitW, BitOut, BitActivation, PULP_Nodes_Graph, number_of_deployed_layers, precision_dict, sdk, dma_parallelization)
+        self.copy_backend(optional, BitIn, BitW, BitOut, BitActivation, PULP_Nodes_Graph, number_of_deployed_layers, precision_dict_act, precision_dict_weights, sdk, dma_parallelization)
         # create L3 files for weights. These files are .hex which are copied in hyperflash then
         PULP_Nodes_Graph, weights_files_list, weights_to_write = self.create_weights_files(PULP_Nodes_Graph, number_of_deployed_layers, BitActivation)
         fileh = logging.FileHandler('logs/Tiling_profiling.log', 'a')
@@ -534,7 +608,8 @@ class Model_deployment():
             BitIn,
             BitW,
             BitOut,
-            precision_dict,
+            precision_dict_act,
+            precision_dict_weights,
             sdk,
             dma_parallelization)
 
@@ -560,7 +635,7 @@ class Model_deployment():
                 BitW,
                 BitOut,
                 optional,
-                precision_dict)
+                precision_dict_act)
         else:
             x_in = torch.Tensor(1, PULP_Nodes_Graph[0].input_channels, PULP_Nodes_Graph[0].input_h, PULP_Nodes_Graph[0].input_w).uniform_(0, (2**(9)))
             x_in[x_in > (2**8 - 1)] = 0

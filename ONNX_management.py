@@ -78,7 +78,21 @@ class node_element(nn.Module):
         self.branch_change = 0
         self.conv_1d = 0
         self.dilation = 1
-
+    def get_parameters(self):
+        print('name: ' + self.name)
+        print('filter: ' + str(self.input_channels) + 'x'+ str(self.filter_size_w) + 'x'+ str(self.filter_size_h) + 'x'+ str(self.output_channels))
+        print('paddings: ' + str(self.padding_top) + ',' + str(self.padding_right) + ',' + str(self.padding_bottom) + ',' + str(self.padding_left) )
+        print('stride: ' + str(self.stride))
+        print('groups: ' + str(self.groups))
+        print('first weights: ' + str(self.weights[:5]))
+        print('first bias: ' + str(self.bias[:5]))
+        print('first k: ' + str(self.k[:5]))
+        print('first lambd: ' + str(self.lambd[:5]))
+        print('first weights: ' + str(self.weights[:5]))
+        print('input indexes: ' + str(self.input_index) + ', ' + str(self.input_index_add))
+        print('output index: ' + str(self.output_index))
+        print('input HxW: ' + str(self.input_h) + 'x' + str(self.input_w))
+        print('output HxW: ' + str(self.output_h) + 'x' + str(self.output_w))
 
 class ONNX_management():
     # Used to manage the ONNX files. By now, supported Convolutions (PW and DW), Pooling, Fully Connected and Relu.
@@ -146,8 +160,9 @@ class ONNX_management():
             if(len(node_iterating.attribute[0].ints) == 1):
                 new_node.conv_1d = 1
         if 'Pool' in node_iterating.op_type:
-            if(len(node_iterating.attribute[0].ints) == 1):
-                new_node.conv_1d = 1
+            if 'Global' not in node_iterating.op_type:
+                if(len(node_iterating.attribute[0].ints) == 1):
+                    new_node.conv_1d = 1
         # scan 2 successive Pad layers
         for node in model.graph.node:
             if node.output[0] in new_node.input_index and node.op_type == 'Pad':
@@ -215,6 +230,8 @@ class ONNX_management():
                         new_node.weights = np.transpose(numpy_helper.to_array(weight), (0, 2, 3, 1))
                         new_node.input_channels = weight.dims[1]
                         new_node.output_channels = weight.dims[0]
+                    if weight.name == bias_name:
+                        new_node.bias = numpy_helper.to_array(weight)
         elif 'Gemm' in node_iterating.op_type or 'MatMul' in node_iterating.op_type:
             for weight in model.graph.initializer:
                 if weight.name == weight_name:
@@ -258,6 +275,9 @@ class ONNX_management():
                             new_node.stride = field.ints[1]
                     if field.name == 'group':
                         new_node.groups = field.i
+                if 'Global' in node_iterating.op_type:
+                    new_node.filter_size_h = PULP_Nodes_Graph[-1].output_h
+                    new_node.filter_size_w = PULP_Nodes_Graph[-1].output_w
             else:
                 for field in node_iterating.attribute:
                     if field.name == 'kernel_shape':
@@ -426,9 +446,9 @@ class ONNX_management():
 
     def parameters_from_onnx(self, maxL):
         # Load all parameters from the onnx model.
-        layers_accepted = ['Conv', 'Pad', 'Mul', 'Add', 'Div', 'Constant', 'AveragePool', 'MaxPool', 'Cast', 'Clip', 'Floor', 'Flatten', 'Gemm', 'MatMul', 'Shape', 'Gather', 'Unsqueeze', 'Concat', 'Reshape', 'Sigmoid', 'LogSoftmax']
+        layers_accepted = ['Conv', 'Pad', 'Mul', 'Add', 'Div', 'Constant', 'AveragePool', 'GlobalAveragePool', 'MaxPool', 'Cast', 'Clip', 'Floor', 'Flatten', 'Gemm', 'MatMul', 'Shape', 'Gather', 'Unsqueeze', 'Concat', 'Reshape', 'Sigmoid', 'LogSoftmax']
         layers_neglected = ['Cast', 'Clip', 'Floor', 'Flatten', 'Shape', 'Gather', 'Unsqueeze', 'Concat', 'Reshape', 'Sigmoid', 'LogSoftmax']
-        layers_to_node = ['AveragePool', 'MaxPool', 'Conv', 'Gemm', 'MatMul']
+        layers_to_node = ['AveragePool', 'MaxPool', 'Conv', 'Gemm', 'MatMul', 'GlobalAveragePool']
         model = onnx.load(self.network)
         PULP_Nodes_Graph = []
         first_node = 1

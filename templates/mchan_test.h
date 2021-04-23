@@ -171,7 +171,7 @@ static  __attribute__ ((noinline))  void pe_mchan_free(int id) {
 #endif
 // ON FPGA / GAP8
 #else
-% endif:
+% endif
 #ifndef MCHAN_H
 #define MCHAN_H
 // INLINE --> SPEED UP
@@ -217,8 +217,8 @@ static  __attribute__ ((noinline))  void pe_mchan_free(int id) {
 #endif //MCHAN_VERSION 
 #endif
 % elif sdk == 'pulp_sdk':
-#define MCHAN_COMMAND_QUEUE    0x10201800
-#define MCHAN_STATUS_REGISTER  0x10201804
+#define MCHAN_COMMAND_QUEUE    0x10204400
+#define MCHAN_STATUS_REGISTER  0x10204404
 
 // TEMPORARY FIX DAVIDE
 #define PLP_DMA_2D_TCDM_BIT 22
