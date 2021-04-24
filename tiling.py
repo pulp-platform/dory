@@ -127,14 +127,16 @@ class Tiling():
         tile_h_in = solver.IntVar(min_tile_h_in, h_in, 'tile_h_in')
         tile_h_out = solver.IntVar(min_tile_h_out, h_out, 'tile_h_out')
         zero_variable = solver.IntVar(0, 0, 'zero variable')
-        
+        h_out_intvar = solver.IntVar(min_tile_h_out,h_out,'h_out_intvar')
+        solver.Add(h_out_intvar == h_out)
         if ((fs - 1)*dilation+1)*2 <= h_in:
             solver.Add(0 == (tile_h_in - ((fs - 1)*dilation+1)) % s)
             solver.Add(tile_h_out * s == (tile_h_in - (fs - 1)*dilation + (s - 1)))
             # padding added
-            solver.Add(solver.Max((h_in - tile_h_in - (tile_h_in - (fs - 1)*dilation - p)), 0) % (tile_h_in - (fs - 1)*dilation + 1) + abs(solver.Min(
-                solver.Max((h_in - tile_h_in - (tile_h_in - (fs - 1)*dilation - p)), 0) % (tile_h_in - (fs - 1)*dilation), 1) - 1) * ((fs - 1)*dilation+1) >= ((fs - 1)*dilation+1))
-        
+            solver.Add(solver.Max((h_in - tile_h_in - (tile_h_in - (fs - 1)*dilation - p)), 0) % (tile_h_in - (fs - 1)*dilation + 1) + abs(solver.Min(solver.Max((h_in - tile_h_in - (tile_h_in - (fs - 1)*dilation - p)), 0) % (tile_h_in - (fs - 1)*dilation), 1) - 1) * ((fs - 1)*dilation+1) >= ((fs - 1)*dilation+1))
+            #TO MAKE SURE TILING doesn't fail for dilation
+
+            solver.Add(h_in >= s*(tile_h_out*(h_out_intvar//tile_h_out)-1)-p+dilation*(fs-1)+1)
         else:
             solver.Add(h_in == tile_h_in )
             solver.Add(h_out == tile_h_out )
@@ -463,7 +465,8 @@ class Tiling():
         tile_h_in = solver.IntVar(min_tile_h_in, h_in, 'tile_h_in') #Temporal
         tile_h_out = solver.IntVar(min_tile_h_out, h_out, 'tile_h_out') #Temporal
         zero_variable = solver.IntVar(0, 0, 'zero variable')
-      
+        h_out_intvar = solver.IntVar(min_tile_h_out,h_out,'h_out_intvar')
+        solver.Add(h_out_intvar == h_out)
         if ((fs - 1)*dilation+1) <= h_in: #Receptive field size > temporal lenght -> H_in = tile_h_in
             #Adding constraints for geometrical concerns. 
             solver.Add(0 == (tile_h_in - ((fs - 1)*dilation+1)) % s)
@@ -471,7 +474,7 @@ class Tiling():
             # padding added
             solver.Add(solver.Max((h_in - tile_h_in - (tile_h_in - (fs - 1)*dilation - p)), 0) % (tile_h_in - (fs - 1)*dilation + 1) + abs(solver.Min(
                 solver.Max((h_in - tile_h_in - (tile_h_in - (fs - 1)*dilation - p)), 0) % (tile_h_in - (fs - 1)*dilation), 1) - 1) * ((fs - 1)*dilation+1) >= ((fs - 1)*dilation+1))
-        
+            solver.Add(h_in >= s*(tile_h_out*(h_out_intvar//tile_h_out)-1)-p+dilation*(fs-1)+1)
         else:
             solver.Add(h_in == tile_h_in )
             solver.Add(h_out == tile_h_out )
