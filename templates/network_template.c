@@ -1,6 +1,7 @@
 /*
  * network.c
  * Alessio Burrello <alessio.burrello@unibo.it>
+ * Thorir Mar Ingolfsson <thoriri@iis.ee.ethz.ch>
  *
  * Copyright (C) 2019-2020 University of Bologna
  * 
@@ -967,5 +968,4 @@ void network_run(unsigned int L3_weights_size)
 /* --------- SECTION 3 END ---------- */
 /* ---------------------------------- */
 }
-
 

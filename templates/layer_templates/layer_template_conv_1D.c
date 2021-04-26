@@ -1,6 +1,7 @@
 /*
  * layer_template.c
  * Alessio Burrello <alessio.burrello@unibo.it>
+ * Thorir Mar Ingolfsson <thoriri@iis.ee.ethz.ch>
  * Francesco Conti <f.conti@unibo.it>
  *
  * Copyright (C) 2018-2020 University of Bologna
@@ -196,6 +197,9 @@ void ${func_name}(
   for(iter=0; iter<${tile_dim_nof}*${tile_dim_nif}*${tile_dim_h}; iter++) {
 % else:
   for(iter=0; iter<${tile_dim_nof}*${tile_dim_h}; iter++) {
+    // tile_dim_nof: Number of tiles for the output channels 
+    // tile_dim_h: Number of tiles in the temporal dimension
+    // Number of tiles: Factor of tiles, e.g. 64/32 = 2 tiles.
 % endif
   % if tile_dim_nif != 1:
     // loop nest is nof,h,w,nif
@@ -268,8 +272,7 @@ void ${func_name}(
       if(_i_h_load > 0)
         pad_offset_h = ${padding_left};
     % endif
-      //y_tile_size_h   = (last_h_load)   ? ${y_tile_size_h_last} : ${y_tile_size_h};
-      y_tile_size_h   = (last_h_load)   ? ${y_tile_size_h} : ${y_tile_size_h_last};
+      y_tile_size_h   = (last_h_load)   ? ${y_tile_size_h_last} : ${y_tile_size_h};
       W_tile_size_nof = (last_nof_load) ? ${W_tile_size_nof_last} : ${W_tile_size_nof};
       W_tile_size_nif = (last_nif_load) ? ${W_tile_size_nif_last} : ${W_tile_size_nif};
       W_tile_size_byte = W_tile_size_nof*W_tile_size_nif*${W_data_size_byte}*${fs1}/8;
@@ -354,13 +357,10 @@ void ${func_name}(
     // parameter passed to the kernel. Input and output sizes
     x_tile_size_nif_exec = (last_nif_exec) ? ${x_tile_size_nif_last} : ${x_tile_size_nif};
     x_tile_size_h_exec   = (last_h_exec)   ? ${x_tile_size_h_last} : ${x_tile_size_h};
-    //y_tile_size_nof = (last_nof_exec) ? ${y_tile_size_nof_last} : ${y_tile_size_nof};
-    y_tile_size_nof = (last_nof_exec) ? ${y_tile_size_nof} : ${y_tile_size_nof_last};
-    //y_tile_size_h   = (last_h_exec)   ? ${y_tile_size_h_last} : ${y_tile_size_h};
-    y_tile_size_h   = (last_h_exec)   ? ${y_tile_size_h} : ${y_tile_size_h_last};
+    y_tile_size_nof = (last_nof_exec) ? ${y_tile_size_nof_last} : ${y_tile_size_nof};
+    y_tile_size_h   = (last_h_exec)   ? ${y_tile_size_h_last} : ${y_tile_size_h};
     y_tile_size_byte = y_tile_size_nof*y_tile_size_h*${y_data_size_byte}/8;
-    //y_length_nof_byte = (last_nof_exec)   ? ${y_length_nof_byte_last} : ${y_tile_size_nof_byte};
-    y_length_nof_byte = (last_nof_exec)   ? ${y_tile_size_nof_byte} : ${y_length_nof_byte_last};
+    y_length_nof_byte = (last_nof_exec)   ? ${y_length_nof_byte_last} : ${y_tile_size_nof_byte};
     p_r = 0;
     p_l = 0;
     if (_i_h_exec == 0)

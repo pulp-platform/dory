@@ -3,6 +3,7 @@
 #!/bin/bash
 # ONNX_management.py
 # Alessio Burrello <alessio.burrello@unibo.it>
+# Thorir Mar Ingolfsson <thoriri@iis.ee.ethz.ch>
 #
 # Copyright (C) 2019-2020 University of Bologna
 # 
@@ -52,6 +53,7 @@ class node_element(nn.Module):
         self.inmul1 = 'empty'
         self.inmul2 = 'empty'
         self.outshift = 'empty'
+        self.outshift2 = 'empty'
         self.bias = 'empty'
         self.input_index = 0
         self.input_index_add = 0
@@ -316,6 +318,7 @@ class ONNX_management():
     def search_constant(self, index, model):
         ## searching for the parameters of BN abd Relu
         constant = 'empty'
+        
         for node_iterating in (model.graph.initializer):
             if node_iterating.name == index:
                 constant = numpy_helper.to_array(node_iterating)
@@ -323,7 +326,6 @@ class ONNX_management():
             if node_iterating.op_type == 'Constant' and node_iterating.output[0] == index:
                 constant = numpy_helper.to_array(node_iterating.attribute[0].t)
         return constant
-
     def update_node(self, PULP_node, out_index, const, op_type):
         # Add BN and Relu to the nodes.
         PULP_node.output_index = out_index
@@ -332,6 +334,12 @@ class ONNX_management():
                 PULP_node.lambd = const
                 PULP_node.name = PULP_node.name + 'BN'
             elif op_type == 'Div':
+                if(PULP_node.name == 'AddRelu'):
+                    try:
+                        const[0]
+                        PULP_node.outshift2 = round(np.log2(const[0]))
+                    except:
+                        PULP_node.outshift2 = round(np.log2(const))
                 if 'Relu' not in PULP_node.name:
                     try:
                         const[0]
@@ -500,30 +508,27 @@ class ONNX_management():
         index_of_first_add = 0
         index_of_second_add = 0
         for i, node in enumerate(PULP_Nodes_Graph):
-            # if 'Add' in node.name:
-            #     if(node.input_index == PULP_Nodes_Graph[i-1].output_index):
-            #         first_add = node.input_index_add
-            #     else:
-            #         first_add = node.input_index
-            #     second_add = PULP_Nodes_Graph[i-1].output_index
-            #     for j, node_two in enumerate(PULP_Nodes_Graph):
-            #         if node_two.output_index == first_add:
-            #             index_of_first_add = j
-            #         elif node_two.output_index == second_add:
-            #             index_of_second_add = j
-            #     if PULP_Nodes_Graph[index_of_second_add].branch_out == 0:
-            #         branch_change[index_of_first_add] = 1
-            #         branch_last[index_of_second_add] = 1
-            if 'Add' in node.name:
-                second_add = node.input_index_add
+            if('Add' in node.name):
                 first_add = node.input_index
-                if int(first_add) > int(second_add):
-                    second_add = first_add
+                second_add = node.input_index_add
                 for j, node_two in enumerate(PULP_Nodes_Graph):
                     if node_two.output_index == first_add:
-                        branch_change[j] = 1
-                    if node_two.output_index == second_add:
-                        branch_last[j] = 1
+                          index_of_first_add = j
+                    elif node_two.output_index == second_add:
+                        index_of_second_add = j
+                if(PULP_Nodes_Graph[index_of_first_add].branch_out != 1 and PULP_Nodes_Graph[index_of_second_add].branch_out != 1):
+                    if(index_of_first_add > index_of_second_add):
+                        branch_change[index_of_second_add] = 1
+                    else:
+                        branch_change[index_of_first_add] = 1
+            if 'Add' in node.name:
+                second_add_last = node.input_index_add
+                first_add_last = node.input_index
+                if int(first_add_last) > int(second_add_last):
+                    second_add_last = first_add_last
+                for p, node_two_last in enumerate(PULP_Nodes_Graph):
+                    if node_two_last.output_index == second_add:
+                        branch_last[p] = 1    
         for i, node in enumerate(PULP_Nodes_Graph):
             PULP_Nodes_Graph[i].branch_change = branch_change[i]
             PULP_Nodes_Graph[i].branch_last = branch_last[i]

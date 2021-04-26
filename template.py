@@ -1,6 +1,7 @@
 #
 # template.py
 # Alessio Burrello <alessio.burrello@unibo.it>
+# Thorir Mar Ingolfsson <thoriri@iis.ee.ethz.ch>
 #
 # Copyright (C) 2019-2020 University of Bologna
 # 
@@ -198,15 +199,12 @@ def print_template_layer_1D(x, y_gold, W,
         tk['W_tile_size_nif_last'] = tk['W_tile_size_nif']
         tk['W_tile_size_nif_byte_last'] = int(math.ceil(tk['W_tile_size_nif_last'] * ds_W / 8.0))
     # y last
-    """
+
     tk['y_tile_size_nof_last'] = n_out % tile_n_out if (n_out % tile_n_out) > 0 else tile_n_out
     tk['y_tile_size_h_last'] = w_out % tile_w_out if (w_out % tile_w_out) > 0 else tile_w_out
-    print(w_out)
-    print(tile_w_out)
-    print(w_out % tile_w_out)
-    """
-    tk['y_tile_size_nof_last'] = n_in
-    tk['y_tile_size_h_last'] = w_in
+
+    #tk['y_tile_size_nof_last'] = n_in
+    #tk['y_tile_size_h_last'] = w_in
     tk['y_length_nof_byte_last'] = int(math.ceil(tk['y_tile_size_nof_last'] * ds_y / 8.0))
     l = ""
     for k, v in tk.items():
@@ -314,7 +312,8 @@ def print_template_network(
     BitW = 8,
     BitOut = 8,
     sdk = 'gap_sdk',
-    dma_parallelization = '8-cores'
+    dma_parallelization = '8-cores',
+    optional_type = 'conv'
 ):
     # Generate the Network management c file.
     tk = OrderedDict([])
@@ -381,7 +380,10 @@ def print_template_network(
             except TypeError:
                 l += "// %s %s\n" % (k.ljust(30), v)
     root = '/'.join(os.getcwd().split('/')[:-1])
-    tmpl = Template(filename=root + "/templates/network_template.c")
+    if(optional_type == '1D_Conv'):
+        tmpl = Template(filename=root + "/templates/network_template_1D.c")
+    else:
+        tmpl = Template(filename=root + "/templates/network_template.c")
     tk['PULP_Nodes_Graph'] = PULP_Nodes_Graph
     s = tmpl.render(verbose_log=l,**tk)
     save_string = './application/DORY_network/src/network.c'
@@ -843,9 +845,15 @@ def print_template_layer(x, y_gold, W,
     if conv_order == 'PULP-NN':
         tmpl = Template(filename=root+"/templates/layer_templates/layer_template.c")
     elif conv_order == 'PULP-NN-MAX':
-        tmpl = Template(filename=root+"/templates/layer_templates/pooling_layer_template.c")
+        if(optional_type == '1D_Conv'):
+            tmpl = Template(filename=root+"/templates/layer_templates/pooling_layer_1D_template.c")
+        else:
+            tmpl = Template(filename=root+"/templates/layer_templates/pooling_layer_template.c")
     elif conv_order == 'PULP-NN-ADD':
-        tmpl = Template(filename=root+"/templates/layer_templates/add_layer_template.c")
+        if(optional_type == '1D_Conv'):
+            tmpl = Template(filename=root+"/templates/layer_templates/add_layer_1D_template.c")
+        else:
+            tmpl = Template(filename=root+"/templates/layer_templates/add_layer_template.c")
     s = tmpl.render(TEST=test,VERBOSE=False,ULTRA_VERBOSE=ultra_verbose,PULP_TEST=True,verbose_log=l,**tk)
     if 'L2' in test_location:
         save_string = './application/DORY_network/src/' + name_layer.replace("h", "c")
