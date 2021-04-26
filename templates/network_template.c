@@ -33,6 +33,10 @@
 #include "bsp/flash/hyperflash.h"
 #include "bsp/ram/hyperram.h"
 
+% if sdk == 'pulp_sdk':
+#define ICACHE_CTRL_UNIT 0x10201400
+#define ICACHE_PREFETCH ICACHE_CTRL_UNIT + 0x1C
+% endif
 #define FLASH_BUFF_SIZE 128
 % if verbose:
 #define VERBOSE 1
@@ -438,7 +442,12 @@ void network_run_FabricController()
   pi_time_wait_us(10000);
   pi_freq_set(PI_FREQ_DOMAIN_CL, ${cl_frequency});
   pi_time_wait_us(10000);
-  
+
+% if sdk == 'pulp_sdk':
+  #if __PLATFORM__ == ARCHI_PLATFORM_FPGA
+    *(int*)(ICACHE_PREFETCH) = 0xFFFF;
+  #endif
+% endif
   struct pi_device cluster_dev = {0};
   struct pi_cluster_conf conf;
   struct pi_cluster_task cluster_task = {0};
