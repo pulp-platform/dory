@@ -251,9 +251,13 @@ void ${func_name}(
   % endif
     x,
     x_tile_size_w_exec,
+    % if 'mixed' not in optional_type:
     x_tile_size_h_exec,
+    % endif
     x_tile_size_nif_exec,
+    % if 'mixed' not in optional_type:
     ${fs2},
+    % endif
     ${fs1},
     p_t,
 % if 'Max' in optional:
@@ -263,9 +267,12 @@ void ${func_name}(
 % endif
     ${stride},
     y_tile_size_w,
+    % if 'mixed' not in optional_type:
     y_tile_size_h,
     im2col,
+    % endif
     y,
+    % if 'mixed' not in optional_type:
     0,
     0,
 % if 'Max' in optional:
@@ -281,6 +288,9 @@ void ${func_name}(
     0
 % endif    
 % endif
+    % else:
+    im2col
+    % endif
     );
     pi_cl_team_barrier(0);
     % if chip == 'GAP8v3':
