@@ -300,7 +300,7 @@ class Model_deployment():
         name_layer_list = []
         name_layer_list_internal = []       
         MAC_total = 0
-        BitOut = 8
+        BitOut = BitOut
         Layers_L3_input_act = 0
         Layers_L3_output_act = 0
         Layers_L3_weights = 0
