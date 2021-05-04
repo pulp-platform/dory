@@ -827,7 +827,7 @@ def print_template_layer(x, y_gold, W,
                 l += "// %s %s\n" % (k.ljust(30), v)
     if conv_order == 'PULP-NN':
         buffer_l1_all = W_buffer_size + x_buffer_size + y_buffer_size + tk['k_tile_size_byte'] + tk['lambda_tile_size_byte'] + 40 + tk['b_size_byte']
-        tk['im2col_dim'] = (8 * (fs1 * (h_in + 2 * padding_top) + 3)) * int( 8 / min(ds_x, ds_y, ds_W))
+        tk['im2col_dim'] = (8 * (fs1 * (tile_h_in + 2 * padding_top) + fs1)) * int( 8 / min(ds_x, ds_y, ds_W))
     elif conv_order == 'PULP-NN-ADD':
         buffer_l1_all = x_buffer_size * 2 + y_buffer_size + tk['k_tile_size_byte'] + tk['lambda_tile_size_byte'] + 40 + tk['b_size_byte']
     elif conv_order == 'PULP-NN-MAX':

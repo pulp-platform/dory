@@ -441,6 +441,9 @@ class Model_deployment():
                 Layers_L3_input_act += int(factor_h_in > 1)
                 Layers_L3_output_act += int(factor_h_out > 1)
                 Layers_L3_weights += int(factor_ch_out > 1)
+                PULP_Nodes_Graph[i].L3_input = int(factor_h_in > 1)
+                PULP_Nodes_Graph[i].L3_output = int(factor_h_out > 1)
+                PULP_Nodes_Graph[i].L3_weights = int(factor_ch_out > 1)
                 if(i == 0):
                     out_dim2_old = in_dim2
                 if(factor_h_out > 1):

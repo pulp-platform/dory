@@ -63,6 +63,9 @@ class node_element(nn.Module):
         self.output_h = 0
         self.output_w = 0
         self.L3_allocation = 0
+        self.L3_input = 0
+        self.L3_output = 0
+        self.L3_weights = 0
         self.input_activation_dimensions = 0
         self.input_activation_dimensions_L3 = 0
         self.output_activation_dimensions = 0
@@ -167,7 +170,7 @@ class ONNX_management():
                     new_node.conv_1d = 1
         # scan 2 successive Pad layers
         for node in model.graph.node:
-            if node.output[0] in new_node.input_index and node.op_type == 'Pad':
+            if node.output[0] == new_node.input_index and node.op_type == 'Pad':
                 new_node.input_index = node.input[0]
                 if(new_node.conv_1d == 1):
                     if int(sum(node.attribute[1].ints)>0):
@@ -180,7 +183,7 @@ class ONNX_management():
                         new_node.padding_bottom+=node.attribute[1].ints[6]
                         new_node.padding_right+=node.attribute[1].ints[7]
                 for pad_2 in model.graph.node:
-                    if pad_2.output[0] in node.input and pad_2.op_type == 'Pad':
+                    if pad_2.output[0] == node.input[0] and pad_2.op_type == 'Pad':
                         new_node.input_index = pad_2.input[0]
                         if(new_node.conv_1d == 1):
                             new_node.padding_left+=pad_2.attribute[1].ints[2]

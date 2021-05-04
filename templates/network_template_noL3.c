@@ -70,33 +70,6 @@ static int L3_layers[${len(PULP_Nodes_Graph)}] = {\
 % endif
 % endfor
 };
-static int L3_input_layers[${len(PULP_Nodes_Graph)}] = {\
-% for i in range(len(PULP_Nodes_Graph)):
-% if PULP_Nodes_Graph[i].L3_input == 1: 
-1${'' if loop.last else ', '}\
-% else:
-0${'' if loop.last else ', '}\
-% endif
-% endfor
-};
-static int L3_output_layers[${len(PULP_Nodes_Graph)}] = {\
-% for i in range(len(PULP_Nodes_Graph)):
-% if PULP_Nodes_Graph[i].L3_output == 1: 
-1${'' if loop.last else ', '}\
-% else:
-0${'' if loop.last else ', '}\
-% endif
-% endfor
-};
-static int L3_weights_layers[${len(PULP_Nodes_Graph)}] = {\
-% for i in range(len(PULP_Nodes_Graph)):
-% if PULP_Nodes_Graph[i].L3_weights == 1: 
-1${'' if loop.last else ', '}\
-% else:
-0${'' if loop.last else ', '}\
-% endif
-% endfor
-};
 static int allocate_layer[${len(PULP_Nodes_Graph)}] = {\
 % for i in range(len(PULP_Nodes_Graph)):
 % if PULP_Nodes_Graph[i].L3_allocation!=1 and ('Gemm' in PULP_Nodes_Graph[i].name or 'Conv' in PULP_Nodes_Graph[i].name or 'MatMul' in PULP_Nodes_Graph[i].name): 
@@ -340,110 +313,12 @@ static void check_layer_last(int *output, int check_sum_true, int dim) {
 }
 % endif
 
-// filesystem management functions
-void open_filesystem(struct pi_device *flash, struct pi_device *fs)
-{
-    struct pi_readfs_conf conf;
-    struct pi_hyperflash_conf flash_conf;
-
-    /* Init & open flash. */
-    pi_hyperflash_conf_init(&flash_conf);
-    pi_open_from_conf(flash, &flash_conf);
-    if (pi_flash_open(flash))
-    {
-        printf("Error flash open !\n");
-        pmsis_exit(-1);
-    }
-
-    /* Open filesystem on flash. */
-    pi_readfs_conf_init(&conf);
-    conf.fs.flash = flash;
-    pi_open_from_conf(fs, &conf);
-    if (pi_fs_mount(fs))
-    {
-        printf("Error FS mounting !\n");
-        pmsis_exit(-2);
-    }
-}
 
 /* Moves the weights and the biases from hyperflash to hyperram */
 int network_setup()
 {
-  pi_task_t task = {0};
-  pi_task_block(&task);
-  struct pi_device fs;
-  struct pi_device flash;
-  pi_hyperram_conf_init(&ram_conf);
-  open_filesystem(&flash, &fs);
-  pi_open_from_conf(&ram, &ram_conf);
-  pi_ram_open(&ram);
-  pi_fs_file_t *file;
-  pi_ram_alloc(&ram, &L3_weights, (uint32_t) 5000000);
-  pi_ram_alloc(&ram, &L3_input, (uint32_t) 1000000);
-  pi_ram_alloc(&ram, &L3_output, (uint32_t) 1000000);
-#ifdef VERBOSE
-    printf("\nL3 Buffer alloc initial\t@ %d:\t%s\n", (unsigned int)L3_weights, L3_weights?"Ok":"Failed");
-    printf("\nL3 Buffer alloc initial\t@ %d:\t%s\n", (unsigned int)L3_input, L3_input?"Ok":"Failed");
-    printf("\nL3 Buffer alloc initial\t@ %d:\t%s\n", (unsigned int)L3_output, L3_output?"Ok":"Failed");
-#endif
-  unsigned int rdDone = 0;
-% if 'Check_all' in verbose_level:
-  int layer_number = 0;
-  int sum_weights;
-% endif
-  for (int i=0;i<${weights_number};i++)
-  {
-% if 'Check_all' in verbose_level:
-    if (layer_with_weights[layer_number]==0)
-      layer_number +=1;
-% endif
-    file = pi_fs_open(&fs, L3_weights_files[i], 0);
-    if (file == NULL)
-    {
-      printf("file open failed\n");
-      return -1;
-    }
-    L3_weights_size[i] = file->size + rdDone;
-    int flashBuffSize = FLASH_BUFF_SIZE * sizeof(char);
-% if 'Check_all' in verbose_level:
-    sum_weights = 0;
-% endif
-    while(rdDone < (L3_weights_size[i] / sizeof(char))) 
-    { 
-      int size = pi_fs_read(file, flashBuffer, flashBuffSize);
-% if 'Check_all' in verbose_level:
-      for (int t = 0; t < size; t++)
-        sum_weights+=flashBuffer[t];
-% endif      
-      pi_ram_write(&ram, L3_weights+rdDone, flashBuffer,size);
-      rdDone += size / sizeof(char);
-    }
-% if 'Check_all' in verbose_level:
-    if (check_weights[layer_number] == sum_weights)
-      printf("Layer %-3d: Checksum = %-12d, FLASH %-12d, Check OK\n", layer_number, check_weights[layer_number], sum_weights);
-    else
-      printf("Layer %-3d: Checksum = %-12d, FLASH %-12d, Check FAILED\n", layer_number, check_weights[layer_number], sum_weights);
-    layer_number +=1;
-% endif
-  }
-  file = pi_fs_open(&fs, "inputs.hex", 0);
-  if (file == NULL)
-  {
-    printf("file open failed\n");
-    return -1;
-  }
-  activations_input = L3_weights+rdDone;
-  rdDone = 0;
-  int flashBuffSize = FLASH_BUFF_SIZE * sizeof(char);
-  // loop on chunk in file
-  while(rdDone < (${int(PULP_Nodes_Graph[0].input_activation_dimensions * BitIn / 8.0)} / sizeof(char))) 
-  { 
-    // read from HyperFlash
-    int size = pi_fs_read(file, flashBuffer, flashBuffSize);
-    // write to HyperRam
-    pi_ram_write(&ram, activations_input+rdDone, flashBuffer, (uint32_t) size);
-    rdDone += size / sizeof(char);
-  }
+  if (pi_core_id()==0)
+    printf("No filesystem used\n");
   return 1;
 }
 
@@ -591,8 +466,6 @@ void network_run(unsigned int L3_weights_size)
       ${int(PULP_Nodes_Graph[0].input_activation_dimensions* BitIn / 8.0)},
       begin_end_n // begin is 1, end is 0
       );
-    pi_cl_ram_read(&ram, activations_input, L2_input, ${int(PULP_Nodes_Graph[0].input_activation_dimensions* BitIn / 8.0)}, &buff_req1);
-    pi_cl_ram_read_wait(&buff_req1);
 % else:
     dory_L2_alloc(&L2_buffer_allocation,
       &L2_buffer_allocation_end,
@@ -613,8 +486,6 @@ void network_run(unsigned int L3_weights_size)
     begin_end_n = !begin_end_n;
     transfer_weights = L2_weights_1;
     exec_weights = L2_weights_1;  
-    pi_cl_ram_read(&ram, L3_weights_internal, transfer_weights, ${int(PULP_Nodes_Graph[0].weights_dimension* BitW / 8.0)}, &buff_req1);
-    pi_cl_ram_read_wait(&buff_req1);
 /* 
   - output of the first layer allocation
 */
@@ -656,26 +527,10 @@ void network_run(unsigned int L3_weights_size)
 /* ---------------------------------- */
 /* -------- SECTION 2 BEGIN --------- */
 /* ---------------------------------- */
+  pi_cl_team_barrier(0);
+  printf("Temporary fix for no L3\n");
   for(int i = 0; i < ${len(PULP_Nodes_Graph)}; i++)
   {
-    if(pi_core_id()==0)
-    {
-      // copy of weights of next layers:
-      // 1. copy only if we have to allocate the weights (hence not weights tiled from L3 and not pooling/add layer)
-      // 2. waits before the read if we want to implement a double buffering, after if not. 
-      // Waiting based on the fact if layer need or not transfers from L3 memory.
-      if(i < ${len(PULP_Nodes_Graph)-1})
-      {
-        if (allocate_layer[i+1] == 1)
-        {
-          if (L3_layers[i-1] == 0 && i > 0)
-            pi_cl_ram_read_wait(&buff_req1);
-          pi_cl_ram_read(&ram, L3_weights_internal + cumulative_weights_dimension[i+1], transfer_weights, check_weights_dimension[i+1], &buff_req1);
-          if (L3_layers[i] == 1)
-            pi_cl_ram_read_wait(&buff_req1);
-        }
-      }
-    }
       
 % if verbose_level == 'Check_all+Perf_final':
 #ifdef VERBOSE
@@ -687,7 +542,7 @@ void network_run(unsigned int L3_weights_size)
       }
       else
       {
-        if (L3_input_layers[i]==1)
+        if (L3_layers[i-1]==1 && allocate_layer[i-1]==1 && check_activations_dimension_L3_in[i]!=0)
           printf("In in L3\n");
         else
           check_layer(L2_input, check_activations[i], check_activations_dimension[i]);
@@ -783,7 +638,7 @@ void network_run(unsigned int L3_weights_size)
       printf("Layer %d ended \n", i);
       if (i < ${len(PULP_Nodes_Graph) - 1})
       {
-        if (L3_output_layers[i]==1)
+        if (L3_layers[i]==1 && allocate_layer[i]==1 && L3_layers[i+1]==1 && allocate_layer[i]==1 && check_activations_dimension_L3_out[i]!=0)
           printf("Out in L3\n");
         else
           check_layer(L2_output, check_activations_out[i], check_activations_out_dimension[i]);

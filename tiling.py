@@ -1094,7 +1094,7 @@ class Tiling():
         g = groups
         n_in = in_channels * g
         n_out = out_channels
-        h_in = x_shape[-2] + padding_top + padding_right
+        h_in = x_shape[-2] + padding_top + padding_bottom
         w_in = x_shape[-1] + padding_left + padding_right
         h_out = y_shape[-2]
         w_out = y_shape[-1]
@@ -1118,8 +1118,8 @@ class Tiling():
         if DW == 0:
             im2col_dim = 8 * 2 * 8 * fs1 * fs2 * n_in #always 8 since im2col contains unpacked data
         else:
-            im2col_dim = 8 * (8 * fs1 * (h_in) + 3) * int( 8 / min(self.BitIn, self.BitOut, self.BitW)) 
-            weight_full_prec_dim = 8 * 8 * fs1 * fs2 * int( 8 / self.BitW)
+            im2col_dim = 8 * 8 * (fs1 * (h_in + padding_top + padding_bottom) + fs1) * int( 8 / min(self.BitIn, self.BitOut, self.BitW)) 
+            weight_full_prec_dim = 8 * 8 * fs1 * fs2 * int( 8 / min(self.BitIn, self.BitOut, self.BitW))
             if self.BitW==8:
                  weight_full_prec_dim = 0
         if 'MatMul' in name or 'Gemm' in name:
@@ -1190,8 +1190,8 @@ class Tiling():
                 constr_im2col = 32 * 8 * 2 * 8 * fs1 * fs2 * tile_n_in
             else:
                 constr_weight = db * ds_W_scale * tile_n_in * fs1 * fs2
-                constr_im2col = 32 * 8 * (8 * fs1 * (tile_h_in) + 3) * int( 8 / min(self.BitIn, self.BitOut, self.BitW))
-                constr_weight_full_prec = db * 32 * 8 * 8 * fs1 * fs2 * int( 8 / self.BitW)
+                constr_im2col = 32 * 8 * 8 * ( fs1 * (tile_h_in + padding_top + padding_bottom) + fs1) * int( 8 / min(self.BitIn, self.BitOut, self.BitW))
+                constr_weight_full_prec = db * 32 * 8 * 8 * fs1 * fs2 * int( 8 / min(self.BitIn, self.BitOut, self.BitW))
                 if self.BitW==8:
                     constr_weight_full_prec = 0
             if 'MatMul' in name or 'Gemm' in name:
@@ -1324,7 +1324,7 @@ class Tiling():
         if (self.x_shape[-2] - h_in)==0:
             factor_h_in = 1
         else:
-            factor_h_in = 1 + int(np.floor((self.x_shape[-2] - h_in + p_top + p_bottom) / (h_in - conv_overlap_h ))) 
+            factor_h_in = 1 + int(np.ceil((self.x_shape[-2] - h_in) / (h_in - conv_overlap_h ))) 
         # report
         if L3_tiling == 1:
             h_in_L3 = self.x_shape[-2]
@@ -1600,14 +1600,17 @@ class Tiling():
                     sdk = self.sdk,
                     dma_parallelization = self.dma_parallelization)      
                 h_in_last = h_in
+                h_out_last = int(np.floor((h_in_last + p_bottom - (fs1 - 1) + (s - 1)) / s))
                 #### CHECK WELL especially second nested if
                 if factor_h_in > 2 or factor_h_out > 2:
                     if ((self.x_shape[-2] - h_in - h_in + conv_overlap_h + p_top) % (h_in - conv_overlap_h )) != 0:
                         h_in_last = ((self.x_shape[-2] - h_in - h_in + conv_overlap_h + p_top) % (h_in - conv_overlap_h )) + conv_overlap_h
+                        h_out_last = int(np.floor((h_in_last + p_bottom - (fs1 - 1) + (s - 1)) / s))
                     pad_bot = p_bottom - ((self.x_shape[-2] - h_in - h_in + conv_overlap_h + p_top + p_bottom) % (h_in - conv_overlap_h ))
                 elif factor_h_in > 1 or factor_h_out > 1:
                     if ((self.x_shape[-2] - h_in) % (h_in - conv_overlap_h -p_top)) != 0:
                         h_in_last = ((self.x_shape[-2] - h_in) % (h_in - conv_overlap_h -p_top)) + conv_overlap_h + p_bottom
+                        h_out_last = int(np.floor((h_in_last + p_bottom - (fs1 - 1) + (s - 1)) / s))
                     pad_bot = p_bottom - ((self.x_shape[-2] - h_in) % (h_in - conv_overlap_h -p_top))
                 tiling = self.get_tiling_conv2d_like(
                     DW,
@@ -1620,7 +1623,7 @@ class Tiling():
                     n_in,
                     n_out,
                     [n_in, h_in_last, w_in],
-                    [n_out, h_out, w_out],
+                    [n_out, h_out_last, w_out],
                     self.buffer_size,
                     full_computation=full_computation,
                     multiple_buffering_factor=multiple_buffering_factor,
@@ -1629,7 +1632,7 @@ class Tiling():
                 in_dim1, out_dim1, weight_dim1, l2_dim_k, l2_dim_lambda, bias_dim1, l1_dim1, n_out1, w_out1, h_out1 = print_template_layer(
                     X, Y, W,
                     n_in * g, h_in_last, w_in,
-                    n_out, h_out, w_out,
+                    n_out, h_out_last, w_out,
                     tile_n_in, tile_h_in, tile_w_in, tile_h_out, tile_w_out,
                     tile_n_out,
                     ds_x, ds_y, ds_W, self.BitActivation, type_data,
@@ -2061,7 +2064,7 @@ class Tiling():
         solver = pywrapcp.Solver("simple_CP", parameters)
         cost_w = 10
         cost_h = 1
-        cost_n = 1000
+        cost_n = 10000
         cost_dim = 10000
         fs1 = filter_size1
         fs2 = filter_size2
