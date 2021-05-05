@@ -87,7 +87,7 @@ void ${func_name}(
   if (pi_core_id()==0)
   {
 % endif
-  dory_dma_memcpy_3d_custom(
+  dory_dma_memcpy_3d_custom_out(
   l2_x, // ext
   (l1_buffer + ${l1_x_offset}) + 0, // loc
   ${x_tile_size_byte}, // size: dimension of the buffer
@@ -187,7 +187,7 @@ void ${func_name}(
       if (pi_core_id()==0)
       {
 % endif
-      dory_dma_memcpy_3d_custom(
+      dory_dma_memcpy_3d_custom_out(
         dory_get_tile_3d(l2_x, _i_h_load, _i_w_load, _i_nif_load, ${x_tile_size_h}, ${x_tile_size_w}, ${x_tile_size_nif}, ${x_w}, ${nif},  ${conv_overlap1}, ${conv_overlap2},0, pad_offset_h, pad_offset_w, 0, ${x_data_size_byte}), // extern
         (l1_buffer + ${l1_x_offset}) + db_x, // loc
         x_tile_size_byte, // size: dimension of the buffer
@@ -308,7 +308,7 @@ void ${func_name}(
     {
 % endif
     // transfering of output to L2
-    dory_dma_memcpy_3d_custom(
+    dory_dma_memcpy_3d_custom_out(
       dory_get_tile_3d(l2_y, _i_h_exec, _i_w_exec, _i_nof_exec, ${y_tile_size_h}, ${y_tile_size_w}, ${y_tile_size_nof}, ${y_w}, ${nof}, 0, 0, 0, 0, 0, 0, ${y_data_size_byte}), // ext
       (l1_buffer + ${l1_y_offset}) + db_y, // loc
       y_tile_size_byte, // size

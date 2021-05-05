@@ -378,9 +378,9 @@ int network_setup()
   pi_open_from_conf(&ram, &ram_conf);
   pi_ram_open(&ram);
   pi_fs_file_t *file;
-  pi_ram_alloc(&ram, &L3_weights, (uint32_t) 5000000);
-  pi_ram_alloc(&ram, &L3_input, (uint32_t) 1000000);
-  pi_ram_alloc(&ram, &L3_output, (uint32_t) 1000000);
+  pi_ram_alloc(&ram, &L3_weights, (uint32_t) 4800000);
+  pi_ram_alloc(&ram, &L3_input, (uint32_t) 1500000);
+  pi_ram_alloc(&ram, &L3_output, (uint32_t) 1500000);
 #ifdef VERBOSE
     printf("\nL3 Buffer alloc initial\t@ %d:\t%s\n", (unsigned int)L3_weights, L3_weights?"Ok":"Failed");
     printf("\nL3 Buffer alloc initial\t@ %d:\t%s\n", (unsigned int)L3_input, L3_input?"Ok":"Failed");

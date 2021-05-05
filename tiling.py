@@ -1324,7 +1324,9 @@ class Tiling():
         if (self.x_shape[-2] - h_in)==0:
             factor_h_in = 1
         else:
-            factor_h_in = 1 + int(np.ceil((self.x_shape[-2] - h_in) / (h_in - conv_overlap_h ))) 
+            factor_h_in = 1 + int(np.ceil((self.x_shape[-2] + p_top + p_bottom - h_in) / (h_in - conv_overlap_h ))) 
+            if p_bottom > 0 and (self.x_shape[-2] + p_top - h_in) % (h_in - conv_overlap_h ) == 0:
+                factor_h_in = 1 + int((self.x_shape[-2] + p_top - h_in) / (h_in - conv_overlap_h ))
         # report
         if L3_tiling == 1:
             h_in_L3 = self.x_shape[-2]
@@ -1606,10 +1608,16 @@ class Tiling():
                     if ((self.x_shape[-2] - h_in - h_in + conv_overlap_h + p_top) % (h_in - conv_overlap_h )) != 0:
                         h_in_last = ((self.x_shape[-2] - h_in - h_in + conv_overlap_h + p_top) % (h_in - conv_overlap_h )) + conv_overlap_h
                         h_out_last = int(np.floor((h_in_last + p_bottom - (fs1 - 1) + (s - 1)) / s))
+                    elif (h_in - conv_overlap_h ) == 1:
+                        h_in_last = h_in - 1
+                        h_out_last = int(np.floor((h_in_last + p_bottom - (fs1 - 1) + (s - 1)) / s))
                     pad_bot = p_bottom - ((self.x_shape[-2] - h_in - h_in + conv_overlap_h + p_top + p_bottom) % (h_in - conv_overlap_h ))
                 elif factor_h_in > 1 or factor_h_out > 1:
                     if ((self.x_shape[-2] - h_in) % (h_in - conv_overlap_h -p_top)) != 0:
                         h_in_last = ((self.x_shape[-2] - h_in) % (h_in - conv_overlap_h -p_top)) + conv_overlap_h + p_bottom
+                        h_out_last = int(np.floor((h_in_last + p_bottom - (fs1 - 1) + (s - 1)) / s))
+                    elif (h_in - conv_overlap_h ) == 1:
+                        h_in_last = h_in - 1
                         h_out_last = int(np.floor((h_in_last + p_bottom - (fs1 - 1) + (s - 1)) / s))
                     pad_bot = p_bottom - ((self.x_shape[-2] - h_in) % (h_in - conv_overlap_h -p_top))
                 tiling = self.get_tiling_conv2d_like(
@@ -2103,7 +2111,7 @@ class Tiling():
 
         # CONSTRAINTS: managing of correct dimensions (no decimal h_out and any
         # type of rounding)
-        solver.Add(n_in == tile_n)
+        # solver.Add(n_in == tile_n)
         solver.Add(0 == (tile_h_in - fs1) % s)
         solver.Add(0 == (tile_w_in - fs2) % s)
         solver.Add(solver.Max((h_in - tile_h_in - (tile_h_in - fs1 + 1 - p_top)), 0) % (tile_h_in - fs1 + 1) + abs(solver.Min(solver.Max((h_in - tile_h_in - (tile_h_in - fs1 + 1 - p_top)), 0) % (tile_h_in - fs1 + 1), 1) - 1) * fs1 >= fs1)

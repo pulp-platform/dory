@@ -233,6 +233,7 @@ class Model_deployment():
                         k_byte.append(np.uint8((val >> 48) & 0x00000000000000FF))
                         k_byte.append(np.uint8((val >> 56) & 0x00000000000000FF))
                 nodes_to_deploy.k = k_byte
+
                 weights = np.concatenate((weights, nodes_to_deploy.k))
             if str(nodes_to_deploy.lambd) != 'empty':
                 lambd = np.float64(nodes_to_deploy.lambd.flatten()) * out_mult
