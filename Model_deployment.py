@@ -462,6 +462,8 @@ class Model_deployment():
                                                                  type=name)
                 Layers_L3_input_act += int(factor_h_in > 1)
                 Layers_L3_output_act += int(factor_h_out > 1)
+                PULP_Nodes_Graph[i].L3_input = int(factor_h_in > 1)
+                PULP_Nodes_Graph[i].L3_output = int(factor_h_out > 1)
                 if(i == 0):
                     out_dim2_old = in_dim2
                 if(factor_h_out > 1):
@@ -511,7 +513,7 @@ class Model_deployment():
             PULP_Nodes_Graph[i].input_activation_dimensions = int(in_dim2*BitIn/8)
             PULP_Nodes_Graph[i].output_activation_dimensions = int(out_dim2*BitOut/8)
             if(i > 0):
-                if(PULP_Nodes_Graph[i].input_activation_dimensions != PULP_Nodes_Graph[i-1].output_activation_dimensions):
+                if(PULP_Nodes_Graph[i].input_activation_dimensions != PULP_Nodes_Graph[i-1].output_activation_dimensions) and PULP_Nodes_Graph[i-1].L3_output==1:
                     PULP_Nodes_Graph[i].input_activation_dimensions = PULP_Nodes_Graph[i-1].output_activation_dimensions
             PULP_Nodes_Graph[i].l1_dimensions = l1_dim2
             if('Pool' not in nodes_to_deploy.name):

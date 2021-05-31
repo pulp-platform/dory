@@ -1319,7 +1319,7 @@ class Tiling():
         # number of L3 tiles identification and dimension for L2 tiles.
         n_in, n_out, h_in, h_out, w_in, w_out = tiling
         factor_ch_out = self.out_ch/n_out
-        factor_h_out = (int(np.floor((self.x_shape[-2] - (fs1 - 1) + p_top + p_bottom + (s - 1)) / s)))/h_out
+        factor_h_out = int(np.ceil(np.floor((self.x_shape[-2] - (fs1 - 1) + p_top + p_bottom + (s - 1)) / s)/h_out))
         conv_overlap_h = 2 * (fs1 // 2) + fs1 % 2 - 1 - (s - 1)
         if (self.x_shape[-2] - h_in)==0:
             factor_h_in = 1
@@ -1578,7 +1578,7 @@ class Tiling():
                     multiple_buffering_factor=multiple_buffering_factor,
                     name=name) 
                 tile_n_in, tile_n_out, tile_h_in, tile_h_out, tile_w_in, tile_w_out = tiling
-                in_dim1, out_dim1, weight_dim1, l2_dim_k, l2_dim_lambda, bias_dim1, l1_dim1, n_out1, w_out1, h_out1 = print_template_layer(
+                in_dim1, out_dim2, weight_dim1, l2_dim_k, l2_dim_lambda, bias_dim1, l1_dim1, n_out1, w_out1, h_out1 = print_template_layer(
                     X, Y, W,
                     n_in * g, h_in, w_in,
                     n_out, h_out, w_out,
@@ -1600,7 +1600,9 @@ class Tiling():
                     optional_type=self.optional_type,
                     L3_tiling = L3_tiling,
                     sdk = self.sdk,
-                    dma_parallelization = self.dma_parallelization)      
+                    dma_parallelization = self.dma_parallelization) 
+                if out_dim2 > out_dim1:
+                    out_dim1 = out_dim2     
                 h_in_last = h_in
                 h_out_last = int(np.floor((h_in_last + p_bottom - (fs1 - 1) + (s - 1)) / s))
                 #### CHECK WELL especially second nested if
@@ -1637,7 +1639,7 @@ class Tiling():
                     multiple_buffering_factor=multiple_buffering_factor,
                     name=name)  
                 tile_n_in, tile_n_out, tile_h_in, tile_h_out, tile_w_in, tile_w_out = tiling
-                in_dim1, out_dim1, weight_dim1, l2_dim_k, l2_dim_lambda, bias_dim1, l1_dim1, n_out1, w_out1, h_out1 = print_template_layer(
+                in_dim1, out_dim2, weight_dim1, l2_dim_k, l2_dim_lambda, bias_dim1, l1_dim1, n_out1, w_out1, h_out1 = print_template_layer(
                     X, Y, W,
                     n_in * g, h_in_last, w_in,
                     n_out, h_out_last, w_out,
@@ -1660,6 +1662,8 @@ class Tiling():
                     L3_tiling = L3_tiling,
                     sdk = self.sdk,
                     dma_parallelization = self.dma_parallelization)
+                if out_dim2 > out_dim1:
+                    out_dim1 = out_dim2   
                 name_include.append(name + '_p_t')
                 name_include.append(name + '_p_b')                   
             if self.test_location == 'L3_partial':
