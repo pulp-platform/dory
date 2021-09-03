@@ -118,24 +118,22 @@ class Model_deployment():
                 elif layer.split('_')[2] == 'add':
                     os.system('cp ../pulp-nn-mixed/XpulpNN/' + version +'/src/Add/' + layer + ' ./application/DORY_network/src/')
 
-    def copy_backend(self, optional, BitIn, BitW, BitOut, BitActivation, PULP_Nodes_Graph, number_of_deployed_layers, precision_dict_act, precision_dict_weights, sdk, dma_parallelization):
+    def copy_backend(self, optional, BitActivation, PULP_Nodes_Graph, number_of_deployed_layers, sdk, dma_parallelization):
         layer_mixed_list = []
         ####################################################################################
         ###### SECTION 1: BACKEND FILE SELECTING. SELECTING CORRECT KERNELS TO IMPORT ######
         ####################################################################################
         if 'mixed-sw' in optional:
             for i, nodes_to_deploy in enumerate(PULP_Nodes_Graph[:number_of_deployed_layers]):
-                BitIn = BitOut
-                if nodes_to_deploy.outshift != 'empty':
-                    BitOut = precision_dict_act[i]
-                BitW = precision_dict_weights[i]
-                if nodes_to_deploy.groups > 1:
+                BitIn = PULP_Nodes_Graph[i].input_activation_precision
+                BitOut = PULP_Nodes_Graph[i].out_activation_precision
+                BitW = PULP_Nodes_Graph[i].weights_precision
+                if 'DW' in PULP_Nodes_Graph[i].name:
                     layer_mixed_list.append(f'pulp_nn_depthwise_u{BitIn}_u{BitOut}_i{BitW}.c')
-                else:
+                elif 'Conv' in PULP_Nodes_Graph[i].name:
                     layer_mixed_list.append(f'pulp_nn_conv_u{BitIn}_u{BitOut}_i{BitW}.c')
-                layer_mixed_list.append(f'pulp_nn_matmul_u{BitOut}_i{BitW}.c')
-                if i == len(PULP_Nodes_Graph[:number_of_deployed_layers]) - 1:
-                    BitOut = 32
+                if ('Conv' in PULP_Nodes_Graph[i].name or 'Gemm' in PULP_Nodes_Graph[i].name or 'MatMul' in PULP_Nodes_Graph[i].name) and BitOut!=32:
+                    layer_mixed_list.append(f'pulp_nn_matmul_u{BitOut}_i{BitW}.c')
                 if 'Gemm' in nodes_to_deploy.name or 'MatMul' in nodes_to_deploy.name:
                     layer_mixed_list.append(f'pulp_nn_linear_u{BitIn}_i{BitOut}_i{BitW}.c')
             layer_mixed_list.append('pulp_nn_add_u8_u8.c')
@@ -147,17 +145,15 @@ class Model_deployment():
             layer_mixed_list.append('pulp_nn_maxpool_u2.c')
         if 'mixed-hw' in optional:
             for i, nodes_to_deploy in enumerate(PULP_Nodes_Graph[:number_of_deployed_layers]):
-                BitIn = BitOut
-                if nodes_to_deploy.outshift != 'empty':
-                    BitOut = precision_dict_act[i]
-                BitW = precision_dict_weights[i]
-                if nodes_to_deploy.groups > 1:
-                    layer_mixed_list.append(f'xpulp_nn_depthwise_u{BitIn}_u{BitOut}_i{BitW}.c')
-                else:
-                    layer_mixed_list.append(f'xpulp_nn_conv_u{BitIn}_u{BitOut}_i{BitW}.c')
-                layer_mixed_list.append(f'xpulp_nn_matmul_u{BitIn}_u{BitOut}_i{BitW}.c')
-                if i == len(PULP_Nodes_Graph[:number_of_deployed_layers]) - 1:
-                    BitOut = 32
+                BitIn = PULP_Nodes_Graph[i].input_activation_precision
+                BitOut = PULP_Nodes_Graph[i].out_activation_precision
+                BitW = PULP_Nodes_Graph[i].weights_precision
+                if 'DW' in PULP_Nodes_Graph[i].name:
+                    layer_mixed_list.append(f'pulp_nn_depthwise_u{BitIn}_u{BitOut}_i{BitW}.c')
+                elif 'Conv' in PULP_Nodes_Graph[i].name:
+                    layer_mixed_list.append(f'pulp_nn_conv_u{BitIn}_u{BitOut}_i{BitW}.c')
+                if ('Conv' in PULP_Nodes_Graph[i].name or 'Gemm' in PULP_Nodes_Graph[i].name or 'MatMul' in PULP_Nodes_Graph[i].name) and BitOut!=32:
+                    layer_mixed_list.append(f'pulp_nn_matmul_u{BitOut}_i{BitW}.c')
                 if 'Gemm' in nodes_to_deploy.name or 'MatMul' in nodes_to_deploy.name:
                     layer_mixed_list.append(f'pulp_nn_linear_u{BitIn}_i{BitOut}_i{BitW}.c')
             layer_mixed_list.append('pulp_nn_add_u8_u8.c')
@@ -170,7 +166,7 @@ class Model_deployment():
         version = str(BitActivation) + 'bit'
         self.copy_files(optional, layer_mixed_list, version, sdk, dma_parallelization)
 
-    def create_weights_files(self, PULP_Nodes_Graph, number_of_deployed_layers, BitActivation, precision_dict_weights):
+    def create_weights_files(self, PULP_Nodes_Graph, number_of_deployed_layers, BitActivation):
         ####################################################################################
         ###### SECTION 2: WEIGHTS FILES CREATION. CREATING .HEX FILES FOR EACH LAYER  ######
         ####################################################################################
@@ -180,27 +176,30 @@ class Model_deployment():
         weights_to_write = []
         for i, nodes_to_deploy in enumerate(PULP_Nodes_Graph[:number_of_deployed_layers]):
             if str(nodes_to_deploy.weights) != 'empty':
-                nodes_to_deploy.weights = nodes_to_deploy.weights.flatten().tolist()
+                if PULP_Nodes_Graph[i].weights_precision < 8 and 'DW' in nodes_to_deploy.name:
+                    nodes_to_deploy.weights = nodes_to_deploy.weights.reshape(int(nodes_to_deploy.weights.shape[0]/2),2,nodes_to_deploy.weights.shape[1],nodes_to_deploy.weights.shape[2],nodes_to_deploy.weights.shape[3]).transpose(0,2,3,1,4).flatten().tolist()
+                else:
+                    nodes_to_deploy.weights = nodes_to_deploy.weights.flatten().tolist()
                 for i_w, _ in enumerate(nodes_to_deploy.weights):
                     nodes_to_deploy.weights[i_w] = np.uint8(nodes_to_deploy.weights[i_w])
-                if precision_dict_weights[i] == 4:
+                if PULP_Nodes_Graph[i].weights_precision == 4:
                     temp = []
                     z = 0
-                    for _, i_x in enumerate(nodes_to_deploy.weights):
+                    for i_x, _ in enumerate(nodes_to_deploy.weights):
                         if (z % 2) == 0:
-                            temp.append(nodes_to_deploy.weights[i_w]& 0x0F)
+                            temp.append(nodes_to_deploy.weights[i_x]& 0x0F)
                         else:
-                            temp[-1] += i_x << 4
+                            temp[-1] += (nodes_to_deploy.weights[i_x]& 0x0F) << 4
                         z += 1
                     nodes_to_deploy.weights = temp
-                elif precision_dict_weights[i] == 2:
+                elif PULP_Nodes_Graph[i].weights_precision == 2:
                     temp = []
                     z = 0
-                    for _, i_x in enumerate(nodes_to_deploy.weights):
+                    for i_x, _ in enumerate(nodes_to_deploy.weights):
                         if (z % 4) == 0:
-                            temp.append(nodes_to_deploy.weights[i_w]& 0x03)
+                            temp.append(nodes_to_deploy.weights[i_x]& 0x03)
                         else:
-                            temp[-1] += i_x << 2 * (z % 4)
+                            temp[-1] += (nodes_to_deploy.weights[i_x]& 0x03) << 2 * (z % 4)
                         z += 1
                     nodes_to_deploy.weights = temp
                 weights = nodes_to_deploy.weights
@@ -210,6 +209,7 @@ class Model_deployment():
                     nodes_to_deploy.bias[i_w] = np.uint8(nodes_to_deploy.bias[i_w])
                 weights = np.concatenate((weights, nodes_to_deploy.bias))
             if str(nodes_to_deploy.k) != 'empty':
+                out_mult = 1
                 if str(nodes_to_deploy.outmul) != 'empty':
                     out_mult = np.int32(nodes_to_deploy.outmul)
                 k_byte = []
@@ -236,6 +236,9 @@ class Model_deployment():
 
                 weights = np.concatenate((weights, nodes_to_deploy.k))
             if str(nodes_to_deploy.lambd) != 'empty':
+                out_mult = 1
+                if str(nodes_to_deploy.outmul) != 'empty':
+                    out_mult = np.int32(nodes_to_deploy.outmul)
                 lambd = np.float64(nodes_to_deploy.lambd.flatten()) * out_mult
                 try:
                     lambd.shape[0]
@@ -285,11 +288,6 @@ class Model_deployment():
                             BitActivation, 
                             optional, 
                             performance_single_layer, 
-                            BitIn,
-                            BitW,
-                            BitOut,
-                            precision_dict_act,
-                            precision_dict_weights,
                             sdk,
                             dma_parallelization):
         ####################################################################################
@@ -301,7 +299,6 @@ class Model_deployment():
         name_layer_list = []
         name_layer_list_internal = []       
         MAC_total = 0
-        BitOut = BitOut
         Layers_L3_input_act = 0
         Layers_L3_output_act = 0
         Layers_L3_weights = 0
@@ -329,14 +326,11 @@ class Model_deployment():
                     weight_overhead = PULP_Nodes_Graph[i+1].input_channels*PULP_Nodes_Graph[i+1].output_channels*PULP_Nodes_Graph[i+1].filter_size_h*PULP_Nodes_Graph[i+1].filter_size_w +int(PULP_Nodes_Graph[i+1].output_channels*BitActivation/8*2)
             else:
                 weight_overhead = 0
-            if(optional != '8bit' and optional != '1D_Conv'):
-                BitIn = BitOut
-                if nodes_to_deploy.outshift != 'empty':
-                    BitOut = precision_dict_act[i]
-                BitW = precision_dict_weights[i]
+            BitIn = PULP_Nodes_Graph[i].input_activation_precision
+            BitOut = PULP_Nodes_Graph[i].out_activation_precision
+            BitW = PULP_Nodes_Graph[i].weights_precision
             if i == len(PULP_Nodes_Graph)-1:
                 name_layer = name_layer + '_last'
-                BitOut = 32
             if(performance_single_layer == 'Yes'):
                 test_location = 'L3+performance'
             else:
@@ -525,11 +519,7 @@ class Model_deployment():
                                         number_of_deployed_layers, 
                                         check_layer,
                                         weights_to_write,
-                                        BitIn,
-                                        BitW,
-                                        BitOut,
-                                        optional,
-                                        precision_dict):
+                                        optional):
         ######################################################################################
         ###### SECTION 4: GENERATE CHECKSUM BY USING WEIGHT AND OUT_LAYER{i}.TXT FILES  ######
         ######################################################################################
@@ -538,7 +528,6 @@ class Model_deployment():
         x_in = x_in.values[:, 0].astype(int)
         for i, _ in enumerate(x_in):
             x_in[i] = np.uint8(x_in[i])
-        BitOut = 8
         PULP_Nodes_Graph[0].check_sum_in = sum(x_in)
         string_layer = "inputs.hex"
         save_s = './application/DORY_network/' + string_layer
@@ -554,11 +543,8 @@ class Model_deployment():
             for i, _ in enumerate(X_in):
                 X_in[i] = np.uint8(X_in[i])
             if(optional != '8bit' and optional != '1D_Conv'):
-                BitIn = BitOut
-                if nodes_to_deploy.outshift != 'empty':
-                    BitOut = precision_dict[f]
-                if f == len(PULP_Nodes_Graph[:number_of_deployed_layers]) - 1:
-                    BitOut = 32
+                BitIn = nodes_to_deploy.input_activation_precision
+                BitOut = nodes_to_deploy.out_activation_precision
             Input_compressed = []
             z = 0
             import copy
@@ -601,20 +587,15 @@ class Model_deployment():
                             l2_buffer_size = 400000,
                             fc_frequency = 100000000,
                             cl_frequency = 100000000,
-                            BitIn=8,
-                            BitW=8,
-                            BitOut=8,
                             BitActivation = 32,
                             sdk='gap_sdk', 
                             dma_parallelization='8-cores',
-                            optional='8bit',
-                            precision_dict_act = 'None',
-                            precision_dict_weights = 'None'):
+                            optional='8bit'):
         # Function used to create all the files for the application
         # copy backend is used to copy all the files of the backend
-        self.copy_backend(optional, BitIn, BitW, BitOut, BitActivation, PULP_Nodes_Graph, number_of_deployed_layers, precision_dict_act, precision_dict_weights, sdk, dma_parallelization)
+        self.copy_backend(optional, BitActivation, PULP_Nodes_Graph, number_of_deployed_layers, sdk, dma_parallelization)
         # create L3 files for weights. These files are .hex which are copied in hyperflash then
-        PULP_Nodes_Graph, weights_files_list, weights_to_write = self.create_weights_files(PULP_Nodes_Graph, number_of_deployed_layers, BitActivation, precision_dict_weights)
+        PULP_Nodes_Graph, weights_files_list, weights_to_write = self.create_weights_files(PULP_Nodes_Graph, number_of_deployed_layers, BitActivation)
         fileh = logging.FileHandler('logs/Tiling_profiling.log', 'a')
         formatter = logging.Formatter('%(asctime)s - %(message)s')
         fileh.setFormatter(formatter)
@@ -632,11 +613,6 @@ class Model_deployment():
             BitActivation, 
             optional, 
             performance_single_layer,
-            BitIn,
-            BitW,
-            BitOut,
-            precision_dict_act,
-            precision_dict_weights,
             sdk,
             dma_parallelization)
 
@@ -658,11 +634,7 @@ class Model_deployment():
                 number_of_deployed_layers, 
                 check_layer,
                 weights_to_write,
-                BitIn,
-                BitW,
-                BitOut,
-                optional,
-                precision_dict_act)
+                optional)
         else:
             x_in = torch.Tensor(1, PULP_Nodes_Graph[0].input_channels, PULP_Nodes_Graph[0].input_h, PULP_Nodes_Graph[0].input_w).uniform_(0, (2**(9)))
             x_in[x_in > (2**8 - 1)] = 0
@@ -670,7 +642,6 @@ class Model_deployment():
             x_in = x_in.flatten().numpy().astype(int)
             for i, _ in enumerate(x_in):
                 x_in[i] = np.uint8(x_in[i])
-            BitOut = 8
             class_out = 0
             PULP_Nodes_Graph[0].check_sum_in = sum(x_in)
             string_layer = "inputs.hex"
@@ -706,9 +677,6 @@ class Model_deployment():
             cl_frequency = cl_frequency,
             MACs=MAC_total,
             platform=self.platform,
-            BitIn=BitIn,
-            BitW=BitW,
-            BitOut=BitOut,
             sdk = sdk,
             dma_parallelization = dma_parallelization,
             optional_type = optional)

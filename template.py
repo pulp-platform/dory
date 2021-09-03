@@ -308,9 +308,6 @@ def print_template_network(
     cl_frequency = 100000000,
     MACs = 1,
     platform = 'GAP8',
-    BitIn = 8,
-    BitW = 8,
-    BitOut = 8,
     sdk = 'gap_sdk',
     dma_parallelization = '8-cores',
     optional_type = 'conv'
@@ -334,9 +331,6 @@ def print_template_network(
         if 'Gemm' in nodes.name or 'Conv' in nodes.name or 'MatMul' in nodes.name:
             weights_number += 1
     tk['dma_parallelization'] = dma_parallelization
-    tk['BitIn'] = BitIn
-    tk['BitW'] = BitW
-    tk['BitOut'] = BitOut
     tk['weights_number'] = weights_number
     tk['i_conv'] = i_conv
     tk['verbose_level'] = verbose_level
@@ -479,6 +473,7 @@ def print_pool_template_layer_L3(X, W, Y, fs1, fs2, padding, stride,
         with open(save_string, "w") as f: f.write(s)
 
 def print_template_layer_L3(X, W, Y, fs1, fs2, padding, stride,
+                            BitIn, BitW, BitOut,
                             factor_ch_out,
                             factor_h_out, 
                             factor_h_in,
@@ -510,6 +505,9 @@ def print_template_layer_L3(X, W, Y, fs1, fs2, padding, stride,
     conv_overlap2 = 2 * (fs2 // 2) + fs2 % 2 - 1 - (stride - 1)
     tk['conv_overlap1'] = conv_overlap1
     tk['conv_overlap2'] = conv_overlap2
+    tk['BitIn'] = BitIn
+    tk['BitW'] = BitW
+    tk['BitOut'] = BitOut
     tk['padding'] = padding
     tk['input_L3'] = input_L3
     tk['n_tile_W'] = int(factor_ch_out)
@@ -827,7 +825,7 @@ def print_template_layer(x, y_gold, W,
                 l += "// %s %s\n" % (k.ljust(30), v)
     if conv_order == 'PULP-NN':
         buffer_l1_all = W_buffer_size + x_buffer_size + y_buffer_size + tk['k_tile_size_byte'] + tk['lambda_tile_size_byte'] + 40 + tk['b_size_byte']
-        tk['im2col_dim'] = (8 * (fs1 * (tile_h_in + 2 * padding_top) + fs1)) * int( 8 / min(ds_x, ds_y, ds_W))
+        tk['im2col_dim'] = (8 * (fs1 * (tile_h_in + padding_bottom + padding_top) + fs1)) * int( 8 / min(ds_x, ds_y, ds_W))
     elif conv_order == 'PULP-NN-ADD':
         buffer_l1_all = x_buffer_size * 2 + y_buffer_size + tk['k_tile_size_byte'] + tk['lambda_tile_size_byte'] + 40 + tk['b_size_byte']
     elif conv_order == 'PULP-NN-MAX':

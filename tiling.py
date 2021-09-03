@@ -1325,7 +1325,7 @@ class Tiling():
             factor_h_in = 1
         else:
             factor_h_in = 1 + int(np.ceil((self.x_shape[-2] + p_top + p_bottom - h_in) / (h_in - conv_overlap_h ))) 
-            if p_bottom > 0 and (self.x_shape[-2] + p_top - h_in) % (h_in - conv_overlap_h ) == 0:
+            if p_bottom > 0 and (self.x_shape[-2] + p_top - h_in) % (h_in - conv_overlap_h ) == 0 and (h_in - conv_overlap_h ) != 1:
                 factor_h_in = 1 + int((self.x_shape[-2] + p_top - h_in) / (h_in - conv_overlap_h ))
         # report
         if L3_tiling == 1:
@@ -1674,12 +1674,13 @@ class Tiling():
             if L3_tiling == 1 or input_L3 == 1:
                 print_template_layer_L3(
                     X, W, Y, fs1, fs2, p_top, s,
+                    self.BitIn, self.BitW, self.BitOut,
                     factor_ch_out, 
                     factor_h_out, 
                     factor_h_in,
                     name_include,
-                    n_out * w_out * h_out,
-                    n_in * g * w_in * h_in,
+                    int(n_out * w_out * h_out * self.BitOut / 8),
+                    int(n_in * g * w_in * h_in * self.BitIn / 8),
                     n_in * g * self.x_shape[-2] * self.x_shape[-1],
                     weight_dim1,
                     l2_dim_lambda,

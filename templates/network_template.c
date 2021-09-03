@@ -59,8 +59,6 @@ static int L3_weights;
 static int L3_input;
 static int bypass_L3_input;
 static int L3_output;
-static int L3_bypass;
-static int L3_bypass1;
 static int bypass_L3_output;
 static int activations_input;
 static int layers_pointers[${len(PULP_Nodes_Graph)}];
@@ -160,9 +158,9 @@ ${PULP_Nodes_Graph[i].check_sum_w}${'' if loop.last else ', '}\
 static int check_weights_dimension[${len(PULP_Nodes_Graph)}] = {\
 % for i in range(len(PULP_Nodes_Graph)):
 % if i == 0:
-${int(PULP_Nodes_Graph[i].weights_dimension * BitW / 8.0)}${'' if loop.last else ', '}\
+${int(PULP_Nodes_Graph[i].weights_dimension * PULP_Nodes_Graph[0].weights_precision / 8.0)}${'' if loop.last else ', '}\
 % else:
-${int((PULP_Nodes_Graph[i].weights_dimension - PULP_Nodes_Graph[i-1].weights_dimension) * BitW / 8.0)}${'' if loop.last else ', '}\
+${int((PULP_Nodes_Graph[i].weights_dimension - PULP_Nodes_Graph[i-1].weights_dimension) * PULP_Nodes_Graph[0].weights_precision / 8.0)}${'' if loop.last else ', '}\
 % endif
 % endfor
 };
@@ -391,7 +389,6 @@ int network_setup()
   pi_ram_alloc(&ram, &L3_weights, (uint32_t) 4800000);
   pi_ram_alloc(&ram, &L3_input, (uint32_t) 1000000);
   pi_ram_alloc(&ram, &L3_output, (uint32_t) 1000000);
-  pi_ram_alloc(&ram, &L3_bypass, (uint32_t) 1000000);
 #ifdef VERBOSE
     printf("\nL3 Buffer alloc initial\t@ %d:\t%s\n", (unsigned int)L3_weights, L3_weights?"Ok":"Failed");
     printf("\nL3 Buffer alloc initial\t@ %d:\t%s\n", (unsigned int)L3_input, L3_input?"Ok":"Failed");
@@ -447,7 +444,7 @@ int network_setup()
   rdDone = 0;
   int flashBuffSize = FLASH_BUFF_SIZE * sizeof(char);
   // loop on chunk in file
-  while(rdDone < (${int(PULP_Nodes_Graph[0].input_activation_dimensions * BitIn / 8.0)} / sizeof(char))) 
+  while(rdDone < (${int(PULP_Nodes_Graph[0].input_activation_dimensions * PULP_Nodes_Graph[0].input_activation_precision / 8.0)} / sizeof(char))) 
   { 
     // read from HyperFlash
     int size = pi_fs_read(file, flashBuffer, flashBuffSize);
@@ -600,7 +597,7 @@ void network_run(unsigned int L3_weights_size)
     dory_L2_alloc(&L2_buffer_allocation,
       &L2_buffer_allocation_end,
       &L2_weights_1,
-      ${int(PULP_Nodes_Graph[0].weights_dimension* BitW / 8.0)},
+      ${int(PULP_Nodes_Graph[0].weights_dimension* PULP_Nodes_Graph[0].weights_precision / 8.0)},
       begin_end_n // begin is 1, end is 0
       );
 /* 
@@ -610,23 +607,23 @@ void network_run(unsigned int L3_weights_size)
     dory_L2_alloc(&L2_buffer_allocation,
       &L2_buffer_allocation_end,
       &L2_input,
-      ${int(PULP_Nodes_Graph[0].input_activation_dimensions* BitIn / 8.0)},
+      ${int(PULP_Nodes_Graph[0].input_activation_dimensions* PULP_Nodes_Graph[0].input_activation_precision / 8.0)},
       begin_end_n // begin is 1, end is 0
       );
-    pi_cl_ram_read(&ram, activations_input, L2_input, ${int(PULP_Nodes_Graph[0].input_activation_dimensions* BitIn / 8.0)}, &buff_req1);
+    pi_cl_ram_read(&ram, activations_input, L2_input, ${int(PULP_Nodes_Graph[0].input_activation_dimensions* PULP_Nodes_Graph[0].input_activation_precision / 8.0)}, &buff_req1);
     pi_cl_ram_read_wait(&buff_req1);
 % else:
     dory_L2_alloc(&L2_buffer_allocation,
       &L2_buffer_allocation_end,
       &L2_input,
-      ${int(PULP_Nodes_Graph[0].input_activation_dimensions* BitIn / 8.0)},
+      ${int(PULP_Nodes_Graph[0].input_activation_dimensions* PULP_Nodes_Graph[0].input_activation_precision / 8.0)},
       begin_end_n // begin is 1, end is 0
       );
 % endif
     begin_end_n = !begin_end_n;
     transfer_weights = L2_weights_1;
     exec_weights = L2_weights_1;  
-    pi_cl_ram_read(&ram, L3_weights_internal, transfer_weights, ${int(PULP_Nodes_Graph[0].weights_dimension* BitW / 8.0)}, &buff_req1);
+    pi_cl_ram_read(&ram, L3_weights_internal, transfer_weights, ${int(PULP_Nodes_Graph[0].weights_dimension* PULP_Nodes_Graph[0].weights_precision / 8.0)}, &buff_req1);
     pi_cl_ram_read_wait(&buff_req1);
 
 % if 'Gemm' in PULP_Nodes_Graph[1].name or 'Conv' in PULP_Nodes_Graph[1].name:
@@ -637,7 +634,7 @@ void network_run(unsigned int L3_weights_size)
     dory_L2_alloc(&L2_buffer_allocation,
       &L2_buffer_allocation_end,
       &L2_weights_2,
-      ${int(PULP_Nodes_Graph[1].weights_dimension* BitW / 8.0)}- ${int(PULP_Nodes_Graph[0].weights_dimension* BitW / 8.0)},
+      ${int(PULP_Nodes_Graph[1].weights_dimension* PULP_Nodes_Graph[0].weights_precision / 8.0)}- ${int(PULP_Nodes_Graph[0].weights_dimension* PULP_Nodes_Graph[0].weights_precision / 8.0)},
       begin_end_n // begin is 1, end is 0
       );
     transfer_weights = d_buffering_weights_t ? L2_weights_2 : L2_weights_1;
@@ -648,7 +645,7 @@ void network_run(unsigned int L3_weights_size)
     dory_L2_alloc(&L2_buffer_allocation,
       &L2_buffer_allocation_end,
       &L2_output,
-      ${int(PULP_Nodes_Graph[0].output_activation_dimensions* BitOut / 8.0)},
+      ${int(PULP_Nodes_Graph[0].output_activation_dimensions* PULP_Nodes_Graph[0].out_activation_precision / 8.0)},
       begin_end_n // begin is 1, end is 0
       );
     if(L2_output == NULL) return -1;
@@ -863,9 +860,9 @@ void network_run(unsigned int L3_weights_size)
           if (branch_input[i]==1 || branch_change[i-1] == 1)
           {
             pi_cl_ram_read_wait(&buff_req1);
-            // pi_cl_ram_free_req_t free_req;
-            // pi_cl_ram_free(&ram, layers_pointers[residual_number], (uint32_t) check_activations_dimension[i], &free_req);
-            // pi_cl_ram_free_wait(&free_req);
+            pi_cl_ram_free_req_t free_req;
+            pi_cl_ram_free(&ram, layers_pointers[residual_number], (uint32_t) check_activations_dimension[i], &free_req);
+            pi_cl_ram_free_wait(&free_req);
           }
           if (branch_input[i+1]==1)
           {
@@ -882,34 +879,46 @@ void network_run(unsigned int L3_weights_size)
             pi_cl_ram_read(&ram, layers_pointers[residual_number], bypass_activations, check_activations_out_dimension[i], &buff_req1);
             pi_cl_ram_read_wait(&buff_req1);
           }
+          if (i>0)
+          {
+            if (branch_output[i-1]==1 && L3_input_layers[i]==1)
+            {
+              pi_cl_ram_read_wait(&buff_req1);
+              pi_cl_ram_alloc_req_t alloc_req;
+              pi_cl_ram_alloc(&ram, (uint32_t) 1000000, &alloc_req);
+              pi_cl_ram_alloc_wait(&alloc_req, &L3_input);
+            }
+          }
           if (branch_output[i]==1 && L3_output_layers[i]==1)
           {
             pi_cl_ram_read_wait(&buff_req1);
-            // pi_cl_ram_alloc_req_t alloc_req;
-            // pi_cl_ram_alloc(&ram, (uint32_t) check_activations_out_dimension[i], &alloc_req);
-            // pi_cl_ram_alloc_wait(&alloc_req, NULL)
+            pi_cl_ram_free_req_t free_req;
+            pi_cl_ram_free(&ram, (uint32_t) L3_input + check_activations_out_dimension[i], (uint32_t) 1000000 - check_activations_out_dimension[i], &free_req);
+            pi_cl_ram_free_wait(&free_req);
             layers_pointers[residual_number] = L3_input;
             residual_number++;
           }
           else if (branch_output[i]==1)
           {
             pi_cl_ram_read_wait(&buff_req1);
-            // pi_cl_ram_alloc_req_t alloc_req;
-            // pi_cl_ram_alloc(&ram, (uint32_t) check_activations_out_dimension[i], &alloc_req);
-            // pi_cl_ram_alloc_wait(&alloc_req, NULL)
-            layers_pointers[residual_number] = L3_bypass;
-            pi_cl_ram_write(&ram, L3_bypass, L2_output, (uint32_t) check_activations_out_dimension[i], &buff_req1);
+            pi_cl_ram_alloc_req_t alloc_req;
+            int32_t temp_adress;
+            pi_cl_ram_alloc(&ram, (uint32_t) check_activations_out_dimension[i], &alloc_req);
+            pi_cl_ram_alloc_wait(&alloc_req, &temp_adress);
+            layers_pointers[residual_number] = temp_adress;
+            pi_cl_ram_write(&ram, temp_adress, L2_output, (uint32_t) check_activations_out_dimension[i], &buff_req1);
             pi_cl_ram_write_wait(&buff_req1);
             residual_number++;
           }
           if (branch_change[i] == 1)
           {
             pi_cl_ram_read_wait(&buff_req1);
-            // pi_cl_ram_alloc_req_t alloc_req;
-            // pi_cl_ram_alloc(&ram, (uint32_t) check_activations_out_dimension[i], &alloc_req);
-            // pi_cl_ram_alloc_wait(&alloc_req, NULL)
-            layers_pointers[residual_number] = L3_bypass1;
-            pi_cl_ram_write(&ram, L3_bypass1, L2_output, (uint32_t) check_activations_out_dimension[i], &buff_req1);
+            pi_cl_ram_alloc_req_t alloc_req;
+            int32_t temp_adress;
+            pi_cl_ram_alloc(&ram, (uint32_t) check_activations_out_dimension[i], &alloc_req);
+            pi_cl_ram_alloc_wait(&alloc_req, &temp_adress);
+            layers_pointers[residual_number] = temp_adress;
+            pi_cl_ram_write(&ram, temp_adress, L2_output, (uint32_t) check_activations_out_dimension[i], &buff_req1);
             pi_cl_ram_write_wait(&buff_req1);
             residual_number++;
           }
