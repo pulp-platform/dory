@@ -318,12 +318,12 @@ class Model_deployment():
             ######################## NEED A  FIX ####################################################
             #### OTHERWISE ONLY WEIGHT < L2/2 GO in L2 --> much more L3 tiling not needed############
             #########################################################################################
-            tile_factor = 2
+            tile_factor = 1.8
             if (i < len(PULP_Nodes_Graph)-1) and ('Conv' in PULP_Nodes_Graph[i+1].name or 'Gemm' in PULP_Nodes_Graph[i+1].name or 'MatMul' in PULP_Nodes_Graph[i+1].name):
                 if PULP_Nodes_Graph[i+1].input_channels*PULP_Nodes_Graph[i+1].output_channels*PULP_Nodes_Graph[i+1].filter_size_h*PULP_Nodes_Graph[i+1].filter_size_w > int(l2_buffer_size/tile_factor):
                     weight_overhead = int(l2_buffer_size/tile_factor)
                 else:
-                    weight_overhead = PULP_Nodes_Graph[i+1].input_channels*PULP_Nodes_Graph[i+1].output_channels*PULP_Nodes_Graph[i+1].filter_size_h*PULP_Nodes_Graph[i+1].filter_size_w +int(PULP_Nodes_Graph[i+1].output_channels*BitActivation/8*2)
+                    weight_overhead = int(PULP_Nodes_Graph[i+1].weights_precision*PULP_Nodes_Graph[i+1].input_channels*PULP_Nodes_Graph[i+1].output_channels*PULP_Nodes_Graph[i+1].filter_size_h*PULP_Nodes_Graph[i+1].filter_size_w/8) +int(PULP_Nodes_Graph[i+1].output_channels*BitActivation/8*2)
             else:
                 weight_overhead = 0
             BitIn = PULP_Nodes_Graph[i].input_activation_precision
@@ -545,6 +545,9 @@ class Model_deployment():
             if(optional != '8bit' and optional != '1D_Conv'):
                 BitIn = nodes_to_deploy.input_activation_precision
                 BitOut = nodes_to_deploy.out_activation_precision
+            else:
+                BitIn = 8
+                BitOut = 8
             Input_compressed = []
             z = 0
             import copy
@@ -636,7 +639,7 @@ class Model_deployment():
                 weights_to_write,
                 optional)
         else:
-            x_in = torch.Tensor(1, PULP_Nodes_Graph[0].input_channels, PULP_Nodes_Graph[0].input_h, PULP_Nodes_Graph[0].input_w).uniform_(0, (2**(9)))
+            x_in = torch.Tensor(1, PULP_Nodes_Graph[0].groups, PULP_Nodes_Graph[0].input_channels, PULP_Nodes_Graph[0].input_h, PULP_Nodes_Graph[0].input_w).uniform_(0, (2**(9)))
             x_in[x_in > (2**8 - 1)] = 0
             x_in = torch.round(x_in)
             x_in = x_in.flatten().numpy().astype(int)
@@ -649,7 +652,6 @@ class Model_deployment():
             with open(save_s, 'wb') as f:
                 for i in x_in.astype('uint8').flatten():
                     f.write(bytes((i,)))
-
         if check_layer == 100:
             act_compare = np.asarray([0, 0])
             act_size = [0, 0, 0]
