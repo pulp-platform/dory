@@ -597,7 +597,7 @@ void network_run(unsigned int L3_weights_size)
     dory_L2_alloc(&L2_buffer_allocation,
       &L2_buffer_allocation_end,
       &L2_weights_1,
-      ${int(PULP_Nodes_Graph[0].weights_dimension* PULP_Nodes_Graph[0].weights_precision / 8.0)},
+      ${int(PULP_Nodes_Graph[0].weights_dimension)},
       begin_end_n // begin is 1, end is 0
       );
 /* 
@@ -607,23 +607,23 @@ void network_run(unsigned int L3_weights_size)
     dory_L2_alloc(&L2_buffer_allocation,
       &L2_buffer_allocation_end,
       &L2_input,
-      ${int(PULP_Nodes_Graph[0].input_activation_dimensions* PULP_Nodes_Graph[0].input_activation_precision / 8.0)},
+      ${int(PULP_Nodes_Graph[0].input_activation_dimensions)},
       begin_end_n // begin is 1, end is 0
       );
-    pi_cl_ram_read(&ram, activations_input, L2_input, ${int(PULP_Nodes_Graph[0].input_activation_dimensions* PULP_Nodes_Graph[0].input_activation_precision / 8.0)}, &buff_req1);
+    pi_cl_ram_read(&ram, activations_input, L2_input, ${int(PULP_Nodes_Graph[0].input_activation_dimensions)}, &buff_req1);
     pi_cl_ram_read_wait(&buff_req1);
 % else:
     dory_L2_alloc(&L2_buffer_allocation,
       &L2_buffer_allocation_end,
       &L2_input,
-      ${int(PULP_Nodes_Graph[0].input_activation_dimensions* PULP_Nodes_Graph[0].input_activation_precision / 8.0)},
+      ${int(PULP_Nodes_Graph[0].input_activation_dimensions)},
       begin_end_n // begin is 1, end is 0
       );
 % endif
     begin_end_n = !begin_end_n;
     transfer_weights = L2_weights_1;
     exec_weights = L2_weights_1;  
-    pi_cl_ram_read(&ram, L3_weights_internal, transfer_weights, ${int(PULP_Nodes_Graph[0].weights_dimension* PULP_Nodes_Graph[0].weights_precision / 8.0)}, &buff_req1);
+    pi_cl_ram_read(&ram, L3_weights_internal, transfer_weights, ${int(PULP_Nodes_Graph[0].weights_dimension)}, &buff_req1);
     pi_cl_ram_read_wait(&buff_req1);
 
 % if 'Gemm' in PULP_Nodes_Graph[1].name or 'Conv' in PULP_Nodes_Graph[1].name:
@@ -634,7 +634,7 @@ void network_run(unsigned int L3_weights_size)
     dory_L2_alloc(&L2_buffer_allocation,
       &L2_buffer_allocation_end,
       &L2_weights_2,
-      ${int(PULP_Nodes_Graph[1].weights_dimension* PULP_Nodes_Graph[0].weights_precision / 8.0)}- ${int(PULP_Nodes_Graph[0].weights_dimension* PULP_Nodes_Graph[0].weights_precision / 8.0)},
+      ${int(PULP_Nodes_Graph[1].weights_dimension)}- ${int(PULP_Nodes_Graph[0].weights_dimension)},
       begin_end_n // begin is 1, end is 0
       );
     transfer_weights = d_buffering_weights_t ? L2_weights_2 : L2_weights_1;
@@ -645,7 +645,7 @@ void network_run(unsigned int L3_weights_size)
     dory_L2_alloc(&L2_buffer_allocation,
       &L2_buffer_allocation_end,
       &L2_output,
-      ${int(PULP_Nodes_Graph[0].output_activation_dimensions* PULP_Nodes_Graph[0].out_activation_precision / 8.0)},
+      ${int(PULP_Nodes_Graph[0].output_activation_dimensions)},
       begin_end_n // begin is 1, end is 0
       );
     if(L2_output == NULL) return -1;

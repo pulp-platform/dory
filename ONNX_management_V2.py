@@ -115,33 +115,43 @@ class ONNX_management():
         # Allocation of an Addition (for residuals) layer
         new_node.input_index = [input_i for input_i in node_iterating.input if 'weight' not in input_i][0]
         new_node.input_index_add = [input_i for input_i in node_iterating.input if 'weight' not in input_i][1]
-        for node_iterating_mul in (model.graph.node):
-            if 'Mul' == node_iterating_mul.op_type:
+        out_nodes = [node.output_index for node in PULP_Nodes_Graph]
+        for times in np.arange(10): #to be sure to gather all the not already included nodes
+            for node_iterating_mul in (model.graph.node):
+                #if 'Mul' == node_iterating_mul.op_type:
                 flag_mul = 0
                 if new_node.input_index == node_iterating_mul.output[0]:
-                    new_node.input_index = node_iterating_mul.input[0]
-                    inputs = [input_i for input_i in node_iterating_mul.input if 'weight' not in input_i]
-                    index = [input_search for input_search in inputs if input_search][0]
-                    const = self.search_constant(index, model)
-                    if const == 'empty':
-                        index = [input_search for input_search in inputs if input_search][1]
-                        const = self.search_constant(index, model)
-                    try:
-                        new_node.inmul1 = const[0]
-                    except:
-                        new_node.inmul1 = const
+                    if node_iterating_mul.output[0] in out_nodes:
+                        break
+                    else:
+                        new_node.input_index = node_iterating_mul.input[0]
+                    # inputs = [input_i for input_i in node_iterating_mul.input if 'weight' not in input_i]
+                    # index = [input_search for input_search in inputs if input_search][0]
+                    # const = self.search_constant(index, model)
+                    # if const == 'empty':
+                    #     index = [input_search for input_search in inputs if input_search][1]
+                    #     const = self.search_constant(index, model)
+                    # try:
+                    #     new_node.inmul1 = const[0]
+                    # except:
+                    #     new_node.inmul1 = const
+        for times in np.arange(10): #to be sure to gather all the not already included nodes
+            for node_iterating_mul in (model.graph.node): 
                 if new_node.input_index_add == node_iterating_mul.output[0]:
-                    new_node.input_index_add = node_iterating_mul.input[0]
-                    inputs = [input_i for input_i in node_iterating_mul.input if 'weight' not in input_i]
-                    index = [input_search for input_search in inputs if input_search][0]
-                    const = self.search_constant(index, model)
-                    if const == 'empty':
-                        index = [input_search for input_search in inputs if input_search][1]
-                        const = self.search_constant(index, model)
-                    try:
-                        new_node.inmul2 = const[0]
-                    except:
-                        new_node.inmul2 = const
+                    if node_iterating_mul.output[0] in out_nodes:
+                        break
+                    else:
+                        new_node.input_index_add = node_iterating_mul.input[0]
+                    # inputs = [input_i for input_i in node_iterating_mul.input if 'weight' not in input_i]
+                    # index = [input_search for input_search in inputs if input_search][0]
+                    # const = self.search_constant(index, model)
+                    # if const == 'empty':
+                    #     index = [input_search for input_search in inputs if input_search][1]
+                    #     const = self.search_constant(index, model)
+                    # try:
+                    #     new_node.inmul2 = const[0]
+                    # except:
+                    #     new_node.inmul2 = const
         new_node.output_index = node_iterating.output[0]
         for nodes in PULP_Nodes_Graph:
             if nodes.output_index == new_node.input_index or nodes.output_index == new_node.input_index_add:
@@ -478,6 +488,7 @@ class ONNX_management():
         model = onnx.load(self.network)
         PULP_Nodes_Graph = []
         first_node = 1
+        clipping = 0
         for node_iterating in (model.graph.node[:(maxL * 15)]):
             assert (node_iterating.op_type in layers_accepted), f"{node_iterating.op_type} not supported by DORY"
             # Adding a new Conv, Pool or Linear layer
@@ -486,38 +497,43 @@ class ONNX_management():
                 PULP_Nodes_Graph.append(new_node)
                 PULP_node = PULP_Nodes_Graph[-1]
                 first_node = 0
+                clipping = 0
                 continue
             # Adding an addition layer
             if 'Add' in node_iterating.op_type:
                 if self.check_add(node_iterating, model) == 'Reconverge':
                     new_node = self.create_node_add(node_element(), first_node, node_iterating, model, PULP_Nodes_Graph)
                     PULP_Nodes_Graph.append(new_node)
+                    ######## UNDERSTAND WHEN A NODE IS ENDED: AN ADD IN QUANTLAB SEEMS TO NOT HAVE OTHER NODES AFTER
+                    clipping = 1
                     continue
-            if node_iterating.op_type in layers_neglected:
+            if node_iterating.op_type in layers_neglected and clipping==0:
                 PULP_node.output_index = node_iterating.output[0]
                 continue
-            if node_iterating.op_type in layers_precision:
+            if node_iterating.op_type in layers_precision and clipping==0:
                 PULP_node.output_index = node_iterating.output[0]
                 attributes_names = [attribute.name for attribute in node_iterating.attribute]
                 if 'out_bits' in attributes_names:
                     for attribute in node_iterating.attribute:
                         if attribute.name == 'out_bits':
                             PULP_node.out_activation_precision = attribute.i
+                clipping = 1
                 continue
             if node_iterating.op_type in 'Pad':
                 continue
             inputs = [input_i for input_i in node_iterating.input if 'weight' not in input_i]
-            for PULP_node in PULP_Nodes_Graph:
-                for inp in inputs:
-                    if inp == PULP_node.output_index:
-                        # insert BN and/or Relu. Note that you need Mul-Add-Mul-Div
-                        if 'Mul' == node_iterating.op_type:
-                            if self.check_Mul_position(model, node_iterating, maxL):
-                                break
-                        index = [input_search for input_search in inputs if input_search != inp][0]
-                        const = self.search_constant(index, model)
-                        PULP_node = self.update_node(PULP_node, node_iterating.output[0], const, node_iterating.op_type)
-                        break
+            if clipping==0:
+                for PULP_node in PULP_Nodes_Graph:
+                    for inp in inputs:
+                        if inp == PULP_node.output_index:
+                            # insert BN and/or Relu. Note that you need Mul-Add-Mul-Div
+                            if 'Mul' == node_iterating.op_type:
+                                if self.check_Mul_position(model, node_iterating, maxL):
+                                    break
+                            index = [input_search for input_search in inputs if input_search != inp][0]
+                            const = self.search_constant(index, model)
+                            PULP_node = self.update_node(PULP_node, node_iterating.output[0], const, node_iterating.op_type)
+                            break
         # adding input bit precision
         for i, nodes in enumerate(PULP_Nodes_Graph):
             if i == 0:
@@ -526,6 +542,8 @@ class ONNX_management():
                 for j, precedent_nodes in enumerate(PULP_Nodes_Graph[:i]):
                     if precedent_nodes.output_index == nodes.input_index:
                         nodes.input_activation_precision = precedent_nodes.out_activation_precision
+                        if 'Add' in nodes.name:
+                            nodes.out_activation_precision = nodes.input_activation_precision
             if i == (len(PULP_Nodes_Graph)-1):
                 nodes.out_activation_precision = 32
             if 'Pool' in nodes.name:
