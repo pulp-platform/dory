@@ -309,8 +309,7 @@ def print_template_network(
     MACs = 1,
     platform = 'GAP8',
     sdk = 'gap_sdk',
-    dma_parallelization = '8-cores',
-    optional_type = 'conv'
+    dma_parallelization = '8-cores'
 ):
     # Generate the Network management c file.
     tk = OrderedDict([])
@@ -374,10 +373,7 @@ def print_template_network(
             except TypeError:
                 l += "// %s %s\n" % (k.ljust(30), v)
     root = '/'.join(os.getcwd().split('/')[:-1])
-    if(optional_type == '1D_Conv'):
-        tmpl = Template(filename=root + "/templates/network_template_1D.c")
-    else:
-        tmpl = Template(filename=root + "/templates/network_template.c")
+    tmpl = Template(filename=root + "/templates/network_template.c")
     tk['PULP_Nodes_Graph'] = PULP_Nodes_Graph
     s = tmpl.render(verbose_log=l,**tk)
     save_string = './application/DORY_network/src/network.c'

@@ -158,9 +158,9 @@ ${PULP_Nodes_Graph[i].check_sum_w}${'' if loop.last else ', '}\
 static int check_weights_dimension[${len(PULP_Nodes_Graph)}] = {\
 % for i in range(len(PULP_Nodes_Graph)):
 % if i == 0:
-${int(PULP_Nodes_Graph[i].weights_dimension * PULP_Nodes_Graph[0].weights_precision / 8.0)}${'' if loop.last else ', '}\
+${int(PULP_Nodes_Graph[i].weights_dimension * PULP_Nodes_Graph[0].weight_bits / 8.0)}${'' if loop.last else ', '}\
 % else:
-${int((PULP_Nodes_Graph[i].weights_dimension - PULP_Nodes_Graph[i-1].weights_dimension) * PULP_Nodes_Graph[0].weights_precision / 8.0)}${'' if loop.last else ', '}\
+${int((PULP_Nodes_Graph[i].weights_dimension - PULP_Nodes_Graph[i-1].weights_dimension) * PULP_Nodes_Graph[0].weight_bits / 8.0)}${'' if loop.last else ', '}\
 % endif
 % endfor
 };
