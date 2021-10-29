@@ -32,7 +32,7 @@ def print_file_list(x):
     return s
 
 
-def print_template_Makefile(file_list_w, platform, sdk):
+def print_template_Makefile(file_list_w, platform, sdk, backend):
     # Generate the Makefile, including all files to upload on the hyperflash
     tk = OrderedDict([])
     tk['build_layers'] = os.listdir('./application/DORY_network/src/')
@@ -40,9 +40,12 @@ def print_template_Makefile(file_list_w, platform, sdk):
     tk['platform'] = 'GAP8'
     tk['sdk'] = sdk
     root = '/'.join(os.getcwd().split('/')[:-1])
-    tmpl = Template(filename=root + "/templates/Makefile_template")
+    tmpl = Template(filename=root + f"/templates_{backend}/Makefile_template")
     s = tmpl.render(**tk)
-    save_string = './application/Makefile'
+    if backend == 'MCU':
+        save_string = './application/Makefile'
+    else:
+        save_string = './application/CMakeLists.txt'
     with open(save_string, "w") as f:
         f.write(s)
 
@@ -68,6 +71,7 @@ def print_template_layer_1D(x, y_gold, W,
                          platform='GAP8',
                          chip='GAP8v2',
                          optional_type='8bit',
+                         backend = 'MCU',
                          layer_type = 'normal'):
     # Generate the Layer management c file.
     if w_out * stride + fs1 - 1 - stride + 1 > w_in:
@@ -229,7 +233,7 @@ def print_template_layer_1D(x, y_gold, W,
     l2_dim_lambda = lambd_buffer_size
     if conv_order == 'PULP-NN':
         root = '/'.join(os.getcwd().split('/')[:-1])
-        tmpl = Template(filename=root + "/templates/layer_templates/layer_template_conv_1D.c")
+        tmpl = Template(filename=root + f"/templates_{backend}/layer_templates/layer_template_conv_1D.c")
     s = tmpl.render(TEST=test,VERBOSE=False,ULTRA_VERBOSE=ultra_verbose,PULP_TEST=True,verbose_log=l,**tk)
     if 'L2' in test_location:
         save_string = './application/DORY_network/src/' + name_layer.replace("h", "c")
@@ -238,7 +242,7 @@ def print_template_layer_1D(x, y_gold, W,
     with open(save_string, "w") as f:
         f.write(s)
     root = '/'.join(os.getcwd().split('/')[:-1])
-    tmpl = Template(filename=root + "/templates/layer_templates/layer_template_h.h")
+    tmpl = Template(filename=root + f"/templates_{backend}/layer_templates/layer_template_h.h")
     s = tmpl.render(
         TEST=test,
         VERBOSE=False,
@@ -267,7 +271,7 @@ def print_template_layer_1D(x, y_gold, W,
         tk['h_out'] = tk['y_h']
         tk['ultra_test'] = True
         root = '/'.join(os.getcwd().split('/')[:-1])
-        tmpl = Template(filename=root+"/templates/test_templateL2.c")
+        tmpl = Template(filename=root+f"/templates_{backend}/test_templateL2.c")
         s = tmpl.render(
             TEST=test,
             VERBOSE=False,
@@ -280,7 +284,7 @@ def print_template_layer_1D(x, y_gold, W,
             f.write(s)
         tk['build_layers'] = os.listdir('./application/DORY_network/src/') 
         tk['platform'] = 'GAP8'
-        tmpl = Template(filename=root+"/templates/Makefile_template_L2")
+        tmpl = Template(filename=root+f"/templates_{backend}/Makefile_template_L2")
         s = tmpl.render(**tk)
         save_string = './application/Makefile'
         with open(save_string, "w") as f:
@@ -309,6 +313,7 @@ def print_template_network(
     MACs = 1,
     platform = 'GAP8',
     sdk = 'gap_sdk',
+    backend = 'MCU',
     dma_parallelization = '8-cores'
 ):
     # Generate the Network management c file.
@@ -373,7 +378,7 @@ def print_template_network(
             except TypeError:
                 l += "// %s %s\n" % (k.ljust(30), v)
     root = '/'.join(os.getcwd().split('/')[:-1])
-    tmpl = Template(filename=root + "/templates/network_template.c")
+    tmpl = Template(filename=root + f"/templates_{backend}/network_template.c")
     tk['PULP_Nodes_Graph'] = PULP_Nodes_Graph
     s = tmpl.render(verbose_log=l,**tk)
     save_string = './application/DORY_network/src/network.c'
@@ -429,14 +434,14 @@ def print_pool_template_layer_L3(X, W, Y, fs1, fs2, padding, stride,
     tk['y_data_size_byte'] = data_type_y
     tk['x_data_size_byte'] = data_type_x
     root = '/'.join(os.getcwd().split('/')[:-1])
-    tmpl = Template(filename=root + "/templates/layer_templates/layer_template_L3.c")
+    tmpl = Template(filename=root + f"/templates_{backend}/layer_templates/layer_template_L3.c")
     l = ""
     s = tmpl.render(verbose_log=l,**tk)
     #
     save_string = './application/DORY_network/src/' + tk['func_name_L3'] + '.c'
     with open(save_string, "w") as f: f.write(s)
 
-    tmpl = Template(filename=root + "/templates/layer_templates/layer_template_L3-h.h")
+    tmpl = Template(filename=root + f"/templates_{backend}/layer_templates/layer_template_L3-h.h")
     s = tmpl.render(verbose_log=l, **tk)
     if full_net == 1:
         save_string = './application/DORY_network/inc/' + \
@@ -463,7 +468,7 @@ def print_pool_template_layer_L3(X, W, Y, fs1, fs2, padding, stride,
         tk['func_nameL3'] = tk['func_name_L3']
         tk['file'] = name[0][5:] + '_weights.hex'
         tk['buffer_l1_all'] = buffer_l1_all
-        tmpl = Template(filename=root + "/templates/test_templateL3.c")
+        tmpl = Template(filename=root + f"/templates_{backend}/test_templateL3.c")
         s = tmpl.render(**tk)
         save_string = './application/DORY_network/src/main.c'
         with open(save_string, "w") as f: f.write(s)
@@ -493,7 +498,8 @@ def print_template_layer_L3(X, W, Y, fs1, fs2, padding, stride,
                             test_location,
                             out_mul, out_shift,
                             buffer_l1_all,
-                            input_L3
+                            input_L3,
+                            backend
                             ):
     # generation of L3 layers. The layers are generated with this infrustructure if an L3 tiling is demanded.
     tk = OrderedDict([])
@@ -528,14 +534,14 @@ def print_template_layer_L3(X, W, Y, fs1, fs2, padding, stride,
     tk['y_data_size_byte'] = data_type_y
     tk['x_data_size_byte'] = data_type_x
     root = '/'.join(os.getcwd().split('/')[:-1])
-    tmpl = Template(filename=root + "/templates/layer_templates/layer_template_L3.c")
+    tmpl = Template(filename=root + f"/templates_{backend}/layer_templates/layer_template_L3.c")
     l = ""
     s = tmpl.render(verbose_log=l,**tk)
     #
     save_string = './application/DORY_network/src/' + tk['func_name_L3'] + '.c'
     with open(save_string, "w") as f: f.write(s)
 
-    tmpl = Template(filename=root + "/templates/layer_templates/layer_template_L3-h.h")
+    tmpl = Template(filename=root + f"/templates_{backend}/layer_templates/layer_template_L3-h.h")
     s = tmpl.render(verbose_log=l, **tk)
     if full_net == 1:
         save_string = './application/DORY_network/inc/' + \
@@ -564,7 +570,7 @@ def print_template_layer_L3(X, W, Y, fs1, fs2, padding, stride,
         tk['func_nameL3'] = tk['func_name_L3']
         tk['file'] = name[0][5:] + '_weights.hex'
         tk['buffer_l1_all'] = buffer_l1_all
-        tmpl = Template(filename=root + "/templates/test_templateL3.c")
+        tmpl = Template(filename=root + f"/templates_{backend}/test_templateL3.c")
         s = tmpl.render(**tk)
         save_string = './application/DORY_network/src/main.c'
         with open(save_string, "w") as f: f.write(s)
@@ -591,6 +597,7 @@ def print_template_layer(x, y_gold, W,
                          optional_type='8bit',
                          L3_tiling = 0,
                          sdk = 'gap_sdk',
+                         backend = 'MCU',
                          dma_parallelization = '8-cores'
                          ):
     # Generate the Layer management c file.
@@ -837,17 +844,17 @@ def print_template_layer(x, y_gold, W,
     l2_dim_lambda = lambd_buffer_size
     root = '/'.join(os.getcwd().split('/')[:-1])
     if conv_order == 'PULP-NN':
-        tmpl = Template(filename=root+"/templates/layer_templates/layer_template.c")
+        tmpl = Template(filename=root+f"/templates_{backend}/layer_templates/layer_template.c")
     elif conv_order == 'PULP-NN-MAX':
         if(optional_type == '1D_Conv'):
-            tmpl = Template(filename=root+"/templates/layer_templates/pooling_layer_1D_template.c")
+            tmpl = Template(filename=root+f"/templates_{backend}/layer_templates/pooling_layer_1D_template.c")
         else:
-            tmpl = Template(filename=root+"/templates/layer_templates/pooling_layer_template.c")
+            tmpl = Template(filename=root+f"/templates_{backend}/layer_templates/pooling_layer_template.c")
     elif conv_order == 'PULP-NN-ADD':
         if(optional_type == '1D_Conv'):
-            tmpl = Template(filename=root+"/templates/layer_templates/add_layer_1D_template.c")
+            tmpl = Template(filename=root+f"/templates_{backend}/layer_templates/add_layer_1D_template.c")
         else:
-            tmpl = Template(filename=root+"/templates/layer_templates/add_layer_template.c")
+            tmpl = Template(filename=root+f"/templates_{backend}/layer_templates/add_layer_template.c")
     s = tmpl.render(TEST=test,VERBOSE=False,ULTRA_VERBOSE=ultra_verbose,PULP_TEST=True,verbose_log=l,**tk)
     if 'L2' in test_location:
         save_string = './application/DORY_network/src/' + name_layer.replace("h", "c")
@@ -855,7 +862,7 @@ def print_template_layer(x, y_gold, W,
         save_string = './application/DORY_network/src/' + name_layer.replace("h", "c")
     with open(save_string, "w") as f:
         f.write(s)
-    tmpl = Template(filename=root+"/templates/layer_templates/layer_template_h.h")
+    tmpl = Template(filename=root+f"/templates_{backend}/layer_templates/layer_template_h.h")
     s = tmpl.render(
         TEST=test,
         VERBOSE=False,
@@ -885,7 +892,7 @@ def print_template_layer(x, y_gold, W,
         tk['h_out'] = tk['y_h']
         tk['ultra_test'] = True
         root = '/'.join(os.getcwd().split('/')[:-1])
-        tmpl = Template(filename=root+"/templates/test_templateL2.c")
+        tmpl = Template(filename=root+f"/templates_{backend}/test_templateL2.c")
         s = tmpl.render(
             TEST=test,
             VERBOSE=False,
@@ -898,7 +905,7 @@ def print_template_layer(x, y_gold, W,
             f.write(s)
         tk['build_layers'] = os.listdir('./application/DORY_network/src/') 
         tk['platform'] = 'GAP8'
-        tmpl = Template(filename=root+"/templates/Makefile_template_L2")
+        tmpl = Template(filename=root+f"/templates_{backend}/Makefile_template_L2")
         s = tmpl.render(**tk)
         save_string = './application/Makefile'
         with open(save_string, "w") as f:

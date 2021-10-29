@@ -39,7 +39,7 @@ import sys
 
 class Tiling():
     # Class to generate the Tiling of the layer.
-    def __init__(self, module, out_ch, filter_size, stride, padding, groups, x_shape, L1_buffer, L2_buffer, platform, chip, test_location, BitIn, BitW, BitOut, BitActivation, optional_type, sdk, dma_parallelization):
+    def __init__(self, module, out_ch, filter_size, stride, padding, groups, x_shape, L1_buffer, L2_buffer, platform, chip, test_location, BitIn, BitW, BitOut, BitActivation, optional_type, sdk, backend, dma_parallelization):
         self.module = module
         self.out_ch = out_ch
         self.filter_size = filter_size
@@ -58,6 +58,7 @@ class Tiling():
         self.BitActivation = BitActivation
         self.optional_type = optional_type
         self.sdk = sdk
+        self.backend = backend
         self.dma_parallelization = dma_parallelization
 
     def get_tiling(self, **kwargs):
@@ -738,6 +739,7 @@ class Tiling():
                     platform=self.platform,
                     chip=self.chip,
                     optional_type=self.optional_type,
+                    backend = self.backend,
                     layer_type = layer_type)
             ### L2 memory calculation
             n_out_temp = self.out_ch
@@ -1535,6 +1537,7 @@ class Tiling():
                     optional_type=self.optional_type,
                     L3_tiling = L3_tiling,
                     sdk = self.sdk,
+                    backend = self.backend,
                     dma_parallelization = self.dma_parallelization)
             else:
                 in_dim1, out_dim1, weight_dim1, l2_dim_k, l2_dim_lambda, bias_dim1, l1_dim1, n_out1, w_out1, h_out1 = print_template_layer(
@@ -1559,6 +1562,7 @@ class Tiling():
                     optional_type=self.optional_type,
                     L3_tiling = L3_tiling,
                     sdk = self.sdk,
+                    backend = self.backend,
                     dma_parallelization = self.dma_parallelization)   
             if (p_top + p_bottom) > 0 and (factor_h_in > 1 or factor_h_out > 1):
                 tiling = self.get_tiling_conv2d_like(
@@ -1600,6 +1604,7 @@ class Tiling():
                     optional_type=self.optional_type,
                     L3_tiling = L3_tiling,
                     sdk = self.sdk,
+                    backend = self.backend,
                     dma_parallelization = self.dma_parallelization) 
                 if out_dim2 > out_dim1:
                     out_dim1 = out_dim2     
@@ -1661,6 +1666,7 @@ class Tiling():
                     optional_type=self.optional_type,
                     L3_tiling = L3_tiling,
                     sdk = self.sdk,
+                    backend = self.backend,
                     dma_parallelization = self.dma_parallelization)
                 if out_dim2 > out_dim1:
                     out_dim1 = out_dim2   
@@ -1698,7 +1704,8 @@ class Tiling():
                     self.test_location,
                     out_mul, out_shift,
                     self.buffer_size,
-                    input_L3)
+                    input_L3,
+                    backend = self.backend)
             ### L2 memory calculation
             if factor_h_out > 1:
                 out_dim1 = out_dim1*2
@@ -1906,6 +1913,7 @@ class Tiling():
                     optional_type=self.optional_type,
                     L3_tiling = L3_tiling,
                     sdk = self.sdk,
+                    backend = self.backend,
                     dma_parallelization = self.dma_parallelization)
             else:
                 in_dim1, out_dim1, weight_dim1, l2_dim_k, l2_dim_lambda, bias_dim1, l1_dim1, n_out1, w_out1, h_out1 = print_template_layer(
@@ -1928,6 +1936,7 @@ class Tiling():
                     optional_type=self.optional_type,
                     L3_tiling = L3_tiling,
                     sdk = self.sdk,
+                    backend = self.backend,
                     dma_parallelization = self.dma_parallelization)  
             if (p_top + p_bottom) > 0 and (factor_h_in > 1 or factor_h_out > 1):
                 tiling = self.get_tiling_pool2d_like(
@@ -1963,6 +1972,7 @@ class Tiling():
                     optional_type=self.optional_type,
                     L3_tiling = L3_tiling,
                     sdk = self.sdk,
+                    backend = self.backend,
                     dma_parallelization = self.dma_parallelization) 
                 h_in_last = h_in
                 #### CHECK WELL especially second nested if
@@ -2007,6 +2017,7 @@ class Tiling():
                     optional_type=self.optional_type,
                     L3_tiling = L3_tiling,
                     sdk = self.sdk,
+                    backend = self.backend,
                     dma_parallelization = self.dma_parallelization) 
                 name_include.append(name + '_p_t')
                 name_include.append(name + '_p_b')                   
@@ -2037,7 +2048,8 @@ class Tiling():
                     ds_y,
                     self.test_location,
                     self.buffer_size,
-                    input_L3)
+                    input_L3,
+                    backend = self.backend)
             ### L2 memory calculation
             if factor_h_out > 1:
                 out_dim1 = out_dim1*2
@@ -2333,6 +2345,7 @@ class Tiling():
                 chip=self.chip,
                 optional_type=self.optional_type,
                 sdk = self.sdk,
+                backend = self.backend,
                 dma_parallelization = self.dma_parallelization)
             return in_dim1, out_dim1, l1_dim1
         print("  Add ERROR: no tiling found. Exiting...")

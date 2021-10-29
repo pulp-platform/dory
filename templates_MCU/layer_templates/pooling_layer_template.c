@@ -39,7 +39,6 @@ void ${func_name}(
   unsigned int inmul1 = (unsigned int) real_arg[10];
   unsigned int inmul2 = (unsigned int) real_arg[11];
   unsigned int out_shift_in = (unsigned int) real_arg[12];
-  unsigned int dma_evt;
   int p_r, p_l, p_t, p_b;
   int last_nof_exec;
   int last_nif_exec;
@@ -71,40 +70,29 @@ void ${func_name}(
   int exec_db_W;
  ${type} *im2col;
   im2col = l1_buffer + ${buffer_l1_all};
-  % if chip == 'GAP8v3':
-% if dma_parallelization == '1-core':
-  if (pi_core_id()==0)
-  {
-% endif
-  dma_evt = mchan_alloc();
-% if dma_parallelization == '1-core':
-  }
-% endif
-  % endif
+  uint32_t dory_dma_channel = dory_dma_allocate();
+  volatile DMA_copy DMA_copy_x, DMA_copy_y;
   // copy first tiles
   //l2_x has input activations
-% if dma_parallelization == '1-core':
-  if (pi_core_id()==0)
-  {
-% endif
-  dory_dma_memcpy_3d_custom_out(
-  l2_x, // ext
-  (l1_buffer + ${l1_x_offset}) + 0, // loc
-  ${x_tile_size_byte}, // size: dimension of the buffer
-  ${x_stride_w_byte}, // stride_1: stride for the 3d copy: if we have to copy on n_features axis, this is the stride to change from first 2D space to the next ones.
-  ${x_stride_c_byte}, // stride_0: stride to be passed to 2d_copy: the dimension w of the in image
-  ${x_tile_size_h},// length_2: how many 2_d copies we need -> the dimension of the tile in n_features direction
-  ${x_tile_size_nif_byte}, // length_0: legnth of the 1_d copy, the length of tile in w direction
-  1, // dir
-  &dma_evt // copy
-  );
-  % if chip == 'GAP8v3':
-  // wait for x read
-  mchan_barrier(dma_evt);
-  % endif
-% if dma_parallelization == '1-core':
-  }
-% endif
+
+  DMA_copy_x.stride_2d = ${x_stride_w_byte};
+  DMA_copy_x.stride_1d = ${x_stride_c_byte};
+  DMA_copy_x.dir = 1;
+  DMA_copy_x.dma_channel = dory_dma_channel;
+  
+  DMA_copy_y.hwc_to_chw = 0;
+  DMA_copy_y.stride_2d = ${y_stride_w_byte};
+  DMA_copy_y.stride_1d = ${y_stride_c_byte};
+  DMA_copy_y.dir = 0;
+  DMA_copy_y.dma_channel = dory_dma_channel;
+
+  DMA_copy_x.ext = l2_x;
+  DMA_copy_x.loc = (l1_buffer + ${l1_x_offset}) + 0;
+  DMA_copy_x.number_of_2d_copies = ${x_tile_size_h};
+  DMA_copy_x.number_of_1d_copies = ${x_tile_size_w};
+  DMA_copy_x.length_1d_copy = ${x_tile_size_nif_byte};
+  dory_dma_memcpy_async(DMA_copy_x);
+  dory_dma_barrier(DMA_copy_x);
   // tile loop indeces
   int _i_nof_load=0, _i_nif_load=0, _i_h_load=0, _i_w_load=0;
   int _i_nof_exec=0, _i_nif_exec=0, _i_h_exec=0, _i_w_exec=0;
@@ -183,24 +171,12 @@ void ${func_name}(
       if(_i_w_load > 0)
         pad_offset_w = ${padding_left};
 
-% if dma_parallelization == '1-core':
-      if (pi_core_id()==0)
-      {
-% endif
-      dory_dma_memcpy_3d_custom_out(
-        dory_get_tile_3d(l2_x, _i_h_load, _i_w_load, _i_nif_load, ${x_tile_size_h}, ${x_tile_size_w}, ${x_tile_size_nif}, ${x_w}, ${nif},  ${conv_overlap1}, ${conv_overlap2},0, pad_offset_h, pad_offset_w, 0, ${x_data_size_byte}), // extern
-        (l1_buffer + ${l1_x_offset}) + db_x, // loc
-        x_tile_size_byte, // size: dimension of the buffer
-        ${x_stride_w_byte}, // stride_1: stride for the 3d copy: if we have to copy on n_features axis, this is the stride to change from first 2D space to the next ones.
-        ${x_stride_c_byte}, // stride_0: stride to be passed to 2d_copy: the dimension w of the in image
-        x_tile_size_h,// length_2: how many 2_d copies we need -> the dimension of the tile in n_features direction
-        x_length_nif_byte, // length_0: legnth of the 1_d copy, the length of tile in w direction
-        1, // dir
-        &dma_evt // copy
-        );
-% if dma_parallelization == '1-core':
-        }
-% endif
+      DMA_copy_x.ext = dory_get_tile_3d(l2_x, _i_h_load, _i_w_load, _i_nif_load, ${x_tile_size_h}, ${x_tile_size_w}, ${x_tile_size_nif}, ${x_w}, ${nif},  ${conv_overlap1}, ${conv_overlap2},0, pad_offset_h, pad_offset_w, 0, ${x_data_size_byte});
+      DMA_copy_x.loc = (l1_buffer + ${l1_x_offset}) + db_x;
+      DMA_copy_x.number_of_2d_copies = x_tile_size_h;
+      DMA_copy_x.number_of_1d_copies = x_tile_size_w;
+      DMA_copy_x.length_1d_copy = x_length_nif_byte;
+      dory_dma_memcpy_async(DMA_copy_x);
 % endif
       y_tile_size_h   = (last_h_load)   ? ${y_tile_size_h_last} : ${y_tile_size_h};
       y_tile_size_w   = (last_w_load)   ? ${y_tile_size_w_last} : ${y_tile_size_w};
@@ -293,35 +269,15 @@ void ${func_name}(
     % endif
     );
     pi_cl_team_barrier(0);
-    % if chip == 'GAP8v3':
-% if dma_parallelization == '1-core':
-    if (pi_core_id()==0)
-    {
-% endif
-    mchan_barrier(dma_evt);
-% if dma_parallelization == '1-core':
-    }
-% endif
-    % endif
-% if dma_parallelization == '1-core':
-    if (pi_core_id()==0)
-    {
-% endif
+    dory_dma_barrier(DMA_copy_x);
+    dory_dma_barrier(DMA_copy_y);
     // transfering of output to L2
-    dory_dma_memcpy_3d_custom_out(
-      dory_get_tile_3d(l2_y, _i_h_exec, _i_w_exec, _i_nof_exec, ${y_tile_size_h}, ${y_tile_size_w}, ${y_tile_size_nof}, ${y_w}, ${nof}, 0, 0, 0, 0, 0, 0, ${y_data_size_byte}), // ext
-      (l1_buffer + ${l1_y_offset}) + db_y, // loc
-      y_tile_size_byte, // size
-      ${y_stride_w_byte}, // stride_1
-      ${y_stride_c_byte}, // stride_0
-      y_tile_size_h, // length_2
-      y_length_nof_byte, // length_0
-      0, // dir
-      &dma_evt // copy
-    );
-% if dma_parallelization == '1-core':
-    }
-% endif
+    DMA_copy_y.ext = dory_get_tile_3d(l2_y, _i_h_exec, _i_w_exec, _i_nof_exec, ${y_tile_size_h}, ${y_tile_size_w}, ${y_tile_size_nof}, ${y_w}, ${nof}, 0, 0, 0, 0, 0, 0, ${y_data_size_byte});
+    DMA_copy_y.loc = (l1_buffer + ${l1_y_offset}) + db_y;
+    DMA_copy_y.number_of_2d_copies = y_tile_size_h;
+    DMA_copy_y.number_of_1d_copies = y_tile_size_w;
+    DMA_copy_y.length_1d_copy = y_length_nof_byte;
+    dory_dma_memcpy_async(DMA_copy_y);
     // update prev iterators
     _i_nof_exec = _i_nof_load;
     _i_nif_exec = _i_nif_load;
@@ -330,17 +286,7 @@ void ${func_name}(
   }
 % if not TEST:
   // wait for final write
-  % if chip == 'GAP8v3':
-% if dma_parallelization == '1-core':
-  if (pi_core_id()==0)
-  {
-% endif
-  mchan_barrier(dma_evt);
-  mchan_free(dma_evt);
-% if dma_parallelization == '1-core':
-  }
-% endif
-  % endif
-
+  dory_dma_barrier(DMA_copy_y);
+  dory_dma_deallocate(dory_dma_channel);
 % endif
 }
