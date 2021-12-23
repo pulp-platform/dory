@@ -43,6 +43,7 @@ class Model_deployment_MCU(Model_deployment):
         optional = '8bits'
         for node in PULP_Nodes_Graph:
             if 'Conv' in node.get_parameter('name'):
+                ### NOT WORKING IF NO ANNOTATION IS PRESENT IN THE GRAPH: E.G. FOR NEMO
                 if node.get_parameter('out_activation_bits') < 8 or node.get_parameter('input_activation_bits') < 8 or node.get_parameter('weight_bits') < 8:
                     optional = 'mixed-sw'
                 ### Should be 3 in case of 1D convolution: each dimension is equal to 1
@@ -238,7 +239,6 @@ class Model_deployment_MCU(Model_deployment):
                         k_byte.append(np.uint8((val >> 48) & 0x00000000000000FF))
                         k_byte.append(np.uint8((val >> 56) & 0x00000000000000FF))
                 nodes_to_deploy.k = k_byte
-
                 weights = np.concatenate((weights, nodes_to_deploy.k))
             if 'lambda' in nodes_to_deploy.__dict__:
                 lambd = np.float64(nodes_to_deploy.get_parameter('lambda').flatten())

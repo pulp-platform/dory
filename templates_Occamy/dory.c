@@ -150,7 +150,6 @@ unsigned int  dory_get_tile_3d(
   return y;
 }
 
-
 #define MIN(a,b) ((a)<(b)?(a):(b))
 
 void __attribute__ ((noinline)) dory_dma_memcpy_async(DMA_copy DMA_copy_current) 
@@ -164,20 +163,71 @@ void __attribute__ ((noinline)) dory_dma_memcpy_async(DMA_copy DMA_copy_current)
     current_transfer = TRANSFER_3D;
   if (DMA_copy_current.hwc_to_chw == 1)
     current_transfer = TRANSFER_HWC_TO_CHW;
+  unsigned int dst;
+  unsigned int src;
+  unsigned int src_stride; 
+  unsigned int dst_stride;
+  unsigned int src_stride_2d;
+  unsigned int dst_stride_2d;
+  if (DMA_copy_current.dir == 0)
+  {
+    dst = (unsigned int)(DMA_copy_current.ext);
+    src = (unsigned int)(DMA_copy_current.loc);
+    src_stride = DMA_copy_current.length_1d_copy;
+    dst_stride = DMA_copy_current.stride_1d;
+    src_stride_2d = DMA_copy_current.length_1d_copy * DMA_copy_current.number_of_1d_copies;
+    dst_stride_2d = DMA_copy_current.stride_2d;
+  }
+  else
+  {
+    dst = (unsigned int)(DMA_copy_current.loc);
+    src = (unsigned int)(DMA_copy_current.ext); 
+    src_stride = DMA_copy_current.stride_1d;
+    dst_stride = DMA_copy_current.stride_L1_1d;
+    src_stride_2d = DMA_copy_current.stride_2d;
+    dst_stride_2d = DMA_copy_current.stride_L1_2d;
+  }
 
   switch (current_transfer)
   {
 
     case TRANSFER_1D:
-      printf("Transfer 1D to be implemented\n");
+      if (snrt_is_dm_core())
+        snrt_dma_start_1d(dst, /* dst */
+                          src, /* src */
+                          DMA_copy_current.length_1d_copy /* size */);
       break;
     case TRANSFER_2D:
-      printf("Transfer 2D to be implemented\n");
+      if (snrt_is_dm_core())
+        snrt_dma_start_2d(dst, /* dst */
+                          src, /* src */
+                          DMA_copy_current.length_1d_copy, /* size */
+                          dst_stride, /* dst_stride */
+                          src_stride, /* src_stride */
+                          DMA_copy_current.number_of_1d_copies); /* repetitions */
       break;
 
     case TRANSFER_3D:
-      printf("Transfer 3D to be implemented\n");
+      ;
+      {
+      int number_of_2d_copies_per_core = DMA_copy_current.number_of_2d_copies;
+      int start_pixel, stop_pixel;
+      start_pixel = 0;
+      stop_pixel = number_of_2d_copies_per_core;
+      for ( int j = start_pixel; j < stop_pixel; j++) 
+      {
+        if (snrt_is_dm_core())
+          snrt_dma_start_2d(dst, /* dst */
+                            src, /* src */
+                            DMA_copy_current.length_1d_copy, /* size */
+                            dst_stride, /* dst_stride */
+                            src_stride, /* src_stride */
+                            DMA_copy_current.number_of_1d_copies); /* repetitions */
+        dst += dst_stride_2d;
+        src += src_stride_2d;
+      }
       break;
+      }
 
     case TRANSFER_HWC_TO_CHW:
       printf("Transfer 3D-HWC to be implemented\n");
@@ -189,40 +239,26 @@ void __attribute__ ((noinline)) dory_dma_memcpy_async(DMA_copy DMA_copy_current)
 void __attribute__ ((noinline)) dory_dma_barrier(DMA_copy DMA_copy_current) 
 {
 
-  if ((DMA_copy_current.number_of_1d_copies == 1) && (DMA_copy_current.number_of_2d_copies == 1))
-    current_transfer = TRANSFER_1D;
-  else if ((DMA_copy_current.number_of_1d_copies != 1) && (DMA_copy_current.number_of_2d_copies == 1))
-    current_transfer = TRANSFER_2D;
-  else
-    current_transfer = TRANSFER_3D;
-  if (DMA_copy_current.hwc_to_chw == 1)
-    current_transfer = TRANSFER_HWC_TO_CHW;
+  if (snrt_is_dm_core())
+    snrt_dma_wait_all();
+  snrt_cluster_sw_barrier();
+  snrt_global_barrier();
 
-  switch (current_transfer)
-  {
-    case TRANSFER_1D:
-      printf("Barrier 1D to be implemented\n");
-      break;
-    case TRANSFER_2D:
-      printf("Barrier 2D to be implemented\n");
-      break;
-    case TRANSFER_3D:
-      printf("Barrier 3D to be implemented\n");
-      break;
-    case TRANSFER_HWC_TO_CHW:
-      printf("Barrier 3D-HWC to be implemented\n");
-      break;
-  }
 }
 
 uint32_t __attribute__ ((noinline)) dory_dma_allocate() 
 {
-  uint32_t dma_channel = 1;
-  printf("DMA allocation to be implemented\n");
-  return dma_channel;
+  return 0;
 }
 
 void __attribute__ ((noinline)) dory_dma_deallocate(uint32_t dma_channel) 
 {
-  printf("DMA free to be implemented\n");
+  return;
+}
+
+void __attribute__ ((noinline)) dory_cores_barrier() 
+{
+
+  snrt_global_barrier();
+
 }

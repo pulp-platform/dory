@@ -262,7 +262,7 @@ static void check_layer_plus(char *output, int dim) {
 // check for input/output acitvation checksum
 static void check_layer(char *output, int check_sum_true, int dim) {
   int checksum = 0;
-  char *ptr = (char *) output;
+  float *ptr = (float *) output;
   for(int j=0; j<dim; j++) {
     checksum += ptr[j];
   }
@@ -273,53 +273,13 @@ static void check_layer(char *output, int check_sum_true, int dim) {
     printf("Checksum in/out Layer :\tFailed [%u vs. %u]\n", checksum, check_sum_true);
 }
 
-static void check_layer_last(int *output, int check_sum_true, int dim) {
-  int checksum = 0;
-  int *ptr = (int *) output;
-  for(int j=0; j<(int)(dim/4); j++) {
-    checksum += ptr[j];
-  }
-
-  if(check_sum_true == checksum)
-    printf("Checksum final :\tOk\n");
-  else 
-    printf("Checksum final :\tFailed [%d vs. %d]\n", checksum, check_sum_true);
-}
-
-// check for weight checksum
-static void check_layer_weight(char *weight, int check_sum_true, int dim) {
-  int checksum = 0;
-  char *ptr = (char *) weight;
-  for(int j=0; j<dim; j++) {
-    checksum += ptr[j];
-  }
-
-  if(check_sum_true == checksum)
-    printf("Checksum weight/bias Layer :\tOk\n");
-  else 
-    printf("Checksum weight/bias Layer :\tFailed [%u vs. %u]\n", checksum, check_sum_true);
-}
 #endif 
 % endif
 
-% if 'Last' in verbose_level:
-static void check_layer_last(int *output, int check_sum_true, int dim) {
-  int checksum = 0;
-  int *ptr = (int *) output;
-  for(int j=0; j<(int)(dim/4); j++) {
-    checksum += ptr[j];
-  }
 
-  if(check_sum_true == checksum)
-    printf("Checksum final :\tOk\n");
-  else 
-    printf("Checksum final :\tFailed [%d vs. %d]\n", checksum, check_sum_true);
-}
-% endif
-
-uint32_t L2_input, L2_input_add, L2_output, L2_weights;
-
-void network_run(unsigned int L3_weights_size)
+uint32_t L2_weights, L2_output, L2_input_add, L2_input;
+float L2_output_mem[1000000], L2_input_add_mem[1000000], L2_input_mem[1000000];
+void network_run()
 {   
 
 /* 
@@ -367,15 +327,40 @@ void network_run(unsigned int L3_weights_size)
       j++;
     }
     if (i == 0)
+    {
       L2_input = input;
+      L2_output = L2_output_mem;
+    }
+    else if ( i % 2 == 0)
+    {
+      L2_input = L2_input_mem;
+      L2_output = L2_output_mem;
+    }
     else
-      L2_input = L2_output;
-    snrt_cluster_hw_barrier();
-    unsigned int args[8] = {
+    {
+      L2_input = L2_output_mem;
+      L2_output = L2_input_mem;
+    }
+% if verbose_level == 'Check_all+Perf_final':
+#ifdef VERBOSE
+    if(snrt_cluster_compute_core_idx() == 0 && snrt_cluster_idx() == 0)
+    {
+      if (i==0)
+        check_layer(L2_input, check_activations[i], check_activations_dimension[i]);
+      else if (branch_change[i-1]==0)
+        check_layer(L2_input, check_activations[i], check_activations_dimension[i]);
+      else
+        printf("Switching branch, already checked activation\n");
+    }
+#endif  
+% endif
+    snrt_global_barrier();
+    unsigned int args[9] = {
       L2_input,
       L2_input_add,
       L2_output,
       L2_weights,
+      l2_zeros,
       out_mult,
       inmul1,
       inmul2, 
@@ -388,15 +373,43 @@ void network_run(unsigned int L3_weights_size)
         break;
 % endfor
     }
-    snrt_cluster_hw_barrier();
+    snrt_global_barrier();
 % if 'Yes' in performance:
     int MACs = NODEs_MACS[i];
-    if (snrt_cluster_compute_core_idx() == 0)
+    if (snrt_cluster_compute_core_idx() == 0 && snrt_cluster_idx() == 0)
     {
       printf("[%d] Layer %-3d end: MACs: %-11d,",snrt_cluster_compute_core_idx(), i, MACs); 
       printf(" MACs: %-11d,",MACs );  
     }
 % endif
+
+% if verbose_level == 'Check_all+Perf_final':
+#ifdef VERBOSE
+    if(snrt_cluster_compute_core_idx() == 0 && snrt_cluster_idx() == 0)
+    {
+      printf("Layer %s %d ended: \n", Layers_name[i], i);
+      check_layer(L2_output, check_activations_out[i], check_activations_out_dimension[i]);
+      
+      if (i==${check_layer})
+      {    
+        check_layer_plus(L2_output,check_activations_out_dimension[i]);
+      }
+    }    
+    snrt_global_barrier();
+#endif 
+% elif verbose_level == 'Last+Perf_final':
+    if(pi_core_id()==0)
+      if (i == ${len(PULP_Nodes_Graph) - 1})
+          check_layer_last((int32_t *) L2_output, check_activations_out[i], check_activations_out_dimension[i]);
+% else:
+#ifdef VERBOSE
+    if(pi_core_id()==0)
+    {
+      printf("Layer %s %d ended: \n", Layers_name[i], i);
+    }     
+#endif   
+% endif
+
   }
 /* ---------------------------------- */
 /* --------- SECTION 2 END ---------- */

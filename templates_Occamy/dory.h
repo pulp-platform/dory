@@ -40,6 +40,8 @@ typedef struct
   unsigned short stride_1d;
   unsigned short number_of_1d_copies;
   unsigned short length_1d_copy;
+  unsigned short stride_L1_1d;
+  unsigned short stride_L1_2d;
   unsigned int dir;
   unsigned int dma_channel;
 } DMA_copy;

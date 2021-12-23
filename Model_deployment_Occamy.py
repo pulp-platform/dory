@@ -32,20 +32,20 @@ def print_test_vector(x, data_type):
         try:
             np.set_printoptions(
                 threshold=sys.maxsize,
-                formatter={'float': lambda x: (np.uint8(x)), }
+                formatter={'float': lambda x: (np.float32(x)), }
             )
         except TypeError:
             np.set_printoptions(threshold=sys.maxsize)
     elif data_type == 'int8_t':
-        x = x.astype(np.int8)
+        x = x.astype(np.int32)
         try:
             np.set_printoptions(
                 threshold=sys.maxsize,
-                formatter={'float': lambda x: (np.int8(x)), }
+                formatter={'float': lambda x: (np.float32(x)), }
             )
         except TypeError:
             np.set_printoptions(threshold=sys.maxsize)
-    s = repr(x.flatten()).replace("array([", "").replace("]", "").replace("[", "").replace(")", "").replace(",\n      dtype=int8)", "").replace(", dtype=uint8", "").replace(",\n      dtype=uint8)", "").replace(",\n      dtype=uint8", "").replace(",\n      dtype=int8", "").replace(", dtype=int8", "").replace(", dtype=int8)", "").replace(", dtype=int8)", "").replace(", dtype=uint8)", "")
+    s = repr(x.flatten()).replace("array([", "").replace("]", "").replace("[", "").replace(")", "").replace(",\n      dtype=int8)", "").replace(",\n      dtype=int32)", "").replace(", dtype=uint8", "").replace(",\n      dtype=uint8)", "").replace(",\n      dtype=uint8", "").replace(",\n      dtype=int8", "").replace(",\n      dtype=int32", "").replace(", dtype=int8", "").replace(", dtype=int32", "").replace(", dtype=int8)", "").replace(", dtype=int8)", "").replace(", dtype=uint8)", "")
      
     return s
 
@@ -116,27 +116,7 @@ class Model_deployment_Occamy(Model_deployment):
                 else:
                     nodes_to_deploy.weights = nodes_to_deploy.weights.flatten().tolist()
                 for i_w, _ in enumerate(nodes_to_deploy.weights):
-                    nodes_to_deploy.weights[i_w] = np.uint8(nodes_to_deploy.weights[i_w])
-                if PULP_Nodes_Graph[i].weight_bits == 4:
-                    temp = []
-                    z = 0
-                    for i_x, _ in enumerate(nodes_to_deploy.weights):
-                        if (z % 2) == 0:
-                            temp.append(nodes_to_deploy.weights[i_x]& 0x0F)
-                        else:
-                            temp[-1] += (nodes_to_deploy.weights[i_x]& 0x0F) << 4
-                        z += 1
-                    nodes_to_deploy.weights = temp
-                elif PULP_Nodes_Graph[i].weight_bits == 2:
-                    temp = []
-                    z = 0
-                    for i_x, _ in enumerate(nodes_to_deploy.weights):
-                        if (z % 4) == 0:
-                            temp.append(nodes_to_deploy.weights[i_x]& 0x03)
-                        else:
-                            temp[-1] += (nodes_to_deploy.weights[i_x]& 0x03) << 2 * (z % 4)
-                        z += 1
-                    nodes_to_deploy.weights = temp
+                    nodes_to_deploy.weights[i_w] = np.int8(nodes_to_deploy.weights[i_w])
                 weights = nodes_to_deploy.weights
             if 'bias' in nodes_to_deploy.__dict__:
                 nodes_to_deploy.bias = nodes_to_deploy.bias.flatten().tolist()
@@ -150,20 +130,7 @@ class Model_deployment_Occamy(Model_deployment):
                         val = np.int64(nodes_to_deploy.k.flatten()[i_k])
                     else:
                         val = np.int32(nodes_to_deploy.k.flatten()[i_k])
-                    if BitActivation == 32:
-                        k_byte.append(np.uint8(val         & 0x000000FF))
-                        k_byte.append(np.uint8((val >> 8)  & 0x000000FF))
-                        k_byte.append(np.uint8((val >> 16) & 0x000000FF))
-                        k_byte.append(np.uint8((val >> 24) & 0x000000FF))
-                    if BitActivation == 64:
-                        k_byte.append(np.uint8(val         & 0x00000000000000FF))
-                        k_byte.append(np.uint8((val >> 8)  & 0x00000000000000FF))
-                        k_byte.append(np.uint8((val >> 16) & 0x00000000000000FF))
-                        k_byte.append(np.uint8((val >> 24) & 0x00000000000000FF))
-                        k_byte.append(np.uint8((val >> 32) & 0x00000000000000FF))
-                        k_byte.append(np.uint8((val >> 40) & 0x00000000000000FF))
-                        k_byte.append(np.uint8((val >> 48) & 0x00000000000000FF))
-                        k_byte.append(np.uint8((val >> 56) & 0x00000000000000FF))
+                    k_byte.append(val)
                 nodes_to_deploy.k = k_byte
 
                 weights = np.concatenate((weights, nodes_to_deploy.k))
@@ -179,20 +146,7 @@ class Model_deployment_Occamy(Model_deployment):
                         val = np.int64(lambd[i_l])
                     else:
                         val = np.int32(lambd[i_l])
-                    if BitActivation == 32:
-                        lambd_byte.append(np.uint8(val &         0x000000FF))
-                        lambd_byte.append(np.uint8((val >> 8) &  0x000000FF))
-                        lambd_byte.append(np.uint8((val >> 16) & 0x000000FF))
-                        lambd_byte.append(np.uint8((val >> 24) & 0x000000FF))
-                    if BitActivation == 64:
-                        lambd_byte.append(np.uint8(val &         0x00000000000000FF))
-                        lambd_byte.append(np.uint8((val >> 8) &  0x00000000000000FF))
-                        lambd_byte.append(np.uint8((val >> 16) & 0x00000000000000FF))
-                        lambd_byte.append(np.uint8((val >> 24) & 0x00000000000000FF))
-                        lambd_byte.append(np.uint8((val >> 32) & 0x00000000000000FF))
-                        lambd_byte.append(np.uint8((val >> 40) & 0x00000000000000FF))
-                        lambd_byte.append(np.uint8((val >> 48) & 0x00000000000000FF))
-                        lambd_byte.append(np.uint8((val >> 56) & 0x00000000000000FF))
+                    lambd_byte.append(val)
                 nodes_to_deploy.add_parameter('lambda', lambd_byte)
                 weights = np.concatenate((weights, nodes_to_deploy.get_parameter('lambda')))
             if 'weights' in nodes_to_deploy.__dict__:

@@ -342,3 +342,8 @@ void __attribute__ ((noinline)) dory_dma_deallocate(uint32_t dma_channel)
 {
   mchan_free(dma_channel);
 }
+
+void __attribute__ ((noinline)) dory_cores_barrier() 
+{
+  pi_cl_team_barrier(0);
+}

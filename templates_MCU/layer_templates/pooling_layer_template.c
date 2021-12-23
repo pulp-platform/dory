@@ -205,7 +205,7 @@ void ${func_name}(
       p_b = ${padding_bottom};
     if (_i_w_exec == ${tile_dim_w}-1)
       p_r = ${padding_right};
-    pi_cl_team_barrier(0);
+    dory_cores_barrier();
   
 // aggiungere padding su tutti i lati, acc_out, and filter asymettric
   % if 'Max' in optional:
@@ -268,7 +268,7 @@ void ${func_name}(
     im2col
     % endif
     );
-    pi_cl_team_barrier(0);
+    dory_cores_barrier();
     dory_dma_barrier(DMA_copy_x);
     dory_dma_barrier(DMA_copy_y);
     // transfering of output to L2

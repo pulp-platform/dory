@@ -19,35 +19,25 @@
  */
 
 #include "${func_name}.h"
+
 % if ULTRA_VERBOSE:
 #define VERBOSE_PRINT(...) printf(__VA_ARGS__)
 % endif
 
-void ${func_name}(
-  void *args
-) {
-  //////////////////////////////////////////////////////////////////////////
-  // arguments assigning: keeping same interface between L2 and L3 memory //
-  //////////////////////////////////////////////////////////////////////////
-  unsigned int *real_arg = (unsigned int *) args;
-  unsigned int l3_x =(unsigned int)  real_arg[0];
-  unsigned int l3_y =(unsigned int)  real_arg[1];
-  unsigned int l3_W =(unsigned int)  real_arg[2];
-  unsigned int l2_x =(unsigned int)  real_arg[3];
-  unsigned int l2_x_2 =(unsigned int)  real_arg[4];
-  unsigned int l2_y =(unsigned int)  real_arg[5];
-  unsigned int l2_W =(unsigned int)  real_arg[6];
-  unsigned int l1_buffer =(unsigned int)  real_arg[7];
-  unsigned int hyperram =(unsigned int)  real_arg[8];
-  unsigned int out_mult_in =(unsigned int)  real_arg[9];
-  unsigned int inmul1 = (unsigned int) real_arg[10];
-  unsigned int inmul2 = (unsigned int) real_arg[11];
-  unsigned int out_shift_in = (unsigned int) real_arg[12];
-
-  /////////////////////
-  // DMA declaration //
-  /////////////////////
-  uint32_t dory_dma_channel = dory_dma_allocate();
+void ${func_name}(void *args) 
+{
+  unsigned int *real_arg =    (unsigned int *) args;
+  unsigned int l2_x =         (unsigned int) real_arg[0];
+  unsigned int l2_x_2 =       (unsigned int) real_arg[1];
+  unsigned int l2_y =         (unsigned int) real_arg[2];
+  unsigned int l2_W =         (unsigned int) real_arg[3];
+  unsigned int out_mult_in =  (unsigned int) real_arg[4];
+  unsigned int inmul1 =       (unsigned int) real_arg[5];
+  unsigned int inmul2 =       (unsigned int) real_arg[6];
+  unsigned int out_shift_in = (unsigned int) real_arg[7];
+  /// allocation of Occamy
+  ${type} *memory_cluster = (${type} *)snrt_cluster_memory().start;
+  unsigned int l1_buffer = (unsigned int) memory_cluster;
   volatile DMA_copy DMA_copy_k, DMA_copy_lambda;
   volatile DMA_copy DMA_copy_W, DMA_copy_x, DMA_copy_y;
 % if has_bias == 1:
@@ -56,20 +46,20 @@ void ${func_name}(
   DMA_copy_bias.stride_2d = 0;
   DMA_copy_bias.stride_1d = 0;
   DMA_copy_bias.dir = 1;
-  DMA_copy_bias.dma_channel = dory_dma_channel;
+  DMA_copy_bias.dma_channel = NULL;
 
 % endif
   DMA_copy_k.hwc_to_chw = 0;
   DMA_copy_k.stride_2d = 0;
   DMA_copy_k.stride_1d = 0;
   DMA_copy_k.dir = 1;
-  DMA_copy_k.dma_channel = dory_dma_channel;
+  DMA_copy_k.dma_channel = NULL;
 
   DMA_copy_lambda.hwc_to_chw = 0;
   DMA_copy_lambda.stride_2d = 0;
   DMA_copy_lambda.stride_1d = 0;
   DMA_copy_lambda.dir = 1;
-  DMA_copy_lambda.dma_channel = dory_dma_channel;
+  DMA_copy_lambda.dma_channel = NULL;
   
   % if flag_DW == 1:
   DMA_copy_x.hwc_to_chw = 1;
@@ -79,19 +69,19 @@ void ${func_name}(
   DMA_copy_x.stride_2d = ${x_stride_w_byte};
   DMA_copy_x.stride_1d = ${x_stride_c_byte};
   DMA_copy_x.dir = 1;
-  DMA_copy_x.dma_channel = dory_dma_channel;
+  DMA_copy_x.dma_channel = NULL;
   
   DMA_copy_W.hwc_to_chw = 0;
   DMA_copy_W.stride_2d = ${W_stride_nof_byte};
   DMA_copy_W.stride_1d = ${W_stride_hw_byte};
   DMA_copy_W.dir = 1;
-  DMA_copy_W.dma_channel = dory_dma_channel;
+  DMA_copy_W.dma_channel = NULL;
   
   DMA_copy_y.hwc_to_chw = 0;
   DMA_copy_y.stride_2d = ${y_stride_w_byte};
   DMA_copy_y.stride_1d = ${y_stride_c_byte};
   DMA_copy_y.dir = 0;
-  DMA_copy_y.dma_channel = dory_dma_channel;
+  DMA_copy_y.dma_channel = NULL;
 
   volatile int p_r, p_l, p_t, p_b;
 % if tile_dim_nif*tile_dim_h*tile_dim_w != 1:
@@ -109,11 +99,11 @@ void ${func_name}(
   volatile ${type} *x, *W, *y, *b;
 % if FLAG_BATCHNORM == 1:
 % if act_dim_bit == 32:
-  volatile int32_t *k;
-  volatile int32_t *lambda;
+  volatile ${type} *k;
+  volatile ${type} *lambda;
 % else:
-  volatile int64_t *k;
-  volatile int64_t *lambda;
+  volatile ${type} *k;
+  volatile ${type} *lambda;
 % endif
 % endif
   volatile int x_tile_size_nif_exec;
@@ -153,7 +143,6 @@ void ${func_name}(
   uint16_t out_mult = out_mult_in;
   uint16_t out_shift = out_shift_in;
 % endif
-
   ////////////////////////////
   // First tile transfering //
   ////////////////////////////
@@ -168,7 +157,7 @@ void ${func_name}(
 
 % endif
 % if FLAG_BATCHNORM == 1:
-  DMA_copy_k.ext = (uint32_t) l2_W+${l2_off_k};
+  DMA_copy_k.ext = (uint32_t) l2_W+${l2_off_k}+${k_tile_size_byte_transfer}*${int(tile_dim_nof/number_of_clusters)}*snrt_cluster_idx();
   DMA_copy_k.loc = (uint32_t) l1_buffer + ${l1_k_offset};
   DMA_copy_k.number_of_2d_copies = 1;
   DMA_copy_k.number_of_1d_copies = 1;
@@ -176,7 +165,7 @@ void ${func_name}(
   dory_dma_memcpy_async(DMA_copy_k);
   dory_dma_barrier(DMA_copy_k);
 
-  DMA_copy_lambda.ext = (uint32_t) l2_W+${l2_off_lambda};
+  DMA_copy_lambda.ext = (uint32_t) l2_W+${l2_off_k} + ${l2_off_lambda-l2_off_k}+${k_tile_size_byte_transfer}*${int(tile_dim_nof/number_of_clusters)}*snrt_cluster_idx();
   DMA_copy_lambda.loc = (uint32_t) l1_buffer + ${l1_lambda_offset};
   DMA_copy_lambda.number_of_2d_copies = 1;
   DMA_copy_lambda.number_of_1d_copies = 1;
@@ -187,27 +176,30 @@ void ${func_name}(
 % endif
 
   DMA_copy_x.ext = l2_x;
-  DMA_copy_x.loc = (l1_buffer + ${l1_x_offset}) + 0;
+  DMA_copy_x.loc = l1_buffer + (${l1_x_offset} + 0);
   DMA_copy_x.number_of_2d_copies = ${x_tile_size_h};
   DMA_copy_x.number_of_1d_copies = ${x_tile_size_w};
   DMA_copy_x.length_1d_copy = ${x_tile_size_nif_byte};
   dory_dma_memcpy_async(DMA_copy_x);
   dory_dma_barrier(DMA_copy_x);
 
-  DMA_copy_W.ext = l2_W;
-  DMA_copy_W.loc = (l1_buffer + ${l1_W_offset}) + 0;
+  DMA_copy_W.ext = l2_W + ${fs1 * fs2 * W_tile_size_nof * W_tile_nif_byte}*${int(tile_dim_nof/number_of_clusters)}*snrt_cluster_idx();
+  DMA_copy_W.loc = l1_buffer + (${l1_W_offset} + 0);
   DMA_copy_W.number_of_2d_copies = ${W_tile_size_nof};
   DMA_copy_W.number_of_1d_copies = ${fs1 * fs2};
   DMA_copy_W.length_1d_copy = ${W_tile_nif_byte};
   dory_dma_memcpy_async(DMA_copy_W);
   dory_dma_barrier(DMA_copy_W);
 
-  dory_cores_barrier();
-
+  float sum = 0;
 % if flag_DW == 0:
-  int total_tiles = ${tile_dim_nof * tile_dim_nif * tile_dim_h * tile_dim_w};
+  int total_tiles = ${tile_dim_nif * tile_dim_h * tile_dim_w * int(tile_dim_nof/number_of_clusters) };
+  if (snrt_cluster_idx() == (${number_of_clusters - 1}))
+    total_tiles+= ${(tile_dim_nof % number_of_clusters) * tile_dim_h * tile_dim_w * tile_dim_nif};
 % else:
-  int total_tiles = ${tile_dim_nof * tile_dim_h * tile_dim_w};
+  int total_tiles = ${tile_dim_h * tile_dim_w * int(tile_dim_nof/number_of_clusters)};
+  if (snrt_cluster_idx() == (${number_of_clusters - 1}))
+    total_tiles+= ${(tile_dim_nof % number_of_clusters) * tile_dim_h * tile_dim_w };
 % endif
   // tile loop nest
   for(iter=0; iter < total_tiles; iter++) {
@@ -280,7 +272,10 @@ void ${func_name}(
       % endif
       y_tile_size_h   = (_i_h_load+1 == ${tile_dim_h})   ? ${y_tile_size_h_last} : ${y_tile_size_h};
       y_tile_size_w   = (_i_w_load+1 == ${tile_dim_w})   ? ${y_tile_size_w_last} : ${y_tile_size_w};
-      W_tile_size_nof = (_i_nof_load+1 == ${tile_dim_nof}) ? ${W_tile_size_nof_last} : ${W_tile_size_nof};
+      if (snrt_cluster_idx() == (${number_of_clusters - 1}))
+        W_tile_size_nof = (_i_nof_load+1 == ${int(tile_dim_nof/number_of_clusters) + tile_dim_nof%number_of_clusters}) ? ${W_tile_size_nof_last} : ${W_tile_size_nof};
+      else
+        W_tile_size_nof = ${W_tile_size_nof};
       W_tile_size_nif = (_i_nif_load+1 == ${tile_dim_nif}) ? ${W_tile_size_nif_last} : ${W_tile_size_nif};
       % if flag_DW == 1:
       W_tile_size_byte = W_tile_size_nof*W_tile_size_nif*${fs1}*${fs2};
@@ -292,7 +287,7 @@ void ${func_name}(
       % if tile_dim_nif*tile_dim_h*tile_dim_w != 1:
 
       DMA_copy_x.ext = dory_get_tile_3d(l2_x, _i_h_load, _i_w_load, _i_nif_load, ${x_tile_size_h}, ${x_tile_size_w}, ${x_tile_size_nif}, ${x_w}, ${nif*g},  ${conv_overlap1}, ${conv_overlap2},0, pad_offset_h, pad_offset_w, 0, ${x_data_size_byte});
-      DMA_copy_x.loc = (l1_buffer + ${l1_x_offset}) + db_x;
+      DMA_copy_x.loc = l1_buffer + (${l1_x_offset} + db_x);
       DMA_copy_x.number_of_2d_copies = x_tile_size_h;
       DMA_copy_x.number_of_1d_copies = x_tile_size_w;
       DMA_copy_x.length_1d_copy = x_length_nif_byte;
@@ -302,22 +297,22 @@ void ${func_name}(
       if (_i_nif_load!=_i_nif_exec || _i_nof_load!=_i_nof_exec)
       {
         % if flag_DW == 0:
-        DMA_copy_W.ext = dory_get_tile_3d(l2_W, _i_nof_load, 0, _i_nif_load, ${W_tile_size_nof}, ${fs1}*${fs2}, ${W_tile_size_nif}, ${fs1}*${fs2}, ${nif}, 0,0,0,0,0,0, ${W_data_size_byte});
+        DMA_copy_W.ext = dory_get_tile_3d(l2_W,  _i_nof_load + snrt_cluster_idx() * ${int(tile_dim_nof/number_of_clusters)}, 0, _i_nif_load, ${W_tile_size_nof}, ${fs1}*${fs2}, ${W_tile_size_nif}, ${fs1}*${fs2}, ${nif}, 0,0,0,0,0,0, ${W_data_size_byte});
         % else:
-        DMA_copy_W.ext = dory_get_tile_3d(l2_W, _i_nof_load, 0, 0, ${W_tile_size_nof*8/W_data_size_byte}, ${fs1}*${fs2}, ${W_tile_size_nif}, ${fs1}*${fs2}, ${nif}, 0,0,0,0,0,0, ${W_data_size_byte});
+        DMA_copy_W.ext = dory_get_tile_3d(l2_W, _i_nof_load + snrt_cluster_idx() * ${int(tile_dim_nof/number_of_clusters)}, 0, 0, ${W_tile_size_nof*8/W_data_size_byte}, ${fs1}*${fs2}, ${W_tile_size_nif}, ${fs1}*${fs2}, ${nif}, 0,0,0,0,0,0, ${W_data_size_byte});
         % endif
-        DMA_copy_W.loc = (l1_buffer + ${l1_W_offset}) + db_W;
+        DMA_copy_W.loc = l1_buffer + (${l1_W_offset} + db_W);
         DMA_copy_W.number_of_2d_copies = W_tile_size_nof;
         DMA_copy_W.length_1d_copy = W_length_nif_byte;
         dory_dma_memcpy_async(DMA_copy_W);
         % if FLAG_BATCHNORM == 1:
 
-        DMA_copy_k.ext = (uint32_t) l2_W+${l2_off_k} + ${k_tile_size_byte_transfer}*_i_nof_load;
+        DMA_copy_k.ext = (uint32_t) l2_W+${l2_off_k} + ${k_tile_size_byte_transfer} * (_i_nof_load + snrt_cluster_idx() * ${int(tile_dim_nof/number_of_clusters)});
         DMA_copy_k.loc = (uint32_t) l1_buffer + ${l1_k_offset} + db_act;
         DMA_copy_k.length_1d_copy = (uint16_t) W_tile_size_nof * ${int(act_dim_bit/8)};
         dory_dma_memcpy_async(DMA_copy_k);
 
-        DMA_copy_lambda.ext = (uint32_t) l2_W+${l2_off_lambda} + ${lambda_tile_size_byte_transfer}*_i_nof_load;
+        DMA_copy_lambda.ext = (uint32_t) l2_W+${l2_off_k} + ${lambda_tile_size_byte_transfer} * (_i_nof_load + snrt_cluster_idx() * ${int(tile_dim_nof/number_of_clusters)})  + ${l2_off_lambda-l2_off_k};
         DMA_copy_lambda.loc = (uint32_t) l1_buffer + ${l1_lambda_offset} + db_act;
         DMA_copy_lambda.length_1d_copy = (uint16_t) W_tile_size_nof * ${int(act_dim_bit/8)};
         dory_dma_memcpy_async(DMA_copy_lambda);
@@ -328,30 +323,36 @@ void ${func_name}(
     % if flag_DW == 1:
     asm volatile("": : :"memory");
     % endif
-    x = (${type} *) (l1_buffer + ${l1_x_offset} + exec_db_x);
+    x = (${type} *) (l1_buffer + (${l1_x_offset} + exec_db_x));
     % if FLAG_BATCHNORM == 1:
     % if act_dim_bit == 32:
-    k = (int32_t *) (l1_buffer + ${l1_k_offset} + exec_db_act);
-    lambda = (int32_t *) (l1_buffer + ${l1_lambda_offset} + exec_db_act);
+    k = (${type} *) (l1_buffer + ${l1_k_offset} + exec_db_act);
+    lambda = (${type} *) (l1_buffer + ${l1_lambda_offset} + exec_db_act);
     % else:
-    k = (int64_t *) (l1_buffer + ${l1_k_offset} + exec_db_act);
-    lambda = (int64_t *) (l1_buffer + ${l1_lambda_offset} + exec_db_act);
+    k = (${type} *) (l1_buffer + ${l1_k_offset} + exec_db_act);
+    lambda = (${type} *) (l1_buffer + ${l1_lambda_offset} + exec_db_act);
     % endif
     % endif
     % if has_bias == 1:
-    b = (${type} *) (l1_buffer + ${l1_b_offset} + _i_nof_exec*${bias_tile_size_byte});
+    b = (${type} *) (l1_buffer + (${l1_b_offset} + _i_nof_exec*${bias_tile_size_byte}));
     % endif
-    W = (${type} *) (l1_buffer + ${l1_W_offset} + exec_db_W);
-    y = (${type} *) (l1_buffer + ${l1_y_offset} + db_y);
+    W = (${type} *) (l1_buffer + (${l1_W_offset} + exec_db_W));
+    y = (${type} *) (l1_buffer + (${l1_y_offset} + db_y));
     // parameter passed to the kernel. Input and output sizes
     x_tile_size_nif_exec = (_i_nif_exec+1 == ${tile_dim_nif}) ? ${x_tile_size_nif_last} : ${x_tile_size_nif};
     x_tile_size_h_exec   = (_i_h_exec+1 == ${tile_dim_h})   ? ${x_tile_size_h_last} : ${x_tile_size_h};
     x_tile_size_w_exec   = (_i_w_exec+1 == ${tile_dim_w})   ? ${x_tile_size_w_last} : ${x_tile_size_w};
-    y_tile_size_nof = (_i_nof_exec+1 == ${tile_dim_nof}) ? ${y_tile_size_nof_last} : ${y_tile_size_nof};
+    if (snrt_cluster_idx() == (${number_of_clusters - 1}))
+      y_tile_size_nof = (_i_nof_exec+1 == ${int(tile_dim_nof/number_of_clusters) + tile_dim_nof%number_of_clusters}) ? ${y_tile_size_nof_last} : ${y_tile_size_nof};
+    else
+      y_tile_size_nof = ${y_tile_size_nof};
     y_tile_size_h   = (_i_h_exec+1 == ${tile_dim_h})   ? ${y_tile_size_h_last} : ${y_tile_size_h};
     y_tile_size_w   = (_i_w_exec+1 == ${tile_dim_w})   ? ${y_tile_size_w_last} : ${y_tile_size_w};
     y_tile_size_byte = y_tile_size_nof*y_tile_size_h*y_tile_size_w*${y_data_size_byte}/8;
-    y_length_nof_byte = (_i_nof_exec+1 == ${tile_dim_nof})   ? ${y_length_nof_byte_last} : ${y_tile_size_nof_byte};
+    if (snrt_cluster_idx() == (${number_of_clusters - 1}))
+      y_length_nof_byte = (_i_nof_exec+1 == ${int(tile_dim_nof/number_of_clusters) + tile_dim_nof%number_of_clusters})   ? ${y_length_nof_byte_last} : ${y_tile_size_nof_byte};
+    else
+      y_length_nof_byte = ${y_tile_size_nof_byte};
     p_r = 0;
     p_l = 0;
     p_t = 0;
@@ -364,58 +365,24 @@ void ${func_name}(
       p_b = ${padding_bottom};
     if (_i_w_exec == ${tile_dim_w}-1)
       p_r = ${padding_right};
-    dory_cores_barrier();
     % if tile_dim_nof*tile_dim_nif*tile_dim_h*tile_dim_w == 1 or flag_DW == 1:
     asm volatile("": : :"memory");
     % endif
-  % if flag_DW == 0 and optional_type == '8bit' and (fs1*fs2>1 or stride>1):
-    pulp_nn_conv_Ho_parallel(
-  % elif flag_DW == 0 and optional_type == '8bit' and fs1*fs2==1  and 'Gemm' not in func_name and 'MatMul' not in func_name:
-    pulp_nn_pointwise_HoWo_parallel(
-  % elif flag_DW == 0 and optional_type == '8bit' and '_last' in func_name and ('Gemm' in func_name or 'MatMul' in func_name):
-    pulp_nn_linear_out_32( 
-  % elif flag_DW == 0 and optional_type == '8bit' and ('Gemm' in func_name or 'MatMul' in func_name):
-    pulp_nn_linear( 
-  % elif flag_DW == 0 and 'mixed-sw' in optional_type  and ('Conv' in func_name):
-    pulp_nn_conv_u${x_data_size_byte}_u${y_data_size_byte}_i${W_data_size_byte}(
-  % elif flag_DW == 0 and 'mixed-hw' in optional_type  and ('Conv' in func_name):
-    xpulp_nn_conv_u${x_data_size_byte}_u${y_data_size_byte}_i${W_data_size_byte}(
-  % elif flag_DW == 0 and 'mixed' in optional_type  and ('Gemm' in func_name or 'MatMul' in func_name):
-    pulp_nn_linear_u${x_data_size_byte}_i${y_data_size_byte}_i${W_data_size_byte}(
-  % elif flag_DW == 1 and optional_type == '8bit' and fs1 == 3 and fs2 == 3 and stride==1:
-    pulp_nn_depthwise_generic(
-  % elif flag_DW == 1 and optional_type == '8bit' and fs1*fs2 < 4:
-    pulp_nn_depthwise_generic_less_4_weights(
-  % elif flag_DW == 1 and optional_type == '8bit':
-    pulp_nn_depthwise_generic(
-  % elif flag_DW == 1 and optional_type == 'mixed-sw':
-    pulp_nn_depthwise_u${x_data_size_byte}_u${y_data_size_byte}_i${W_data_size_byte}(
-  % elif flag_DW == 1 and optional_type == 'mixed-hw':
-    xpulp_nn_depthwise_u${x_data_size_byte}_u${y_data_size_byte}_i${W_data_size_byte}( 
-  % endif
-  % if 'Gemm' in func_name or 'MatMul' in func_name:
-      x, W, x_tile_size_nif_exec, y_tile_size_nof, 0, 0, 
-      % if '_last' in func_name:
-      1, 1,
-      % elif FLAG_RELU == 1:
-      out_shift, out_mult,
-      % endif
-      % if '_last' in func_name:
-      0, 0,
-      % elif FLAG_BATCHNORM == 1:
-      k, lambda,
-      % else:
-      0, 0,
-      % endif
-      y,
-      % if '_last' in func_name:
-      0, 0,
-      % else:
-      ${FLAG_RELU}, ${FLAG_BATCHNORM}, 
-      % endif
-      NULL );  
-  % else:
-      x, x_tile_size_w_exec, x_tile_size_h_exec, x_tile_size_nif_exec,
+
+
+  // printf("x: ");
+  // sum=0;
+  // for (int i = 0; i < (x_tile_size_nif_exec*x_tile_size_h_exec*x_tile_size_w_exec); i++)
+  //   sum+=*(x+i);
+  // printf("%f ", sum);
+  // printf("\n");
+
+
+    //printf("Tile execution %d of ${func_name}\n", iter);
+    % if FLAG_BATCHNORM == 1:
+    // printf("First W %f, l %f, k %f\n", *W, *lambda, *k);
+    % endif
+    occamy_conv_naive(x, x_tile_size_w_exec, x_tile_size_h_exec, x_tile_size_nif_exec,
       W, y_tile_size_nof, ${fs2}, ${fs1},
       p_t, p_b, p_l, p_r, ${stride}, ${stride},
       % if has_bias:
@@ -440,8 +407,16 @@ void ${func_name}(
       pwt_buffer,
       % endif
       ${FLAG_RELU}, ${FLAG_BATCHNORM}, NULL);
-  % endif
-    dory_cores_barrier();
+
+
+  /*printf("y: ");
+  sum=0;
+  for (int i = 0; i < (y_tile_size_nof*y_tile_size_h*y_tile_size_w); i++)
+    sum+=*(y+i);
+  printf("%f ", sum);
+  printf("\n");*/
+    
+
     % if tile_dim_nif != 1 and flag_DW == 0:
     if(_i_nif_load == 0) 
     {
@@ -458,8 +433,8 @@ void ${func_name}(
       dory_dma_barrier(DMA_copy_lambda);
     }
     % endif      
-      DMA_copy_y.ext = dory_get_tile_3d(l2_y, _i_h_exec, _i_w_exec, _i_nof_exec, ${y_tile_size_h}, ${y_tile_size_w}, ${y_tile_size_nof}, ${y_w}, ${int(nof*factor)}, 0, 0, 0, 0, 0, 0, ${y_data_size_byte});
-      DMA_copy_y.loc = (l1_buffer + ${l1_y_offset}) + db_y;
+      DMA_copy_y.ext = dory_get_tile_3d(l2_y, _i_h_exec, _i_w_exec, _i_nof_exec + snrt_cluster_idx() * ${int(tile_dim_nof/number_of_clusters)}, ${y_tile_size_h}, ${y_tile_size_w}, ${y_tile_size_nof}, ${y_w}, ${int(nof*factor)}, 0, 0, 0, 0, 0, 0, ${y_data_size_byte});
+      DMA_copy_y.loc = l1_buffer + (${l1_y_offset} + db_y);
       DMA_copy_y.number_of_2d_copies = y_tile_size_h;
       DMA_copy_y.number_of_1d_copies = y_tile_size_w;
       DMA_copy_y.length_1d_copy = y_length_nof_byte;
@@ -473,12 +448,10 @@ void ${func_name}(
     _i_nif_exec = _i_nif_load;
     _i_h_exec = _i_h_load;
     _i_w_exec = _i_w_load;
-    dory_cores_barrier();
   }
 
 % if not TEST:
   // wait for final write
   dory_dma_barrier(DMA_copy_y);
-  dory_dma_deallocate(dory_dma_channel);
 % endif
 }

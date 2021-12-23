@@ -88,3 +88,5 @@ void __attribute__ ((noinline)) dory_dma_barrier(DMA_copy DMA_copy_current);
 uint32_t __attribute__ ((noinline)) dory_dma_allocate();
 
 void __attribute__ ((noinline)) dory_dma_deallocate(uint32_t dma_channel);
+
+void __attribute__ ((noinline)) dory_cores_barrier();

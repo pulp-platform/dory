@@ -19,6 +19,8 @@
 
 #include "printf.h"
 #include "dory.h"
+#include "occamy_nn_kernels.h"
+#include "snrt.h"
 
 void  ${func_name}(
   void *args

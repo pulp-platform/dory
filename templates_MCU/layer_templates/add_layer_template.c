@@ -117,7 +117,7 @@ void ${func_name}(
   dory_dma_memcpy_async(DMA_copy_x2);
   dory_dma_barrier(DMA_copy_x2);
 
-  pi_cl_team_barrier(0);
+  dory_cores_barrier();
   // tile loop indeces
   int _i_nof_load=0, _i_nif_load=0, _i_h_load=0, _i_w_load=0;
   int _i_nof_exec=0, _i_nif_exec=0, _i_h_exec=0, _i_w_exec=0;
@@ -217,7 +217,7 @@ void ${func_name}(
     y_tile_size_byte = y_tile_size_nof*y_tile_size_h*y_tile_size_w*${y_data_size_byte}/8;
     y_length_nof_byte = (last_nof_exec)   ? ${y_length_nof_byte_last} : ${y_tile_size_nof_byte};
     asm volatile("": : :"memory");
-    pi_cl_team_barrier(0);
+    dory_cores_barrier();
     pulp_nn_add(
       x,
       x2,
@@ -229,7 +229,7 @@ void ${func_name}(
       out_mult2,
       out_shift
       );
-    pi_cl_team_barrier(0);
+    dory_cores_barrier();
     // wait for DMA write
     dory_dma_barrier(DMA_copy_y);
     dory_dma_barrier(DMA_copy_x);

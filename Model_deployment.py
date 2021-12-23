@@ -57,7 +57,9 @@ class Model_deployment():
                             performance_single_layer, 
                             sdk,
                             backend,
-                            dma_parallelization):
+                            dma_parallelization,
+                            number_of_clusters,
+                            type_data = 'float'):
         ####################################################################################
         ###### SECTION 3: PARSING OF EACH LAYER INDEPENDENT. TILING + LAYER CREATION  ######
         ####################################################################################
@@ -85,7 +87,6 @@ class Model_deployment():
                 layer = 'Pool'
             elif('Add' in nodes_to_deploy.name):
                 layer = 'Add'
-
             name_layer = "layer" + nodes_to_deploy.name + str(i)
             ######################## NEED A  FIX ####################################################
             #### OTHERWISE ONLY WEIGHT < L2/2 GO in L2 --> much more L3 tiling not needed############
@@ -127,16 +128,13 @@ class Model_deployment():
                               optional_type=optional,
                               sdk = sdk,
                               backend = backend,
-                              dma_parallelization = dma_parallelization)
+                              dma_parallelization = dma_parallelization,
+                              number_of_clusters = number_of_clusters)
+            str_l = 'ch_in' + str(nodes_to_deploy.ch_in) + 'ch_out' + str(nodes_to_deploy.ch_out) + 'groups' + str(
+                nodes_to_deploy.group) + 'dim_image' + str(nodes_to_deploy.input_dim[1],) + 'stride' + str(nodes_to_deploy.strides) + 'kernel'+ str(
+                nodes_to_deploy.kernel_shape[0]) + str(nodes_to_deploy.kernel_shape[1]) + 'BitIn' + str(BitIn) + 'BitOut' + str(BitOut) + 'BitW' + str(BitW)
             if '1D' in layer:
-                str_l = 'ch_in' + str(nodes_to_deploy.ch_in) + 'ch_out' + str(nodes_to_deploy.ch_out) + 'groups' + str(
-                    nodes_to_deploy.group) + 'dim_image' + str(nodes_to_deploy.input_dim[1],) + 'stride' + str(nodes_to_deploy.strides) + 'kernel'+ str(
-                    nodes_to_deploy.kernel_shape[0]) + 'kernel' + str(nodes_to_deploy.kernel_shape[1]) + 'BitIn' + str(BitIn) + 'BitOut' + str(BitOut) + 'BitW' + str(
-                        BitW) + 'Dilation' + str(nodes_to_deploy.dilations)
-            else:
-                str_l = 'ch_in' + str(nodes_to_deploy.ch_in) + 'ch_out' + str(nodes_to_deploy.ch_out) + 'groups' + str(
-                    nodes_to_deploy.group) + 'dim_image' + str(nodes_to_deploy.input_dim[0],) + str(nodes_to_deploy.input_dim[1],) + 'stride' + str(nodes_to_deploy.strides) + 'kernel'+ str(
-                    nodes_to_deploy.kernel_shape[0]) + str(nodes_to_deploy.kernel_shape[1]) + 'kernel' + str(nodes_to_deploy.kernel_shape[0]) + str(nodes_to_deploy.kernel_shape[1]) + 'BitIn' + str(BitIn) + 'BitOut' + str(BitOut) + 'BitW' + str(BitW)
+                str_l += 'Dilation' + str(nodes_to_deploy.dilations)
             name = nodes_to_deploy.name
             for scan_i, _ in enumerate(stringa_features):
                 if(str_l == stringa_features[scan_i] and str(layer) == str(layer_list[scan_i])):
@@ -175,93 +173,67 @@ class Model_deployment():
                 nodes_to_deploy.outmul = 1
                 if 'Add' not in nodes_to_deploy.name:
                     nodes_to_deploy.outshift = 1
+            if 'bias' in nodes_to_deploy.__dict__:
+                h_b = 1
+            else:
+                h_b = 0
             if('Conv1D' in layer):
-                if 'bias' in nodes_to_deploy.__dict__:
-                    h_b = 1
-                else:
-                    h_b = 0
-                in_dim2, out_dim2, weights_dim, l1_dim2 = tile_gen.get_tiling(X=0, Y=0, W=0,
-                                                                            relu=relu, BN=BN,
-                                                                            dilation=nodes_to_deploy.dilations,
-                                                                            has_bias=h_b,
-                                                                            out_mul=nodes_to_deploy.outmul,
-                                                                            out_shift=nodes_to_deploy.outshift,
-                                                                            name=name_layer)
-                if(i == 0):
-                    out_dim2_old = in_dim2
-                out_dim2_old = out_dim2
-                L3_tiling = 0
-                factor_ch_out = 1
-                PULP_Nodes_Graph[i].L3_allocation = 0
-                PULP_Nodes_Graph[i].L3_input = 0
-                PULP_Nodes_Graph[i].L3_output = 0
-                PULP_Nodes_Graph[i].L3_weights = 0
+                d = dict(X=0, Y=0, W=0,
+                        relu=relu, BN=BN,
+                        type_data = type_data,
+                        dilation=nodes_to_deploy.dilations,
+                        has_bias=h_b,
+                        out_mul=nodes_to_deploy.outmul,
+                        out_shift=nodes_to_deploy.outshift,
+                        name=name_layer)
             elif('Gemm' in nodes_to_deploy.name or 'Conv' in nodes_to_deploy.name or 'MatMul' in nodes_to_deploy.name):
-                if 'bias' in nodes_to_deploy.__dict__:
-                    h_b = 1
-                else:
-                    h_b = 0
-                in_dim2, out_dim2, weights_dim, l1_dim2, L3_tiling, factor_ch_out, factor_h_out, factor_h_in = tile_gen.get_tiling(X=0, Y=0, W=0,
-                                                                            relu=relu, BN=BN, DW=DW,
-                                                                            has_bias=h_b,
-                                                                            out_mul=nodes_to_deploy.outmul,
-                                                                            out_shift=nodes_to_deploy.outshift,
-                                                                            name=name_layer,
-                                                                            input_L3 = input_L3,
-                                                                            input_dim_constraint = input_dim_constraint,
-                                                                            output_weights_dim_constraint = output_weights_dim_constraint,
-                                                                            weight_constraint = weight_constraint)
-                if(factor_ch_out > 1):
-                    PULP_Nodes_Graph[i].L3_allocation = 1
-                else:
-                    PULP_Nodes_Graph[i].L3_allocation = 0
-                Layers_L3_input_act += int(factor_h_in > 1)
-                Layers_L3_output_act += int(factor_h_out > 1)
-                Layers_L3_weights += int(factor_ch_out > 1)
-                PULP_Nodes_Graph[i].L3_input = int(factor_h_in > 1)
-                PULP_Nodes_Graph[i].L3_output = int(factor_h_out > 1)
-                PULP_Nodes_Graph[i].L3_weights = int(factor_ch_out > 1)
-                if(i == 0):
-                    out_dim2_old = in_dim2
-                if(factor_h_out > 1):
-                    out_dim2 = l2_buffer_size - weight_overhead - out_dim2_old - weights_dim
-                out_dim2_old = out_dim2
+                d = dict(X=0, Y=0, W=0,
+                        relu=relu, BN=BN, DW=DW,
+                        type_data = type_data,
+                        has_bias=h_b,
+                        out_mul=nodes_to_deploy.outmul,
+                        out_shift=nodes_to_deploy.outshift,
+                        name=name_layer,
+                        input_L3 = input_L3,
+                        input_dim_constraint = input_dim_constraint,
+                        output_weights_dim_constraint = output_weights_dim_constraint,
+                        weight_constraint = weight_constraint)
             elif('Pool' in nodes_to_deploy.name):
-                in_dim2, out_dim2, l1_dim2, L3_tiling, factor_h_out, factor_h_in = tile_gen.get_tiling(X=0, Y=0, W=0,
-                                                                 relu=relu, BN = BN,
-                                                                 out_mul=nodes_to_deploy.outmul,
-                                                                 out_shift=nodes_to_deploy.outshift,
-                                                                 name=name_layer,
-                                                                 input_L3 = input_L3,
-                                                                 input_dim_constraint = input_dim_constraint,
-                                                                 output_weights_dim_constraint = output_weights_dim_constraint,
-                                                                 type=name)
-                Layers_L3_input_act += int(factor_h_in > 1)
-                Layers_L3_output_act += int(factor_h_out > 1)
-                PULP_Nodes_Graph[i].L3_input = int(factor_h_in > 1)
-                PULP_Nodes_Graph[i].L3_output = int(factor_h_out > 1)
-                PULP_Nodes_Graph[i].L3_allocation = 0
-                if(i == 0):
-                    out_dim2_old = in_dim2
-                if(factor_h_out > 1):
-                    out_dim2 = l2_buffer_size - weight_overhead - out_dim2_old - weights_dim
-                out_dim2_old = out_dim2
-                PULP_Nodes_Graph[i].L3_weights = 0
+                d = dict(X=0, Y=0, W=0,
+                        relu=relu, BN = BN,
+                        type_data = type_data,
+                        out_mul=nodes_to_deploy.outmul,
+                        out_shift=nodes_to_deploy.outshift,
+                        name=name_layer,
+                        input_L3 = input_L3,
+                        input_dim_constraint = input_dim_constraint,
+                        output_weights_dim_constraint = output_weights_dim_constraint,
+                        type=name)
             elif('Add' in nodes_to_deploy.name):
-                in_dim2, out_dim2, l1_dim2 = tile_gen.get_tiling(X=0, Y=0, W=0,
-                                                                 relu=relu,
-                                                                 out_mul1=nodes_to_deploy.inmul1,
-                                                                 out_mul2=nodes_to_deploy.inmul2,
-                                                                 out_shift=nodes_to_deploy.outshift,
-                                                                 name=name_layer,
-                                                                 type=name)
-                L3_tiling = 0
-                PULP_Nodes_Graph[i].L3_weights = 0
+                d = dict(X=0, Y=0, W=0,
+                        relu=relu,
+                        type_data = type_data,
+                        out_mul1=nodes_to_deploy.inmul1,
+                        out_mul2=nodes_to_deploy.inmul2,
+                        out_shift=nodes_to_deploy.outshift,
+                        name=name_layer,
+                        type=name)
+            in_dim2, out_dim2, weights_dim, l1_dim2, L3_tiling, factor_ch_out, factor_h_out, factor_h_in = tile_gen.get_tiling(**d)
+            if(factor_ch_out > 1):
+                PULP_Nodes_Graph[i].L3_allocation = 1
+            else:
                 PULP_Nodes_Graph[i].L3_allocation = 0
-                PULP_Nodes_Graph[i].L3_input = 0
-                PULP_Nodes_Graph[i].L3_output = 0
-
-
+            Layers_L3_input_act += int(factor_h_in > 1)
+            Layers_L3_output_act += int(factor_h_out > 1)
+            Layers_L3_weights += int(factor_ch_out > 1)
+            PULP_Nodes_Graph[i].L3_input = int(factor_h_in > 1)
+            PULP_Nodes_Graph[i].L3_output = int(factor_h_out > 1)
+            PULP_Nodes_Graph[i].L3_weights = int(factor_ch_out > 1)
+            if(i == 0):
+                out_dim2_old = in_dim2
+            if(factor_h_out > 1):
+                out_dim2 = l2_buffer_size - weight_overhead - out_dim2_old - weights_dim
+            out_dim2_old = out_dim2
             while weights_dim % 4 != 0:
                 weights_dim += 1
             if(weight_overhead == int(l2_buffer_size/2)):
@@ -386,7 +358,9 @@ class Model_deployment():
                             BitActivation = 32,
                             sdk='gap_sdk', 
                             backend='MCU', 
-                            dma_parallelization='8-cores'):
+                            dma_parallelization='8-cores',
+                            number_of_clusters = 1,
+                            type_data = 'char'):
         # Function used to create all the files for the application
         # copy backend is used to copy all the files of the backend
         self.copy_backend(BitActivation, PULP_Nodes_Graph, number_of_deployed_layers, sdk, backend, dma_parallelization)
@@ -410,7 +384,9 @@ class Model_deployment():
             performance_single_layer,
             sdk,
             backend,
-            dma_parallelization)
+            dma_parallelization,
+            number_of_clusters,
+            type_data = type_data)
 
         logging.debug("  ")
         logging.debug("  Layers with L3 input activation: " + str(num_L3_input_tile))

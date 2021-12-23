@@ -22,3 +22,4 @@ static float ${layer_name}[${len(layer_weights_for_len)}]={${layer_weights}};
 % endfor
 
 static float input[${input_len}]={${input}};
+static float l2_zeros[128*128*64] = {0};
