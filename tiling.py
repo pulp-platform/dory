@@ -1213,11 +1213,14 @@ class Tiling():
                 solver.Add(tile_w_in == w_in)
                 solver.Add(tile_w_out == w_out)
         if DW == 0:
-            if n_in >=self.number_of_clusters:
-                solver.Add(tile_n_in == int(n_in/self.number_of_clusters))
+            if n_in >=self.number_of_clusters and (n_in % self.number_of_clusters == 0):
+                solver.Add(tile_n_in == int(np.ceil(n_in/self.number_of_clusters)))
             else:
                 solver.Add(tile_n_in == int(n_in))
             if self.number_of_clusters>1:
+                solver.Add(tile_n_out <= int(n_out/self.number_of_clusters))
+        if DW == 1:
+            if n_in >=self.number_of_clusters:
                 solver.Add(tile_n_out <= int(n_out/self.number_of_clusters))
         # constraint for future mixed
         if DW == 1: 

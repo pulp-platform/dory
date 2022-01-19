@@ -698,14 +698,12 @@ def print_template_layer(x, y_gold, W,
     tk['tile_dim_w'] = max(int(math.ceil(float(w_out) / float(tk['y_tile_size_w']))), 1)
     tk['tile_dim_nof'] = max(int(math.ceil(float(n_out) / float(tk['y_tile_size_nof']))), 1)
     tk['tile_dim_nif'] = max(int(math.ceil(float(n_in) / float(tile_n_in))), 1)
+    tk['tile_n_in_last'] = n_in % tile_n_in if n_in % tile_n_in > 0 else tile_n_in
     # W parameters
     tk['fs1'] = fs1
     tk['fs2'] = fs2
     tk['W_data_size_byte'] = ds_W
-    if DW == 0:
-        tk['W_tile_size_nof'] = tile_n_out 
-    else:
-        tk['W_tile_size_nof'] = int(tile_n_out * ds_W / 8.0)
+    tk['W_tile_size_nof'] = tile_n_out 
     if tk['has_bias'] == 1:
         tk['b_size_byte'] = int(math.ceil(n_out * ds_W / 8.0))
     else:
@@ -713,15 +711,18 @@ def print_template_layer(x, y_gold, W,
 
     if DW == 0:
         tk['W_tile_size_nif'] = tile_n_in * tk['tile_dim_nif']
+        tk['W_tile_size_nif_last'] = tk['tile_n_in_last'] * tk['tile_dim_nif']
     else:
         tk['W_tile_size_nif'] = 1
+        tk['W_tile_size_nif_last'] = 1
     tk['W_tile_size_byte'] = int(math.ceil(tile_n_out * tk['W_tile_size_nif'] * fs1 * fs2 * ds_W / 8.0))
     if DW == 0:
         tk['W_stride_nof_byte'] = int(math.ceil(tk['nif'] * fs1 * fs2 * ds_W / 8.0))
     else:
-        tk['W_stride_nof_byte'] = int(math.ceil(tk['nif'] * fs1 * fs2))        
+        tk['W_stride_nof_byte'] = int(math.ceil(tk['nif'] * fs1 * fs2 * ds_W / 8.0))        
     tk['W_stride_hw_byte'] = int(math.ceil(tk['nif'] * ds_W / 8.0))
     tk['W_tile_nif_byte'] = int(math.ceil(tk['W_tile_size_nif'] * ds_W / 8.0))
+    tk['W_tile_nif_byte_last'] = int(math.ceil(tk['W_tile_size_nif_last'] * ds_W / 8.0))
     # l2 parameters
     if tk['FLAG_BATCHNORM'] == 1:
         tk['l2_off_k'] = int(
@@ -826,8 +827,6 @@ def print_template_layer(x, y_gold, W,
     # W last
     if conv_order != 'PULP-NN-MAX' and conv_order != 'PULP-NN-ADD':
         tk['W_tile_size_nof_last'] = n_out % tile_n_out if (n_out % tile_n_out) > 0 else tile_n_out
-        if DW == 1:
-            tk['W_tile_size_nof_last'] = int(tk['W_tile_size_nof_last'] * ds_W / 8.0)
         tk['W_tile_size_nif_last'] = tk['W_tile_size_nif']
         tk['W_tile_size_nif_byte_last'] = int(math.ceil(tk['W_tile_size_nif_last'] * ds_W / 8.0))
     # y last

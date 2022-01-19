@@ -154,7 +154,7 @@ class Model_deployment_Occamy(Model_deployment):
                     weights = np.concatenate((weights, np.asarray([0])))
                 weights = np.asarray(weights)
                 weights_to_write.append(weights)
-                weights_to_write_h.append(print_test_vector(weights, 'int8_t'))
+                # weights_to_write_h.append(print_test_vector(weights, 'int8_t'))
                 string_layer = nodes_to_deploy.name + str(i) + "_weights"
                 file_list_w.append(string_layer)
         try:
@@ -174,9 +174,9 @@ class Model_deployment_Occamy(Model_deployment):
         tk['input'] = print_test_vector(x_in, 'uint8_t')
         tk['input_len'] = len(x_in)
         root = '/'.join(os.getcwd().split('/')[:-1])
-        tmpl = Template(filename=root + f"/templates_Occamy/data.h")
-        s = tmpl.render(**tk)
-        save_string = './application/DORY_network/inc/data.h'
-        with open(save_string, "w") as f:
-            f.write(s)
+        # tmpl = Template(filename=root + f"/templates_Occamy/data.h")
+        # s = tmpl.render(**tk)
+        # save_string = './application/DORY_network/inc/data.h'
+        # with open(save_string, "w") as f:
+        #     f.write(s)
         return PULP_Nodes_Graph, file_list_w, weights_to_write
