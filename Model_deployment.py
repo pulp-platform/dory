@@ -56,11 +56,6 @@ class Model_deployment():
         os.system('cp ../templates/mem_controller.h  ./application/DORY_network/inc/')
         tk = OrderedDict([])
         tk['sdk'] = sdk
-        tmpl = Template(filename=root+"/templates/mchan_test.h")
-        s = tmpl.render(**tk)
-        save_string = './application/DORY_network/inc/mchan_test.h'
-        with open(save_string, "w") as f:
-            f.write(s)
         tk = OrderedDict([])
         tk['chip'] = self.chip
         tk['dma_parallelization'] = dma_parallelization

@@ -20,7 +20,6 @@
 #include "${func_name}.h"
 #include "pulp.h"
 #include "dory.h"
-#include "mchan_test.h"
 
 void ${func_name}(
   void *args

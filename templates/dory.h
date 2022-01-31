@@ -17,7 +17,7 @@
  * limitations under the License. 
  */
 
-#include "mchan_test.h"
+#include "pmsis.h"
 % if sdk == 'gap_sdk':
 #include "pulp.h"
 % endif

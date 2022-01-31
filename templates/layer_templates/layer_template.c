@@ -152,17 +152,6 @@ void ${func_name}(
   }
 % endif
   pi_cl_team_barrier(0);
-% if chip == 'GAP8v3':
-  //////////////////////////////////////////////////////////////
-  // Allocation of one channel per each core for DMA transfer //
-  //////////////////////////////////////////////////////////////
-% if dma_parallelization == '8-cores':
-  dma_evt = mchan_alloc();
-% elif dma_parallelization == '1-core':
-  if (pi_core_id()==0)
-    dma_evt = mchan_alloc();
-% endif
-% endif
   ////////////////////////////
   // First tile transfering //
   ////////////////////////////
@@ -201,7 +190,7 @@ void ${func_name}(
   &dma_evt // copy
   );
   % if chip == 'GAP8v3':
-  mchan_barrier(dma_evt);
+  pi_cl_dma_flush();
   % endif
 % if dma_parallelization == '1-core':
   }
@@ -595,7 +584,7 @@ void ${func_name}(
       if (pi_core_id()==0)
       {
 % endif
-      mchan_barrier(dma_evt);
+      pi_cl_dma_flush();
 % if dma_parallelization == '1-core':
       }
 % endif
@@ -657,8 +646,7 @@ void ${func_name}(
   if (pi_core_id()==0)
   {
 % endif
-  mchan_barrier(dma_evt);
-  mchan_free(dma_evt);
+  pi_cl_dma_flush();
 % if dma_parallelization == '1-core':
   }
 % endif

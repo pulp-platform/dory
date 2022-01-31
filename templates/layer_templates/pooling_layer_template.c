@@ -71,16 +71,6 @@ void ${func_name}(
   int exec_db_W;
  ${type} *im2col;
   im2col = l1_buffer + ${buffer_l1_all};
-  % if chip == 'GAP8v3':
-% if dma_parallelization == '1-core':
-  if (pi_core_id()==0)
-  {
-% endif
-  dma_evt = mchan_alloc();
-% if dma_parallelization == '1-core':
-  }
-% endif
-  % endif
   // copy first tiles
   //l2_x has input activations
 % if dma_parallelization == '1-core':
@@ -100,7 +90,7 @@ void ${func_name}(
   );
   % if chip == 'GAP8v3':
   // wait for x read
-  mchan_barrier(dma_evt);
+  pi_cl_dma_flush();
   % endif
 % if dma_parallelization == '1-core':
   }
@@ -298,7 +288,7 @@ void ${func_name}(
     if (pi_core_id()==0)
     {
 % endif
-    mchan_barrier(dma_evt);
+    pi_cl_dma_flush();
 % if dma_parallelization == '1-core':
     }
 % endif
@@ -335,8 +325,7 @@ void ${func_name}(
   if (pi_core_id()==0)
   {
 % endif
-  mchan_barrier(dma_evt);
-  mchan_free(dma_evt);
+  pi_cl_dma_flush();
 % if dma_parallelization == '1-core':
   }
 % endif

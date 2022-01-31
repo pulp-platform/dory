@@ -189,12 +189,17 @@ void __attribute__ ((noinline)) dory_dma_memcpy_3d_custom_weights(
 ) 
 {
   // parallelization
-  if (pi_core_id()==0)
-#if (MCHAN_VERSION < 7)
-    mchan_transfer(size, dir, 1, 0, 1, 0, 0, (unsigned int)(ext), (unsigned int)(loc), 0, 0);
-#elif (MCHAN_VERSION == 7)
-    mchan_transfer(size, dir, 1, 0, 0, 1, 0, 0, (unsigned int)(ext), (unsigned int)(loc), 0, 0, 0, 0);
-#endif
+  if (pi_core_id()==0) {
+    pi_cl_dma_copy_t copy;
+    copy.dir = dir;
+    copy.merge = 0;
+    copy.size = size;
+    copy.id = 0;
+    copy.ext = (unsigned int)(ext);
+    copy.loc = (unsigned int)(loc);
+    pi_cl_dma_memcpy(&copy);
+    pi_cl_dma_wait(&copy);
+  }
 }
 
 void __attribute__ ((noinline)) dory_dma_memcpy_3d_custom_out(
@@ -227,13 +232,17 @@ void __attribute__ ((noinline)) dory_dma_memcpy_3d_custom_out(
   {
     for ( int j=0; j<length_1; j++) 
     {
-#if (MCHAN_VERSION < 7)
-      mchan_transfer(length_0, dir, 1, 0, 1, 0, 0, (unsigned int)(ext + offs_remote), (unsigned int)(loc + offs_local), 0, 0);
-#elif (MCHAN_VERSION == 7)
-      mchan_transfer(length_0, dir, 1, 0, 0, 1, 0, 0, (unsigned int)(ext + offs_remote), (unsigned int)(loc + offs_local), 0, 0, 0, 0);
-#endif
+      pi_cl_dma_copy_t copy;
+      copy.dir = dir;
+      copy.merge = 0;
+      copy.size = length_0;
+      copy.id = 0;
+      copy.ext = (unsigned int)(ext + offs_remote);
+      copy.loc = (unsigned int)(loc + offs_local);
+      pi_cl_dma_memcpy(&copy);
       offs_local  += length_0;
       offs_remote += stride_0;
+      pi_cl_dma_wait(&copy);
     }
     offs_remote = offs_remote - stride_0*length_1 + stride_1;
   }
@@ -268,21 +277,17 @@ void __attribute__ ((noinline)) dory_dma_memcpy_3d_custom(
   int offs_local = length_0*length_1*start_pixel;
   for ( int i=start_pixel; i<stop_pixel; i++) 
   {
-% if chip == 'GAP8v2':
-    // alloc channels with barrier after if we consider v2 chips, with DMA issue 
-    int dma_evt = mchan_alloc();
-% endif
-#if (MCHAN_VERSION < 7)
-    mchan_transfer(length_0*length_1, dir, 1, 0, 1, 0, 0, (unsigned int)(ext + offs_remote), (unsigned int)(loc + offs_local), 0, 0);
-#elif (MCHAN_VERSION == 7)
-    mchan_transfer(length_0*length_1, dir, 1, 0, 0, 1, 0, 0, (unsigned int)(ext + offs_remote), (unsigned int)(loc + offs_local), 0, 0, 0, 0);
-#endif
-% if chip == 'GAP8v2':
-    mchan_barrier(dma_evt);
-    mchan_free(dma_evt);
-% endif
+    pi_cl_dma_copy_t copy;
+    copy.dir = dir;
+    copy.merge = 0;
+    copy.size = length_0*length_1;
+    copy.id = 0;
+    copy.ext = (unsigned int)(ext + offs_remote);
+    copy.loc = (unsigned int)(loc + offs_local);
+    pi_cl_dma_memcpy(&copy);
     offs_local  += length_0*length_1;
     offs_remote = offs_remote + stride_1;
+    pi_cl_dma_wait(&copy);
   }
 }
 
@@ -312,24 +317,24 @@ void __attribute__ ((noinline)) dory_dma_memcpy_3d_custom_blocking(
   stop_pixel = MIN(start_pixel+chunk, length_2);
   int offs_remote = stride_1*start_pixel;
   int offs_local = length_0*length_1*start_pixel;
-  int dma_evt = mchan_alloc();
   for ( int i=start_pixel; i<stop_pixel; i++) 
   {
     for ( int j=0; j<length_1; j++) 
     {
-      // alloc channels with barrier after if we consider v2 chips, with DMA issue 
-#if (MCHAN_VERSION < 7)
-      mchan_transfer(length_0, dir, 1, 0, 1, 0, 0, (unsigned int)(ext + offs_remote), (unsigned int)(loc + offs_local), 0, 0);
-#elif (MCHAN_VERSION == 7)
-      mchan_transfer(length_0, dir, 1, 0, 0, 1, 0, 0, (unsigned int)(ext + offs_remote), (unsigned int)(loc + offs_local), 0, 0, 0, 0);
-#endif
+      pi_cl_dma_copy_t copy;
+      copy.dir = dir;
+      copy.merge = 0;
+      copy.size = length_0;
+      copy.id = 0;
+      copy.ext = (unsigned int)(ext + offs_remote);
+      copy.loc = (unsigned int)(loc + offs_local);
+      pi_cl_dma_memcpy(&copy);
       offs_local  += length_0;
       offs_remote += stride_0;
+      pi_cl_dma_wait(&copy);
     }
     offs_remote = offs_remote - stride_0*length_1 + stride_1;
   }
-  mchan_barrier(dma_evt);
-  mchan_free(dma_evt);
 }
 
 // using DMA to move from a chw to an hwc layout. We use copies of 1 single bit at the time.
@@ -357,17 +362,20 @@ void __attribute__ ((noinline)) dory_dma_memcpy_3d_custom_hwc_to_chw(
   stop_pixel = MIN(start_pixel+chunk, length_0);
   int offs_remote = start_pixel;
   int offs_local = length_2*length_1*start_pixel;
-  int dma_evt = mchan_alloc();
   for ( int i=start_pixel; i<stop_pixel; i++) 
   {
-#if (MCHAN_VERSION < 7)
-    mchan_transfer(length_1*length_2, dir, 1, 1, 1, 0, 0, (unsigned int)(ext + offs_remote), (unsigned int)(loc + offs_local), 1, stride_0);
-#elif (MCHAN_VERSION == 7)
-    mchan_transfer(length_1*length_2, dir, 1, 1, 0, 1, 0, 0, (unsigned int)(ext + offs_remote), (unsigned int)(loc + offs_local), 1, stride_0, 0, 0);
-#endif
-    mchan_barrier(dma_evt);
+    pi_cl_dma_copy_t copy;
+    copy.dir = dir;
+    copy.merge = 0;
+    copy.size = length_1*length_2;
+    copy.id = 0;
+    copy.ext = (unsigned int)(ext + offs_remote);
+    copy.loc = (unsigned int)(loc + offs_local);
+    copy.stride = stride_0;
+    copy.length = 1;
+    pi_cl_dma_memcpy_2d(&copy);
+    pi_cl_dma_wait(&copy);
     offs_local  += length_1*length_2;
     offs_remote = offs_remote + 1;
   }
-  mchan_free(dma_evt);
 }
