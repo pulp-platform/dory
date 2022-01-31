@@ -44,7 +44,8 @@ void ${func_name}(
   unsigned int inmul1_in = (unsigned int) real_arg[10];
   unsigned int inmul2_in = (unsigned int) real_arg[11];
   unsigned int out_shift_in = (unsigned int) real_arg[12];
-  unsigned int dma_evt;
+  pi_cl_dma_cmd_t dma_cmd;
+  dma_cmd.id = -1;
 
 //DMA events
   unsigned int dma_read_evt_x;
@@ -99,7 +100,7 @@ void ${func_name}(
   ${x_tile_size_h},// length_2: how many 2_d copies we need -> the dimension of the tile in n_features direction
   ${x_tile_size_nif_byte}, // length_0: legnth of the 1_d copy, the length of tile in w direction
   1, // dir
-  &dma_evt // copy
+  &dma_cmd.id // copy
   );
 
   dory_dma_memcpy_3d_custom(
@@ -111,10 +112,10 @@ void ${func_name}(
   ${x_tile_size_h},// length_2: how many 2_d copies we need -> the dimension of the tile in n_features direction
   ${x_tile_size_nif_byte}, // length_0: legnth of the 1_d copy, the length of tile in w direction
   1, // dir
-  &dma_evt // copy
+  &dma_cmd.id // copy
   );
   % if chip == 'GAP8v3':
-  pi_cl_dma_flush();
+  pi_cl_dma_wait(&dma_cmd);
   % endif
 % if dma_parallelization == '1-core':
   }
@@ -200,7 +201,7 @@ void ${func_name}(
         x_tile_size_h,// length_2: how many 2_d copies we need -> the dimension of the tile in n_features direction
         x_length_nif_byte, // length_0: legnth of the 1_d copy, the length of tile in w direction
         1, // dir
-        &dma_evt // copy
+        &dma_cmd.id // copy
         );
       dory_dma_memcpy_3d_custom(
         dory_get_tile_3d(l2_x2, _i_h_load, _i_w_load, _i_nif_load, ${x_tile_size_h}, ${x_tile_size_w}, ${x_tile_size_nif}, ${x_w}, ${nif},  ${conv_overlap1}, ${conv_overlap2},0, 0, 0, 0, ${x_data_size_byte}), // extern
@@ -211,7 +212,7 @@ void ${func_name}(
         x_tile_size_h,// length_2: how many 2_d copies we need -> the dimension of the tile in n_features direction
         x_length_nif_byte, // length_0: legnth of the 1_d copy, the length of tile in w direction
         1, // dir
-        &dma_evt // copy
+        &dma_cmd.id // copy
         );
 % if dma_parallelization == '1-core':
       }
@@ -251,9 +252,9 @@ void ${func_name}(
     if (pi_core_id()==0)
     {
 % endif
-    % if chip == 'GAP8v3':
-    pi_cl_dma_flush();
-    % endif
+% if chip == 'GAP8v3':
+    pi_cl_dma_wait(&dma_cmd);
+% endif
     // copying output back to L2
     dory_dma_memcpy_3d_custom_out(
       dory_get_tile_3d(l2_y, _i_h_exec, _i_w_exec, _i_nof_exec, ${y_tile_size_h}, ${y_tile_size_w}, ${y_tile_size_nof}, ${y_w}, ${nof}, 0, 0, 0, 0, 0, 0, ${y_data_size_byte}), // ext
@@ -264,7 +265,7 @@ void ${func_name}(
       y_tile_size_h, // length_2
       y_length_nof_byte, // length_0
       0, // dir
-      &dma_evt // copy
+      &dma_cmd.id // copy
     );
 % if dma_parallelization == '1-core':
     }
@@ -277,15 +278,15 @@ void ${func_name}(
   }
 % if not TEST:
   // wait for final write
-  % if chip == 'GAP8v3':
+% if chip == 'GAP8v3':
 % if dma_parallelization == '1-core':
   if (pi_core_id()==0)
   {
 % endif
-  pi_cl_dma_flush();
+  pi_cl_dma_wait(&dma_cmd);
 % if dma_parallelization == '1-core':
   }
 % endif
-  % endif
+% endif
 % endif
 }

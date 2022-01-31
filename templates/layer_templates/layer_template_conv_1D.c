@@ -48,7 +48,6 @@ void ${func_name}(
   //////////////////////////
   // Variable declaration //
   //////////////////////////
-  unsigned int dma_evt;
   volatile int p_r, p_l;
   int last_nof_exec;
   int last_nif_exec;

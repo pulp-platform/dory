@@ -47,7 +47,8 @@ void ${func_name}(
   //////////////////////////
   // Variable declaration //
   //////////////////////////
-  unsigned int dma_evt;
+  pi_cl_dma_cmd_t dma_cmd;
+  dma_cmd.id = -1;
   volatile int p_r, p_l, p_t, p_b;
 % if tile_dim_nif*tile_dim_h*tile_dim_w != 1:
   volatile  unsigned short x_tile_size_nif;
@@ -172,7 +173,7 @@ void ${func_name}(
   ${x_tile_size_h},// length_2: how many 2_d copies we need -> the dimension of the tile in n_features direction
   ${x_tile_size_nif_byte}, // length_0: legnth of the 1_d copy, the length of tile in w direction
   1, // dir
-  &dma_evt // copy
+  &dma_cmd.id // copy
   );
   % if flag_DW == 1:
   dory_dma_memcpy_3d_custom_blocking(
@@ -187,11 +188,11 @@ void ${func_name}(
   ${W_tile_size_nof}, // length_2: how many 2_d copies we need -> the dimension of the tile in n_features direction
   ${W_tile_nif_byte}, // length_0: legnth of the 1_d copy, the length of tile in w direction
   1, // dir
-  &dma_evt // copy
+  &dma_cmd.id // copy
   );
-  % if chip == 'GAP8v3':
-  pi_cl_dma_flush();
-  % endif
+  // % if chip == 'GAP8v3':
+  pi_cl_dma_wait(&dma_cmd);
+  // % endif
 % if dma_parallelization == '1-core':
   }
 % endif
@@ -315,7 +316,7 @@ void ${func_name}(
       x_tile_size_h,// length_2: how many 2_d copies we need -> the dimension of the tile in n_features direction
       x_length_nif_byte, // length_0: legnth of the 1_d copy, the length of tile in w direction
       1, // dir
-      &dma_evt // copy
+      &dma_cmd.id // copy
       );
 % if dma_parallelization == '1-core':
       }
@@ -345,7 +346,7 @@ void ${func_name}(
         W_tile_size_nof, // length_2: how many 2_d copies we need -> the dimension of the tile in n_features direction
         W_length_nif_byte, // length_0: legnth of the 1_d copy, the length of tile in w direction
         1, // dir
-        &dma_evt // copy
+        &dma_cmd.id // copy
         );
 % if dma_parallelization == '1-core':
         }
@@ -431,7 +432,7 @@ void ${func_name}(
     y_tile_size_nof,
     0, 0, 1, 1, 0, 0,
     y,
-    0, 0, &dma_evt );
+    0, 0, &dma_cmd.id );
     % elif 'Gemm' in func_name or 'MatMul' in func_name:
     pulp_nn_linear( 
     x,
@@ -454,7 +455,7 @@ void ${func_name}(
     0,
       % endif
     y,
-    ${FLAG_RELU}, ${FLAG_BATCHNORM}, &dma_evt );  
+    ${FLAG_RELU}, ${FLAG_BATCHNORM}, &dma_cmd.id );  
     % elif fs1*fs2>1 or 'Gemm' in func_name or stride>1:
     pulp_nn_conv_Ho_parallel(
     % else:
@@ -486,7 +487,7 @@ void ${func_name}(
       0,
       % endif
       y,
-      ${FLAG_RELU}, ${FLAG_BATCHNORM}, &dma_evt );  
+      ${FLAG_RELU}, ${FLAG_BATCHNORM}, &dma_cmd.id );  
   % elif 'mixed-hw' in optional_type  and ('Gemm' in func_name or 'MatMul' in func_name):
     pulp_nn_linear_u${x_data_size_byte}_i${y_data_size_byte}_i${W_data_size_byte}( 
       x,
@@ -509,7 +510,7 @@ void ${func_name}(
       0,
       % endif
       y,
-      ${FLAG_RELU}, ${FLAG_BATCHNORM}, &dma_evt );  
+      ${FLAG_RELU}, ${FLAG_BATCHNORM}, &dma_cmd.id );  
   % endif
 % else:
   % if optional_type == '8bit':
@@ -570,7 +571,7 @@ void ${func_name}(
   % endif
     ${FLAG_RELU},
     ${FLAG_BATCHNORM},
-    &dma_evt
+    &dma_cmd.id
     );
 % endif
     pi_cl_team_barrier(0);
@@ -584,7 +585,7 @@ void ${func_name}(
       if (pi_core_id()==0)
       {
 % endif
-      pi_cl_dma_flush();
+        pi_cl_dma_wait(&dma_cmd);
 % if dma_parallelization == '1-core':
       }
 % endif
@@ -622,7 +623,7 @@ void ${func_name}(
         y_tile_size_h, // length_2
         y_length_nof_byte, // length_0
         0, // dir
-        &dma_evt // copy
+        &dma_cmd.id // copy
         );
 % if dma_parallelization == '1-core':
         }
@@ -646,7 +647,7 @@ void ${func_name}(
   if (pi_core_id()==0)
   {
 % endif
-  pi_cl_dma_flush();
+  pi_cl_dma_wait(&dma_cmd);
 % if dma_parallelization == '1-core':
   }
 % endif
