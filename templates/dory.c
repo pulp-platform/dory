@@ -228,24 +228,24 @@ void __attribute__ ((noinline)) dory_dma_memcpy_3d_custom_out(
   stop_pixel = MIN(start_pixel+chunk, length_2);
   int offs_remote = stride_1*start_pixel;
   int offs_local = length_0*length_1*start_pixel;
+  pi_cl_dma_copy_t copy;
   for ( int i=start_pixel; i<stop_pixel; i++) 
   {
     for ( int j=0; j<length_1; j++) 
     {
-      pi_cl_dma_copy_t copy;
       copy.dir = dir;
-      copy.merge = 0;
+      copy.merge = i != start_pixel || j != 0;
       copy.size = length_0;
-      copy.id = 0;
+      // copy.id = 0;
       copy.ext = (unsigned int)(ext + offs_remote);
       copy.loc = (unsigned int)(loc + offs_local);
       pi_cl_dma_memcpy(&copy);
       offs_local  += length_0;
       offs_remote += stride_0;
-      pi_cl_dma_wait(&copy);
     }
     offs_remote = offs_remote - stride_0*length_1 + stride_1;
   }
+  pi_cl_dma_wait(&copy);
 }
 
 // copies are managed by 8 cores parallely. By now, 3d copies are a serie of 1d copy. In future, will be a serie of 2d copies.
@@ -275,20 +275,20 @@ void __attribute__ ((noinline)) dory_dma_memcpy_3d_custom(
   stop_pixel = MIN(start_pixel+chunk, length_2);
   int offs_remote = stride_1*start_pixel;
   int offs_local = length_0*length_1*start_pixel;
+  pi_cl_dma_copy_t copy;
   for ( int i=start_pixel; i<stop_pixel; i++) 
   {
-    pi_cl_dma_copy_t copy;
     copy.dir = dir;
-    copy.merge = 0;
+    copy.merge = i != start_pixel;
     copy.size = length_0*length_1;
-    copy.id = 0;
+    // copy.id = 0;
     copy.ext = (unsigned int)(ext + offs_remote);
     copy.loc = (unsigned int)(loc + offs_local);
     pi_cl_dma_memcpy(&copy);
     offs_local  += length_0*length_1;
     offs_remote = offs_remote + stride_1;
-    pi_cl_dma_wait(&copy);
   }
+  pi_cl_dma_wait(&copy);
 }
 
 void __attribute__ ((noinline)) dory_dma_memcpy_3d_custom_blocking(
@@ -317,24 +317,24 @@ void __attribute__ ((noinline)) dory_dma_memcpy_3d_custom_blocking(
   stop_pixel = MIN(start_pixel+chunk, length_2);
   int offs_remote = stride_1*start_pixel;
   int offs_local = length_0*length_1*start_pixel;
+  pi_cl_dma_copy_t copy;
+  copy.id = -1;
   for ( int i=start_pixel; i<stop_pixel; i++) 
   {
     for ( int j=0; j<length_1; j++) 
     {
-      pi_cl_dma_copy_t copy;
       copy.dir = dir;
-      copy.merge = 0;
+      copy.merge = i != start_pixel || j != 0;
       copy.size = length_0;
-      copy.id = 0;
       copy.ext = (unsigned int)(ext + offs_remote);
       copy.loc = (unsigned int)(loc + offs_local);
       pi_cl_dma_memcpy(&copy);
       offs_local  += length_0;
       offs_remote += stride_0;
-      pi_cl_dma_wait(&copy);
     }
     offs_remote = offs_remote - stride_0*length_1 + stride_1;
   }
+  pi_cl_dma_wait(&copy);
 }
 
 // using DMA to move from a chw to an hwc layout. We use copies of 1 single bit at the time.
@@ -362,20 +362,20 @@ void __attribute__ ((noinline)) dory_dma_memcpy_3d_custom_hwc_to_chw(
   stop_pixel = MIN(start_pixel+chunk, length_0);
   int offs_remote = start_pixel;
   int offs_local = length_2*length_1*start_pixel;
+  pi_cl_dma_copy_t copy;
   for ( int i=start_pixel; i<stop_pixel; i++) 
   {
-    pi_cl_dma_copy_t copy;
     copy.dir = dir;
-    copy.merge = 0;
+    copy.merge = i != start_pixel;
     copy.size = length_1*length_2;
-    copy.id = 0;
+    // copy.id = 0;
     copy.ext = (unsigned int)(ext + offs_remote);
     copy.loc = (unsigned int)(loc + offs_local);
     copy.stride = stride_0;
     copy.length = 1;
     pi_cl_dma_memcpy_2d(&copy);
-    pi_cl_dma_wait(&copy);
     offs_local  += length_1*length_2;
     offs_remote = offs_remote + 1;
   }
+  pi_cl_dma_wait(&copy);
 }
