@@ -334,7 +334,9 @@ void __attribute__ ((noinline)) dory_dma_memcpy_3d_custom_blocking(
     }
     offs_remote = offs_remote - stride_0*length_1 + stride_1;
   }
-  pi_cl_dma_wait(&copy);
+  if (start_pixel > stop_pixel && length_1 > 0) {
+    pi_cl_dma_wait(&copy);
+  }
   *id = copy.id;
 }
 
