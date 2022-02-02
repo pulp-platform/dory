@@ -379,4 +379,5 @@ void __attribute__ ((noinline)) dory_dma_memcpy_3d_custom_hwc_to_chw(
     offs_remote = offs_remote + 1;
   }
   *id = copy.id;
+  // For GAP_SDK, please be aware of possible incompatibilities regarding long lengths and strides
 }

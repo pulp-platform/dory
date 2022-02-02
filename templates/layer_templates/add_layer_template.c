@@ -46,7 +46,9 @@ void ${func_name}(
   unsigned int out_shift_in = (unsigned int) real_arg[12];
   pi_cl_dma_cmd_t dma_cmd;
   dma_cmd.id = -1;
-
+% if sdk == 'gap_sdk':
+  dma_cmd.length = 0;
+% endif
 //DMA events
   unsigned int dma_read_evt_x;
   unsigned int dma_read_evt_x2;

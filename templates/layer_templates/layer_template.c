@@ -49,6 +49,9 @@ void ${func_name}(
   //////////////////////////
   pi_cl_dma_cmd_t dma_cmd;
   dma_cmd.id = -1;
+% if sdk == 'gap_sdk':
+  dma_cmd.length = 0;
+% endif
   volatile int p_r, p_l, p_t, p_b;
 % if tile_dim_nif*tile_dim_h*tile_dim_w != 1:
   volatile  unsigned short x_tile_size_nif;

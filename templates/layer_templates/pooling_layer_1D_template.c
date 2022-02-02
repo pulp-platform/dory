@@ -42,6 +42,9 @@ void ${func_name}(
   unsigned int out_shift_in = (unsigned int) real_arg[12];
   pi_cl_dma_cmd_t dma_cmd;
   dma_cmd.id = -1;
+% if sdk == 'gap_sdk':
+  dma_cmd.length = 0;
+% endif
   int p_r, p_l, p_t, p_b;
   int last_nof_exec;
   int last_nif_exec;
