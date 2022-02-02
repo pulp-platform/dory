@@ -193,9 +193,9 @@ void ${func_name}(
   1, // dir
   &dma_cmd.id // copy
   );
-  // % if chip == 'GAP8v3':
+% if chip == 'GAP8v3':
   pi_cl_dma_wait(&dma_cmd);
-  // % endif
+% endif
 % if dma_parallelization == '1-core':
   }
 % endif

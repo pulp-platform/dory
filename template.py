@@ -637,10 +637,7 @@ def print_template_layer(x, y_gold, W,
     tk['FLAG_RELU'] = relu
     tk['test_location'] = test_location
     tk['platform'] = platform
-    if DW == 1:
-        tk['chip'] = 'GAPv2'
-    else:
-        tk['chip'] = chip
+    tk['chip'] = chip
     tk['type'] = type_data
     tk['nof'] = n_out
     tk['factor'] = factor_ch_out
