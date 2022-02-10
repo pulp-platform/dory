@@ -16,7 +16,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License. 
  */
-int network_setup();
+int network_setup(char *input_features, int input_size, int use_precomputed_mfcc);
 void network_run_FabricController();
 void cluster_main(void *arg);
 void pulp_parallel(void *arg);

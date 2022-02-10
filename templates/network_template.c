@@ -367,7 +367,7 @@ void open_filesystem(struct pi_device *flash, struct pi_device *fs)
 }
 
 /* Moves the weights and the biases from hyperflash to hyperram */
-int network_setup()
+int network_setup(char *input_features, int input_size, int use_precomputed_mfcc)
 {
   pi_task_t task = {0};
   pi_task_block(&task);
@@ -426,25 +426,37 @@ int network_setup()
     layer_number +=1;
 % endif
   }
-  file = pi_fs_open(&fs, "inputs.hex", 0);
-  if (file == NULL)
-  {
-    printf("file open failed\n");
-    return -1;
-  }
+  
   activations_input = L3_weights+rdDone;
   rdDone = 0;
-  int flashBuffSize = FLASH_BUFF_SIZE * sizeof(char);
-  // loop on chunk in file
-  while(rdDone < (${int(PULP_Nodes_Graph[0].input_activation_dimensions * BitIn / 8.0)} / sizeof(char))) 
-  { 
-    // read from HyperFlash
-    int size = pi_fs_read(file, flashBuffer, flashBuffSize);
-    // write to HyperRam
-    pi_ram_write(&ram, activations_input+rdDone, flashBuffer, (uint32_t) size);
-    rdDone += size / sizeof(char);
+
+  if (use_precomputed_mfcc == 1) {
+    
+    file = pi_fs_open(&fs, "inputs.hex", 0);
+    if (file == NULL)
+    {
+      printf("file open failed\n");
+      return -1;
+    }
+    int flashBuffSize = FLASH_BUFF_SIZE * sizeof(char);
+    // loop on chunk in file
+    while(rdDone < (${int(PULP_Nodes_Graph[0].input_activation_dimensions * BitIn / 8.0)} / sizeof(char)))
+    {
+       // read from HyperFlash
+       int size = pi_fs_read(file, flashBuffer, flashBuffSize);
+       // write to HyperRam
+       pi_ram_write(&ram, activations_input+rdDone, flashBuffer, (uint32_t) size);
+       rdDone += size / sizeof(char);
+    }
   }
+  else {    
+    // multiply by the number of bits
+    input_size = 8 * input_size;
+    pi_ram_write(&ram, activations_input+rdDone, input_features, (uint32_t) input_size);
+  }
+
   return 1;
+  
 }
 
 // on cluster function execution
