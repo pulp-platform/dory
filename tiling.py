@@ -1123,6 +1123,7 @@ class Tiling():
         ###############################################
         input_dim = self.BitIn * int(n_in/self.number_of_clusters) * h_in * w_in
         if self.backend == 'Occamy':
+            input_dim = self.BitIn * int(n_in/self.number_of_clusters) * (h_in + padding_top + padding_bottom) * (w_in + padding_left + padding_right)
             input_dim += ((padding_top + padding_bottom) * (w_in + padding_left + padding_right) + (padding_left + padding_right) * h_in) * self.BitIn * int(n_in/self.number_of_clusters)
         output_dim = self.BitOut * int(n_out/self.number_of_clusters) * h_out * w_out
         if DW == 0:
@@ -1136,7 +1137,7 @@ class Tiling():
             weight_full_prec_dim = 8 * 8 * fs1 * fs2 * int( 8 / min(self.BitIn, self.BitOut, self.BitW))
             if self.BitW==8:
                  weight_full_prec_dim = 0
-        if 'MatMul' in name or 'Gemm' in name:
+        if 'MatMul' in name or 'Gemm' in name or self.backend == 'Occamy':
             im2col_dim = 0
         bn_dim = self.BitActivation * int(n_out/self.number_of_clusters) * 2
         buffer_total = input_dim + output_dim + weight_dim + im2col_dim + bn_dim
@@ -1161,7 +1162,7 @@ class Tiling():
         ###############################################
         ##### TILING OF LAYER USING ORTOOLS ###########
         ###############################################
-        max_obj_value = self.buffer_size * 8 * 32 * 10000
+        max_obj_value = self.buffer_size * 8 * 32 * 10000000
         ###############################################
         ##### INITIALIZATION OF THE TILING VARS #######
         ###############################################
@@ -1196,8 +1197,8 @@ class Tiling():
             solver.Add(tile_h_out * s ==(tile_h_in - (fs1 - 1) + (s - 1)))
             solver.Add(tile_w_out * s ==(tile_w_in - (fs2 - 1) + (s - 1)))
         # constraints of border tile. It can't be smaller than filter size
-        solver.Add(solver.Max((h_in - tile_h_in - (tile_h_in - fs1 + 1 - padding_top)), 0) % (tile_h_in - fs1 + 1) + abs(solver.Min(solver.Max((h_in - tile_h_in - (tile_h_in - fs1 + 1 - padding_bottom)), 0) % (tile_h_in - fs1 + 1), 1) - 1) * fs1 >= fs1)
-        solver.Add(solver.Max((w_in - tile_w_in - (tile_w_in - fs2 + 1 - padding_left)), 0) % (tile_w_in - fs2 + 1) + abs(solver.Min(solver.Max((w_in - tile_w_in - (tile_w_in - fs2 + 1 - padding_right)), 0) % (tile_w_in - fs2 + 1), 1) - 1) * fs2 >= fs2)
+        # solver.Add(solver.Max((h_in - tile_h_in - (tile_h_in - fs1 + 1 - padding_top)), 0) % (tile_h_in - fs1 + 1) + abs(solver.Min(solver.Max((h_in - tile_h_in - (tile_h_in - fs1 + 1 - padding_bottom)), 0) % (tile_h_in - fs1 + 1), 1) - 1) * fs1 >= fs1)
+        # solver.Add(solver.Max((w_in - tile_w_in - (tile_w_in - fs2 + 1 - padding_left)), 0) % (tile_w_in - fs2 + 1) + abs(solver.Min(solver.Max((w_in - tile_w_in - (tile_w_in - fs2 + 1 - padding_right)), 0) % (tile_w_in - fs2 + 1), 1) - 1) * fs2 >= fs2)
         ###############################################
         ##### CONSTRAINTS FOR BACKEND LIMITS ##########
         ###############################################
@@ -1231,6 +1232,7 @@ class Tiling():
         ###############################################
         constr_in = db * ds_x_scale * tile_n_in * tile_h_in * tile_w_in
         if self.backend == 'Occamy':
+            constr_in = db * ds_x_scale * tile_n_in * (tile_h_in + padding_top + padding_bottom) * (tile_w_in + padding_left + padding_right)
             constr_in += db * ds_x_scale * ((padding_top + padding_bottom) * (tile_w_in + padding_left + padding_right) + (padding_left + padding_right) * tile_h_in) * tile_n_in
         constr_out = db * ds_y_scale * tile_n_out * tile_h_out * tile_w_out
         if DW == 0:
@@ -1245,7 +1247,7 @@ class Tiling():
             constr_weight_full_prec = db * 32 * 8 * 8 * fs1 * fs2 * int( 8 / min(self.BitIn, self.BitOut, self.BitW))
             if self.BitW==8:
                 constr_weight_full_prec = 0
-        if 'MatMul' in name or 'Gemm' in name:
+        if 'MatMul' in name or 'Gemm' in name or self.backend == 'Occamy':
             constr_im2col = 0
         constr_bn = ds_bn_scale * tile_n_out * 2 * db
         constraint_all = constr_in + constr_out + constr_weight + constr_bn + constr_im2col + 20 
@@ -1259,37 +1261,49 @@ class Tiling():
         ###############################################
         obj_expr = solver.IntVar(0, max_obj_value, "obj_expr")
         heuristics = 0
-        if DW == 0:
+        if self.backend != 'Occamy':
+            if DW == 0:
+                ####### Geometrical Shape of Tiles ############
+                heuristics +=  64 * 2000000 * ((tile_h_out - 1) % 8) \
+                             + 64 * 3000000 * ((tile_w_out - 1) % 2) \
+                             + 64 * 1000000 * ((tile_n_out - 1) % 4) \
+                             + 64 * 1000000 * (tile_w_out * tile_h_out >= 16)
+                # ####### Total Dimension of Tile ###############
+                heuristics += constraint_all
+                ####### Maximization of Reuse of im2col #######
+                heuristics += 64 * 10000 * tile_n_out \
+                            + 64 * 10000 * ((n_out-zero_variable) % (tile_n_out+1))
+                ####### Geometrical Shape of Border Tiles #####
+                heuristics += 64 * 10000 * ((n_out-zero_variable) % (tile_n_out+1)) \
+                            + 64 * 10000 * (((n_out-zero_variable) % (tile_n_out+1)) % 4) \
+                            + 64 * 20000 * (((h_out-zero_variable) % (tile_h_out+1)) % 8) \
+                            + 64 * 30000 * (((w_out-zero_variable) % (tile_w_out+1)) % 2)
+            elif DW == 1:
+                ####### Geometrical Shape of Tiles ############
+                heuristics += 32 * 10000 * ((tile_n_out > 7)) \
+                            + 64 * 10000 * ((tile_n_out - 1) % int(8*8/min(self.BitIn, self.BitOut, self.BitW))) \
+                            + 32 * 10000 * ((tile_h_out % 4) == 0)
+                ####### Total Dimension of Tile ###############
+                heuristics += constraint_all
+                ####### Maximization of Reuse of im2col #######
+                heuristics += 32 * 1000 * tile_w_out \
+                            + 32 * 1000 * tile_h_out \
+                            + 32 * 100 * (((h_out-zero_variable) % (tile_h_out+1))) \
+                            + 32 * 100 * (((w_out-zero_variable) % (tile_w_out+1)))
+                ####### Geometrical Shape of Border Tiles #####
+                heuristics += 32 * 100 * (((n_out-zero_variable) % (tile_n_out+1)) > 7) \
+                            + 32 * 100 * (((h_out-zero_variable) % (tile_h_out+1)) % 4)
+        else:
             ####### Geometrical Shape of Tiles ############
-            heuristics +=  64 * 2000000 * ((tile_h_out - 1) % 8) \
-                         + 64 * 3000000 * ((tile_w_out - 1) % 2) \
-                         + 64 * 1000000 * ((tile_n_out - 1) % 4) \
-                         + 64 * 1000000 * (tile_w_out * tile_h_out >= 16)
-            ####### Total Dimension of Tile ###############
+            heuristics += 64 * 10000 * (((((h_out-zero_variable - 1) % tile_h_out)) % 8) > 4) 
+            heuristics += 64 * 10000 * (((tile_h_out - 1) % 8) > 4) \
+                        + 64 * 10000 * ((tile_n_out - 1) % 8) \
+                        + 64 * 10000 * tile_n_out 
+            # ####### Total Dimension of Tile ###############
             heuristics += constraint_all
-            ####### Maximization of Reuse of im2col #######
-            heuristics += 64 * 10000 * tile_n_out \
-                        + 64 * 10000 * ((n_out-zero_variable) % (tile_n_out+1))
             ####### Geometrical Shape of Border Tiles #####
-            heuristics += 64 * 10000 * ((n_out-zero_variable) % (tile_n_out+1)) \
-                        + 64 * 10000 * (((n_out-zero_variable) % (tile_n_out+1)) % 4) \
-                        + 64 * 20000 * (((h_out-zero_variable) % (tile_h_out+1)) % 8) \
-                        + 64 * 30000 * (((w_out-zero_variable) % (tile_w_out+1)) % 2)
-        elif DW == 1:
-            ####### Geometrical Shape of Tiles ############
-            heuristics += 32 * 10000 * ((tile_n_out > 7)) \
-                        + 64 * 10000 * ((tile_n_out - 1) % int(8*8/min(self.BitIn, self.BitOut, self.BitW))) \
-                        + 32 * 10000 * ((tile_h_out % 4) == 0)
-            ####### Total Dimension of Tile ###############
-            heuristics += constraint_all
-            ####### Maximization of Reuse of im2col #######
-            heuristics += 32 * 1000 * tile_w_out \
-                        + 32 * 1000 * tile_h_out \
-                        + 32 * 100 * (((h_out-zero_variable) % (tile_h_out+1))) \
-                        + 32 * 100 * (((w_out-zero_variable) % (tile_w_out+1)))
-            ####### Geometrical Shape of Border Tiles #####
-            heuristics += 32 * 100 * (((n_out-zero_variable) % (tile_n_out+1)) > 7) \
-                        + 32 * 100 * (((h_out-zero_variable) % (tile_h_out+1)) % 4)
+            #             + 64 * 10000 * ((n_out-zero_variable) % (tile_n_out+1)) \
+            #             + 64 * 80000 * (((tile_h_out-zero_variable) % (tile_h_out+1)) > 7)
 
         solver.Add(obj_expr == heuristics)
         objective = solver.Maximize(obj_expr, 1)

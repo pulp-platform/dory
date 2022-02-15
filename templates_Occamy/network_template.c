@@ -37,15 +37,15 @@ const float * Weights_tensors[] = {
   ${files_list[1:-1].replace("\"", "")}
 };
 
-static int layers_pointers[${len(PULP_Nodes_Graph)}];
+__attribute__((section(".data"))) int layers_pointers[${len(PULP_Nodes_Graph)}];
 
 
-static char * Layers_name[${len(PULP_Nodes_Graph)}] = {\
+__attribute__((section(".data"))) char * Layers_name[${len(PULP_Nodes_Graph)}] = {\
 % for i in range(len(PULP_Nodes_Graph)):
 "${PULP_Nodes_Graph[i].name}"${'' if loop.last else ', '}\
 % endfor
 };
-static int L3_layers[${len(PULP_Nodes_Graph)}] = {\
+__attribute__((section(".data"))) int L3_layers[${len(PULP_Nodes_Graph)}] = {\
 % for i in range(len(PULP_Nodes_Graph)):
 % if 'L3' in func_name[i]: 
 1${'' if loop.last else ', '}\
@@ -54,7 +54,7 @@ static int L3_layers[${len(PULP_Nodes_Graph)}] = {\
 % endif
 % endfor
 };
-static int L3_input_layers[${len(PULP_Nodes_Graph)}] = {\
+__attribute__((section(".data"))) int L3_input_layers[${len(PULP_Nodes_Graph)}] = {\
 % for i in range(len(PULP_Nodes_Graph)):
 % if PULP_Nodes_Graph[i].L3_input == 1: 
 1${'' if loop.last else ', '}\
@@ -63,7 +63,7 @@ static int L3_input_layers[${len(PULP_Nodes_Graph)}] = {\
 % endif
 % endfor
 };
-static int L3_output_layers[${len(PULP_Nodes_Graph)}] = {\
+__attribute__((section(".data"))) int L3_output_layers[${len(PULP_Nodes_Graph)}] = {\
 % for i in range(len(PULP_Nodes_Graph)):
 % if PULP_Nodes_Graph[i].L3_output == 1: 
 1${'' if loop.last else ', '}\
@@ -72,7 +72,7 @@ static int L3_output_layers[${len(PULP_Nodes_Graph)}] = {\
 % endif
 % endfor
 };
-static int L3_weights_layers[${len(PULP_Nodes_Graph)}] = {\
+__attribute__((section(".data"))) int L3_weights_layers[${len(PULP_Nodes_Graph)}] = {\
 % for i in range(len(PULP_Nodes_Graph)):
 % if PULP_Nodes_Graph[i].L3_weights == 1: 
 1${'' if loop.last else ', '}\
@@ -81,7 +81,7 @@ static int L3_weights_layers[${len(PULP_Nodes_Graph)}] = {\
 % endif
 % endfor
 };
-static int allocate_layer[${len(PULP_Nodes_Graph)}] = {\
+__attribute__((section(".data"))) int allocate_layer[${len(PULP_Nodes_Graph)}] = {\
 % for i in range(len(PULP_Nodes_Graph)):
 % if PULP_Nodes_Graph[i].L3_allocation!=1 and ('Gemm' in PULP_Nodes_Graph[i].name or 'Conv' in PULP_Nodes_Graph[i].name or 'MatMul' in PULP_Nodes_Graph[i].name): 
 1${'' if loop.last else ', '}\
@@ -90,7 +90,7 @@ static int allocate_layer[${len(PULP_Nodes_Graph)}] = {\
 % endif
 % endfor
 };
-static int branch_input[${len(PULP_Nodes_Graph)}] = {\
+__attribute__((section(".data"))) int branch_input[${len(PULP_Nodes_Graph)}] = {\
 % for i in range(len(PULP_Nodes_Graph)):
 % if PULP_Nodes_Graph[i].branch_in == 1:
 1${'' if loop.last else ', '}\
@@ -99,7 +99,7 @@ static int branch_input[${len(PULP_Nodes_Graph)}] = {\
 % endif
 % endfor
 };
-static int branch_output[${len(PULP_Nodes_Graph)}] = {\
+__attribute__((section(".data"))) int branch_output[${len(PULP_Nodes_Graph)}] = {\
 % for i in range(len(PULP_Nodes_Graph)):
 % if PULP_Nodes_Graph[i].branch_out == 1:
 1${'' if loop.last else ', '}\
@@ -108,7 +108,7 @@ static int branch_output[${len(PULP_Nodes_Graph)}] = {\
 % endif
 % endfor
 };
-static int branch_change[${len(PULP_Nodes_Graph)}] = {\
+__attribute__((section(".data"))) int branch_change[${len(PULP_Nodes_Graph)}] = {\
 % for i in range(len(PULP_Nodes_Graph)):
 % if PULP_Nodes_Graph[i].branch_change == 1:
 1${'' if loop.last else ', '}\
@@ -117,7 +117,7 @@ static int branch_change[${len(PULP_Nodes_Graph)}] = {\
 % endif
 % endfor
 };
-static int branch_last[${len(PULP_Nodes_Graph)}] = {\
+__attribute__((section(".data"))) int branch_last[${len(PULP_Nodes_Graph)}] = {\
 % for i in range(len(PULP_Nodes_Graph)):
 % if PULP_Nodes_Graph[i].branch_last == 1:
 1${'' if loop.last else ', '}\
@@ -126,12 +126,12 @@ static int branch_last[${len(PULP_Nodes_Graph)}] = {\
 % endif
 % endfor
 };
-static int check_weights[${len(PULP_Nodes_Graph)}] = {\
+__attribute__((section(".data"))) int check_weights[${len(PULP_Nodes_Graph)}] = {\
 % for i in range(len(PULP_Nodes_Graph)):
 ${PULP_Nodes_Graph[i].check_sum_w}${'' if loop.last else ', '}\
 % endfor
 };
-static int check_weights_dimension[${len(PULP_Nodes_Graph)}] = {\
+__attribute__((section(".data"))) int check_weights_dimension[${len(PULP_Nodes_Graph)}] = {\
 % for i in range(len(PULP_Nodes_Graph)):
 % if i == 0:
 ${int(PULP_Nodes_Graph[i].weights_dimension * PULP_Nodes_Graph[0].weight_bits / 8.0)}${'' if loop.last else ', '}\
@@ -140,7 +140,7 @@ ${int((PULP_Nodes_Graph[i].weights_dimension - PULP_Nodes_Graph[i-1].weights_dim
 % endif
 % endfor
 };
-static int cumulative_weights_dimension[${len(PULP_Nodes_Graph)}] = {\
+__attribute__((section(".data"))) int cumulative_weights_dimension[${len(PULP_Nodes_Graph)}] = {\
 % for i in range(len(PULP_Nodes_Graph)):
 % if i == 0: 
 0${'' if loop.last else ', '}\
@@ -149,27 +149,27 @@ ${int((PULP_Nodes_Graph[i-1].weights_dimension_L3))}${'' if loop.last else ', '}
 % endif
 % endfor
 };
-static int check_activations[${len(PULP_Nodes_Graph)}] = {\
+__attribute__((section(".data"))) int check_activations[${len(PULP_Nodes_Graph)}] = {\
 % for i in range(len(PULP_Nodes_Graph)):
 ${PULP_Nodes_Graph[i].check_sum_in}${'' if loop.last else ', '}\
 % endfor
 };
-static int check_activations_dimension[${len(PULP_Nodes_Graph)}] = {\
+__attribute__((section(".data"))) int check_activations_dimension[${len(PULP_Nodes_Graph)}] = {\
 % for i in range(len(PULP_Nodes_Graph)):
 ${int(PULP_Nodes_Graph[i].input_activation_dimensions)}${'' if loop.last else ', '}\
 % endfor
 };
-static int check_activations_dimension_L3_in[${len(PULP_Nodes_Graph)}] = {\
+__attribute__((section(".data"))) int check_activations_dimension_L3_in[${len(PULP_Nodes_Graph)}] = {\
 % for i in range(len(PULP_Nodes_Graph)):
 ${int(PULP_Nodes_Graph[i].input_activation_dimensions_L3)}${'' if loop.last else ', '}\
 % endfor
 };
-static int check_activations_dimension_L3_out[${len(PULP_Nodes_Graph)}] = {\
+__attribute__((section(".data"))) int check_activations_dimension_L3_out[${len(PULP_Nodes_Graph)}] = {\
 % for i in range(len(PULP_Nodes_Graph)):
 ${int(PULP_Nodes_Graph[i].output_activation_dimensions_L3)}${'' if loop.last else ', '}\
 % endfor
 };
-static int out_mult_vector[${len(PULP_Nodes_Graph)}] = {\
+__attribute__((section(".data"))) int out_mult_vector[${len(PULP_Nodes_Graph)}] = {\
 % for i in range(len(PULP_Nodes_Graph)):
 % if PULP_Nodes_Graph[i].outmul == 'empty':
 0${'' if loop.last else ', '}\
@@ -178,7 +178,7 @@ ${PULP_Nodes_Graph[i].outmul}${'' if loop.last else ', '}\
 % endif
 % endfor
 };
-static int out_shift_vector[${len(PULP_Nodes_Graph)}] = {\
+__attribute__((section(".data"))) int out_shift_vector[${len(PULP_Nodes_Graph)}] = {\
 % for i in range(len(PULP_Nodes_Graph)):
 % if PULP_Nodes_Graph[i].outshift == 'empty':
 0${'' if loop.last else ', '}\
@@ -187,7 +187,7 @@ ${PULP_Nodes_Graph[i].outshift}${'' if loop.last else ', '}\
 % endif
 % endfor
 };
-static int inmul1_vector[${len(PULP_Nodes_Graph)}] = {\
+__attribute__((section(".data"))) int inmul1_vector[${len(PULP_Nodes_Graph)}] = {\
 % for i in range(len(PULP_Nodes_Graph)):
 % if PULP_Nodes_Graph[i].inmul1 == 'empty':
 0${'' if loop.last else ', '}\
@@ -196,7 +196,7 @@ ${PULP_Nodes_Graph[i].inmul1}${'' if loop.last else ', '}\
 % endif
 % endfor
 };
-static int inmul2_vector[${len(PULP_Nodes_Graph)}] = {\
+__attribute__((section(".data"))) int inmul2_vector[${len(PULP_Nodes_Graph)}] = {\
 % for i in range(len(PULP_Nodes_Graph)):
 % if PULP_Nodes_Graph[i].inmul2 == 'empty':
 0${'' if loop.last else ', '}\
@@ -205,17 +205,17 @@ ${PULP_Nodes_Graph[i].inmul2}${'' if loop.last else ', '}\
 % endif
 % endfor
 };
-static int check_activations_out[${len(PULP_Nodes_Graph)}] = {\
+__attribute__((section(".data"))) int check_activations_out[${len(PULP_Nodes_Graph)}] = {\
 % for i in range(len(PULP_Nodes_Graph)):
 ${PULP_Nodes_Graph[i].check_sum_out}${'' if loop.last else ', '}\
 % endfor
 };
-static int check_activations_out_dimension[${len(PULP_Nodes_Graph)}] = {\
+__attribute__((section(".data"))) int check_activations_out_dimension[${len(PULP_Nodes_Graph)}] = {\
 % for i in range(len(PULP_Nodes_Graph)):
 ${int(PULP_Nodes_Graph[i].output_activation_dimensions)}${'' if loop.last else ', '}\
 % endfor
 };
-static int layer_with_weights[${len(PULP_Nodes_Graph)}] = {\
+__attribute__((section(".data"))) int layer_with_weights[${len(PULP_Nodes_Graph)}] = {\
 % for i in range(len(PULP_Nodes_Graph)):
 % if 'Gemm' in PULP_Nodes_Graph[i].name or 'Conv' in PULP_Nodes_Graph[i].name or 'MatMul' in PULP_Nodes_Graph[i].name: 
 1${'' if loop.last else ', '}\
@@ -225,7 +225,7 @@ static int layer_with_weights[${len(PULP_Nodes_Graph)}] = {\
 % endfor
 };
 % if 'Yes' in performance:
-static int NODEs_MACS[${len(PULP_Nodes_Graph)}] = {\
+__attribute__((section(".data"))) int NODEs_MACS[${len(PULP_Nodes_Graph)}] = {\
 % for i in range(len(PULP_Nodes_Graph)):
 ${PULP_Nodes_Graph[i].MACs}${'' if loop.last else ', '}\
 % endfor
@@ -278,7 +278,9 @@ static void check_layer(char *output, int check_sum_true, int dim) {
 
 
 uint32_t L2_weights, L2_output, L2_input_add, L2_input;
-float L2_output_mem[1000000], L2_input_add_mem[1000000], L2_input_mem[1000000];
+__attribute__((section(".data"))) float L2_output_mem[1000000];
+__attribute__((section(".data"))) float L2_input_add_mem[1000000];
+__attribute__((section(".data"))) float L2_input_mem[1000000];
 void network_run()
 {   
 

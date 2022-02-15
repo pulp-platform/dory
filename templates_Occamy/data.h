@@ -18,8 +18,8 @@
  */
 
 % for layer_name, layer_weights, layer_weights_for_len in zip(weights_layers_names, weight_layers, weight_layers_for_dim):
-static float ${layer_name}[${len(layer_weights_for_len)}]={${layer_weights}};
+__attribute__((section(".data"))) float ${layer_name}[${len(layer_weights_for_len)}]={${layer_weights}};
 % endfor
 
-static float input[${input_len}]={${input}};
-static float l2_zeros[128*128*64] = {0};
+__attribute__((section(".data"))) float input[${input_len}]={${input}};
+__attribute__((section(".data"))) float l2_zeros[128*128*64] = {0};

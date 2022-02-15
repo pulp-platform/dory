@@ -28,7 +28,7 @@ float __attribute__((always_inline)) pulp_nn_bn_quant(
   int8_t  d
 ) {
   double integer_image_phi = ((double) k * phi) + (double) lambda;
-  double x = (integer_image_phi) / pow(2,d);
+  double x = (integer_image_phi) / d;
   float res = 0;
   if (x < 0)
   	res = 0;

@@ -24,7 +24,7 @@ from collections import OrderedDict
 import numpy as np
 import sys
 import os
-
+import re
 
 def print_file_list(x):
     # This function is used to generate a string with all input files.
@@ -632,6 +632,14 @@ def print_template_layer(x, y_gold, W,
     conv_overlap1 = 2 * (fs1 // 2) + fs1 % 2 - 1 - (stride - 1)
     conv_overlap2 = 2 * (fs2 // 2) + fs2 % 2 - 1 - (stride - 1)
     tk = OrderedDict([])
+    if (re.search('.0',name_layer)):
+        try:
+            int(re.search('.0',name_layer).group())
+            tk['first_layer'] = 0
+        except ValueError:
+            tk['first_layer'] = 1
+    else:
+        tk['first_layer'] = 0
     tk['sdk'] = sdk
     tk['number_of_clusters'] = number_of_clusters
     tk['dma_parallelization'] = dma_parallelization
@@ -676,6 +684,7 @@ def print_template_layer(x, y_gold, W,
     tk['x_tile_size_byte'] = int(math.ceil(ds_x * tile_n_in * tile_h_in * tile_w_in / 8.0))
     if backend == 'Occamy':
         tk['x_tile_size_byte'] = int(math.ceil(ds_x * tile_n_in * (tile_h_in + padding_top + padding_bottom) * (tile_w_in + padding_left + padding_right) / 8.0))
+        tk['x_tile_size_byte'] = tk['x_tile_size_byte'] + (tk['x_tile_size_byte'] % 8)
     if type_data == 'float':
         tk['x_tile_size_byte'] += 16 ##### FIX TO CHECK #######
     tk['x_tile_size_nif_byte'] = int(math.ceil(tile_n_in * ds_x / 8.0))
@@ -690,6 +699,7 @@ def print_template_layer(x, y_gold, W,
     tk['y_tile_size_h'] = tile_h_out if (h_out > tile_h_out) > 0 else h_out
     tk['y_tile_size_w'] = tile_w_out if (w_out > tile_w_out) > 0 else w_out
     tk['y_tile_size_byte'] = int(math.ceil(tk['y_tile_size_nof'] * tk['y_tile_size_h'] * tk['y_tile_size_w'] * ds_y / 8.0))
+    tk['y_tile_size_byte'] = tk['y_tile_size_byte'] + (tk['y_tile_size_byte'] % 8)
     tk['y_stride_w_byte'] = int(math.ceil(w_out * n_out * factor_ch_out * ds_y / 8.0))
     tk['y_stride_c_byte'] = int(math.ceil(n_out * factor_ch_out * ds_y / 8.0))
     tk['y_tile_size_nof_byte'] = int(math.ceil(tile_n_out * ds_y / 8.0))
@@ -716,6 +726,7 @@ def print_template_layer(x, y_gold, W,
         tk['W_tile_size_nif'] = 1
         tk['W_tile_size_nif_last'] = 1
     tk['W_tile_size_byte'] = int(math.ceil(tile_n_out * tk['W_tile_size_nif'] * fs1 * fs2 * ds_W / 8.0))
+    tk['W_tile_size_byte'] = tk['W_tile_size_byte'] + (tk['W_tile_size_byte'] % 8)
     if DW == 0:
         tk['W_stride_nof_byte'] = int(math.ceil(tk['nif'] * fs1 * fs2 * ds_W / 8.0))
     else:
@@ -735,23 +746,33 @@ def print_template_layer(x, y_gold, W,
         x_buffer_size = int(math.ceil(ds_x * tile_n_in * tile_h_in * tile_w_in / 8.0))
     else:
         x_buffer_size = 2 * int(math.ceil(ds_x * tile_n_in * tile_h_in * tile_w_in / 8.0))
+        if x_buffer_size % 16 != 0:
+            x_buffer_size = x_buffer_size
     if backend == 'Occamy':
         if n_in == tile_n_in and w_in == tile_w_in and h_in == tile_h_in:
             x_buffer_size = int(math.ceil(ds_x * tile_n_in * (tile_h_in + padding_top + padding_bottom) * (tile_w_in + padding_left + padding_right) / 8.0))
+            x_buffer_size = x_buffer_size + (x_buffer_size % 8)
         else:
             x_buffer_size = 2 * int(math.ceil(ds_x * tile_n_in * (tile_h_in + padding_top + padding_bottom) * (tile_w_in + padding_left + padding_right) / 8.0))
-    if n_in == tile_n_in and w_in == tile_w_in and h_in == tile_h_in and n_out == tile_n_out:
+            x_buffer_size = x_buffer_size + (x_buffer_size % 16)
+    if n_in == (tile_n_in * number_of_clusters) and w_in == tile_w_in and h_in == tile_h_in and n_out == (tile_n_out * number_of_clusters):
         y_buffer_size = int(math.ceil(ds_y * tk['y_tile_size_nof'] * tk['y_tile_size_h'] * tk['y_tile_size_w'] / 8.0))
+        y_buffer_size = y_buffer_size + (y_buffer_size % 8)
         if DW == 0:
             W_buffer_size = int(math.ceil(ds_W * tk['y_tile_size_nof']  * tk['W_tile_size_nif'] * fs1 * fs2 / 8.0))
+            W_buffer_size = W_buffer_size + (W_buffer_size % 8)
         else:
             W_buffer_size = int(math.ceil(ds_W * tk['y_tile_size_nof']  * 1 * fs1 * fs2 / 8.0))
+            W_buffer_size = W_buffer_size + (W_buffer_size % 8)
     else:
         y_buffer_size = 2 * int(math.ceil(ds_y * tk['y_tile_size_nof'] * tk['y_tile_size_h'] * tk['y_tile_size_w'] / 8.0))
+        y_buffer_size = y_buffer_size + (y_buffer_size % 16)
         if DW == 0:
             W_buffer_size = 2 * int(math.ceil(ds_W * tk['y_tile_size_nof'] * tk['W_tile_size_nif'] * fs1 * fs2 / 8.0))
+            W_buffer_size = W_buffer_size + (W_buffer_size % 16)
         else:
             W_buffer_size = 2 * int(math.ceil(ds_W * tk['y_tile_size_nof'] * 1 * fs1 * fs2 / 8.0))
+            W_buffer_size = W_buffer_size + (W_buffer_size % 16)
     if tk['FLAG_BATCHNORM'] == 1:
         k_buffer_size = int(n_out * ds_act / 8.0)
         lambd_buffer_size = int(n_out * ds_act / 8.0)
@@ -768,7 +789,9 @@ def print_template_layer(x, y_gold, W,
             tk['k_size_byte'] = k_buffer_size
             tk['lambda_size_byte'] = k_buffer_size
             tk['k_tile_size_byte_transfer'] = int(math.ceil(tile_n_out * ds_act / 8.0))
+            tk['k_tile_size_byte_transfer'] = tk['k_tile_size_byte_transfer'] + (tk['k_tile_size_byte_transfer'] % 8)
             tk['lambda_tile_size_byte_transfer'] = int(math.ceil(tile_n_out * ds_act / 8.0))
+            tk['lambda_tile_size_byte_transfer'] = tk['lambda_tile_size_byte_transfer'] + (tk['lambda_tile_size_byte_transfer'] % 8)
             if n_in == tile_n_in and w_in == tile_w_in and h_in == tile_h_in and n_out == tile_n_out:
                 tk['k_tile_size_byte'] = int(math.ceil(tile_n_out * ds_act / 8.0))
                 tk['lambda_tile_size_byte'] = int(math.ceil(tile_n_out * ds_act / 8.0))
@@ -788,16 +811,16 @@ def print_template_layer(x, y_gold, W,
     if type_data == 'float':
         x_buffer_size += 16 ##### FIX TO CHECK #######
     tk['l1_x_offset'] = 0
-    tk['l1_y_offset'] = x_buffer_size + 4
+    tk['l1_y_offset'] = x_buffer_size + 8
     if conv_order == 'PULP-NN-ADD':
-        tk['l1_x2_offset'] = x_buffer_size + 4 + y_buffer_size + 4
+        tk['l1_x2_offset'] = x_buffer_size + 8 + y_buffer_size + 8
     if conv_order != 'PULP-NN-MAX' and conv_order != 'PULP-NN-ADD':
-        tk['l1_W_offset'] = x_buffer_size + 4 + y_buffer_size + 4
+        tk['l1_W_offset'] = x_buffer_size + 8 + y_buffer_size + 8
         if tk['FLAG_BATCHNORM'] == 1:
-            tk['l1_k_offset'] = x_buffer_size + 4 + y_buffer_size + 4 + W_buffer_size + 4
-            tk['l1_lambda_offset'] = x_buffer_size + 4 + y_buffer_size + 4 + W_buffer_size + 4 + tk['k_tile_size_byte'] + 4
+            tk['l1_k_offset'] = x_buffer_size + 8 + y_buffer_size + 8 + W_buffer_size + 8
+            tk['l1_lambda_offset'] = x_buffer_size + 8 + y_buffer_size + 8 + W_buffer_size + 8 + tk['k_tile_size_byte'] + 8
         if has_bias == 1:
-            tk['l1_b_offset'] = x_buffer_size + 4 + y_buffer_size + 4 + W_buffer_size + 4 + tk['k_tile_size_byte'] + 4 + tk['lambda_tile_size_byte']  + 4
+            tk['l1_b_offset'] = x_buffer_size + 8 + y_buffer_size + 8 + W_buffer_size + 8 + tk['k_tile_size_byte'] + 8 + tk['lambda_tile_size_byte']  + 8
 
 
     # x last

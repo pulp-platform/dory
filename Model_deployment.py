@@ -74,8 +74,11 @@ class Model_deployment():
         Layers_L3_weights = 0
         L2_memory_occupation = 0
         factor_h_out = 1
+        optional = '8bit'
         for i, nodes_to_deploy in enumerate(PULP_Nodes_Graph[:number_of_deployed_layers]):
-            optional = '8bit'
+            if nodes_to_deploy.get_parameter('out_activation_bits') < 8 or nodes_to_deploy.get_parameter('input_activation_bits') < 8 or nodes_to_deploy.get_parameter('weight_bits') < 8:
+                optional = 'mixed-sw'
+        for i, nodes_to_deploy in enumerate(PULP_Nodes_Graph[:number_of_deployed_layers]):
             if('Conv' in nodes_to_deploy.name or 'Gemm' in nodes_to_deploy.name or 'MatMul' in nodes_to_deploy.name):
                 layer = 'Conv'
                 if 'Conv' in nodes_to_deploy.name:

@@ -18,6 +18,7 @@
  */
 
 #include "dory.h"
+#include "snrt.h"
 
 Transfer_Type current_transfer;
 
@@ -261,4 +262,27 @@ void __attribute__ ((noinline)) dory_cores_barrier()
 
   snrt_global_barrier();
 
+}
+
+struct snrt_barrier dory_barrier;
+
+void dory_global_barrier() {
+  // Compute cores
+  if (snrt_is_compute_core()) 
+  {
+    // Enter cluster HW barrier twice
+    snrt_cluster_hw_barrier();
+    snrt_cluster_hw_barrier();
+  // DM cores
+  } 
+  else 
+  {
+    // Enter cluster HW to wait for compute cores
+    snrt_cluster_hw_barrier();
+    // Enter software barrier allocated on global mem
+    snrt_barrier(&dory_barrier, snrt_cluster_num());
+    // All DM cores have synchronized globally
+    // -> synchronize cluster by entering HW barrier
+    snrt_cluster_hw_barrier();
+  }
 }

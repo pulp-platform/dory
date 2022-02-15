@@ -114,6 +114,12 @@ class Model_deployment_Occamy(Model_deployment):
                 if PULP_Nodes_Graph[i].weight_bits < 8 and 'DW' in nodes_to_deploy.name:
                     nodes_to_deploy.weights = nodes_to_deploy.weights.reshape(int(nodes_to_deploy.weights.shape[0]/2),2,nodes_to_deploy.weights.shape[1],nodes_to_deploy.weights.shape[2],nodes_to_deploy.weights.shape[3]).transpose(0,2,3,1,4).flatten().tolist()
                 else:
+                    kernel_shape = nodes_to_deploy.get_parameter('kernel_shape')
+                    if i == 0 and kernel_shape[0]*kernel_shape[1]%2 !=0 :
+                        nodes_to_deploy.weights = np.concatenate((nodes_to_deploy.weights, np.zeros((nodes_to_deploy.ch_out,nodes_to_deploy.kernel_shape[0],1,nodes_to_deploy.ch_in))),axis = 2)
+                        PULP_Nodes_Graph[i].kernel_shape[1] = PULP_Nodes_Graph[i].kernel_shape[1]+1
+                        PULP_Nodes_Graph[i].pads[3] = PULP_Nodes_Graph[i].pads[3]+1
+                        PULP_Nodes_Graph[i].weights = nodes_to_deploy.weights
                     nodes_to_deploy.weights = nodes_to_deploy.weights.flatten().tolist()
                 for i_w, _ in enumerate(nodes_to_deploy.weights):
                     nodes_to_deploy.weights[i_w] = np.int8(nodes_to_deploy.weights[i_w])
@@ -154,7 +160,7 @@ class Model_deployment_Occamy(Model_deployment):
                     weights = np.concatenate((weights, np.asarray([0])))
                 weights = np.asarray(weights)
                 weights_to_write.append(weights)
-                # weights_to_write_h.append(print_test_vector(weights, 'int8_t'))
+                weights_to_write_h.append(print_test_vector(weights, 'int8_t'))
                 string_layer = nodes_to_deploy.name + str(i) + "_weights"
                 file_list_w.append(string_layer)
         try:
@@ -174,9 +180,9 @@ class Model_deployment_Occamy(Model_deployment):
         tk['input'] = print_test_vector(x_in, 'uint8_t')
         tk['input_len'] = len(x_in)
         root = '/'.join(os.getcwd().split('/')[:-1])
-        # tmpl = Template(filename=root + f"/templates_Occamy/data.h")
-        # s = tmpl.render(**tk)
-        # save_string = './application/DORY_network/inc/data.h'
-        # with open(save_string, "w") as f:
-        #     f.write(s)
+        tmpl = Template(filename=root + f"/templates_Occamy/data.h")
+        s = tmpl.render(**tk)
+        save_string = './application/DORY_network/inc/data.h'
+        with open(save_string, "w") as f:
+            f.write(s)
         return PULP_Nodes_Graph, file_list_w, weights_to_write

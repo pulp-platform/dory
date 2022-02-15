@@ -61,6 +61,9 @@ void __attribute__ ((noinline)) occamy_conv_naive(
 	float * lambda_start;
 	k_start = k;
 	lambda_start = lambda;
+	float out_shit_2 = 2;
+	for (int z = 0; z < (out_shift-1); z++)
+		out_shit_2 *= 2;
 	//// Extension of input image with padding
 	for (int z = 0; z < (dim_out_y); z++)
 	{
@@ -92,7 +95,7 @@ void __attribute__ ((noinline)) occamy_conv_naive(
 	        pOutBuffer[output_index] += sum;
 
 	      if (flag_relu == 1 && flag_batch_norm == 1 && flag_y_accumulate_end == 1)
-	        pOutBuffer[output_index] = pulp_nn_bn_quant(pOutBuffer[output_index], *k, *lambda, out_shift);
+	        pOutBuffer[output_index] = pulp_nn_bn_quant(pOutBuffer[output_index], *k, *lambda, out_shit_2);
 	      if (flag_relu == 1 && flag_batch_norm == 1)
 	      {
 	        k++; lambda++;
@@ -101,4 +104,5 @@ void __attribute__ ((noinline)) occamy_conv_naive(
 	  }
 	}
   }
+  snrt_cluster_hw_barrier();
 }
