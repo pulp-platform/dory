@@ -37,9 +37,8 @@ const float * Weights_tensors[] = {
   ${files_list[1:-1].replace("\"", "")}
 };
 
+layer layer_i;
 __attribute__((section(".data"))) int layers_pointers[${len(PULP_Nodes_Graph)}];
-
-
 __attribute__((section(".data"))) char * Layers_name[${len(PULP_Nodes_Graph)}] = {\
 % for i in range(len(PULP_Nodes_Graph)):
 "${PULP_Nodes_Graph[i].name}"${'' if loop.last else ', '}\
@@ -319,10 +318,6 @@ void network_run()
   int j = 0;
   for(int i = 0; i < ${len(PULP_Nodes_Graph)}; i++)
   {
-    out_mult = out_mult_vector[i];
-    out_shift = out_shift_vector[i];
-    inmul1 = inmul1_vector[i];
-    inmul2 = inmul2_vector[i];
     if (layer_with_weights[i] == 1)
     {
       L2_weights = (uint32_t) Weights_tensors[j];
@@ -357,21 +352,20 @@ void network_run()
 #endif  
 % endif
     snrt_global_barrier();
-    unsigned int args[9] = {
-      L2_input,
-      L2_input_add,
-      L2_output,
-      L2_weights,
-      l2_zeros,
-      out_mult,
-      inmul1,
-      inmul2, 
-      out_shift};
+    layer_i.L2_input = L2_input;
+    layer_i.L2_input_add = L2_input_add;
+    layer_i.L2_output = L2_output;
+    layer_i.L2_weights = L2_weights;
+    layer_i.l2_zeros = l2_zeros;
+    layer_i.out_mult = out_mult_vector[i];
+    layer_i.out_shift = out_shift_vector[i];
+    layer_i.inmul1 = inmul1_vector[i];
+    layer_i.inmul2 = inmul2_vector[i];
     switch (i)
     {
 % for i in range(len(PULP_Nodes_Graph)):
       case ${i}:
-        ${func_name[i]}(args);
+        ${func_name[i]}(layer_i);
         break;
 % endfor
     }

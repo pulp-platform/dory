@@ -25,7 +25,7 @@
 % endif
 
 
-void ${func_name}(void *args) 
+void ${func_name}(layer layer_i) 
 {
 
   /////////////////////////////////////////////////////////////////////////
@@ -34,27 +34,18 @@ void ${func_name}(void *args)
   /////////////////////////////////////////////////////////////////////////
   /////////////////////////////////////////////////////////////////////////
 
-  unsigned int *real_arg =    (unsigned int *) args;
-  unsigned int l2_x =         (unsigned int) real_arg[0];
-  unsigned int l2_x_2 =       (unsigned int) real_arg[1];
-  unsigned int l2_y =         (unsigned int) real_arg[2];
-  unsigned int l2_W =         (unsigned int) real_arg[3];
-  unsigned int l2_zeros =     (unsigned int) real_arg[4];
-  unsigned int out_mult_in =  (unsigned int) real_arg[5];
-  unsigned int inmul1 =       (unsigned int) real_arg[6];
-  unsigned int inmul2 =       (unsigned int) real_arg[7];
-  unsigned int out_shift_in = (unsigned int) real_arg[8];
-% if FLAG_RELU == 1:
-  uint16_t out_mult = out_mult_in;
-  uint16_t out_shift = out_shift_in;
-% endif
+  unsigned int l2_x =         layer_i.L2_input;
+  unsigned int l2_x_2 =       layer_i.L2_input_add;
+  unsigned int l2_y =         layer_i.L2_output;
+  unsigned int l2_W =         layer_i.L2_weights;
+  unsigned int l2_zeros =     layer_i.l2_zeros;
   
+  volatile kernel kernel_i;
   int CLUSTERS = 2;
   volatile DMA_copy DMA_copy_k, DMA_copy_lambda, DMA_copy_W, DMA_copy_x, DMA_copy_y, DMA_copy_p_top, DMA_copy_p_bottom, DMA_copy_p_left, DMA_copy_p_right, DMA_copy_bias;
   // Memory allocation
   ${type} *memory_cluster = (${type} *)snrt_cluster_memory().start;
   unsigned int l1_buffer = (unsigned int) memory_cluster;
-  volatile int p_r, p_l, p_t, p_b;
 % if tile_dim_nif*tile_dim_h*tile_dim_w*number_of_clusters != 1:
   // Input Parameters for DMA loading
   volatile unsigned short x_tile_size_h, x_tile_size_w, x_length_nif_byte, x_length_nif_byte_last;
@@ -62,13 +53,7 @@ void ${func_name}(void *args)
 % endif  
   // Weights Parameters
   volatile unsigned short  W_tile_size_nof, W_length_nif_byte, W_length_nif_byte_last;
-% if FLAG_BATCHNORM == 1:
-  volatile ${type} *x, *W, *y, *b, *k, *lambda;
-% else:
-  volatile ${type} *x, *W, *y, *b;
-% endif
   // Input Parameters for execution
-  volatile int x_tile_size_nif_exec, x_tile_size_h_exec, x_tile_size_w_exec;
   // Output Parameters for execution
   volatile int y_tile_size_nof, y_tile_size_h, y_tile_size_w, y_length_nof_byte;
   // Double Buffering parameters and states
@@ -78,11 +63,6 @@ void ${func_name}(void *args)
   int iter, _i_nof_load=0, _i_nif_load=0, _i_h_load=0, _i_w_load=0, _i_nof_exec=0, _i_nif_exec=0, _i_h_exec=0, _i_w_exec=0;
 % if has_bias == 1:
   int has_bias = 1;
-% endif
-  volatile ${type} *im2col = l1_buffer + ${buffer_l1_all};
-% if flag_DW == 1:
-  volatile ${type} *pwt_buffer;
-  pwt_buffer = im2col + ${im2col_dim};
 % endif
 
   /////////////////////////////////////////////////////////////////////////
@@ -533,26 +513,7 @@ void ${func_name}(void *args)
 % if flag_DW == 1:
       asm volatile("": : :"memory");
 % endif
-      x = (${type} *) (l1_buffer + (${l1_x_offset} + exec_db_x));
-% if FLAG_BATCHNORM == 1:
-      k = (${type} *) (l1_buffer + ${l1_k_offset} + exec_db_act);
-      lambda = (${type} *) (l1_buffer + ${l1_lambda_offset} + exec_db_act);
-% endif
-% if has_bias == 1:
-      b = (${type} *) (l1_buffer + (${l1_b_offset} + _i_nof_exec*${bias_tile_size_byte}));
-% endif
-% if tile_dim_nif > 1 and flag_DW == 0:
-      W = (${type} *) (l1_buffer + (${l1_W_offset} + exec_db_W + ((snrt_cluster_idx() + _i_nif_exec) % CLUSTERS) * ${int(fs1 * fs2 * W_tile_size_nof * W_tile_nif_byte / tile_dim_nif)}));
-% else:
-      W = (${type} *) (l1_buffer + (${l1_W_offset} + exec_db_W));
-% endif
-      y = (${type} *) (l1_buffer + (${l1_y_offset} + db_y));
-
       // SETTING PARAMETERS TO PASS TO THE KERNEL FUNCTION
-      x_tile_size_nif_exec = ${x_tile_size_nif};
-      x_tile_size_h_exec   = (_i_h_exec+1 == ${tile_dim_h}) ? ${x_tile_size_h_last} : ${x_tile_size_h};
-      x_tile_size_w_exec   = (_i_w_exec+1 == ${tile_dim_w}) ? ${x_tile_size_w_last} : ${x_tile_size_w};
-
       y_tile_size_h   = (_i_h_exec+1 == ${tile_dim_h}) ? ${y_tile_size_h_last} : ${y_tile_size_h};
       y_tile_size_w   = (_i_w_exec+1 == ${tile_dim_w}) ? ${y_tile_size_w_last} : ${y_tile_size_w};
       if (snrt_cluster_idx() == (${number_of_clusters - 1}))
@@ -571,25 +532,65 @@ void ${func_name}(void *args)
       {
         y_tile_size_nof = ${y_tile_size_nof};
       }
-
-      p_t = (_i_h_exec == 0) ? ${padding_top} : 0;
-      p_l = (_i_w_exec == 0) ? ${padding_left} : 0;
-      p_b = (_i_h_exec == ${tile_dim_h}-1) ? ${padding_bottom} : 0;
-      p_r = (_i_w_exec == ${tile_dim_w}-1) ? ${padding_right} : 0;
 % if tile_dim_nof*tile_dim_nif*tile_dim_h*tile_dim_w*min(x_tile_size_nif,number_of_clusters) == 1 or flag_DW == 1:
       asm volatile("": : :"memory");
 % endif
-      /*
-      printf("Tile %d [h,w,c] indexes [%d,%d,%d] dimensions [%d, %d, %d] x: \n", iter, _i_h_exec, _i_w_exec, _i_nif_exec, x_tile_size_h_exec, x_tile_size_w_exec, x_tile_size_nif_exec);
-      sum=0;
-      for (int i = 0; i < (x_tile_size_nif_exec*(x_tile_size_h_exec+p_t+p_b)*(x_tile_size_w_exec+p_l+p_r)); i++)
-        sum+=*(x+i);
-      printf("%f ", sum);
-      printf("\n");
-      */
+      kernel_i.pInBuffer = (${type} *) (l1_buffer + (${l1_x_offset} + exec_db_x));
+      kernel_i.dim_in_x = (_i_w_exec+1 == ${tile_dim_w}) ? ${x_tile_size_w_last} : ${x_tile_size_w};
+      kernel_i.dim_in_y = (_i_h_exec+1 == ${tile_dim_h}) ? ${x_tile_size_h_last} : ${x_tile_size_h};
+      kernel_i.ch_in = ${x_tile_size_nif};
+% if tile_dim_nif > 1 and flag_DW == 0:
+      kernel_i.pWeight = (${type} *) (l1_buffer + (${l1_W_offset} + exec_db_W + ((snrt_cluster_idx() + _i_nif_exec) % CLUSTERS) * ${int(fs1 * fs2 * W_tile_size_nof * W_tile_nif_byte / tile_dim_nif)}));
+% else:
+      kernel_i.pWeight = (${type} *) (l1_buffer + (${l1_W_offset} + exec_db_W));
+% endif
+      kernel_i.ch_out = y_tile_size_nof;
+      kernel_i.dim_kernel_x = ${fs2};
+      kernel_i.dim_kernel_y = ${fs1};
+      kernel_i.padding_y_top = (_i_h_exec == 0) ? ${padding_top} : 0;
+      kernel_i.padding_y_bottom = (_i_h_exec == ${tile_dim_h}-1) ? ${padding_bottom} : 0;
+      kernel_i.padding_x_left = (_i_w_exec == 0) ? ${padding_left} : 0;
+      kernel_i.padding_x_right = (_i_w_exec == ${tile_dim_w}-1) ? ${padding_right} : 0;
+      kernel_i.stride_x = ${stride};
+      kernel_i.stride_y = ${stride};
+% if has_bias:
+      kernel_i.bias = (${type} *) (l1_buffer + (${l1_b_offset} + _i_nof_exec*${bias_tile_size_byte}));
+% else:
+      kernel_i.bias = NULL;
+% endif
+      kernel_i.bias_shift = ${has_bias};
+% if FLAG_RELU == 1:
+      kernel_i.out_shift = layer_i.out_shift;
+      kernel_i.out_mult = layer_i.out_mult;
+% else:
+      kernel_i.out_shift = 0;
+      kernel_i.out_mult = 0;
+% endif
+      kernel_i.pOutBuffer = (${type} *) (l1_buffer + (${l1_y_offset} + db_y));
+      kernel_i.dim_out_x = y_tile_size_w;
+      kernel_i.dim_out_y = y_tile_size_h;
+% if FLAG_BATCHNORM == 1:
+      kernel_i.k = (${type} *) (l1_buffer + ${l1_k_offset} + exec_db_act);
+      kernel_i.lambda = (${type} *) (l1_buffer + ${l1_lambda_offset} + exec_db_act);
+% else:
+      kernel_i.k = 0;
+      kernel_i.lambda = 0;
+% endif
+      kernel_i.pIm2ColBuffer = (${type} *) (l1_buffer + ${buffer_l1_all});
+% if flag_DW == 1:
+      kernel_i.flag_relu = ${FLAG_RELU};
+      kernel_i.flag_batch_norm = ${FLAG_BATCHNORM};
+% else:
+      kernel_i.flag_relu = ${FLAG_RELU} && (_i_nif_load==0);
+      kernel_i.flag_batch_norm = ${FLAG_BATCHNORM} && (_i_nif_load==0);
+% endif
+      kernel_i.flag_y_accumulate_start = (_i_nif_exec==0);
+      kernel_i.flag_y_accumulate_end = (_i_nif_load==0);
+      kernel_i.memory_chan = NULL;
       //occamy_conv_naive
       //occamy_conv_opt_fp32
       //occamy_conv_chw_opt_fp32
+
 % if flag_DW == 0:
       if (iter <  ${tile_dim_nif * tile_dim_h * tile_dim_w * int(tile_dim_nof/number_of_clusters) } || snrt_cluster_idx() == (CLUSTERS-1))
 % else:
@@ -597,37 +598,11 @@ void ${func_name}(void *args)
 % endif
       {
 % if first_layer == 1:
-        occamy_conv_chw_opt_fp32(
+        occamy_conv_naive(kernel_i);
 % elif flag_DW == 1:
-	      occamy_conv_dw_naive(
+	      occamy_conv_dw_naive(kernel_i);
 % else:
-	      occamy_conv_chw_opt_fp32(
-% endif
-    	  	x, x_tile_size_w_exec, x_tile_size_h_exec, x_tile_size_nif_exec,
-    	    W, y_tile_size_nof, ${fs2}, ${fs1},
-    	    p_t, p_b, p_l, p_r, ${stride}, ${stride},
-    	    % if has_bias:
-    	    b,
-    	    % else:
-    	    NULL,
-    	    % endif
-    	    ${has_bias},
-    	    % if FLAG_RELU == 1:
-    	    out_shift, out_mult,
-    	    % else:
-    	    0, 0,
-    	    % endif
-    	    y, y_tile_size_w, y_tile_size_h,
-    	    % if FLAG_BATCHNORM == 1:
-    	    k, lambda,
-    	    % else:
-    	    0, 0,
-    	    % endif
-    	    im2col,
-% if flag_DW == 1:
-    	    ${FLAG_RELU}, ${FLAG_BATCHNORM}, (_i_nif_exec==0), (_i_nif_load==0), NULL);
-% else:
-          ${FLAG_RELU} && (_i_nif_load==0), ${FLAG_BATCHNORM} && (_i_nif_load==0), (_i_nif_exec==0), (_i_nif_load==0), NULL);
+	      occamy_conv_naive(kernel_i);
 % endif
       }
       else

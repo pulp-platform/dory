@@ -25,18 +25,17 @@
 % endif
 
 
-void ${func_name}(void *args) 
+void ${func_name}(layer layer_i) 
 {
-  unsigned int *real_arg =    (unsigned int *) args;
-  unsigned int l2_x =         (unsigned int) real_arg[0];
-  unsigned int l2_x_2 =       (unsigned int) real_arg[1];
-  unsigned int l2_y =         (unsigned int) real_arg[2];
-  unsigned int l2_W =         (unsigned int) real_arg[3];
-  unsigned int l2_zeros =     (unsigned int) real_arg[4];
-  unsigned int out_mult_in =  (unsigned int) real_arg[5];
-  unsigned int inmul1 =       (unsigned int) real_arg[6];
-  unsigned int inmul2 =       (unsigned int) real_arg[7];
-  unsigned int out_shift_in = (unsigned int) real_arg[8];
+  unsigned int l2_x =         layer_i.L2_input;
+  unsigned int l2_x_2 =       layer_i.L2_input_add;
+  unsigned int l2_y =         layer_i.L2_output;
+  unsigned int l2_W =         layer_i.L2_weights;
+  unsigned int l2_zeros =     layer_i.l2_zeros;
+  unsigned int out_mult_in =  layer_i.out_mult;
+  unsigned int inmul1 =       layer_i.inmul1;
+  unsigned int inmul2 =       layer_i.inmul2;
+  unsigned int out_shift_in = layer_i.out_shift;
   /// allocation of Occamy
   ${type} *memory_cluster = (${type} *)snrt_cluster_memory().start;
   unsigned int l1_buffer = (unsigned int) memory_cluster;

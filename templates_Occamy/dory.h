@@ -21,6 +21,53 @@
 #include "stdint.h"
 
 #pragma once
+
+typedef struct 
+{
+  unsigned int L2_input;
+  unsigned int L2_input_add;
+  unsigned int L2_output;
+  unsigned int L2_weights;
+  unsigned int l2_zeros;
+  unsigned int out_mult;
+  unsigned int inmul1;
+  unsigned int inmul2;
+  unsigned int out_shift;
+} layer;
+
+typedef struct 
+{
+  float *   pInBuffer;
+  uint16_t  dim_in_x;
+  uint16_t  dim_in_y;
+  uint16_t  ch_in;
+  float *   pWeight;
+  uint16_t  ch_out;
+  uint16_t  dim_kernel_x;
+  uint16_t  dim_kernel_y;
+  uint16_t  padding_y_top;
+  uint16_t  padding_y_bottom;
+  uint16_t  padding_x_left;
+  uint16_t  padding_x_right;
+  uint16_t  stride_x;
+  uint16_t  stride_y;
+  int8_t *  bias;
+  uint16_t  bias_shift;
+  uint16_t  out_shift;
+  uint16_t  out_mult;
+  float *   pOutBuffer;
+  uint16_t  dim_out_x;
+  uint16_t  dim_out_y;
+  float *   k;
+  float *   lambda;
+  uint8_t * pIm2ColBuffer;
+  int       flag_relu;
+  int       flag_batch_norm;
+  int       flag_y_accumulate_start;
+  int       flag_y_accumulate_end;
+  unsigned int * memory_chan;
+} kernel;
+
 typedef enum
 {
   TRANSFER_1D,
