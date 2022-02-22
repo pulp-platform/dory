@@ -329,7 +329,8 @@ class Model_deployment():
                 act_compare = Input_compressed
             PULP_Nodes_Graph[f].check_sum_out = sum(Input_compressed)
             if f == len(PULP_Nodes_Graph) - 1:
-                ww = np.asarray(nodes_to_deploy.weights).reshape(nodes_to_deploy.ch_out,nodes_to_deploy.ch_in ).astype(np.int8).astype(int)
+                if nodes_to_deploy.weight_bits == 8:
+                    ww = np.asarray(nodes_to_deploy.weights).reshape(nodes_to_deploy.ch_out,nodes_to_deploy.ch_in).astype(np.int8).astype(int)
                 X_in = pd.read_csv(load_dir + 'out_layer' + str(f-1) + '.txt')
                 X_out = pd.read_csv(load_dir + 'out_layer' + str(f) + '.txt')
                 X_in = X_in.values[:, 0].astype(int).reshape(X_in.shape[0],1)

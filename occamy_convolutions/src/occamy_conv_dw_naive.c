@@ -22,35 +22,7 @@
 #include "printf.h"
 
 void __attribute__ ((noinline)) occamy_conv_dw_naive(
-  const float * pInBuffer,
-  const uint16_t  dim_in_x,
-  const uint16_t  dim_in_y,
-  const uint16_t  ch_in,
-  const float *  pWeight,
-  const uint16_t  ch_out,
-  const uint16_t  dim_kernel_x,
-  const uint16_t  dim_kernel_y,
-  const uint16_t  padding_y_top,
-  const uint16_t  padding_y_bottom,
-  const uint16_t  padding_x_left,
-  const uint16_t  padding_x_right,
-  const uint16_t  stride_x,
-  const uint16_t  stride_y,
-  const int8_t *  bias,
-  const uint16_t  bias_shift,
-  const uint16_t  out_shift,
-  const uint16_t  out_mult,
-  float *       pOutBuffer,
-  const uint16_t  dim_out_x,
-  const uint16_t  dim_out_y,
-  float *       k,
-  float *       lambda,
-  uint8_t *       pIm2ColBuffer,
-  int             flag_relu,
-  int             flag_batch_norm,
-  int             flag_y_accumulate_start,
-  int             flag_y_accumulate_end,
-  unsigned int * memory_chan
+  kernel* kernel_i
 ) 
 {
   ////// NAIVE CONVOLUTION ////////////
@@ -60,38 +32,38 @@ void __attribute__ ((noinline)) occamy_conv_dw_naive(
 	float sum;
 	float * k_start;
 	float * lambda_start;
-	k_start = k;
-	lambda_start = lambda;
+	k_start = kernel_i->k;
+	lambda_start = kernel_i->lambda;
 	float out_shit_2 = 2;
-	for (int z = 0; z < (out_shift-1); z++)
+	for (int z = 0; z < (kernel_i->out_shift-1); z++)
 		out_shit_2 *= 2;
 	//// Extension of input image with padding
-	for (int z = 0; z < (dim_out_y); z++)
+	for (int z = 0; z < (kernel_i->dim_out_y); z++)
 	{
-	  for (int j = 0; j < (dim_out_x); j++)
+	  for (int j = 0; j < (kernel_i->dim_out_x); j++)
 	  {
-	    k = k_start;
-	    lambda = lambda_start;
-	    for (int i = 0; i < ch_out; i++)
+	    kernel_i->k = k_start;
+	    kernel_i->lambda = lambda_start;
+	    for (int i = 0; i < kernel_i->ch_out; i++)
 	    {
 	      sum = 0;
-	      for (int n = 0; n < dim_kernel_x; n++)
+	      for (int n = 0; n < kernel_i->dim_kernel_x; n++)
 	      {
-	        for (int t = 0; t < dim_kernel_y; t++)
+	        for (int t = 0; t < kernel_i->dim_kernel_y; t++)
 	        {
-	          input_x_index = j * stride_x + n;
-	          input_y_index = z * stride_y + t;
-	          input_index = i + input_x_index * ch_in + input_y_index * (dim_in_x + padding_x_left + padding_x_right) * ch_in;
-	          kernel_index = n+ t * dim_kernel_x + i * dim_kernel_x * dim_kernel_y;
-	          sum += pInBuffer[input_index] * pWeight[kernel_index];
+	          input_x_index = j * kernel_i->stride_x + n;
+	          input_y_index = z * kernel_i->stride_y + t;
+	          input_index = i + input_x_index * kernel_i->ch_in + input_y_index * (kernel_i->dim_in_x + kernel_i->padding_x_left + kernel_i->padding_x_right) * kernel_i->ch_in;
+	          kernel_index = n+ t * kernel_i->dim_kernel_x + i * kernel_i->dim_kernel_x * kernel_i->dim_kernel_y;
+	          sum += kernel_i->pInBuffer[input_index] * kernel_i->pWeight[kernel_index];
 	        }
 	      }
-	      output_index = i + j * ch_out + z * ch_out * dim_out_x;
-	      pOutBuffer[output_index] = sum;
-	      if (flag_relu == 1 && flag_batch_norm == 1)
+	      output_index = i + j * kernel_i->ch_out + z * kernel_i->ch_out * kernel_i->dim_out_x;
+	      kernel_i->pOutBuffer[output_index] = sum;
+	      if (kernel_i->flag_relu == 1 && kernel_i->flag_batch_norm == 1)
 	      {
-	        pOutBuffer[output_index] = pulp_nn_bn_quant(pOutBuffer[output_index], *k, *lambda, out_shit_2);
-	        k++; lambda++;
+	        kernel_i->pOutBuffer[output_index] = pulp_nn_bn_quant(kernel_i->pOutBuffer[output_index], *kernel_i->k, *kernel_i->lambda, out_shit_2);
+	        kernel_i->k++; kernel_i->lambda++;
 	      }
 	    }
 	  }

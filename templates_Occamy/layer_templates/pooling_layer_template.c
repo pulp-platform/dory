@@ -25,17 +25,19 @@
 % endif
 
 
-void ${func_name}(layer layer_i) 
+void ${func_name}(layer* layer_i) 
 {
-  unsigned int l2_x =         layer_i.L2_input;
-  unsigned int l2_x_2 =       layer_i.L2_input_add;
-  unsigned int l2_y =         layer_i.L2_output;
-  unsigned int l2_W =         layer_i.L2_weights;
-  unsigned int l2_zeros =     layer_i.l2_zeros;
-  unsigned int out_mult_in =  layer_i.out_mult;
-  unsigned int inmul1 =       layer_i.inmul1;
-  unsigned int inmul2 =       layer_i.inmul2;
-  unsigned int out_shift_in = layer_i.out_shift;
+  unsigned int l2_x =         layer_i->L2_input;
+  unsigned int l2_x_2 =       layer_i->L2_input_add;
+  unsigned int l2_y =         layer_i->L2_output;
+  unsigned int l2_W =         layer_i->L2_weights;
+  unsigned int l2_zeros =     layer_i->l2_zeros;
+  unsigned int out_mult_in =  layer_i->out_mult;
+  unsigned int inmul1 =       layer_i->inmul1;
+  unsigned int inmul2 =       layer_i->inmul2;
+  unsigned int out_shift_in = layer_i->out_shift;
+
+  volatile kernel kernel_i;
   /// allocation of Occamy
   ${type} *memory_cluster = (${type} *)snrt_cluster_memory().start;
   unsigned int l1_buffer = (unsigned int) memory_cluster;
@@ -177,29 +179,25 @@ void ${func_name}(layer layer_i)
     }
     // creation of the pointers to input, output, weights, lambda and k
 
-    x = (${type} *) (l1_buffer + (${l1_x_offset} + exec_db_x));
-    y = (${type} *) (l1_buffer + (${l1_y_offset} + db_y));
+    kernel_i.pInBuffer = (${type} *) (l1_buffer + (${l1_x_offset} + exec_db_x));
+    kernel_i.pOutBuffer = (${type} *) (l1_buffer + (${l1_y_offset} + db_y));
     // parameter passed to the kernel. Input and output sizes
-    x_tile_size_nif_exec = (_i_nif_exec+1 == ${tile_dim_nif}) ? ${x_tile_size_nif_last} : ${x_tile_size_nif};
-    x_tile_size_h_exec   = (_i_h_exec+1 == ${tile_dim_h})   ? ${x_tile_size_h_last} : ${x_tile_size_h};
-    x_tile_size_w_exec   = (_i_w_exec+1 == ${tile_dim_w})   ? ${x_tile_size_w_last} : ${x_tile_size_w};
-    y_tile_size_nof = (_i_nof_exec+1 == ${tile_dim_nof}) ? ${y_tile_size_nof_last} : ${y_tile_size_nof};
-    y_tile_size_h   = (_i_h_exec+1 == ${tile_dim_h})   ? ${y_tile_size_h_last} : ${y_tile_size_h};
-    y_tile_size_w   = (_i_w_exec+1 == ${tile_dim_w})   ? ${y_tile_size_w_last} : ${y_tile_size_w};
+    kernel_i.ch_in = (_i_nif_exec+1 == ${tile_dim_nif}) ? ${x_tile_size_nif_last} : ${x_tile_size_nif};
+    kernel_i.dim_in_y   = (_i_h_exec+1 == ${tile_dim_h})   ? ${x_tile_size_h_last} : ${x_tile_size_h};
+    kernel_i.dim_in_x   = (_i_w_exec+1 == ${tile_dim_w})   ? ${x_tile_size_w_last} : ${x_tile_size_w};
+    kernel_i.ch_out = (_i_nof_exec+1 == ${tile_dim_nof}) ? ${y_tile_size_nof_last} : ${y_tile_size_nof};
+    kernel_i.dim_out_y   = (_i_h_exec+1 == ${tile_dim_h})   ? ${y_tile_size_h_last} : ${y_tile_size_h};
+    kernel_i.dim_out_x   = (_i_w_exec+1 == ${tile_dim_w})   ? ${y_tile_size_w_last} : ${y_tile_size_w};
+    kernel_i.stride_x = ${stride};
+    kernel_i.stride_y = ${stride};
+    kernel_i.dim_kernel_x = ${fs2};
+    kernel_i.dim_kernel_y = ${fs1};
+    kernel_i.padding_y_top = (_i_h_exec == 0) ? ${padding_top} : 0;
+    kernel_i.padding_y_bottom = (_i_h_exec == ${tile_dim_h}-1) ? ${padding_bottom} : 0;
+    kernel_i.padding_x_left = (_i_w_exec == 0) ? ${padding_left} : 0;
+    kernel_i.padding_x_right = (_i_w_exec == ${tile_dim_w}-1) ? ${padding_right} : 0;
     y_tile_size_byte = y_tile_size_nof*y_tile_size_h*y_tile_size_w*${y_data_size_byte}/8;
     y_length_nof_byte = (_i_nof_exec+1 == ${tile_dim_nof})   ? ${y_length_nof_byte_last} : ${y_tile_size_nof_byte};
-    p_r = 0;
-    p_l = 0;
-    p_t = 0;
-    p_b = 0;
-    if (_i_h_exec == 0)
-      p_t = ${padding_top};
-    if (_i_w_exec == 0)
-      p_l = ${padding_left};
-    if (_i_h_exec == ${tile_dim_h}-1)
-      p_b = ${padding_bottom};
-    if (_i_w_exec == ${tile_dim_w}-1)
-      p_r = ${padding_right};
     % if tile_dim_nof*tile_dim_nif*tile_dim_h*tile_dim_w == 1 or flag_DW == 1:
     asm volatile("": : :"memory");
     % endif
@@ -214,10 +212,8 @@ void ${func_name}(layer layer_i)
 
 
     //printf("Tile execution %d of ${func_name}\n", iter);
-    occamy_pool_naive(x, x_tile_size_w_exec, x_tile_size_h_exec, x_tile_size_nif_exec,
-      y_tile_size_nof, ${fs1}, ${fs2},
-      p_t, p_b, p_l, p_r, ${stride}, ${stride},
-      y, y_tile_size_w, y_tile_size_h);
+    
+    occamy_pool_naive(&kernel_i);
 
 
   // printf("y: ");
@@ -234,8 +230,8 @@ void ${func_name}(layer layer_i)
      
       DMA_copy_y.ext = dory_get_tile_3d(l2_y, _i_h_exec, _i_w_exec, _i_nof_exec, ${y_tile_size_h}, ${y_tile_size_w}, ${y_tile_size_nof}, ${y_w}, ${int(nof*factor)}, 0, 0, 0, 0, 0, 0, ${y_data_size_byte});
       DMA_copy_y.loc = l1_buffer + (${l1_y_offset} + db_y);
-      DMA_copy_y.number_of_2d_copies = y_tile_size_h;
-      DMA_copy_y.number_of_1d_copies = y_tile_size_w;
+      DMA_copy_y.number_of_2d_copies = (_i_h_exec+1 == ${tile_dim_h})   ? ${y_tile_size_h_last} : ${y_tile_size_h};
+      DMA_copy_y.number_of_1d_copies = (_i_w_exec+1 == ${tile_dim_w})   ? ${y_tile_size_w_last} : ${y_tile_size_w};
       DMA_copy_y.length_1d_copy = y_length_nof_byte;
       dory_dma_memcpy_async(DMA_copy_y);  
     // update prev iterators

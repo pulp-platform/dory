@@ -23,5 +23,5 @@
 #include "snrt.h"
 
 void  ${func_name}(
-  layer layer_i
+  layer* layer_i
 );

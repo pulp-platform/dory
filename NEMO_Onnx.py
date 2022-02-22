@@ -28,6 +28,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 import os
+import sys
 import pandas as pd
 from collections import OrderedDict
 import logging
@@ -203,6 +204,11 @@ class NEMO_onnx(ONNX_management):
                 nodes.add_parameter('out_activation_bits', 32)
             if 'Pool' in nodes.name:
                 nodes.add_parameter('out_activation_bits', nodes.get_parameter('input_activation_bits'))
+        for i, nodes in enumerate(self.PULP_Nodes_Graph):
+            if nodes.get_parameter('input_activation_bits') != 8 or nodes.get_parameter('out_activation_bits') != 8 or nodes.get_parameter('weight_bits') != 8:
+                multiple = 8/min(nodes.get_parameter('input_activation_bits'), nodes.get_parameter('out_activation_bits'), nodes.get_parameter('weight_bits'))
+                if nodes.get_parameter('ch_in')%multiple !=0 or nodes.get_parameter('ch_out')%multiple !=0:
+                    sys.exit("ERROR 01. Channels of a layer not multiple of 2 (int4 precision layers) or 4 (int2 precision layers). Exiting...")
 
     def fuse_nodes(self, node_1, node_2):
         assert (node_1.get_parameter('output_index') == node_2.get_parameter('input_index')), f"Error in fusion of near nodes with different indexes"

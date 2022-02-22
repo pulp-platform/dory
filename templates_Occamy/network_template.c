@@ -365,7 +365,7 @@ void network_run()
     {
 % for i in range(len(PULP_Nodes_Graph)):
       case ${i}:
-        ${func_name[i]}(layer_i);
+        ${func_name[i]}(&layer_i);
         break;
 % endfor
     }

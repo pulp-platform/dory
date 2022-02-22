@@ -22,30 +22,10 @@
 #include "dory.h"
 #include "stdint.h"
 void __attribute__((noinline)) occamy_conv_opt_fp64(
-    const double* pInBuffer, const uint16_t dim_in_x, const uint16_t dim_in_y,
-    const uint16_t ch_in, const double* pWeight, const uint16_t ch_out,
-    const uint16_t dim_kernel_x, const uint16_t dim_kernel_y,
-    const uint16_t padding_y_top, const uint16_t padding_y_bottom,
-    const uint16_t padding_x_left, const uint16_t padding_x_right,
-    const uint16_t stride_x, const uint16_t stride_y, const int8_t* bias,
-    const uint16_t bias_shift, const uint16_t out_shift,
-    const uint16_t out_mult, double* pOutBuffer, const uint16_t dim_out_x,
-    const uint16_t dim_out_y, double* k, double* lambda, double* pIm2ColBuffer,
-    int flag_relu, int flag_batch_norm, int flag_y_accumulate_start,
-    int flag_y_accumulate_end, unsigned int* memory_chan);
+    kernel* k);
 
 void __attribute__((noinline)) occamy_conv_opt_fp32(
-    const float* pInBuffer, const uint16_t dim_in_x, const uint16_t dim_in_y,
-    const uint16_t ch_in, const float* pWeight, const uint16_t ch_out,
-    const uint16_t dim_kernel_x, const uint16_t dim_kernel_y,
-    const uint16_t padding_y_top, const uint16_t padding_y_bottom,
-    const uint16_t padding_x_left, const uint16_t padding_x_right,
-    const uint16_t stride_x, const uint16_t stride_y, const int8_t* bias,
-    const uint16_t bias_shift, const uint16_t out_shift,
-    const uint16_t out_mult, float* pOutBuffer, const uint16_t dim_out_x,
-    const uint16_t dim_out_y, float* k, float* lambda, float* pIm2ColBuffer,
-    int flag_relu, int flag_batch_norm, int flag_y_accumulate_start,
-    int flag_y_accumulate_end, unsigned int* memory_chan);
+    kernel* k);
 
 /**
  * @brief implementation of a single-precision fp DEPTHWISE convolutional kernel
@@ -86,17 +66,7 @@ void __attribute__((noinline)) occamy_conv_opt_fp32(
  * @param memory_chan Not used
  */
 void __attribute__((noinline)) occamy_conv_dw_opt_fp32(
-    const float* pInBuffer, const uint16_t dim_in_x, const uint16_t dim_in_y,
-    const uint16_t ch_in, const float* pWeight, const uint16_t ch_out,
-    const uint16_t dim_kernel_x, const uint16_t dim_kernel_y,
-    const uint16_t padding_y_top, const uint16_t padding_y_bottom,
-    const uint16_t padding_x_left, const uint16_t padding_x_right,
-    const uint16_t stride_x, const uint16_t stride_y, const int8_t* bias,
-    const uint16_t bias_shift, const uint16_t out_shift,
-    const uint16_t out_mult, float* pOutBuffer, const uint16_t dim_out_x,
-    const uint16_t dim_out_y, float* k, float* lambda, float* pIm2ColBuffer,
-    int flag_relu, int flag_batch_norm, int flag_y_accumulate_start,
-    int flag_y_accumulate_end, unsigned int* memory_chan);
+    kernel* k);
 
 /**
  * @brief implementation of a single-precision fp convolutional kernel
@@ -139,17 +109,7 @@ void __attribute__((noinline)) occamy_conv_dw_opt_fp32(
  * @param memory_chan Not used
  */
 void __attribute__((noinline)) occamy_conv_chw_opt_fp32(
-    const float* pInBuffer, const uint16_t dim_in_x, const uint16_t dim_in_y,
-    const uint16_t ch_in, const float* pWeight, const uint16_t ch_out,
-    const uint16_t dim_kernel_x, const uint16_t dim_kernel_y,
-    const uint16_t padding_y_top, const uint16_t padding_y_bottom,
-    const uint16_t padding_x_left, const uint16_t padding_x_right,
-    const uint16_t stride_x, const uint16_t stride_y, const int8_t* bias,
-    const uint16_t bias_shift, const uint16_t out_shift,
-    const uint16_t out_mult, float* pOutBuffer, const uint16_t dim_out_x,
-    const uint16_t dim_out_y, float* k, float* lambda, float* pIm2ColBuffer,
-    int flag_relu, int flag_batch_norm, int flag_y_accumulate_start,
-    int flag_y_accumulate_end, unsigned int* memory_chan);
+    kernel* k);
 
 /**
  * @brief helper function that implements Batch Normalization and ReLU
@@ -175,7 +135,7 @@ bn_relu(const float* pBuffer, const uint16_t dim_x, const uint16_t dim_y,
         int flag_batch_norm);
 
 void occamy_conv_naive(
-  kernel kernel_i
+  kernel* k
 );
 
 void occamy_conv_naive_no_padding(
@@ -210,20 +170,5 @@ void occamy_conv_naive_no_padding(
   unsigned int * memory_chan
 );
 void __attribute__ ((noinline)) occamy_pool_naive(
-  const float * pInBuffer,
-  const uint16_t  dim_in_x,
-  const uint16_t  dim_in_y,
-  const uint16_t  ch_in,
-  const uint16_t  ch_out,
-  const uint16_t  dim_kernel_x,
-  const uint16_t  dim_kernel_y,
-  const uint16_t  padding_y_top,
-  const uint16_t  padding_y_bottom,
-  const uint16_t  padding_x_left,
-  const uint16_t  padding_x_right,
-  const uint16_t  stride_x,
-  const uint16_t  stride_y,
-  float *       pOutBuffer,
-  const uint16_t  dim_out_x,
-  const uint16_t  dim_out_y
+  kernel* k
 );

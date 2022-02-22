@@ -24,8 +24,6 @@ class node_element():
     # A node allocated in the PULP_Graph
     def __init__(self):
         self.name = 'Not-initialized'
-        self.out_activation_bits = 'Not-initialized'
-        self.input_activation_bits = 'Not-initialized'
         self.kernel_shape = 'Not-initialized' # fH x fW
         self.ch_in = 'Not-initialized' 
         self.ch_out = 'Not-initialized' 
@@ -40,9 +38,9 @@ class node_element():
         self.output_activation_dimensions_L3 = 0
         self.inmul1 = 'empty'
         self.inmul2 = 'empty'
-        self.weight_bits=8
-        self.input_activation_precision = 8
-        self.output_activation_precision = 8
+        self.weight_bits = 8
+        self.out_activation_bits = 8
+        self.input_activation_bits = 8
 
     def log_parameters(self):
         for parameter in self.__dict__:

@@ -22,7 +22,7 @@
 #include "printf.h"
 
 void __attribute__ ((noinline)) occamy_conv_naive(
-  kernel kernel_i
+  kernel* kernel_i
 ) {
   ////// NAIVE CONVOLUTION ////////////
   if (snrt_cluster_compute_core_idx() == 0)
@@ -31,46 +31,46 @@ void __attribute__ ((noinline)) occamy_conv_naive(
 	float sum;
 	float * k_start;
 	float * lambda_start;
-	k_start = kernel_i.k;
-	lambda_start = kernel_i.lambda;
+	k_start = kernel_i->k;
+	lambda_start = kernel_i->lambda;
 	float out_shit_2 = 2;
-	for (int z = 0; z < (kernel_i.out_shift-1); z++)
+	for (int z = 0; z < (kernel_i->out_shift-1); z++)
 		out_shit_2 *= 2;
 	//// Extension of input image with padding
-	for (int z = 0; z < (kernel_i.dim_out_y); z++)
+	for (int z = 0; z < (kernel_i->dim_out_y); z++)
 	{
-	  for (int j = 0; j < (kernel_i.dim_out_x); j++)
+	  for (int j = 0; j < (kernel_i->dim_out_x); j++)
 	  {
-	    kernel_i.k = k_start;
-	    kernel_i.lambda = lambda_start;
-	    for (int i = 0; i < kernel_i.ch_out; i++)
+	    kernel_i->k = k_start;
+	    kernel_i->lambda = lambda_start;
+	    for (int i = 0; i < kernel_i->ch_out; i++)
 	    {
 	      sum = 0;
-	      for (int m = 0; m < kernel_i.ch_in; m++)
+	      for (int m = 0; m < kernel_i->ch_in; m++)
 	      {
-	        for (int n = 0; n < kernel_i.dim_kernel_x; n++)
+	        for (int n = 0; n < kernel_i->dim_kernel_x; n++)
 	        {
-	          for (int t = 0; t < kernel_i.dim_kernel_y; t++)
+	          for (int t = 0; t < kernel_i->dim_kernel_y; t++)
 	          {
-	            input_x_index = j * kernel_i.stride_x + n;
-	            input_y_index = z * kernel_i.stride_y + t;
-	            input_index = m + input_x_index * kernel_i.ch_in + input_y_index * (kernel_i.dim_in_x + kernel_i.padding_x_left + kernel_i.padding_x_right) * kernel_i.ch_in;
-	            kernel_index = m + n * kernel_i.ch_in + t * kernel_i.dim_kernel_x * kernel_i.ch_in + i * kernel_i.dim_kernel_x * kernel_i.dim_kernel_y * kernel_i.ch_in;
-	            sum += kernel_i.pInBuffer[input_index] * kernel_i.pWeight[kernel_index];
+	            input_x_index = j * kernel_i->stride_x + n;
+	            input_y_index = z * kernel_i->stride_y + t;
+	            input_index = m + input_x_index * kernel_i->ch_in + input_y_index * (kernel_i->dim_in_x + kernel_i->padding_x_left + kernel_i->padding_x_right) * kernel_i->ch_in;
+	            kernel_index = m + n * kernel_i->ch_in + t * kernel_i->dim_kernel_x * kernel_i->ch_in + i * kernel_i->dim_kernel_x * kernel_i->dim_kernel_y * kernel_i->ch_in;
+	            sum += kernel_i->pInBuffer[input_index] * kernel_i->pWeight[kernel_index];
 	          }
 	        }
 	      }
-	      output_index = i + j * kernel_i.ch_out + z * kernel_i.ch_out * kernel_i.dim_out_x;
-	      if (kernel_i.flag_y_accumulate_start == 1)
-	        kernel_i.pOutBuffer[output_index] = sum;
+	      output_index = i + j * kernel_i->ch_out + z * kernel_i->ch_out * kernel_i->dim_out_x;
+	      if (kernel_i->flag_y_accumulate_start == 1)
+	        kernel_i->pOutBuffer[output_index] = sum;
 	      else
-	        kernel_i.pOutBuffer[output_index] += sum;
+	        kernel_i->pOutBuffer[output_index] += sum;
 
-	      if (kernel_i.flag_relu == 1 && kernel_i.flag_batch_norm == 1 && kernel_i.flag_y_accumulate_end == 1)
-	        kernel_i.pOutBuffer[output_index] = pulp_nn_bn_quant(kernel_i.pOutBuffer[output_index], *kernel_i.k, *kernel_i.lambda, out_shit_2);
-	      if (kernel_i.flag_relu == 1 && kernel_i.flag_batch_norm == 1)
+	      if (kernel_i->flag_relu == 1 && kernel_i->flag_batch_norm == 1 && kernel_i->flag_y_accumulate_end == 1)
+	        kernel_i->pOutBuffer[output_index] = pulp_nn_bn_quant(kernel_i->pOutBuffer[output_index], *kernel_i->k, *kernel_i->lambda, out_shit_2);
+	      if (kernel_i->flag_relu == 1 && kernel_i->flag_batch_norm == 1)
 	      {
-	        kernel_i.k++; kernel_i.lambda++;
+	        kernel_i->k++; kernel_i->lambda++;
 	      }
 	    }
 	  }

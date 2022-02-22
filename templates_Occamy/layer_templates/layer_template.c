@@ -25,7 +25,7 @@
 % endif
 
 
-void ${func_name}(layer layer_i) 
+void ${func_name}(layer* layer_i) 
 {
 
   /////////////////////////////////////////////////////////////////////////
@@ -34,11 +34,11 @@ void ${func_name}(layer layer_i)
   /////////////////////////////////////////////////////////////////////////
   /////////////////////////////////////////////////////////////////////////
 
-  unsigned int l2_x =         layer_i.L2_input;
-  unsigned int l2_x_2 =       layer_i.L2_input_add;
-  unsigned int l2_y =         layer_i.L2_output;
-  unsigned int l2_W =         layer_i.L2_weights;
-  unsigned int l2_zeros =     layer_i.l2_zeros;
+  unsigned int l2_x =         layer_i->L2_input;
+  unsigned int l2_x_2 =       layer_i->L2_input_add;
+  unsigned int l2_y =         layer_i->L2_output;
+  unsigned int l2_W =         layer_i->L2_weights;
+  unsigned int l2_zeros =     layer_i->l2_zeros;
   
   volatile kernel kernel_i;
   int CLUSTERS = 2;
@@ -560,8 +560,8 @@ void ${func_name}(layer layer_i)
 % endif
       kernel_i.bias_shift = ${has_bias};
 % if FLAG_RELU == 1:
-      kernel_i.out_shift = layer_i.out_shift;
-      kernel_i.out_mult = layer_i.out_mult;
+      kernel_i.out_shift = layer_i->out_shift;
+      kernel_i.out_mult = layer_i->out_mult;
 % else:
       kernel_i.out_shift = 0;
       kernel_i.out_mult = 0;
@@ -598,11 +598,11 @@ void ${func_name}(layer layer_i)
 % endif
       {
 % if first_layer == 1:
-        occamy_conv_naive(kernel_i);
+        occamy_conv_naive(&kernel_i);
 % elif flag_DW == 1:
-	      occamy_conv_dw_naive(kernel_i);
+	    occamy_conv_dw_naive(&kernel_i);
 % else:
-	      occamy_conv_naive(kernel_i);
+	    occamy_conv_naive(&kernel_i);
 % endif
       }
       else

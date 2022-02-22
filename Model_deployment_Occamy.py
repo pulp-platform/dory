@@ -115,7 +115,7 @@ class Model_deployment_Occamy(Model_deployment):
                     nodes_to_deploy.weights = nodes_to_deploy.weights.reshape(int(nodes_to_deploy.weights.shape[0]/2),2,nodes_to_deploy.weights.shape[1],nodes_to_deploy.weights.shape[2],nodes_to_deploy.weights.shape[3]).transpose(0,2,3,1,4).flatten().tolist()
                 else:
                     kernel_shape = nodes_to_deploy.get_parameter('kernel_shape')
-                    if i == 0 and kernel_shape[0]*kernel_shape[1]%2 !=0 :
+                    if i == 0 and kernel_shape[0]*kernel_shape[1] % 2 != 0:
                         nodes_to_deploy.weights = np.concatenate((nodes_to_deploy.weights, np.zeros((nodes_to_deploy.ch_out,nodes_to_deploy.kernel_shape[0],1,nodes_to_deploy.ch_in))),axis = 2)
                         PULP_Nodes_Graph[i].kernel_shape[1] = PULP_Nodes_Graph[i].kernel_shape[1]+1
                         PULP_Nodes_Graph[i].pads[3] = PULP_Nodes_Graph[i].pads[3]+1
