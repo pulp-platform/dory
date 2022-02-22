@@ -21,6 +21,32 @@
 % if sdk == 'gap_sdk':
 #include "pulp.h"
 % endif
+
+#pragma once
+typedef enum
+{
+  TRANSFER_1D,
+  TRANSFER_2D,
+  TRANSFER_3D,
+  TRANSFER_HWC_TO_CHW
+} Transfer_Type;
+
+
+typedef struct 
+{
+  unsigned int ext;
+  unsigned int loc;
+  unsigned int hwc_to_chw;
+  unsigned short stride_2d;
+  unsigned short number_of_2d_copies;
+  unsigned short stride_1d;
+  unsigned short number_of_1d_copies;
+  unsigned short length_1d_copy;
+  unsigned int dir;
+  unsigned int dma_channel;
+} DMA_copy;
+
+
 unsigned int dory_get_tile_1d(
   unsigned x,
   int tile_ii,
@@ -55,46 +81,12 @@ unsigned int dory_get_tile_3d(
   int data_size
 );
 
-unsigned int dory_get_tile_4d(
-  unsigned int x,
-  int tile_ii,
-  int tile_jj,
-  int tile_kk,
-  int tile_ll,
-  int tile_size_i,
-  int tile_size_j,
-  int tile_size_k,
-  int tile_size_l,
-  int tile_stride_j,
-  int tile_stride_k,
-  int tile_stride_l,
-  int tile_offset_i,
-  int tile_offset_j,
-  int tile_offset_k,
-  int tile_offset_l,
-  int data_size
-);
+void dory_dma_memcpy_async(DMA_copy DMA_copy_current);
 
-void dory_dma_memcpy_3d_custom(
-  unsigned int ext,
-  unsigned int loc,
-  unsigned short size,
-  unsigned short stride_1,
-  unsigned short stride_0,
-  unsigned short length_2,
-  unsigned short length_0,
-  unsigned int dir,
-  unsigned int *id
-);
+void __attribute__ ((noinline)) dory_dma_barrier(DMA_copy DMA_copy_current);
 
-void dory_dma_memcpy_3d_custom_hwc_to_chw(
-  unsigned int ext,
-  unsigned int loc,
-  unsigned short size,
-  unsigned short stride_1,
-  unsigned short stride_0,
-  unsigned short length_2,
-  unsigned short length_0,
-  unsigned int dir,
-  unsigned int *id
-);
+uint32_t __attribute__ ((noinline)) dory_dma_allocate();
+
+void __attribute__ ((noinline)) dory_dma_deallocate(uint32_t dma_channel);
+
+void __attribute__ ((noinline)) dory_cores_barrier();

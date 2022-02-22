@@ -61,6 +61,14 @@ static int bypass_L3_input;
 static int L3_output;
 static int bypass_L3_output;
 static int activations_input;
+static int layers_pointers[${len(PULP_Nodes_Graph)}];
+
+
+static char * Layers_name[${len(PULP_Nodes_Graph)}] = {\
+% for i in range(len(PULP_Nodes_Graph)):
+"${PULP_Nodes_Graph[i].name}"${'' if loop.last else ', '}\
+% endfor
+};
 static int L3_layers[${len(PULP_Nodes_Graph)}] = {\
 % for i in range(len(PULP_Nodes_Graph)):
 % if 'L3' in func_name[i]: 
@@ -150,9 +158,9 @@ ${PULP_Nodes_Graph[i].check_sum_w}${'' if loop.last else ', '}\
 static int check_weights_dimension[${len(PULP_Nodes_Graph)}] = {\
 % for i in range(len(PULP_Nodes_Graph)):
 % if i == 0:
-${int(PULP_Nodes_Graph[i].weights_dimension * BitW / 8.0)}${'' if loop.last else ', '}\
+${int(PULP_Nodes_Graph[i].weights_dimension * PULP_Nodes_Graph[0].weight_bits / 8.0)}${'' if loop.last else ', '}\
 % else:
-${int((PULP_Nodes_Graph[i].weights_dimension - PULP_Nodes_Graph[i-1].weights_dimension) * BitW / 8.0)}${'' if loop.last else ', '}\
+${int((PULP_Nodes_Graph[i].weights_dimension - PULP_Nodes_Graph[i-1].weights_dimension) * PULP_Nodes_Graph[0].weight_bits / 8.0)}${'' if loop.last else ', '}\
 % endif
 % endfor
 };
@@ -379,8 +387,8 @@ int network_setup()
   pi_ram_open(&ram);
   pi_fs_file_t *file;
   pi_ram_alloc(&ram, &L3_weights, (uint32_t) 4800000);
-  pi_ram_alloc(&ram, &L3_input, (uint32_t) 1500000);
-  pi_ram_alloc(&ram, &L3_output, (uint32_t) 1500000);
+  pi_ram_alloc(&ram, &L3_input, (uint32_t) 1000000);
+  pi_ram_alloc(&ram, &L3_output, (uint32_t) 1000000);
 #ifdef VERBOSE
     printf("\nL3 Buffer alloc initial\t@ %d:\t%s\n", (unsigned int)L3_weights, L3_weights?"Ok":"Failed");
     printf("\nL3 Buffer alloc initial\t@ %d:\t%s\n", (unsigned int)L3_input, L3_input?"Ok":"Failed");
@@ -436,7 +444,7 @@ int network_setup()
   rdDone = 0;
   int flashBuffSize = FLASH_BUFF_SIZE * sizeof(char);
   // loop on chunk in file
-  while(rdDone < (${int(PULP_Nodes_Graph[0].input_activation_dimensions * BitIn / 8.0)} / sizeof(char))) 
+  while(rdDone < (${int(PULP_Nodes_Graph[0].input_activation_dimensions * PULP_Nodes_Graph[0].input_activation_bits / 8.0)} / sizeof(char))) 
   { 
     // read from HyperFlash
     int size = pi_fs_read(file, flashBuffer, flashBuffSize);
@@ -549,6 +557,8 @@ void network_run(unsigned int L3_weights_size)
   int d_buffering_inputs = 0;
   int d_buffering_outputs = 0;
   int begin_end_n = 1;
+  int residual_number = 0;
+  pi_cl_ram_alloc_req_t alloc_req_L3;
   pi_cl_ram_req_t buff_req1;
   L3_weights_internal = L3_weights;
   transfer_weights = d_buffering_weights_t ? L2_weights_2 : L2_weights_1;
@@ -582,62 +592,63 @@ void network_run(unsigned int L3_weights_size)
   if(pi_core_id()==0)
   {
 /* 
+  - first layer weights allocation and copy
+*/
+    dory_L2_alloc(&L2_buffer_allocation,
+      &L2_buffer_allocation_end,
+      &L2_weights_1,
+      ${int(PULP_Nodes_Graph[0].weights_dimension)},
+      begin_end_n // begin is 1, end is 0
+      );
+/* 
   - input allocation and copy
 */
 % if test:
     dory_L2_alloc(&L2_buffer_allocation,
       &L2_buffer_allocation_end,
       &L2_input,
-      ${int(PULP_Nodes_Graph[0].input_activation_dimensions* BitIn / 8.0)},
+      ${int(PULP_Nodes_Graph[0].input_activation_dimensions)},
       begin_end_n // begin is 1, end is 0
       );
-    pi_cl_ram_read(&ram, activations_input, L2_input, ${int(PULP_Nodes_Graph[0].input_activation_dimensions* BitIn / 8.0)}, &buff_req1);
+    pi_cl_ram_read(&ram, activations_input, L2_input, ${int(PULP_Nodes_Graph[0].input_activation_dimensions)}, &buff_req1);
     pi_cl_ram_read_wait(&buff_req1);
 % else:
     dory_L2_alloc(&L2_buffer_allocation,
       &L2_buffer_allocation_end,
       &L2_input,
-      ${int(PULP_Nodes_Graph[0].input_activation_dimensions* BitIn / 8.0)},
+      ${int(PULP_Nodes_Graph[0].input_activation_dimensions)},
       begin_end_n // begin is 1, end is 0
       );
 % endif
-/* 
-  - first layer weights allocation and copy
-*/
-    dory_L2_alloc(&L2_buffer_allocation,
-      &L2_buffer_allocation_end,
-      &L2_weights_1,
-      ${int(PULP_Nodes_Graph[0].weights_dimension* BitW / 8.0)},
-      begin_end_n // begin is 1, end is 0
-      );
     begin_end_n = !begin_end_n;
     transfer_weights = L2_weights_1;
     exec_weights = L2_weights_1;  
-    pi_cl_ram_read(&ram, L3_weights_internal, transfer_weights, ${int(PULP_Nodes_Graph[0].weights_dimension* BitW / 8.0)}, &buff_req1);
+    pi_cl_ram_read(&ram, L3_weights_internal, transfer_weights, ${int(PULP_Nodes_Graph[0].weights_dimension)}, &buff_req1);
     pi_cl_ram_read_wait(&buff_req1);
+
+% if 'Gemm' in PULP_Nodes_Graph[1].name or 'Conv' in PULP_Nodes_Graph[1].name:
+/* 
+  - second layer weights allocation
+*/
+    d_buffering_weights_t = !d_buffering_weights_t;
+    dory_L2_alloc(&L2_buffer_allocation,
+      &L2_buffer_allocation_end,
+      &L2_weights_2,
+      ${int(PULP_Nodes_Graph[1].weights_dimension)}- ${int(PULP_Nodes_Graph[0].weights_dimension)},
+      begin_end_n // begin is 1, end is 0
+      );
+    transfer_weights = d_buffering_weights_t ? L2_weights_2 : L2_weights_1;
+% endif
 /* 
   - output of the first layer allocation
 */
     dory_L2_alloc(&L2_buffer_allocation,
       &L2_buffer_allocation_end,
       &L2_output,
-      ${int(PULP_Nodes_Graph[0].output_activation_dimensions* BitOut / 8.0)},
+      ${int(PULP_Nodes_Graph[0].output_activation_dimensions)},
       begin_end_n // begin is 1, end is 0
       );
-% if 'Gemm' in PULP_Nodes_Graph[1].name or 'Conv' in PULP_Nodes_Graph[1].name:
-/* 
-  - second layer weights allocation
-*/
-    d_buffering_weights_t = !d_buffering_weights_t;
     if(L2_output == NULL) return -1;
-    dory_L2_alloc(&L2_buffer_allocation,
-      &L2_buffer_allocation_end,
-      &L2_weights_2,
-      ${int(PULP_Nodes_Graph[1].weights_dimension* BitW / 8.0)}- ${int(PULP_Nodes_Graph[0].weights_dimension* BitW / 8.0)},
-      begin_end_n // begin is 1, end is 0
-      );
-    transfer_weights = d_buffering_weights_t ? L2_weights_2 : L2_weights_1;
-    % endif
     begin_end_n = !begin_end_n;
   }
 /* ---------------------------------- */
@@ -681,25 +692,14 @@ void network_run(unsigned int L3_weights_size)
 #ifdef VERBOSE
     if(pi_core_id()==0)
     {
-      if(branch_change[i-1] == 1 && i > 0)
-      {
-        check_layer(bypass_activations,check_activations[branch_output_index+1],check_activations_dimension[branch_output_index+1]);
-      }
+      if (L3_input_layers[i]==1)
+        printf("In in L3\n");
+      else if (i==0)
+        check_layer(L2_input, check_activations[i], check_activations_dimension[i]);
+      else if (branch_change[i-1]==0)
+        check_layer(L2_input, check_activations[i], check_activations_dimension[i]);
       else
-      {
-        if (L3_input_layers[i]==1)
-          printf("In in L3\n");
-        else
-          check_layer(L2_input, check_activations[i], check_activations_dimension[i]);
-      }
-      if(branch_input[i] == 1 && keeping == 1)
-      {
-        check_layer(activation_to_keep, check_activations_out[keep_index],check_activations_out_dimension[keep_index]);
-      }
-      else if (branch_input[i] == 1 && keeping == 0)
-      {
-        check_layer(bypass_activations,check_activations[branch_output_index+1],check_activations_dimension[branch_output_index+1]);
-      }
+        printf("Switching branch, already checked activation\n");
     }
 #endif  
 % endif
@@ -721,16 +721,6 @@ void network_run(unsigned int L3_weights_size)
       inmul1,
       inmul2, 
       out_shift};
-    if (branch_change[i-1] == 1 && branch_input[i] == 0)
-    {
-      args[0] = bypass_L3_input;
-      args[1] = bypass_L3_output;
-      args[3] = bypass_activations;
-    }
-    if(branch_input[i] == 1 && keeping == 1)
-    {
-      args[4] = activation_to_keep;
-    }
 % if 'Yes' in performance or 'Perf_final' in verbose_level:  
     // perf measurement begin
     pi_perf_conf(1<<PI_PERF_CYCLES);          
@@ -780,7 +770,7 @@ void network_run(unsigned int L3_weights_size)
 #ifdef VERBOSE
     if(pi_core_id()==0)
     {
-      printf("Layer %d ended \n", i);
+      printf("Layer %s %d ended: \n", Layers_name[i], i);
       if (i < ${len(PULP_Nodes_Graph) - 1})
       {
         if (L3_output_layers[i]==1)
@@ -806,24 +796,25 @@ void network_run(unsigned int L3_weights_size)
 #ifdef VERBOSE
     if(pi_core_id()==0)
     {
-      printf("Layer %d ended: \n", i);
+      printf("Layer %s %d ended: \n", Layers_name[i], i);
     }     
 #endif   
 % endif
-    if(branch_change[i] == 1)
-    {
-      keep_index = i;
-    }
     if (i < ${len(PULP_Nodes_Graph) - 1})
     {
       if(pi_core_id()==0)
       {
-        if (branch_input[i] == 1)
-        {
-          valid = 1;
-          valid_keep = 1;
-        }
-
+        dory_L2_free(&L2_buffer_allocation,
+          &L2_buffer_allocation_end,
+          check_activations_dimension[i],
+          begin_end_n // begin is 1, end is 0
+          );
+        if (branch_input[i]==1)
+          dory_L2_free(&L2_buffer_allocation,
+            &L2_buffer_allocation_end,
+            check_activations_dimension[i],
+            begin_end_n // begin is 1, end is 0
+            );
         // deallocation of weights
         if (layer_with_weights[i] == 1)
           dory_L2_free(&L2_buffer_allocation,
@@ -836,103 +827,8 @@ void network_run(unsigned int L3_weights_size)
           d_buffering_weights_e = !d_buffering_weights_e;
           exec_weights = d_buffering_weights_e ? L2_weights_2 : L2_weights_1;
         }
-        // deallocation of input if not part of a residual connection
-        //IT CAN NOT WORK FOR SOME CASES!!!
-        if ((branch_output[i-1] !=1 && branch_change[i-1] != 1) && input_used_as_out!=1 || i==0)
+        if (i < ${len(PULP_Nodes_Graph) - 1})
         {
-          dory_L2_free(&L2_buffer_allocation,
-            &L2_buffer_allocation_end,
-            check_activations_dimension[i],
-            begin_end_n // begin is 1, end is 0
-            );
-   
-        }
-          
-        // deallocation of a residual activation previously stored
-        if(valid_keep == 1 && keeping == 1 && bypass_side_keep==begin_end_n && bypass_used_as_out!=1)
-        {
-          dory_L2_free(&L2_buffer_allocation,
-            &L2_buffer_allocation_end,
-            activation_dimension,
-            begin_end_n // begin is 1, end is 0
-            );
-          counter_keep = 0;
-          branch_keep_active = 0;
-          keeping = 0;
-          activation_to_keep_delloced = 0;
-        }
-        // MUST MAKE SURE THAT ACTIVATION_TO_KEEP IS NOT INFRONT OF BYPASS AND THAT IT IS
-        // SAFE TO DEALLOC BYPASS ACTIVATION. IT'S MOST LIKELY ONLY DONE WHEN ON ADD LAYER
-        if (branch_input[i]==1 && bypass_to_dealloc == 1)
-        {
-          dory_L2_free(&L2_buffer_allocation,
-            &L2_buffer_allocation_end,
-            bypass_dimension,
-            begin_end_n // begin is 1, end is 0
-            );
-          counter = 0;
-          branch_active = 0;
-          bypass_to_dealloc = 0;
-        }
-        // Keep last layer of left side until add layer is encountered.
-        if (branch_change[i] == 1 && branch_output[i] == 0 && branch_last[i] == 0)
-        {
-          activation_to_keep = L2_output;
-          activation_dimension = check_activations_out_dimension[i];
-          keeping = 1;
-          branch_keep_active = 1;
-          activation_to_keep_delloced = 1;
-          bypass_side_keep = !begin_end_n; 
-          valid_keep = 0;
-        }
-        if (branch_output[i] == 1)
-        {
-          bypass_L3_input = L3_input;
-          bypass_L3_output = L3_output;
-          branch_output_index = i;
-          bypass_activations = L2_output;
-          bypass_dimension = check_activations_out_dimension[i];
-          branch_active = 1;
-          bypass_to_dealloc = 1;    
-          bypass_side = !begin_end_n;   
-          valid = 0;
-        }
-        L2_input = L2_output;
-        // allocation of output feature space
-        if (branch_input[i+1]!=1 || (branch_input[i+1]==1 && bypass_side != begin_end_n && keeping == 0))
-        {
-          dory_L2_alloc(&L2_buffer_allocation,
-            &L2_buffer_allocation_end,
-            &L2_output,
-            check_activations_out_dimension[i+1],
-            begin_end_n // begin is 1, end is 0
-            );
-          input_used_as_out = 0; 
-          bypass_used_as_out = 0; 
-        }
-        else if (keeping == 1) 
-        {
-          if (bypass_side_keep == begin_end_n)
-          {
-            L2_output = L2_input;
-            input_used_as_out = 1;
-          }
-          else
-          {
-            L2_output = activation_to_keep;
-            keeping = 0;
-          }
-        }
-        else
-        {
-          L2_output = bypass_activations;
-          bypass_used_as_out = 1;
-          bypass_to_dealloc = 0;
-        }
-        if (i < ${len(PULP_Nodes_Graph) - 2})
-        {
-          if (branch_input[i+1]==1 && bypass_side_keep == begin_end_n && keeping==1)
-            begin_end_n = !begin_end_n;
           // allocation of weights for next next layer, if necessary.
           if (layer_with_weights[i+2] == 1)
           {
@@ -958,10 +854,107 @@ void network_run(unsigned int L3_weights_size)
             transfer_weights = d_buffering_weights_t ? L2_weights_2 : L2_weights_1;
           }
         }
+        L2_input = L2_output;
+        if (pi_core_id()==0)
+        {
+          if (branch_input[i]==1 || branch_change[i-1] == 1)
+          {
+            pi_cl_ram_read_wait(&buff_req1);
+            pi_cl_ram_free_req_t free_req;
+            pi_cl_ram_free(&ram, layers_pointers[residual_number], (uint32_t) check_activations_dimension[i], &free_req);
+            pi_cl_ram_free_wait(&free_req);
+          }
+          if (branch_input[i+1]==1)
+          {
+            begin_end_n = !begin_end_n;
+            dory_L2_alloc(&L2_buffer_allocation,
+              &L2_buffer_allocation_end,
+              &bypass_activations,
+              check_activations_out_dimension[i],
+              begin_end_n // begin is 1, end is 0
+              );
+            begin_end_n = !begin_end_n;
+            pi_cl_ram_read_wait(&buff_req1);
+            residual_number--;
+            pi_cl_ram_read(&ram, layers_pointers[residual_number], bypass_activations, check_activations_out_dimension[i], &buff_req1);
+            pi_cl_ram_read_wait(&buff_req1);
+          }
+          if (i>0)
+          {
+            if (branch_output[i-1]==1 && L3_input_layers[i]==1)
+            {
+              pi_cl_ram_read_wait(&buff_req1);
+              pi_cl_ram_alloc_req_t alloc_req;
+              pi_cl_ram_alloc(&ram, (uint32_t) 1000000, &alloc_req);
+              pi_cl_ram_alloc_wait(&alloc_req, &L3_input);
+            }
+          }
+          if (branch_output[i]==1 && L3_output_layers[i]==1)
+          {
+            pi_cl_ram_read_wait(&buff_req1);
+            pi_cl_ram_free_req_t free_req;
+            pi_cl_ram_free(&ram, (uint32_t) L3_input + check_activations_out_dimension[i], (uint32_t) 1000000 - check_activations_out_dimension[i], &free_req);
+            pi_cl_ram_free_wait(&free_req);
+            layers_pointers[residual_number] = L3_input;
+            residual_number++;
+          }
+          else if (branch_output[i]==1)
+          {
+            pi_cl_ram_read_wait(&buff_req1);
+            pi_cl_ram_alloc_req_t alloc_req;
+            int32_t temp_adress;
+            pi_cl_ram_alloc(&ram, (uint32_t) check_activations_out_dimension[i], &alloc_req);
+            pi_cl_ram_alloc_wait(&alloc_req, &temp_adress);
+            layers_pointers[residual_number] = temp_adress;
+            pi_cl_ram_write(&ram, temp_adress, L2_output, (uint32_t) check_activations_out_dimension[i], &buff_req1);
+            pi_cl_ram_write_wait(&buff_req1);
+            residual_number++;
+          }
+          if (branch_change[i] == 1)
+          {
+            pi_cl_ram_read_wait(&buff_req1);
+            pi_cl_ram_alloc_req_t alloc_req;
+            int32_t temp_adress;
+            pi_cl_ram_alloc(&ram, (uint32_t) check_activations_out_dimension[i], &alloc_req);
+            pi_cl_ram_alloc_wait(&alloc_req, &temp_adress);
+            layers_pointers[residual_number] = temp_adress;
+            pi_cl_ram_write(&ram, temp_adress, L2_output, (uint32_t) check_activations_out_dimension[i], &buff_req1);
+            pi_cl_ram_write_wait(&buff_req1);
+            residual_number++;
+          }
+          if (branch_change[i]==1)
+          {
+            begin_end_n = !begin_end_n;
+            dory_L2_free(&L2_buffer_allocation,
+              &L2_buffer_allocation_end,
+              check_activations_out_dimension[i],
+              begin_end_n // begin is 1, end is 0
+              );
+            dory_L2_alloc(&L2_buffer_allocation,
+              &L2_buffer_allocation_end,
+              &L2_input,
+              check_activations_dimension[i+1],
+              begin_end_n // begin is 1, end is 0
+              );
+            begin_end_n = !begin_end_n;
+            pi_cl_ram_read_wait(&buff_req1);
+            residual_number--;
+            residual_number--;
+            pi_cl_ram_read(&ram, layers_pointers[residual_number], L2_input, check_activations_dimension[i+1], &buff_req1);
+            pi_cl_ram_read_wait(&buff_req1);
+            residual_number++;
+            residual_number++;
+          }
+        }
+        dory_L2_alloc(&L2_buffer_allocation,
+          &L2_buffer_allocation_end,
+          &L2_output,
+          check_activations_out_dimension[i+1],
+          begin_end_n // begin is 1, end is 0
+          );
         //switching output and input in the buffer for allocation.
         begin_end_n = !begin_end_n;
       }
-
     }
   }
 /* ---------------------------------- */

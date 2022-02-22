@@ -24,7 +24,7 @@ from collections import OrderedDict
 import numpy as np
 import sys
 import os
-
+import re
 
 def print_file_list(x):
     # This function is used to generate a string with all input files.
@@ -32,7 +32,7 @@ def print_file_list(x):
     return s
 
 
-def print_template_Makefile(file_list_w, platform, sdk):
+def print_template_Makefile(file_list_w, platform, sdk, backend):
     # Generate the Makefile, including all files to upload on the hyperflash
     tk = OrderedDict([])
     tk['build_layers'] = os.listdir('./application/DORY_network/src/')
@@ -40,9 +40,12 @@ def print_template_Makefile(file_list_w, platform, sdk):
     tk['platform'] = 'GAP8'
     tk['sdk'] = sdk
     root = '/'.join(os.getcwd().split('/')[:-1])
-    tmpl = Template(filename=root + "/templates/Makefile_template")
+    tmpl = Template(filename=root + f"/templates_{backend}/Makefile_template")
     s = tmpl.render(**tk)
-    save_string = './application/Makefile'
+    if backend == 'MCU':
+        save_string = './application/Makefile'
+    else:
+        save_string = './application/CMakeLists.txt'
     with open(save_string, "w") as f:
         f.write(s)
 
@@ -68,6 +71,7 @@ def print_template_layer_1D(x, y_gold, W,
                          platform='GAP8',
                          chip='GAP8v2',
                          optional_type='8bit',
+                         backend = 'MCU',
                          layer_type = 'normal'):
     # Generate the Layer management c file.
     if w_out * stride + fs1 - 1 - stride + 1 > w_in:
@@ -229,7 +233,7 @@ def print_template_layer_1D(x, y_gold, W,
     l2_dim_lambda = lambd_buffer_size
     if conv_order == 'PULP-NN':
         root = '/'.join(os.getcwd().split('/')[:-1])
-        tmpl = Template(filename=root + "/templates/layer_templates/layer_template_conv_1D.c")
+        tmpl = Template(filename=root + f"/templates_{backend}/layer_templates/layer_template_conv_1D.c")
     s = tmpl.render(TEST=test,VERBOSE=False,ULTRA_VERBOSE=ultra_verbose,PULP_TEST=True,verbose_log=l,**tk)
     if 'L2' in test_location:
         save_string = './application/DORY_network/src/' + name_layer.replace("h", "c")
@@ -238,7 +242,7 @@ def print_template_layer_1D(x, y_gold, W,
     with open(save_string, "w") as f:
         f.write(s)
     root = '/'.join(os.getcwd().split('/')[:-1])
-    tmpl = Template(filename=root + "/templates/layer_templates/layer_template_h.h")
+    tmpl = Template(filename=root + f"/templates_{backend}/layer_templates/layer_template_h.h")
     s = tmpl.render(
         TEST=test,
         VERBOSE=False,
@@ -267,7 +271,7 @@ def print_template_layer_1D(x, y_gold, W,
         tk['h_out'] = tk['y_h']
         tk['ultra_test'] = True
         root = '/'.join(os.getcwd().split('/')[:-1])
-        tmpl = Template(filename=root+"/templates/test_templateL2.c")
+        tmpl = Template(filename=root+f"/templates_{backend}/test_templateL2.c")
         s = tmpl.render(
             TEST=test,
             VERBOSE=False,
@@ -280,7 +284,7 @@ def print_template_layer_1D(x, y_gold, W,
             f.write(s)
         tk['build_layers'] = os.listdir('./application/DORY_network/src/') 
         tk['platform'] = 'GAP8'
-        tmpl = Template(filename=root+"/templates/Makefile_template_L2")
+        tmpl = Template(filename=root+f"/templates_{backend}/Makefile_template_L2")
         s = tmpl.render(**tk)
         save_string = './application/Makefile'
         with open(save_string, "w") as f:
@@ -308,12 +312,9 @@ def print_template_network(
     cl_frequency = 100000000,
     MACs = 1,
     platform = 'GAP8',
-    BitIn = 8,
-    BitW = 8,
-    BitOut = 8,
     sdk = 'gap_sdk',
-    dma_parallelization = '8-cores',
-    optional_type = 'conv'
+    backend = 'MCU',
+    dma_parallelization = '8-cores'
 ):
     # Generate the Network management c file.
     tk = OrderedDict([])
@@ -334,9 +335,6 @@ def print_template_network(
         if 'Gemm' in nodes.name or 'Conv' in nodes.name or 'MatMul' in nodes.name:
             weights_number += 1
     tk['dma_parallelization'] = dma_parallelization
-    tk['BitIn'] = BitIn
-    tk['BitW'] = BitW
-    tk['BitOut'] = BitOut
     tk['weights_number'] = weights_number
     tk['i_conv'] = i_conv
     tk['verbose_level'] = verbose_level
@@ -380,10 +378,7 @@ def print_template_network(
             except TypeError:
                 l += "// %s %s\n" % (k.ljust(30), v)
     root = '/'.join(os.getcwd().split('/')[:-1])
-    if(optional_type == '1D_Conv'):
-        tmpl = Template(filename=root + "/templates/network_template_1D.c")
-    else:
-        tmpl = Template(filename=root + "/templates/network_template.c")
+    tmpl = Template(filename=root + f"/templates_{backend}/network_template.c")
     tk['PULP_Nodes_Graph'] = PULP_Nodes_Graph
     s = tmpl.render(verbose_log=l,**tk)
     save_string = './application/DORY_network/src/network.c'
@@ -439,14 +434,14 @@ def print_pool_template_layer_L3(X, W, Y, fs1, fs2, padding, stride,
     tk['y_data_size_byte'] = data_type_y
     tk['x_data_size_byte'] = data_type_x
     root = '/'.join(os.getcwd().split('/')[:-1])
-    tmpl = Template(filename=root + "/templates/layer_templates/layer_template_L3.c")
+    tmpl = Template(filename=root + f"/templates_{backend}/layer_templates/layer_template_L3.c")
     l = ""
     s = tmpl.render(verbose_log=l,**tk)
     #
     save_string = './application/DORY_network/src/' + tk['func_name_L3'] + '.c'
     with open(save_string, "w") as f: f.write(s)
 
-    tmpl = Template(filename=root + "/templates/layer_templates/layer_template_L3-h.h")
+    tmpl = Template(filename=root + f"/templates_{backend}/layer_templates/layer_template_L3-h.h")
     s = tmpl.render(verbose_log=l, **tk)
     if full_net == 1:
         save_string = './application/DORY_network/inc/' + \
@@ -473,12 +468,13 @@ def print_pool_template_layer_L3(X, W, Y, fs1, fs2, padding, stride,
         tk['func_nameL3'] = tk['func_name_L3']
         tk['file'] = name[0][5:] + '_weights.hex'
         tk['buffer_l1_all'] = buffer_l1_all
-        tmpl = Template(filename=root + "/templates/test_templateL3.c")
+        tmpl = Template(filename=root + f"/templates_{backend}/test_templateL3.c")
         s = tmpl.render(**tk)
         save_string = './application/DORY_network/src/main.c'
         with open(save_string, "w") as f: f.write(s)
 
 def print_template_layer_L3(X, W, Y, fs1, fs2, padding, stride,
+                            BitIn, BitW, BitOut,
                             factor_ch_out,
                             factor_h_out, 
                             factor_h_in,
@@ -502,7 +498,8 @@ def print_template_layer_L3(X, W, Y, fs1, fs2, padding, stride,
                             test_location,
                             out_mul, out_shift,
                             buffer_l1_all,
-                            input_L3
+                            input_L3,
+                            backend
                             ):
     # generation of L3 layers. The layers are generated with this infrustructure if an L3 tiling is demanded.
     tk = OrderedDict([])
@@ -510,6 +507,9 @@ def print_template_layer_L3(X, W, Y, fs1, fs2, padding, stride,
     conv_overlap2 = 2 * (fs2 // 2) + fs2 % 2 - 1 - (stride - 1)
     tk['conv_overlap1'] = conv_overlap1
     tk['conv_overlap2'] = conv_overlap2
+    tk['BitIn'] = BitIn
+    tk['BitW'] = BitW
+    tk['BitOut'] = BitOut
     tk['padding'] = padding
     tk['input_L3'] = input_L3
     tk['n_tile_W'] = int(factor_ch_out)
@@ -534,14 +534,14 @@ def print_template_layer_L3(X, W, Y, fs1, fs2, padding, stride,
     tk['y_data_size_byte'] = data_type_y
     tk['x_data_size_byte'] = data_type_x
     root = '/'.join(os.getcwd().split('/')[:-1])
-    tmpl = Template(filename=root + "/templates/layer_templates/layer_template_L3.c")
+    tmpl = Template(filename=root + f"/templates_{backend}/layer_templates/layer_template_L3.c")
     l = ""
     s = tmpl.render(verbose_log=l,**tk)
     #
     save_string = './application/DORY_network/src/' + tk['func_name_L3'] + '.c'
     with open(save_string, "w") as f: f.write(s)
 
-    tmpl = Template(filename=root + "/templates/layer_templates/layer_template_L3-h.h")
+    tmpl = Template(filename=root + f"/templates_{backend}/layer_templates/layer_template_L3-h.h")
     s = tmpl.render(verbose_log=l, **tk)
     if full_net == 1:
         save_string = './application/DORY_network/inc/' + \
@@ -570,7 +570,7 @@ def print_template_layer_L3(X, W, Y, fs1, fs2, padding, stride,
         tk['func_nameL3'] = tk['func_name_L3']
         tk['file'] = name[0][5:] + '_weights.hex'
         tk['buffer_l1_all'] = buffer_l1_all
-        tmpl = Template(filename=root + "/templates/test_templateL3.c")
+        tmpl = Template(filename=root + f"/templates_{backend}/test_templateL3.c")
         s = tmpl.render(**tk)
         save_string = './application/DORY_network/src/main.c'
         with open(save_string, "w") as f: f.write(s)
@@ -597,9 +597,15 @@ def print_template_layer(x, y_gold, W,
                          optional_type='8bit',
                          L3_tiling = 0,
                          sdk = 'gap_sdk',
+                         backend = 'MCU',
+                         number_of_clusters = 1,
                          dma_parallelization = '8-cores'
                          ):
     # Generate the Layer management c file.
+    if type_data == 'float':
+        ds_x = 32
+        ds_y = 32
+        ds_W = 32
     if h_out * stride + fs1 - 1 - stride + 1 > h_in:
         if (h_out * stride + fs1 - 1 - stride + 1 - h_in) == padding_top:
             padding_b = 0
@@ -626,7 +632,16 @@ def print_template_layer(x, y_gold, W,
     conv_overlap1 = 2 * (fs1 // 2) + fs1 % 2 - 1 - (stride - 1)
     conv_overlap2 = 2 * (fs2 // 2) + fs2 % 2 - 1 - (stride - 1)
     tk = OrderedDict([])
+    if (re.search('.0',name_layer)):
+        try:
+            int(re.search('.0',name_layer).group())
+            tk['first_layer'] = 0
+        except ValueError:
+            tk['first_layer'] = 1
+    else:
+        tk['first_layer'] = 0
     tk['sdk'] = sdk
+    tk['number_of_clusters'] = number_of_clusters
     tk['dma_parallelization'] = dma_parallelization
     tk['optional_type'] = optional_type
     tk['func_name'] = name
@@ -667,6 +682,11 @@ def print_template_layer(x, y_gold, W,
     tk['x_tile_size_h'] = tile_h_in
     tk['x_tile_size_w'] = tile_w_in
     tk['x_tile_size_byte'] = int(math.ceil(ds_x * tile_n_in * tile_h_in * tile_w_in / 8.0))
+    if backend == 'Occamy':
+        tk['x_tile_size_byte'] = int(math.ceil(ds_x * tile_n_in * (tile_h_in + padding_top + padding_bottom) * (tile_w_in + padding_left + padding_right) / 8.0))
+        tk['x_tile_size_byte'] = tk['x_tile_size_byte'] + (tk['x_tile_size_byte'] % 8)
+    if type_data == 'float':
+        tk['x_tile_size_byte'] += 16 ##### FIX TO CHECK #######
     tk['x_tile_size_nif_byte'] = int(math.ceil(tile_n_in * ds_x / 8.0))
     tk['x_stride_w_byte'] = int(math.ceil(w_in * n_in * ds_x / 8.0))
     tk['x_stride_c_byte'] = int(math.ceil(n_in * ds_x / 8.0))
@@ -679,6 +699,7 @@ def print_template_layer(x, y_gold, W,
     tk['y_tile_size_h'] = tile_h_out if (h_out > tile_h_out) > 0 else h_out
     tk['y_tile_size_w'] = tile_w_out if (w_out > tile_w_out) > 0 else w_out
     tk['y_tile_size_byte'] = int(math.ceil(tk['y_tile_size_nof'] * tk['y_tile_size_h'] * tk['y_tile_size_w'] * ds_y / 8.0))
+    tk['y_tile_size_byte'] = tk['y_tile_size_byte'] + (tk['y_tile_size_byte'] % 8)
     tk['y_stride_w_byte'] = int(math.ceil(w_out * n_out * factor_ch_out * ds_y / 8.0))
     tk['y_stride_c_byte'] = int(math.ceil(n_out * factor_ch_out * ds_y / 8.0))
     tk['y_tile_size_nof_byte'] = int(math.ceil(tile_n_out * ds_y / 8.0))
@@ -687,30 +708,32 @@ def print_template_layer(x, y_gold, W,
     tk['tile_dim_w'] = max(int(math.ceil(float(w_out) / float(tk['y_tile_size_w']))), 1)
     tk['tile_dim_nof'] = max(int(math.ceil(float(n_out) / float(tk['y_tile_size_nof']))), 1)
     tk['tile_dim_nif'] = max(int(math.ceil(float(n_in) / float(tile_n_in))), 1)
+    tk['tile_n_in_last'] = n_in % tile_n_in if n_in % tile_n_in > 0 else tile_n_in
     # W parameters
     tk['fs1'] = fs1
     tk['fs2'] = fs2
     tk['W_data_size_byte'] = ds_W
-    if DW == 0:
-        tk['W_tile_size_nof'] = tile_n_out 
-    else:
-        tk['W_tile_size_nof'] = int(tile_n_out * ds_W / 8.0)
+    tk['W_tile_size_nof'] = tile_n_out 
     if tk['has_bias'] == 1:
         tk['b_size_byte'] = int(math.ceil(n_out * ds_W / 8.0))
     else:
         tk['b_size_byte'] = 0
 
     if DW == 0:
-        tk['W_tile_size_nif'] = tile_n_in
+        tk['W_tile_size_nif'] = tile_n_in * tk['tile_dim_nif']
+        tk['W_tile_size_nif_last'] = tk['tile_n_in_last'] * tk['tile_dim_nif']
     else:
         tk['W_tile_size_nif'] = 1
+        tk['W_tile_size_nif_last'] = 1
     tk['W_tile_size_byte'] = int(math.ceil(tile_n_out * tk['W_tile_size_nif'] * fs1 * fs2 * ds_W / 8.0))
+    tk['W_tile_size_byte'] = tk['W_tile_size_byte'] + (tk['W_tile_size_byte'] % 8)
     if DW == 0:
         tk['W_stride_nof_byte'] = int(math.ceil(tk['nif'] * fs1 * fs2 * ds_W / 8.0))
     else:
-        tk['W_stride_nof_byte'] = int(math.ceil(tk['nif'] * fs1 * fs2))        
+        tk['W_stride_nof_byte'] = int(math.ceil(tk['nif'] * fs1 * fs2 * ds_W / 8.0))        
     tk['W_stride_hw_byte'] = int(math.ceil(tk['nif'] * ds_W / 8.0))
     tk['W_tile_nif_byte'] = int(math.ceil(tk['W_tile_size_nif'] * ds_W / 8.0))
+    tk['W_tile_nif_byte_last'] = int(math.ceil(tk['W_tile_size_nif_last'] * ds_W / 8.0))
     # l2 parameters
     if tk['FLAG_BATCHNORM'] == 1:
         tk['l2_off_k'] = int(
@@ -723,18 +746,33 @@ def print_template_layer(x, y_gold, W,
         x_buffer_size = int(math.ceil(ds_x * tile_n_in * tile_h_in * tile_w_in / 8.0))
     else:
         x_buffer_size = 2 * int(math.ceil(ds_x * tile_n_in * tile_h_in * tile_w_in / 8.0))
-    if n_in == tile_n_in and w_in == tile_w_in and h_in == tile_h_in and n_out == tile_n_out:
+        if x_buffer_size % 16 != 0:
+            x_buffer_size = x_buffer_size
+    if backend == 'Occamy':
+        if n_in == tile_n_in and w_in == tile_w_in and h_in == tile_h_in:
+            x_buffer_size = int(math.ceil(ds_x * tile_n_in * (tile_h_in + padding_top + padding_bottom) * (tile_w_in + padding_left + padding_right) / 8.0))
+            x_buffer_size = x_buffer_size + (x_buffer_size % 8)
+        else:
+            x_buffer_size = 2 * int(math.ceil(ds_x * tile_n_in * (tile_h_in + padding_top + padding_bottom) * (tile_w_in + padding_left + padding_right) / 8.0))
+            x_buffer_size = x_buffer_size + (x_buffer_size % 16)
+    if n_in == (tile_n_in * number_of_clusters) and w_in == tile_w_in and h_in == tile_h_in and n_out == (tile_n_out * number_of_clusters):
         y_buffer_size = int(math.ceil(ds_y * tk['y_tile_size_nof'] * tk['y_tile_size_h'] * tk['y_tile_size_w'] / 8.0))
+        y_buffer_size = y_buffer_size + (y_buffer_size % 8)
         if DW == 0:
-            W_buffer_size = int(math.ceil(ds_W * tk['y_tile_size_nof']  * tile_n_in * fs1 * fs2 / 8.0))
+            W_buffer_size = int(math.ceil(ds_W * tk['y_tile_size_nof']  * tk['W_tile_size_nif'] * fs1 * fs2 / 8.0))
+            W_buffer_size = W_buffer_size + (W_buffer_size % 8)
         else:
             W_buffer_size = int(math.ceil(ds_W * tk['y_tile_size_nof']  * 1 * fs1 * fs2 / 8.0))
+            W_buffer_size = W_buffer_size + (W_buffer_size % 8)
     else:
         y_buffer_size = 2 * int(math.ceil(ds_y * tk['y_tile_size_nof'] * tk['y_tile_size_h'] * tk['y_tile_size_w'] / 8.0))
+        y_buffer_size = y_buffer_size + (y_buffer_size % 16)
         if DW == 0:
-            W_buffer_size = 2 * int(math.ceil(ds_W * tk['y_tile_size_nof'] * tile_n_in * fs1 * fs2 / 8.0))
+            W_buffer_size = 2 * int(math.ceil(ds_W * tk['y_tile_size_nof'] * tk['W_tile_size_nif'] * fs1 * fs2 / 8.0))
+            W_buffer_size = W_buffer_size + (W_buffer_size % 16)
         else:
             W_buffer_size = 2 * int(math.ceil(ds_W * tk['y_tile_size_nof'] * 1 * fs1 * fs2 / 8.0))
+            W_buffer_size = W_buffer_size + (W_buffer_size % 16)
     if tk['FLAG_BATCHNORM'] == 1:
         k_buffer_size = int(n_out * ds_act / 8.0)
         lambd_buffer_size = int(n_out * ds_act / 8.0)
@@ -751,7 +789,9 @@ def print_template_layer(x, y_gold, W,
             tk['k_size_byte'] = k_buffer_size
             tk['lambda_size_byte'] = k_buffer_size
             tk['k_tile_size_byte_transfer'] = int(math.ceil(tile_n_out * ds_act / 8.0))
+            tk['k_tile_size_byte_transfer'] = tk['k_tile_size_byte_transfer'] + (tk['k_tile_size_byte_transfer'] % 8)
             tk['lambda_tile_size_byte_transfer'] = int(math.ceil(tile_n_out * ds_act / 8.0))
+            tk['lambda_tile_size_byte_transfer'] = tk['lambda_tile_size_byte_transfer'] + (tk['lambda_tile_size_byte_transfer'] % 8)
             if n_in == tile_n_in and w_in == tile_w_in and h_in == tile_h_in and n_out == tile_n_out:
                 tk['k_tile_size_byte'] = int(math.ceil(tile_n_out * ds_act / 8.0))
                 tk['lambda_tile_size_byte'] = int(math.ceil(tile_n_out * ds_act / 8.0))
@@ -767,17 +807,20 @@ def print_template_layer(x, y_gold, W,
     if conv_order == 'PULP-NN-MAX' or conv_order == 'PULP-NN-ADD':
         W_buffer_size = 0
     # l1 parameters
+    
+    if type_data == 'float':
+        x_buffer_size += 16 ##### FIX TO CHECK #######
     tk['l1_x_offset'] = 0
-    tk['l1_y_offset'] = x_buffer_size + 4
+    tk['l1_y_offset'] = x_buffer_size + 8
     if conv_order == 'PULP-NN-ADD':
-        tk['l1_x2_offset'] = x_buffer_size + 4 + y_buffer_size + 4
+        tk['l1_x2_offset'] = x_buffer_size + 8 + y_buffer_size + 8
     if conv_order != 'PULP-NN-MAX' and conv_order != 'PULP-NN-ADD':
-        tk['l1_W_offset'] = x_buffer_size + 4 + y_buffer_size + 4
+        tk['l1_W_offset'] = x_buffer_size + 8 + y_buffer_size + 8
         if tk['FLAG_BATCHNORM'] == 1:
-            tk['l1_k_offset'] = x_buffer_size + 4 + y_buffer_size + 4 + W_buffer_size + 4
-            tk['l1_lambda_offset'] = x_buffer_size + 4 + y_buffer_size + 4 + W_buffer_size + 4 + tk['k_tile_size_byte'] + 4
+            tk['l1_k_offset'] = x_buffer_size + 8 + y_buffer_size + 8 + W_buffer_size + 8
+            tk['l1_lambda_offset'] = x_buffer_size + 8 + y_buffer_size + 8 + W_buffer_size + 8 + tk['k_tile_size_byte'] + 8
         if has_bias == 1:
-            tk['l1_b_offset'] = x_buffer_size + 4 + y_buffer_size + 4 + W_buffer_size + 4 + tk['k_tile_size_byte'] + 4 + tk['lambda_tile_size_byte']  + 4
+            tk['l1_b_offset'] = x_buffer_size + 8 + y_buffer_size + 8 + W_buffer_size + 8 + tk['k_tile_size_byte'] + 8 + tk['lambda_tile_size_byte']  + 8
 
 
     # x last
@@ -807,8 +850,6 @@ def print_template_layer(x, y_gold, W,
     # W last
     if conv_order != 'PULP-NN-MAX' and conv_order != 'PULP-NN-ADD':
         tk['W_tile_size_nof_last'] = n_out % tile_n_out if (n_out % tile_n_out) > 0 else tile_n_out
-        if DW == 1:
-            tk['W_tile_size_nof_last'] = int(tk['W_tile_size_nof_last'] * ds_W / 8.0)
         tk['W_tile_size_nif_last'] = tk['W_tile_size_nif']
         tk['W_tile_size_nif_byte_last'] = int(math.ceil(tk['W_tile_size_nif_last'] * ds_W / 8.0))
     # y last
@@ -827,7 +868,7 @@ def print_template_layer(x, y_gold, W,
                 l += "// %s %s\n" % (k.ljust(30), v)
     if conv_order == 'PULP-NN':
         buffer_l1_all = W_buffer_size + x_buffer_size + y_buffer_size + tk['k_tile_size_byte'] + tk['lambda_tile_size_byte'] + 40 + tk['b_size_byte']
-        tk['im2col_dim'] = (8 * (fs1 * (tile_h_in + 2 * padding_top) + fs1)) * int( 8 / min(ds_x, ds_y, ds_W))
+        tk['im2col_dim'] = (8 * (fs1 * (tile_h_in + padding_bottom + padding_top) + fs1)) * int( 8 / min(ds_x, ds_y, ds_W))
     elif conv_order == 'PULP-NN-ADD':
         buffer_l1_all = x_buffer_size * 2 + y_buffer_size + tk['k_tile_size_byte'] + tk['lambda_tile_size_byte'] + 40 + tk['b_size_byte']
     elif conv_order == 'PULP-NN-MAX':
@@ -843,17 +884,17 @@ def print_template_layer(x, y_gold, W,
     l2_dim_lambda = lambd_buffer_size
     root = '/'.join(os.getcwd().split('/')[:-1])
     if conv_order == 'PULP-NN':
-        tmpl = Template(filename=root+"/templates/layer_templates/layer_template.c")
+        tmpl = Template(filename=root+f"/templates_{backend}/layer_templates/layer_template.c")
     elif conv_order == 'PULP-NN-MAX':
         if(optional_type == '1D_Conv'):
-            tmpl = Template(filename=root+"/templates/layer_templates/pooling_layer_1D_template.c")
+            tmpl = Template(filename=root+f"/templates_{backend}/layer_templates/pooling_layer_1D_template.c")
         else:
-            tmpl = Template(filename=root+"/templates/layer_templates/pooling_layer_template.c")
+            tmpl = Template(filename=root+f"/templates_{backend}/layer_templates/pooling_layer_template.c")
     elif conv_order == 'PULP-NN-ADD':
         if(optional_type == '1D_Conv'):
-            tmpl = Template(filename=root+"/templates/layer_templates/add_layer_1D_template.c")
+            tmpl = Template(filename=root+f"/templates_{backend}/layer_templates/add_layer_1D_template.c")
         else:
-            tmpl = Template(filename=root+"/templates/layer_templates/add_layer_template.c")
+            tmpl = Template(filename=root+f"/templates_{backend}/layer_templates/add_layer_template.c")
     s = tmpl.render(TEST=test,VERBOSE=False,ULTRA_VERBOSE=ultra_verbose,PULP_TEST=True,verbose_log=l,**tk)
     if 'L2' in test_location:
         save_string = './application/DORY_network/src/' + name_layer.replace("h", "c")
@@ -861,7 +902,7 @@ def print_template_layer(x, y_gold, W,
         save_string = './application/DORY_network/src/' + name_layer.replace("h", "c")
     with open(save_string, "w") as f:
         f.write(s)
-    tmpl = Template(filename=root+"/templates/layer_templates/layer_template_h.h")
+    tmpl = Template(filename=root+f"/templates_{backend}/layer_templates/layer_template_h.h")
     s = tmpl.render(
         TEST=test,
         VERBOSE=False,
@@ -891,7 +932,7 @@ def print_template_layer(x, y_gold, W,
         tk['h_out'] = tk['y_h']
         tk['ultra_test'] = True
         root = '/'.join(os.getcwd().split('/')[:-1])
-        tmpl = Template(filename=root+"/templates/test_templateL2.c")
+        tmpl = Template(filename=root+f"/templates_{backend}/test_templateL2.c")
         s = tmpl.render(
             TEST=test,
             VERBOSE=False,
@@ -904,7 +945,7 @@ def print_template_layer(x, y_gold, W,
             f.write(s)
         tk['build_layers'] = os.listdir('./application/DORY_network/src/') 
         tk['platform'] = 'GAP8'
-        tmpl = Template(filename=root+"/templates/Makefile_template_L2")
+        tmpl = Template(filename=root+f"/templates_{backend}/Makefile_template_L2")
         s = tmpl.render(**tk)
         save_string = './application/Makefile'
         with open(save_string, "w") as f:
