@@ -123,6 +123,10 @@ class NEMO_onnx(ONNX_management):
                     if isinstance(const, str):
                         const = self.search_constant(node_iterating.input[0], self.model)
                     assert (not(isinstance(const, str))), f"Error in searching Inmul1"
+                    try:
+                        const = const[0]
+                    except:
+                        pass
                     inmul1 = const
                 elif node_iterating.op_type == 'Add' and i < blocks_to_search and first_node_found == 1:
                     pulp_node = self.create_node(pulp.node_element(), 0, node_iterating, self.model)
@@ -157,7 +161,11 @@ class NEMO_onnx(ONNX_management):
                     const = self.search_constant(node_iterating.input[1], self.model)
                     if isinstance(const, str):
                         const = self.search_constant(node_iterating.input[0], self.model)
-                    assert (not(isinstance(const, str))), f"Error in searching Inmul1"
+                    assert (not(isinstance(const, str))), f"Error in searching Inmul2"
+                    try:
+                        const = const[0]
+                    except:
+                        pass
                     inmul2 = const
                     pulp_node.add_parameter('input_index_add', inp[0])
                     pulp_node.add_parameter('inmul2', const)
