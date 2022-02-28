@@ -699,7 +699,8 @@ def print_template_layer(x, y_gold, W,
     tk['y_tile_size_h'] = tile_h_out if (h_out > tile_h_out) > 0 else h_out
     tk['y_tile_size_w'] = tile_w_out if (w_out > tile_w_out) > 0 else w_out
     tk['y_tile_size_byte'] = int(math.ceil(tk['y_tile_size_nof'] * tk['y_tile_size_h'] * tk['y_tile_size_w'] * ds_y / 8.0))
-    tk['y_tile_size_byte'] = tk['y_tile_size_byte'] + (tk['y_tile_size_byte'] % 8)
+    if backend == 'Occamy':
+    	tk['y_tile_size_byte'] = tk['y_tile_size_byte'] + (tk['y_tile_size_byte'] % 8)
     tk['y_stride_w_byte'] = int(math.ceil(w_out * n_out * factor_ch_out * ds_y / 8.0))
     tk['y_stride_c_byte'] = int(math.ceil(n_out * factor_ch_out * ds_y / 8.0))
     tk['y_tile_size_nof_byte'] = int(math.ceil(tile_n_out * ds_y / 8.0))
@@ -726,7 +727,8 @@ def print_template_layer(x, y_gold, W,
         tk['W_tile_size_nif'] = 1
         tk['W_tile_size_nif_last'] = 1
     tk['W_tile_size_byte'] = int(math.ceil(tile_n_out * tk['W_tile_size_nif'] * fs1 * fs2 * ds_W / 8.0))
-    tk['W_tile_size_byte'] = tk['W_tile_size_byte'] + (tk['W_tile_size_byte'] % 8)
+    if backend == 'Occamy':
+    	tk['W_tile_size_byte'] = tk['W_tile_size_byte'] + (tk['W_tile_size_byte'] % 8)
     if DW == 0:
         tk['W_stride_nof_byte'] = int(math.ceil(tk['nif'] * fs1 * fs2 * ds_W / 8.0))
     else:
@@ -757,22 +759,28 @@ def print_template_layer(x, y_gold, W,
             x_buffer_size = x_buffer_size + (x_buffer_size % 16)
     if n_in == (tile_n_in * number_of_clusters) and w_in == tile_w_in and h_in == tile_h_in and n_out == (tile_n_out * number_of_clusters):
         y_buffer_size = int(math.ceil(ds_y * tk['y_tile_size_nof'] * tk['y_tile_size_h'] * tk['y_tile_size_w'] / 8.0))
-        y_buffer_size = y_buffer_size + (y_buffer_size % 8)
+        if backend == 'Occamy':
+            y_buffer_size = y_buffer_size + (y_buffer_size % 8)
         if DW == 0:
             W_buffer_size = int(math.ceil(ds_W * tk['y_tile_size_nof']  * tk['W_tile_size_nif'] * fs1 * fs2 / 8.0))
-            W_buffer_size = W_buffer_size + (W_buffer_size % 8)
+            if backend == 'Occamy':
+                W_buffer_size = W_buffer_size + (W_buffer_size % 8)
         else:
             W_buffer_size = int(math.ceil(ds_W * tk['y_tile_size_nof']  * 1 * fs1 * fs2 / 8.0))
-            W_buffer_size = W_buffer_size + (W_buffer_size % 8)
+            if backend == 'Occamy':
+                W_buffer_size = W_buffer_size + (W_buffer_size % 8)
     else:
         y_buffer_size = 2 * int(math.ceil(ds_y * tk['y_tile_size_nof'] * tk['y_tile_size_h'] * tk['y_tile_size_w'] / 8.0))
-        y_buffer_size = y_buffer_size + (y_buffer_size % 16)
+        if backend == 'Occamy':
+            y_buffer_size = y_buffer_size + (y_buffer_size % 16)
         if DW == 0:
             W_buffer_size = 2 * int(math.ceil(ds_W * tk['y_tile_size_nof'] * tk['W_tile_size_nif'] * fs1 * fs2 / 8.0))
-            W_buffer_size = W_buffer_size + (W_buffer_size % 16)
+            if backend == 'Occamy':
+                W_buffer_size = W_buffer_size + (W_buffer_size % 16)
         else:
             W_buffer_size = 2 * int(math.ceil(ds_W * tk['y_tile_size_nof'] * 1 * fs1 * fs2 / 8.0))
-            W_buffer_size = W_buffer_size + (W_buffer_size % 16)
+            if backend == 'Occamy':
+                W_buffer_size = W_buffer_size + (W_buffer_size % 16)
     if tk['FLAG_BATCHNORM'] == 1:
         k_buffer_size = int(n_out * ds_act / 8.0)
         lambd_buffer_size = int(n_out * ds_act / 8.0)
@@ -789,9 +797,11 @@ def print_template_layer(x, y_gold, W,
             tk['k_size_byte'] = k_buffer_size
             tk['lambda_size_byte'] = k_buffer_size
             tk['k_tile_size_byte_transfer'] = int(math.ceil(tile_n_out * ds_act / 8.0))
-            tk['k_tile_size_byte_transfer'] = tk['k_tile_size_byte_transfer'] + (tk['k_tile_size_byte_transfer'] % 8)
+            if backend == 'Occamy':
+                tk['k_tile_size_byte_transfer'] = tk['k_tile_size_byte_transfer'] + (tk['k_tile_size_byte_transfer'] % 8)
             tk['lambda_tile_size_byte_transfer'] = int(math.ceil(tile_n_out * ds_act / 8.0))
-            tk['lambda_tile_size_byte_transfer'] = tk['lambda_tile_size_byte_transfer'] + (tk['lambda_tile_size_byte_transfer'] % 8)
+            if backend == 'Occamy':
+                tk['lambda_tile_size_byte_transfer'] = tk['lambda_tile_size_byte_transfer'] + (tk['lambda_tile_size_byte_transfer'] % 8)
             if n_in == tile_n_in and w_in == tile_w_in and h_in == tile_h_in and n_out == tile_n_out:
                 tk['k_tile_size_byte'] = int(math.ceil(tile_n_out * ds_act / 8.0))
                 tk['lambda_tile_size_byte'] = int(math.ceil(tile_n_out * ds_act / 8.0))
