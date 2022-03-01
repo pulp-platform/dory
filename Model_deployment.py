@@ -236,7 +236,7 @@ class Model_deployment():
                 out_dim2_old = in_dim2
             if(factor_h_out > 1):
                 out_dim2 = l2_buffer_size - weight_overhead - out_dim2_old - weights_dim
-            out_dim2_old = out_dim2
+            out_dim2_old = int(out_dim2*BitOut/8)
             while weights_dim % 4 != 0:
                 weights_dim += 1
             if(weight_overhead == int(l2_buffer_size/2)):
@@ -275,7 +275,10 @@ class Model_deployment():
             else:
                 PULP_Nodes_Graph[i].weights_dimension_L3 = PULP_Nodes_Graph[i-1].weights_dimension_L3
             PULP_Nodes_Graph[i].input_activation_dimensions = int(in_dim2*BitIn/8)
-            PULP_Nodes_Graph[i].output_activation_dimensions = int(out_dim2*BitOut/8)
+            if(factor_h_out > 1):
+                PULP_Nodes_Graph[i].output_activation_dimensions = int(out_dim2)
+            else:
+                PULP_Nodes_Graph[i].output_activation_dimensions = int(out_dim2*BitOut/8)
             if(i > 0):
                 if(PULP_Nodes_Graph[i].input_activation_dimensions != PULP_Nodes_Graph[i-1].output_activation_dimensions) and PULP_Nodes_Graph[i-1].L3_output==1:
                     PULP_Nodes_Graph[i].input_activation_dimensions = PULP_Nodes_Graph[i-1].output_activation_dimensions

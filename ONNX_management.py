@@ -299,7 +299,7 @@ class ONNX_management():
         for i, nodes in enumerate(self.PULP_Nodes_Graph):
             if nodes.get_parameter('input_activation_bits') != 8 or nodes.get_parameter('out_activation_bits') != 8 or nodes.get_parameter('weight_bits') != 8:
                 multiple = 8/min(nodes.get_parameter('input_activation_bits'), nodes.get_parameter('out_activation_bits'), nodes.get_parameter('weight_bits'))
-                if nodes.get_parameter('ch_in')%multiple !=0 or nodes.get_parameter('ch_out')%multiple !=0:
+                if (nodes.get_parameter('ch_in')*nodes.get_parameter('group'))%multiple !=0 or nodes.get_parameter('ch_out')%multiple !=0:
                     sys.exit("ERROR 01. Channels of a layer not multiple of 2 (int4 precision layers) or 4 (int2 precision layers). Exiting...")
 
     def update_branches_graph(self):
