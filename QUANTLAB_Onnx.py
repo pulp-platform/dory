@@ -41,7 +41,7 @@ class Quantlab_onnx(ONNX_management):
         layers_accepted = ['Conv', 'Pad', 'Mul', 'Add', 'Div', 'Constant', 'AveragePool', 'GlobalAveragePool', 'MaxPool', 'Cast', 'Clip', 'Floor', 'Flatten', 'Gemm', 'MatMul', 'Shape', 'Gather', 'Unsqueeze', 'Concat', 'Reshape', 'Sigmoid', 'LogSoftmax']
         layers_neglected = ['Cast', 'Floor', 'Flatten', 'Shape', 'Gather', 'Unsqueeze', 'Concat', 'Reshape', 'Sigmoid', 'LogSoftmax']
         layers_to_node = ['AveragePool', 'MaxPool', 'Conv', 'Gemm', 'MatMul', 'GlobalAveragePool']
-        backend = ['ConvBNRelu', 'ConvRelu', 'ConvDWBNRelu', 'ConvDWRelu', 'AveragePool', 'GlobalAveragePool', 'MaxPool', 'LinearBNRelu', 'GemmRelu', 'Gemm', 'QAddRelu']
+        backend = ['ConvBNRelu', 'ConvRelu', 'ConvDWBNRelu', 'ConvDWRelu', 'AveragePool', 'GlobalAveragePool', 'MaxPool', 'LinearBNRelu', 'GemmRelu', 'Gemm', 'Add', 'QAddRelu']
         rules = {}
         rules['Relu'] = 'Mul-Div-Floor-Clip'
         rules['BNRelu'] = 'Mul-Add-Div-Floor-Clip'

@@ -444,7 +444,7 @@ int network_setup()
   rdDone = 0;
   int flashBuffSize = FLASH_BUFF_SIZE * sizeof(char);
   // loop on chunk in file
-  while(rdDone < (${int(PULP_Nodes_Graph[0].input_activation_dimensions * PULP_Nodes_Graph[0].input_activation_bits / 8.0)} / sizeof(char))) 
+  while(rdDone < (${int(PULP_Nodes_Graph[0].input_activation_dimensions)} / sizeof(char))) 
   { 
     // read from HyperFlash
     int size = pi_fs_read(file, flashBuffer, flashBuffSize);

@@ -42,7 +42,7 @@ class NEMO_onnx(ONNX_management):
         layers_accepted = ['Conv', 'Pad', 'Mul', 'Add', 'Div', 'Constant', 'AveragePool', 'GlobalAveragePool', 'MaxPool', 'Cast', 'Clip', 'Floor', 'Flatten', 'Gemm', 'MatMul', 'Shape', 'Gather', 'Unsqueeze', 'Concat', 'Reshape', 'Sigmoid', 'LogSoftmax']
         layers_neglected = ['Cast', 'Flatten', 'Shape', 'Gather', 'Unsqueeze', 'Concat', 'Reshape', 'Sigmoid', 'LogSoftmax', 'Clip']
         layers_to_node = ['AveragePool', 'MaxPool', 'Conv', 'Gemm', 'MatMul', 'GlobalAveragePool']
-        backend = ['ConvBNRelu', 'ConvRelu', 'ConvDWBNRelu', 'ConvDWRelu', 'AveragePool', 'GlobalAveragePool', 'MaxPool', 'MatMulBNRelu', 'GemmRelu', 'Gemm', 'QAddRelu',\
+        backend = ['ConvBNRelu', 'ConvRelu', 'ConvDWBNRelu', 'ConvDWRelu', 'AveragePool', 'GlobalAveragePool', 'MaxPool', 'MatMulBNRelu', 'GemmRelu', 'Gemm', 'Add','QAddRelu',\
         'PadConvBNRelu', 'PadConvDWBNRelu', 'PadAveragePool', 'PadGlobalAveragePool', 'PadMaxPool', 'PadMatMulBNRelu', 'PadGemmRelu', 'PadGemm', 'PadQAddRelu',\
         'PadPadConvBNRelu', 'PadPadConvDWBNRelu', 'PadPadAveragePool', 'PadPadGlobalAveragePool', 'PadPadMaxPool', 'PadPadMatMulBNRelu', 'PadPadGemmRelu', 'PadPadGemm', 'PadPadQAddRelu']
         rules = {}

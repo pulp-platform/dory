@@ -32,8 +32,10 @@ class node_element():
         self.input_dim = 'Not-initialized' # H x W
         self.output_dim = 'Not-initialized' # H x W
         self.pads    = 'Not-initialized' # Top, Left, Bottom, Right
-        self.branch_out = 'Not-initialized'
-        self.branch_in = 'Not-initialized'
+        self.branch_out = 0
+        self.branch_in = 0
+        self.branch_change = 0
+        self.branch_last = 0
         self.input_activation_dimensions_L3 = 0
         self.output_activation_dimensions_L3 = 0
         self.inmul1 = 'empty'
@@ -41,6 +43,7 @@ class node_element():
         self.weight_bits = 8
         self.out_activation_bits = 8
         self.input_activation_bits = 8
+        self.outshift = 0
 
     def log_parameters(self):
         for parameter in self.__dict__:

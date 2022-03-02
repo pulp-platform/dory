@@ -174,8 +174,6 @@ class Model_deployment():
             ###### TO MODIFY ########
             if 'Relu' not in nodes_to_deploy.name:
                 nodes_to_deploy.outmul = 1
-                if 'Add' not in nodes_to_deploy.name:
-                    nodes_to_deploy.outshift = 1
             if 'bias' in nodes_to_deploy.__dict__:
                 h_b = 1
             else:

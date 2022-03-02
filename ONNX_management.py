@@ -51,10 +51,6 @@ class ONNX_management():
         # Allocation of a Node, Convolution, Pooling or Linear
         new_parameters = {}
         new_parameters['input_index'] = [input_i for input_i in node_iterating.input if 'weight' not in input_i][0]
-        new_parameters['branch_in'] = 0
-        new_parameters['branch_out'] = 0
-        new_parameters['branch_change'] = 0
-        new_parameters['branch_last'] = 0
         if 'Add' == node_iterating.op_type:
             new_parameters['input_index_add'] = [input_i for input_i in node_iterating.input if 'weight' not in input_i][1]
             new_parameters['branch_in'] = 1
@@ -336,6 +332,12 @@ class ONNX_management():
                     if node_two.output_index == input2_add:
                         node_two.add_parameter('branch_last', 1)  
 
+    def check_graph(self):
+        # Logging function to report exported graph of PULP
+        for node in self.PULP_Nodes_Graph:
+            if node.name not in self.backend:
+                sys.exit("ERROR 02. Node inside the graph not supported by the backend. Exiting...")
+
     def onnx_to_PULP(self):
         # Load all parameters from the onnx model.
         first_node = 1
@@ -370,6 +372,7 @@ class ONNX_management():
         self.update_precisions_graph()
         self.update_branches_graph()
         self.print_PULP_graph("PULP_Final_Graph")
+        self.check_graph()
         return self.PULP_Nodes_Graph
 
     

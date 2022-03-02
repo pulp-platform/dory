@@ -151,8 +151,8 @@ void ${func_name}(
 % endif
 % if FLAG_RELU == 1:
   uint16_t out_mult = out_mult_in;
-  uint16_t out_shift = out_shift_in;
 % endif
+  uint16_t out_shift = out_shift_in;
 
   ////////////////////////////
   // First tile transfering //
@@ -407,9 +407,11 @@ void ${func_name}(
   % if 'Gemm' in func_name or 'MatMul' in func_name:
       x, W, x_tile_size_nif_exec, y_tile_size_nof, 0, 0, 
       % if '_last' in func_name:
-      1, 1,
+      0, 1,
       % elif FLAG_RELU == 1:
       out_shift, out_mult,
+      % else:
+      out_shift, 1
       % endif
       % if '_last' in func_name:
       0, 0,
@@ -435,10 +437,11 @@ void ${func_name}(
       NULL,
       % endif
       ${has_bias},
+      out_shift,
       % if FLAG_RELU == 1:
-      out_shift, out_mult,
+      out_mult,
       % else:
-      0, 0,
+      0,
       % endif
       y, y_tile_size_w, y_tile_size_h,
       % if FLAG_BATCHNORM == 1:
