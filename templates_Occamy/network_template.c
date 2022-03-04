@@ -370,14 +370,6 @@ void network_run()
 % endfor
     }
     snrt_global_barrier();
-% if 'Yes' in performance:
-    int MACs = NODEs_MACS[i];
-    if (snrt_cluster_compute_core_idx() == 0 && snrt_cluster_idx() == 0)
-    {
-      printf("[%d] Layer %-3d end: MACs: %-11d,",snrt_cluster_compute_core_idx(), i, MACs); 
-      printf(" MACs: %-11d,",MACs );  
-    }
-% endif
 
 % if verbose_level == 'Check_all+Perf_final':
 #ifdef VERBOSE

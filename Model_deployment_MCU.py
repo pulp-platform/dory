@@ -35,21 +35,24 @@ class Model_deployment_MCU(Model_deployment):
         Model_deployment.__init__(self, platform, chip)
 
 
-    def copy_backend(self, BitActivation, PULP_Nodes_Graph, number_of_deployed_layers, sdk, backend, dma_parallelization):
+    def copy_backend(self, BitActivation, PULP_Nodes_Graph, number_of_deployed_layers, sdk, backend, dma_parallelization, optional):
         layer_mixed_list = []
         ####################################################################################
         ###### SECTION 1: BACKEND FILE SELECTING. SELECTING CORRECT KERNELS TO IMPORT ######
         ####################################################################################
-        optional = '8bits'
-        for node in PULP_Nodes_Graph:
-            if 'Conv' in node.get_parameter('name'):
-                ### NOT WORKING IF NO ANNOTATION IS PRESENT IN THE GRAPH: E.G. FOR NEMO
-                if node.get_parameter('out_activation_bits') < 8 or node.get_parameter('input_activation_bits') < 8 or node.get_parameter('weight_bits') < 8:
-                    optional = 'mixed-sw'
-                ### Should be 3 in case of 1D convolution: each dimension is equal to 1
-                h_dimension = node.get_parameter('kernel_shape')[0] + node.get_parameter('input_dim')[0] + node.get_parameter('output_dim')[0]
-                if h_dimension == 3:
-                    optional += '1DConv'
+        if optional == 'auto':
+            optional = '8bits'
+            for node in PULP_Nodes_Graph:
+                if 'Conv' in node.get_parameter('name'):
+                    ### NOT WORKING IF NO ANNOTATION IS PRESENT IN THE GRAPH: E.G. FOR NEMO
+                    if node.get_parameter('out_activation_bits') < 8 or node.get_parameter('input_activation_bits') < 8 or node.get_parameter('weight_bits') < 8:
+                        optional = 'mixed-sw'
+                    ### Should be 3 in case of 1D convolution: each dimension is equal to 1
+                    h_dimension = node.get_parameter('kernel_shape')[0] + node.get_parameter('input_dim')[0] + node.get_parameter('output_dim')[0]
+                    if h_dimension == 3:
+                        optional += '1DConv'
+        else:
+            pass
         if 'mixed-sw' in optional:
             for i, nodes_to_deploy in enumerate(PULP_Nodes_Graph[:number_of_deployed_layers]):
                 BitIn = PULP_Nodes_Graph[i].input_activation_bits

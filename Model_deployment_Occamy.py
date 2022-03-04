@@ -57,7 +57,7 @@ class Model_deployment_Occamy(Model_deployment):
     def __init__(self, platform, chip):
         Model_deployment.__init__(self, platform, chip)
 
-    def copy_backend(self, BitActivation, PULP_Nodes_Graph, number_of_deployed_layers, sdk, backend, dma_parallelization):
+    def copy_backend(self, BitActivation, PULP_Nodes_Graph, number_of_deployed_layers, sdk, backend, dma_parallelization, optional):
         layer_mixed_list = []
         ####################################################################################
         ###### SECTION 1: BACKEND FILE SELECTING. SELECTING CORRECT KERNELS TO IMPORT ######

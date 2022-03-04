@@ -1147,7 +1147,7 @@ class Tiling():
             buffer_total+= weight_full_prec_dim
         if BN == 0:
             buffer_total -= bn_dim   
-        # return immediatly if the memory fits the L1   
+        # return immediatly if the memory fits the L1  
         if buffer_total <= self.buffer_size * 8:
             if fs2 == h_in and h_out == 1:
                 h_in = h_in - padding_bottom

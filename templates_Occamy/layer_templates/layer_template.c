@@ -549,11 +549,10 @@ void ${func_name}(layer* layer_i)
       kernel_i.bias = NULL;
 % endif
       kernel_i.bias_shift = ${has_bias};
-% if FLAG_RELU == 1:
       kernel_i.out_shift = layer_i->out_shift;
+% if FLAG_RELU == 1:
       kernel_i.out_mult = layer_i->out_mult;
 % else:
-      kernel_i.out_shift = 0;
       kernel_i.out_mult = 0;
 % endif
       kernel_i.pOutBuffer = (${type} *) (l1_buffer + (${l1_y_offset} + db_y));

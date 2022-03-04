@@ -40,7 +40,7 @@ class Model_deployment():
     def copy_files(self, optional, layer_mixed_list,version, sdk, backend, dma_parallelization):
         print("The function copy_files should be implemented in the target Backend. Exiting ...")
 
-    def copy_backend(self, BitActivation, PULP_Nodes_Graph, number_of_deployed_layers, sdk, backend, dma_parallelization):
+    def copy_backend(self, BitActivation, PULP_Nodes_Graph, number_of_deployed_layers, sdk, backend, dma_parallelization, optional):
         print("The function copy_backend should be implemented in the target Backend. Exiting ...")
         exit(0)
 
@@ -59,6 +59,7 @@ class Model_deployment():
                             backend,
                             dma_parallelization,
                             number_of_clusters,
+                            optional,
                             type_data = 'float'):
         ####################################################################################
         ###### SECTION 3: PARSING OF EACH LAYER INDEPENDENT. TILING + LAYER CREATION  ######
@@ -74,10 +75,13 @@ class Model_deployment():
         Layers_L3_weights = 0
         L2_memory_occupation = 0
         factor_h_out = 1
-        optional = '8bit'
-        for i, nodes_to_deploy in enumerate(PULP_Nodes_Graph[:number_of_deployed_layers]):
-            if nodes_to_deploy.get_parameter('out_activation_bits') < 8 or nodes_to_deploy.get_parameter('input_activation_bits') < 8 or nodes_to_deploy.get_parameter('weight_bits') < 8:
-                optional = 'mixed-sw'
+        if optional == 'auto':
+            optional = '8bit'
+            for i, nodes_to_deploy in enumerate(PULP_Nodes_Graph[:number_of_deployed_layers]):
+                if nodes_to_deploy.get_parameter('out_activation_bits') < 8 or nodes_to_deploy.get_parameter('input_activation_bits') < 8 or nodes_to_deploy.get_parameter('weight_bits') < 8:
+                    optional = 'mixed-sw'
+        else:
+            pass
         for i, nodes_to_deploy in enumerate(PULP_Nodes_Graph[:number_of_deployed_layers]):
             if('Conv' in nodes_to_deploy.name or 'Gemm' in nodes_to_deploy.name or 'MatMul' in nodes_to_deploy.name):
                 layer = 'Conv'
@@ -161,7 +165,7 @@ class Model_deployment():
                 input_dim_constraint = out_dim2
                 output_weights_dim_constraint = l2_buffer_size - weight_overhead - out_dim2_old
                 if(output_weights_dim_constraint < 0):
-                    print("Problems with current implementation on L3 tiling. Prediction of weights of next layer not accurate. Exiting...")
+                    print("ERROR 03. Problems with current implementation on L3 tiling. Prediction of weights of next layer not accurate. Exiting...")
                     os._exit(0)
             else:
                 input_L3 = 0
@@ -365,10 +369,11 @@ class Model_deployment():
                             backend='MCU', 
                             dma_parallelization='8-cores',
                             number_of_clusters = 1,
+                            optional = 'auto',
                             type_data = 'char'):
         # Function used to create all the files for the application
         # copy backend is used to copy all the files of the backend
-        self.copy_backend(BitActivation, PULP_Nodes_Graph, number_of_deployed_layers, sdk, backend, dma_parallelization)
+        self.copy_backend(BitActivation, PULP_Nodes_Graph, number_of_deployed_layers, sdk, backend, dma_parallelization, optional)
         # create L3 files for weights. These files are .hex which are copied in hyperflash then
         PULP_Nodes_Graph, weights_files_list, weights_to_write = self.create_weights_files(PULP_Nodes_Graph, number_of_deployed_layers, BitActivation, load_dir)
         fileh = logging.FileHandler('logs/Tiling_profiling.log', 'a')
@@ -391,6 +396,7 @@ class Model_deployment():
             backend,
             dma_parallelization,
             number_of_clusters,
+            optional,
             type_data = type_data)
 
         logging.debug("  ")

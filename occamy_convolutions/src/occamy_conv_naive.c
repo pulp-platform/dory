@@ -68,6 +68,16 @@ void __attribute__ ((noinline)) occamy_conv_naive(
 
 	      if (kernel_i->flag_relu == 1 && kernel_i->flag_batch_norm == 1 && kernel_i->flag_y_accumulate_end == 1)
 	        kernel_i->pOutBuffer[output_index] = pulp_nn_bn_quant(kernel_i->pOutBuffer[output_index], *kernel_i->k, *kernel_i->lambda, out_shit_2);
+	      else if (kernel_i->flag_y_accumulate_end == 1)
+	      {
+	      	double x = (kernel_i->pOutBuffer[output_index] / out_shit_2);
+			if (x < 0)
+			  kernel_i->pOutBuffer[output_index] = 0;
+			else if (x > 255)
+			  kernel_i->pOutBuffer[output_index] = 255;
+			else
+			  kernel_i->pOutBuffer[output_index] = (int) x;
+	      }
 	      if (kernel_i->flag_relu == 1 && kernel_i->flag_batch_norm == 1)
 	      {
 	        kernel_i->k++; kernel_i->lambda++;
@@ -78,3 +88,4 @@ void __attribute__ ((noinline)) occamy_conv_naive(
   }
   snrt_cluster_hw_barrier();
 }
+
