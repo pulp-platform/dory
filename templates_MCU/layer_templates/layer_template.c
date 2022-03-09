@@ -391,8 +391,10 @@ void ${func_name}(
     pulp_nn_conv_u${x_data_size_byte}_u${y_data_size_byte}_i${W_data_size_byte}(
   % elif flag_DW == 0 and 'mixed-hw' in optional_type  and ('Conv' in func_name):
     xpulp_nn_conv_u${x_data_size_byte}_u${y_data_size_byte}_i${W_data_size_byte}(
-  % elif flag_DW == 0 and 'mixed' in optional_type  and ('Gemm' in func_name or 'MatMul' in func_name):
+  % elif flag_DW == 0 and 'mixed' in optional_type  and ('Gemm' in func_name or 'MatMul' in func_name) and y_data_size_byte == 32:
     pulp_nn_linear_u${x_data_size_byte}_i${y_data_size_byte}_i${W_data_size_byte}(
+  % elif flag_DW == 0 and 'mixed' in optional_type  and ('Gemm' in func_name or 'MatMul' in func_name):
+    pulp_nn_linear_u${x_data_size_byte}_u${y_data_size_byte}_i${W_data_size_byte}(
   % elif flag_DW == 1 and optional_type == '8bit' and fs1 == 3 and fs2 == 3 and stride==1:
     pulp_nn_depthwise_generic(
   % elif flag_DW == 1 and optional_type == '8bit' and fs1*fs2 < 4:
@@ -411,7 +413,7 @@ void ${func_name}(
       % elif FLAG_RELU == 1:
       out_shift, out_mult,
       % else:
-      out_shift, 1
+      out_shift, 1,
       % endif
       % if '_last' in func_name:
       0, 0,
