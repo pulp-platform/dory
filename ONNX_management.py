@@ -336,7 +336,7 @@ class ONNX_management():
         # Logging function to report exported graph of PULP
         for node in self.PULP_Nodes_Graph:
             if node.name not in self.backend:
-                sys.exit("ERROR 02. Node inside the graph not supported by the backend. Exiting...")
+                sys.exit(f"ERROR 02. Node {node.name} inside the graph not supported by the backend. Exiting...")
 
     def onnx_to_PULP(self):
         # Load all parameters from the onnx model.

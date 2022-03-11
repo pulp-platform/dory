@@ -1242,7 +1242,7 @@ class Tiling():
                 constr_weight = db * ds_W_scale * tile_n_in * tile_n_out * fs1 * fs2
             constr_im2col = 32 * 8 * 2 * 8 * fs1 * fs2 * tile_n_in
         else:
-            constr_weight = db * ds_W_scale * n_in * fs1 * fs2
+            constr_weight = db * ds_W_scale * tile_n_in * fs1 * fs2
             constr_im2col = 32 * 8 * 8 * ( fs1 * (tile_h_in + padding_top + padding_bottom) + fs1) * int( 8 / min(self.BitIn, self.BitOut, self.BitW))
             constr_weight_full_prec = db * 32 * 8 * 8 * fs1 * fs2 * int( 8 / min(self.BitIn, self.BitOut, self.BitW))
             if self.BitW==8:
