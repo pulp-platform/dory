@@ -299,7 +299,7 @@ class Model_deployment():
         ###### SECTION 4: GENERATE CHECKSUM BY USING WEIGHT AND OUT_LAYER{i}.TXT FILES  ######
         ######################################################################################        
         try:
-            x_in = pd.read_csv(load_dir + 'input.txt')
+            x_in = pd.read_csv(os.path.join(load_dir, 'input.txt'))
             x_in = x_in.values[:, 0].astype(int)
         except:
             x_in = torch.Tensor(1, PULP_Nodes_Graph[0].group, PULP_Nodes_Graph[0].ch_in, PULP_Nodes_Graph[0].input_dim[0], PULP_Nodes_Graph[0].input_dim[1]).uniform_(0, (2**(9)))
@@ -311,7 +311,7 @@ class Model_deployment():
         PULP_Nodes_Graph[0].check_sum_in = sum(x_in)
         f_w = 0
         for f, nodes_to_deploy in enumerate(PULP_Nodes_Graph[:number_of_deployed_layers]):
-            X_in = pd.read_csv(load_dir + 'out_layer' + str(f) + '.txt')
+            X_in = pd.read_csv(os.path.join(load_dir, f'out_layer{f}.txt'))
             X_in = X_in.values[:, 0].astype(int)
             if f == len(PULP_Nodes_Graph[:number_of_deployed_layers]) - 1:
                 class_out = np.where(X_in == np.max(X_in))[0][0]
@@ -337,8 +337,8 @@ class Model_deployment():
             if f == len(PULP_Nodes_Graph) - 1:
                 if nodes_to_deploy.weight_bits == 8:
                     ww = np.asarray(nodes_to_deploy.weights).reshape(nodes_to_deploy.ch_out,nodes_to_deploy.ch_in).astype(np.int8).astype(int)
-                X_in = pd.read_csv(load_dir + 'out_layer' + str(f-1) + '.txt')
-                X_out = pd.read_csv(load_dir + 'out_layer' + str(f) + '.txt')
+                X_in = pd.read_csv(os.path.join(load_dir, f'out_layer{f-1}.txt'))
+                X_out = pd.read_csv(os.path.join(load_dir, f'out_layer{f}.txt'))
                 X_in = X_in.values[:, 0].astype(int).reshape(X_in.shape[0],1)
                 try:
                     PULP_Nodes_Graph[f].check_sum_out = sum(sum(np.matmul(ww,X_in)))
