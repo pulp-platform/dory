@@ -53,6 +53,9 @@ class Model_deployment_MCU(Model_deployment):
                     h_dimension = node.get_parameter('kernel_shape')[0] + node.get_parameter('input_dim')[0] + node.get_parameter('output_dim')[0]
                     if h_dimension == 3:
                         optional += '1DConv'
+            ####### 1D CONV MIXED KERNELS NOT PRESENT ######
+            if 'mixed-sw' in optional:
+                optional = 'mixed-sw'
         else:
             pass
         if 'mixed-sw' in optional:
