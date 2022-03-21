@@ -1,4 +1,4 @@
-# -*- coding: future_fstrings -*-     # should work even without -*-
+     # should work even without -*-
 # -*- coding: utf-8 -*-
 # Model_deployment.py
 # Alessio Burrello <alessio.burrello@unibo.it>

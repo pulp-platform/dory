@@ -1,4 +1,4 @@
-# -*- coding: future_fstrings -*-     # should work even without -*-
+     # should work even without -*-
 #
 # tiling.py
 # Alessio Burrello <alessio.burrello@unibo.it>

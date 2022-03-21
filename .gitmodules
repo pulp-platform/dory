@@ -1,3 +1,9 @@
 [submodule "dory_examples"]
 	path = dory_examples
 	url = https://github.com/pulp-platform/dory_examples
+[submodule "Backend_Kernels/pulp-nnx"]
+	path = Backend_Kernels/pulp-nnx
+	url = git@iis-git.ee.ethz.ch:fconti/pulp-nnx.git
+[submodule "Backend_Kernels/pulp-nn"]
+	path = Backend_Kernels/pulp-nn
+	url = https://github.com/pulp-platform/pulp-nn.git
