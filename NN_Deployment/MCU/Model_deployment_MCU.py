@@ -294,9 +294,10 @@ class Model_deployment_MCU(Model_deployment):
                     for l in weights.astype('uint8').flatten():
                         f.write(bytes((l,)))
         try:
-            x_in = pd.read_csv(load_dir + 'input.txt')
+            x_in = pd.read_csv(os.path.join(load_dir, 'input.txt'))
             x_in = x_in.values[:, 0].astype(int)
         except:
+            print(f"========= WARNING ==========\nInput file {os.path.join(load_dir, 'input.txt')} not found; generating random inputs!")
             x_in = torch.Tensor(1, PULP_Nodes_Graph[0].group, PULP_Nodes_Graph[0].ch_in, PULP_Nodes_Graph[0].input_dim[0], PULP_Nodes_Graph[0].input_dim[1]).uniform_(0, (2**(9)))
             x_in[x_in > (2**8 - 1)] = 0
             x_in = torch.round(x_in)
@@ -305,6 +306,7 @@ class Model_deployment_MCU(Model_deployment):
             x_in[i] = np.uint8(x_in[i])
         string_layer = "inputs.hex"
         save_s = './application/DORY_network/' + string_layer
+
         with open(save_s, 'wb') as f:
             for i in x_in.astype('uint8').flatten():
                 f.write(bytes((i,)))
