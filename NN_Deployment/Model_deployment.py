@@ -88,7 +88,7 @@ class Model_deployment():
                 layer = 'Conv'
                 if 'Conv' in nodes_to_deploy.name:
                     h_dimension = nodes_to_deploy.get_parameter('kernel_shape')[0] + nodes_to_deploy.get_parameter('input_dim')[0] + nodes_to_deploy.get_parameter('output_dim')[0]
-                    if h_dimension == 3:
+                    if h_dimension == 3 and 'mixed' not in optional:
                         layer = 'Conv1D'
                         optional = '1D_Conv'
             elif('Pool' in nodes_to_deploy.name):
@@ -335,7 +335,7 @@ class Model_deployment():
                 act_compare = Input_compressed
             PULP_Nodes_Graph[f].check_sum_out = sum(Input_compressed)
             if f == len(PULP_Nodes_Graph) - 1:
-                if nodes_to_deploy.weight_bits == 8:
+                if nodes_to_deploy.weight_bits == 8 and ('Gemm' in nodes_to_deploy.name or 'MatMul' in nodes_to_deploy.name):
                     ww = np.asarray(nodes_to_deploy.weights).reshape(nodes_to_deploy.ch_out,nodes_to_deploy.ch_in).astype(np.int8).astype(int)
                 X_in = pd.read_csv(os.path.join(load_dir, f'out_layer{f-1}.txt'))
                 X_out = pd.read_csv(os.path.join(load_dir, f'out_layer{f}.txt'))

@@ -131,10 +131,11 @@ class ONNX_management():
             if np.array(model.graph.input[0].type.tensor_type.shape.dim).shape[0] == 4: 
                 dim.append(model.graph.input[0].type.tensor_type.shape.dim[-2].dim_value)
                 dim.append(model.graph.input[0].type.tensor_type.shape.dim[-1].dim_value)
+                new_parameters['ch_in'] = model.graph.input[0].type.tensor_type.shape.dim[-3].dim_value
             elif np.array(model.graph.input[0].type.tensor_type.shape.dim).shape[0] == 3: 
                 dim.append(1)
                 dim.append(model.graph.input[0].type.tensor_type.shape.dim[-1].dim_value)
-            new_parameters['ch_in'] = model.graph.input[0].type.tensor_type.shape.dim[-3].dim_value
+                new_parameters['ch_in'] = model.graph.input[0].type.tensor_type.shape.dim[-2].dim_value
             new_parameters['input_dim'] = dim
         new_parameters['ch_in'] = int ( new_parameters['ch_in'] / new_parameters['group'] )
         new_parameters['name'] = node_iterating.op_type
