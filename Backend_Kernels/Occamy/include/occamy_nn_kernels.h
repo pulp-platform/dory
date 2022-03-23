@@ -139,11 +139,11 @@ void occamy_conv_naive(
 );
 
 void occamy_conv_naive_no_padding(
-  const float * pInBuffer,
+  const float *   pInBuffer,
   const uint16_t  dim_in_x,
   const uint16_t  dim_in_y,
   const uint16_t  ch_in,
-  const float *  pWeight,
+  const float *   pWeight,
   const uint16_t  ch_out,
   const uint16_t  dim_kernel_x,
   const uint16_t  dim_kernel_y,
@@ -157,17 +157,17 @@ void occamy_conv_naive_no_padding(
   const uint16_t  bias_shift,
   const uint16_t  out_shift,
   const uint16_t  out_mult,
-  float *       pOutBuffer,
+  float *         pOutBuffer,
   const uint16_t  dim_out_x,
   const uint16_t  dim_out_y,
-  float *       k,
-  float *       lambda,
+  float *         k,
+  float *         lambda,
   uint8_t *       pIm2ColBuffer,
   int             flag_relu,
   int             flag_batch_norm,
   int             flag_y_accumulate_start,
   int             flag_y_accumulate_end,
-  unsigned int * memory_chan
+  unsigned int *  memory_chan
 );
 void __attribute__ ((noinline)) occamy_pool_naive(
   kernel* k

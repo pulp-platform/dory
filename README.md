@@ -32,7 +32,7 @@ Layer tiling is depicted in Fig.1.
 
 Platform Supported
 ------------------
-The current platform supported is GAP8 v3. Future work will include the support of the latest version of OPEN-PULP and ARM processors.
+The current platforms supported are GAP8 and Occamy chip. 
 
 Limitations
 -----------
@@ -47,8 +47,41 @@ Supported layer types
 * Average Pooling (+ BatchNorm)
 * Add (+ BatchNorm + Relu) -- NOT FULLY TESTED
 * Linear Layer (+ BatchNorm + Relu)
-All layers are implemented in 8-bit integers.
 * Linear Layer 32 bits output -- final layer
+
+All layers are implemented in 8-bit integers.
+Each specific layer is read from the Frontend by searching from specific patterns in the .onnx graph.
+
+### Quantlab Frontend
+* Nodes that are accepted from DORY:
+
+*'Conv', 'Pad', 'Mul', 'Add', 'Div', 'Constant', 'AveragePool', 'GlobalAveragePool', 'MaxPool', 'Cast', 'Clip', 'Floor', 'Flatten', 'Gemm', 'MatMul', 'Shape', 'Gather', 'Unsqueeze', 'Concat', 'Reshape', 'Sigmoid', 'LogSoftmax'*
+
+* Nodes that are accepted and neglected by DORY (their functionality are included in the other nodes. E.g., the out of a conv is automatically flattened before a Fully-connected layer)
+ 
+*'Cast', 'Floor', 'Flatten', 'Shape', 'Gather', 'Unsqueeze', 'Concat', 'Reshape', 'Sigmoid', 'LogSoftmax'*
+
+* Nodes that are not merged and become individual nodes in DORY graph
+
+*'AveragePool', 'MaxPool', 'Conv', 'Gemm', 'MatMul', 'GlobalAveragePool', 'Add'*
+
+* Rules that DORY search in the graph
+
+*'Relu' = 'Mul-Div-Floor-Clip'*  
+*'BNRelu' = 'Mul-Add-Div-Floor-Clip'*  
+*'Pad' = 'Pad'*
+
+These nodes are searched as consecutive nodes in the onnx graph.  
+**BNRelu** and **Relu** are always merge to the previous node of the DORY graph.
+**Pad** is always merged to the subsequent node.
+
+Current Issues 
+--------------
+
+* Add topology: right now, there is no support for AddBNRelu with Quantlab Frontend.
+* The BNRelu block on a branch which is executed before an Add, should not be added to the previous node, but to the Add node. Currently, it is neglected.
+* Mixed-precision libraries: Not correctly working
+* 1D Mixed-precision networks: not supported. The 2D mixed-precision kernels are used.
 
 Topology tested
 ---------------

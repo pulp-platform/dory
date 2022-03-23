@@ -31,7 +31,7 @@ void __attribute__ ((noinline)) occamy_conv_naive(
 	float sum;
 	float * k_start;
 	float * lambda_start;
-	k_start = kernel_i->k;
+	k_start = kernel_i->kappa;
 	lambda_start = kernel_i->lambda;
 	float out_shit_2 = 2;
 	for (int z = 0; z < (kernel_i->out_shift-1); z++)
@@ -41,7 +41,7 @@ void __attribute__ ((noinline)) occamy_conv_naive(
 	{
 	  for (int j = 0; j < (kernel_i->dim_out_x); j++)
 	  {
-	    kernel_i->k = k_start;
+	    kernel_i->kappa = k_start;
 	    kernel_i->lambda = lambda_start;
 	    for (int i = 0; i < kernel_i->ch_out; i++)
 	    {
@@ -67,7 +67,7 @@ void __attribute__ ((noinline)) occamy_conv_naive(
 	        kernel_i->pOutBuffer[output_index] += sum;
 
 	      if (kernel_i->flag_relu == 1 && kernel_i->flag_batch_norm == 1 && kernel_i->flag_y_accumulate_end == 1)
-	        kernel_i->pOutBuffer[output_index] = pulp_nn_bn_quant(kernel_i->pOutBuffer[output_index], *kernel_i->k, *kernel_i->lambda, out_shit_2);
+	        kernel_i->pOutBuffer[output_index] = pulp_nn_bn_quant(kernel_i->pOutBuffer[output_index], *kernel_i->kappa, *kernel_i->lambda, out_shit_2);
 	      else if (kernel_i->flag_y_accumulate_end == 1)
 	      {
 	      	double x = (kernel_i->pOutBuffer[output_index] / out_shit_2);
@@ -80,7 +80,7 @@ void __attribute__ ((noinline)) occamy_conv_naive(
 	      }
 	      if (kernel_i->flag_relu == 1 && kernel_i->flag_batch_norm == 1)
 	      {
-	        kernel_i->k++; kernel_i->lambda++;
+	        kernel_i->kappa++; kernel_i->lambda++;
 	      }
 	    }
 	  }

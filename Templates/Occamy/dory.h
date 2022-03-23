@@ -58,7 +58,7 @@ typedef struct
   float *   pOutBuffer;
   uint16_t  dim_out_x;
   uint16_t  dim_out_y;
-  float *   k;
+  float *   kappa;
   float *   lambda;
   uint8_t * pIm2ColBuffer;
   int       flag_relu;

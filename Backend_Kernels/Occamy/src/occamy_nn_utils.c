@@ -38,3 +38,4 @@ float __attribute__((always_inline)) pulp_nn_bn_quant(
   	res = (int) x;
   return res;
 }
+uint32_t benchmark_get_cycle() { return read_csr(mcycle); }
