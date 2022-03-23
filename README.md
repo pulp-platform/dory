@@ -109,16 +109,13 @@ The following packages are needed:
 ### Input
 The framework receives as input:
 1. an ONNX quantized network generated with the Nemo tool. Refer to [nemo](https://github.com/pulp-platform/nemo) for Nemo framework installation and execution.
-
-Note that only a standard format 8-bit quantized produced by NEMO can be read; key features:
-1. Convolution, Pooling or Matmul/Gemm layers supported;
-2. Sequences of Mul-Add and Mul-Div recognized as Batch normalization and re-quantization;
-Note that other kinds of sequences are not supported (e.g. individual Mul operators).
+2. an ONNX quantized network generated with Quantlab tool.  
+Note that only a standard format 8-bit quantized produced by NEMO/Quantlab can be read given the specific nodes' sequences that are recognized by DORY;  
 Examples are given inside [DORY examples](https://github.com/pulp-platform/dory_examples)
 
 Installation
 ------------
-The execution of dory requires the following folders:
+The execution of DORY for 8-bits networks requires the following folders:
 1. dory: repository with the framework
 2. pulp-nn: repository with backend kernels developed for DORY flow execution
 
@@ -127,18 +124,6 @@ Execute the following commands to clone DORY and pulp-nn backend:
 git clone https://github.com/pulp-platform/dory
 git submodule update --init --recursive
 ```
-
-Execution
----------
-There are two functions to call to generate a network:
-1. extrapolating parameters from ONNX file: 
-
-	*ONNX_management(args).parameters_from_onnx(args)*
-2. starting from a custom graph, create the layers and network file to run on PULP
-
-	*model_deploy(args).print_model_network(args)*
-	
-By correctly running these 2 functions, an application folder is created with all the necessary files.
 
 Examples
 --------
