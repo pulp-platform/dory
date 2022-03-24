@@ -24,7 +24,7 @@ DORY abstracts tiling as a Constraint Programming~(CP) problem: it maximizes L1 
 Then, it generates ANSI C code to orchestrate off- and on-chip transfers and computation phases.
 Layer tiling is depicted in Fig.1.
 <p align="center">
-  <img src="Images/L3_L2_L1_layer_NEW.png" align="middle" width="1024">
+  <img src="images/L3_L2_L1_layer_NEW.png" align="middle" width="1024">
   <br>
   <em> Fig.1 DORY L3-L2-L1 layer routine example. On the left, the I/O DMA copies weights tile in case only Cy is L3-tiled. Two different buffers are used for L2w. Then, the Cluster DMA manages L2-L1 communication using double-buffering, while the cores compute a kernel on the current tile stored in one of the L1 buffers. </em>
 </p>
@@ -134,7 +134,7 @@ git submodule update --init --recursive
 ```
 The power profiling on a GAP8 v3 of a 1.0-MobilenetV1-128 is reported in Fig.2.
 <p align="center">
-  <img src="Images/network_power.PNG" align="middle" width="1024">
+  <img src="images/network_power.PNG" align="middle" width="1024">
   <br>
   <em> Fig.2 In the left part, the 1.0-MobileNet-128 power profile when running on GAP-8 @ fc cluster = 100 MHz and VDD = 1V. On the right, number of MAC operations, average power, and time for each layer of the network. Power was sampled at 64 KHz and then filtered with a moving average of 300 micro seconds. </em>
 </p>
