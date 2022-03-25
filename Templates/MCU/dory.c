@@ -3,7 +3,7 @@
  * Alessio Burrello <alessio.burrello@unibo.it>
  *
  * Copyright (C) 2019-2020 University of Bologna
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -14,10 +14,11 @@
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
- * limitations under the License. 
+ * limitations under the License.
  */
 
 #include "dory.h"
+#include "math.h"
 
 Transfer_Type current_transfer;
 /**
@@ -70,7 +71,7 @@ unsigned int dory_get_tile_1d(
  *      the pitch of the tiling grid in the inner dimension, i.e. the distance
  *      between two "ticks" in the j dimension.
  *  @param tile_stride_j
- *      the total size of the tiling grid in the inner dimension, i.e. the 
+ *      the total size of the tiling grid in the inner dimension, i.e. the
  *      number of ticks in the j dimension.
  *  @param data_size
  *      size of data in bytes
@@ -117,11 +118,11 @@ unsigned int  dory_get_tile_2d(
  *      the pitch of the tiling grid in the inner dimension, i.e. the distance
  *      between two "ticks" in the k dimension.
  *  @param tile_stride_j
- *      the total size of the tiling grid in the middle dimension, i.e. the 
+ *      the total size of the tiling grid in the middle dimension, i.e. the
  *      total number of ticks in the j dimension.
  *  @param tile_stride_k
- *      the total size of the tiling grid in the inner dimension, i.e. the 
- *      total number of ticks in the k dimension. 
+ *      the total size of the tiling grid in the inner dimension, i.e. the
+ *      total number of ticks in the k dimension.
  *  @param data_size
  *      size of data in bytes
  */
@@ -152,7 +153,7 @@ unsigned int  dory_get_tile_3d(
 
 #define MIN(a,b) ((a)<(b)?(a):(b))
 
-void __attribute__ ((noinline)) dory_dma_memcpy_async(DMA_copy DMA_copy_current) 
+void __attribute__ ((noinline)) dory_dma_memcpy_async(DMA_copy DMA_copy_current)
 {
 
   if ((DMA_copy_current.number_of_1d_copies == 1) && (DMA_copy_current.number_of_2d_copies == 1))
@@ -218,14 +219,14 @@ void __attribute__ ((noinline)) dory_dma_memcpy_async(DMA_copy DMA_copy_current)
       % endif
       DMA_copy_current.ext += DMA_copy_current.stride_2d*start_pixel;
       DMA_copy_current.loc += DMA_copy_current.length_1d_copy*DMA_copy_current.number_of_1d_copies*start_pixel;
-      for ( int j = start_pixel; j < stop_pixel; j++) 
+      for ( int j = start_pixel; j < stop_pixel; j++)
       {
         if (DMA_copy_current.length_1d_copy < DMA_copy_current.stride_1d)
         {
           for (int i = 0; i < DMA_copy_current.number_of_1d_copies; i++)
           {
             % if chip == 'GAP8v2':
-            // alloc channels with barrier after if we consider v2 chips, with DMA issue 
+            // alloc channels with barrier after if we consider v2 chips, with DMA issue
             int dma_evt = mchan_alloc();
             % endif
             #if (MCHAN_VERSION < 7)
@@ -248,8 +249,8 @@ void __attribute__ ((noinline)) dory_dma_memcpy_async(DMA_copy DMA_copy_current)
           mchan_transfer(DMA_copy_current.length_1d_copy * DMA_copy_current.number_of_1d_copies, DMA_copy_current.dir, 1, 0, 1, 0, 0, (unsigned int)(DMA_copy_current.ext), (unsigned int)(DMA_copy_current.loc), 0, 0);
           #elif (MCHAN_VERSION == 7)
           mchan_transfer(DMA_copy_current.length_1d_copy * DMA_copy_current.number_of_1d_copies, DMA_copy_current.dir, 1, 0, 0, 1, 0, 0, (unsigned int)(DMA_copy_current.ext), (unsigned int)(DMA_copy_current.loc), 0, 0, 0, 0);
-          #endif  
-          DMA_copy_current.loc += DMA_copy_current.length_1d_copy * DMA_copy_current.number_of_1d_copies;        
+          #endif
+          DMA_copy_current.loc += DMA_copy_current.length_1d_copy * DMA_copy_current.number_of_1d_copies;
           DMA_copy_current.ext = DMA_copy_current.ext + DMA_copy_current.stride_2d;
         }
       }
@@ -284,7 +285,7 @@ void __attribute__ ((noinline)) dory_dma_memcpy_async(DMA_copy DMA_copy_current)
       % endif
       DMA_copy_current.ext += start_pixel;
       DMA_copy_current.loc += DMA_copy_current.number_of_1d_copies*DMA_copy_current.number_of_2d_copies*start_pixel;
-      for ( int i=start_pixel; i<stop_pixel; i++) 
+      for ( int i=start_pixel; i<stop_pixel; i++)
       {
         #if (MCHAN_VERSION < 7)
         mchan_transfer(DMA_copy_current.number_of_1d_copies*DMA_copy_current.number_of_2d_copies, DMA_copy_current.dir, 1, 1, 1, 0, 0, (unsigned int)(DMA_copy_current.ext), (unsigned int)(DMA_copy_current.loc), 1, DMA_copy_current.stride_1d);
@@ -301,7 +302,7 @@ void __attribute__ ((noinline)) dory_dma_memcpy_async(DMA_copy DMA_copy_current)
   }
 }
 
-void __attribute__ ((noinline)) dory_dma_barrier(DMA_copy DMA_copy_current) 
+void __attribute__ ((noinline)) dory_dma_barrier(DMA_copy DMA_copy_current)
 {
 
   if ((DMA_copy_current.number_of_1d_copies == 1) && (DMA_copy_current.number_of_2d_copies == 1))
@@ -332,18 +333,18 @@ void __attribute__ ((noinline)) dory_dma_barrier(DMA_copy DMA_copy_current)
   }
 }
 
-uint32_t __attribute__ ((noinline)) dory_dma_allocate() 
+uint32_t __attribute__ ((noinline)) dory_dma_allocate()
 {
   uint32_t dma_channel = mchan_alloc();
   return dma_channel;
 }
 
-void __attribute__ ((noinline)) dory_dma_deallocate(uint32_t dma_channel) 
+void __attribute__ ((noinline)) dory_dma_deallocate(uint32_t dma_channel)
 {
   mchan_free(dma_channel);
 }
 
-void __attribute__ ((noinline)) dory_cores_barrier() 
+void __attribute__ ((noinline)) dory_cores_barrier()
 {
   pi_cl_team_barrier(0);
 }
