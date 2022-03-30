@@ -227,7 +227,9 @@ void ${func_name}(
   % endif
     x,
     x_tile_size_w_exec,
+    % if not ('mixed' in optional_type and 'Max' not in optional):
     x_tile_size_h_exec,
+    % endif
     x_tile_size_nif_exec,
     % if 'mixed' not in optional_type:
     ${fs2},
@@ -241,7 +243,9 @@ void ${func_name}(
 % endif
     ${stride},
     y_tile_size_w,
+    % if not ('mixed' in optional_type and 'Max' not in optional):
     y_tile_size_h,
+    % endif
     y,
     % if 'mixed' not in optional_type:
     0,

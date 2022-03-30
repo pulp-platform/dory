@@ -296,8 +296,6 @@ static void check_layer(char *output, int check_sum_true, int dim) {
   int checksum = 0;
   char *ptr = (char *) output;
   for(int j=0; j<dim; j++) {
-    if (j<96)
-      printf("ptr[%d]=%x\n", j, ptr[j]);
     checksum += ptr[j];
   }
 
@@ -457,6 +455,56 @@ int network_setup()
   }
   return 1;
 }
+
+
+// on cluster function execution
+void cluster_main(void *arg)
+{
+  int *real_arg = (int *) arg;
+  network_run((unsigned int) real_arg[0]);
+}
+
+// parallelization of the function given the number of cores
+void pulp_parallel(void *arg)
+{
+  pi_cl_team_fork(NUM_CORES, (void *)cluster_main, arg);
+}
+
+void network_run_FabricController()
+{
+  int arg[1];
+  arg[0] = (unsigned int) L3_weights_size;
+  PMU_set_voltage(1000, 0);
+  pi_time_wait_us(10000);
+  pi_freq_set(PI_FREQ_DOMAIN_FC, ${fc_frequency});
+  pi_time_wait_us(10000);
+  pi_freq_set(PI_FREQ_DOMAIN_CL, ${cl_frequency});
+  pi_time_wait_us(10000);
+
+% if sdk == 'pulp_sdk':
+  #if __PLATFORM__ == ARCHI_PLATFORM_FPGA
+    *(int*)(ICACHE_PREFETCH) = 0xFFFF;
+  #endif
+% endif
+  struct pi_device cluster_dev = {0};
+  struct pi_cluster_conf conf;
+  struct pi_cluster_task cluster_task = {0};
+  // task parameters allocation
+  pi_cluster_task(&cluster_task, pulp_parallel, arg);
+  cluster_task.stack_size = ${master_stack};
+  cluster_task.slave_stack_size = ${slave_stack};
+  // First open the cluster
+  pi_cluster_conf_init(&conf);
+  conf.id=0;
+  pi_open_from_conf(&cluster_dev, &conf);
+  if (pi_cluster_open(&cluster_dev))
+    return -1;
+  // Then offload an entry point, this will get executed on the cluster controller
+  pi_cluster_send_task_to_cl(&cluster_dev, &cluster_task);
+  // closing of the cluster
+  pi_cluster_close(&cluster_dev);
+}
+
 
 int memId;
 char* L2_output;
@@ -948,53 +996,5 @@ void network_run(unsigned int L3_weights_size)
 /* ---------------------------------- */
 /* --------- SECTION 3 END ---------- */
 /* ---------------------------------- */
-}
-
-// on cluster function execution
-void cluster_main(void *arg)
-{
-  int *real_arg = (int *) arg;
-  network_run((unsigned int) real_arg[0]);
-}
-
-// parallelization of the function given the number of cores
-void pulp_parallel(void *arg)
-{
-  pi_cl_team_fork(NUM_CORES, (void *)cluster_main, arg);
-}
-
-void network_run_FabricController()
-{
-  int arg[1];
-  arg[0] = (unsigned int) L3_weights_size;
-  PMU_set_voltage(1000, 0);
-  pi_time_wait_us(10000);
-  pi_freq_set(PI_FREQ_DOMAIN_FC, ${fc_frequency});
-  pi_time_wait_us(10000);
-  pi_freq_set(PI_FREQ_DOMAIN_CL, ${cl_frequency});
-  pi_time_wait_us(10000);
-
-% if sdk == 'pulp_sdk':
-  #if __PLATFORM__ == ARCHI_PLATFORM_FPGA
-    *(int*)(ICACHE_PREFETCH) = 0xFFFF;
-  #endif
-% endif
-  struct pi_device cluster_dev = {0};
-  struct pi_cluster_conf conf;
-  struct pi_cluster_task cluster_task = {0};
-  // task parameters allocation
-  pi_cluster_task(&cluster_task, pulp_parallel, arg);
-  cluster_task.stack_size = ${master_stack};
-  cluster_task.slave_stack_size = ${slave_stack};
-  // First open the cluster
-  pi_cluster_conf_init(&conf);
-  conf.id=0;
-  pi_open_from_conf(&cluster_dev, &conf);
-  if (pi_cluster_open(&cluster_dev))
-    return -1;
-  // Then offload an entry point, this will get executed on the cluster controller
-  pi_cluster_send_task_to_cl(&cluster_dev, &cluster_task);
-  // closing of the cluster
-  pi_cluster_close(&cluster_dev);
 }
 
