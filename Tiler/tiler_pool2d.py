@@ -6,7 +6,7 @@
 # Thorir Mar Ingolfsson <thoriri@iis.ee.ethz.ch>
 #
 # Copyright (C) 2018-2020 University of Bologna
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -72,7 +72,7 @@ class Tiler_Pool2D():
                           input_dim_constraint = 0,
                           output_weights_dim_constraint = 0,
                           type='Avg'
-                          ): 
+                          ):
         # This function generate the layer function to be included in the project for the pooling operation.
         parameters = pywrapcp.Solver.DefaultSolverParameters()
         name_include = []
@@ -121,7 +121,7 @@ class Tiler_Pool2D():
         if (self.x_shape[-2] - h_in)==0:
             factor_h_in = 1
         else:
-            factor_h_in = 1 + int(np.floor((self.x_shape[-2] - h_in + p_top + p_bottom) / (h_in - conv_overlap_h ))) 
+            factor_h_in = 1 + int(np.floor((self.x_shape[-2] - h_in + p_top + p_bottom) / (h_in - conv_overlap_h )))
         # report
         if L3_tiling == 1:
             h_in_L3 = self.x_shape[-2]
@@ -181,7 +181,7 @@ class Tiler_Pool2D():
             [n_in, h_in, w_in],
             [n_out, h_out, w_out],
             self.buffer_size,
-            name=name)       
+            name=name)
         name_include.append(name)
         # report
         if tiling is not None:
@@ -264,7 +264,7 @@ class Tiler_Pool2D():
                     sdk = self.sdk,
                     backend = self.backend,
                     number_of_clusters = self.number_of_clusters,
-                    dma_parallelization = self.dma_parallelization)  
+                    dma_parallelization = self.dma_parallelization)
             if (p_top + p_bottom) > 0 and (factor_h_in > 1 or factor_h_out > 1):
                 tiling = self.get_tiling_pool2d_like(
                     fs1,
@@ -277,8 +277,8 @@ class Tiler_Pool2D():
                     [n_in, h_in, w_in],
                     [n_out, h_out, w_out],
                     self.buffer_size,
-                    name=name)      
-                tile_n_in, tile_n_out, tile_h_in, tile_h_out, tile_w_in, tile_w_out = tiling 
+                    name=name)
+                tile_n_in, tile_n_out, tile_h_in, tile_h_out, tile_w_in, tile_w_out = tiling
                 in_dim1, out_dim1, weight_dim1, l2_dim_k, l2_dim_lambda, bias_dim1, l1_dim1, n_out1, w_out1, h_out1 = print_template_layer(
                     X, Y, W, n_in, h_in, w_in,
                     n_out, h_out, w_out,
@@ -301,7 +301,7 @@ class Tiler_Pool2D():
                     sdk = self.sdk,
                     backend = self.backend,
                     number_of_clusters = self.number_of_clusters,
-                    dma_parallelization = self.dma_parallelization) 
+                    dma_parallelization = self.dma_parallelization)
                 h_in_last = h_in
                 #### CHECK WELL especially second nested if
                 if factor_h_in > 2 or factor_h_out > 2:
@@ -323,8 +323,8 @@ class Tiler_Pool2D():
                     [n_in, h_in, w_in],
                     [n_out, h_out, w_out],
                     self.buffer_size,
-                    name=name)   
-                tile_n_in, tile_n_out, tile_h_in, tile_h_out, tile_w_in, tile_w_out = tiling 
+                    name=name)
+                tile_n_in, tile_n_out, tile_h_in, tile_h_out, tile_w_in, tile_w_out = tiling
                 in_dim1, out_dim1, weight_dim1, l2_dim_k, l2_dim_lambda, bias_dim1, l1_dim1, n_out1, w_out1, h_out1 = print_template_layer(
                     X, Y, W, n_in, h_in, w_in,
                     n_out, h_out, w_out,
@@ -347,19 +347,19 @@ class Tiler_Pool2D():
                     sdk = self.sdk,
                     backend = self.backend,
                     number_of_clusters = self.number_of_clusters,
-                    dma_parallelization = self.dma_parallelization) 
+                    dma_parallelization = self.dma_parallelization)
                 name_include.append(name + '_p_t')
-                name_include.append(name + '_p_b')                   
+                name_include.append(name + '_p_b')
             if self.test_location == 'L3_partial':
                 full_net = 0
             else:
-                full_net = 1 
+                full_net = 1
             # print template layer for L3 execution of the layer, if present.
             if L3_tiling == 1 or input_L3 == 1:
                 print_pool_template_layer_L3(
                     X, W, Y, fs1, fs2, p_top, s,
-                    factor_ch_out, 
-                    factor_h_out, 
+                    factor_ch_out,
+                    factor_h_out,
                     factor_h_in,
                     name_include,
                     n_out * w_out * h_out,
@@ -476,7 +476,7 @@ class Tiler_Pool2D():
             ds_W_scale = int(math.floor(32 * self.BitW))
             ds_bn_scale = int(math.floor(32 * self.BitActivation))
             # geometrical constraint
-            if db_x == 2 and db_O == 2:   
+            if db_x == 2 and db_O == 2:
                 solver.Add(tile_h_out * s == (tile_h_in - (fs1 - 1) + (s - 1)))
             solver.Add(solver.Max((h_in - tile_h_in - (tile_h_in - fs1 + 1 - p_top)), 0) % (tile_h_in - fs1 + 1) + abs(solver.Min(solver.Max((h_in - tile_h_in - (tile_h_in - fs1 + 1 - p_top)), 0) % (tile_h_in - fs1 + 1), 1) - 1) * fs1 >= fs1)
             constr_in = db_x * ds_x_scale * n_in * tile_h_in * w_in
@@ -487,9 +487,9 @@ class Tiler_Pool2D():
             if BN == 0:
                 constraint_all -= constr_bn
             solver.Add(constraint_all <= 32 * self.L2_buffer_size * 8)
-            # objective              
+            # objective
             obj_expr = solver.IntVar(0, max_obj_value, "obj_expr")
-            # objective function: 
+            # objective function:
             # 1. constraints for pulp-nn perfromance optimization
             # 2. constraints to have all tiles of same dimension
             solver.Add(obj_expr == constraint_all
@@ -531,7 +531,7 @@ class Tiler_Pool2D():
                                x_shape,
                                y_shape,
                                buffer_size,
-                               name='pool'): 
+                               name='pool'):
         # This function generate the layer function to be included in the project for the pooling operation.
         parameters = pywrapcp.Solver.DefaultSolverParameters()
         solver = pywrapcp.Solver("simple_CP", parameters)
@@ -539,6 +539,11 @@ class Tiler_Pool2D():
         cost_h = 1
         cost_n = 10000
         cost_dim = 10000
+        # we want to make the cost for tiling to a non-byte-aligned # of
+        # channels is the same as next byte-aligned # of channels when tiling
+        # in the channel dimension; for this, calculate #elements per byte
+        in_els_per_byte = 8//self.BitIn
+        out_els_per_byte = 8//self.BitOut
         fs1 = filter_size1
         fs2 = filter_size2
         s = stride
@@ -558,7 +563,8 @@ class Tiler_Pool2D():
         min_tile_h_out = 1
         # this is to renormalize all costs
         max_obj_value = sys.maxsize
-        memory = self.BitIn * n_in * h_in * w_in + self.BitOut * n_out * h_out * w_out + 4 * 8 * h_out * w_out
+        memory = np.ceil(self.BitIn * n_in * h_in * w_in/in_els_per_byte)*in_els_per_byte + np.ceil(self.BitOut * n_out * h_out * w_out + 4 * 8 * h_out * w_out/out_els_per_byte)*out_els_per_byte + 32 * h_out * w_out
+
         if self.backend == 'Occamy':
             memory += self.BitIn * n_in * ((p_top + p_bottom) * (w_in + p_left + p_right) + (p_left + p_right) * h_in)
         if memory <= self.buffer_size * 8:
@@ -573,8 +579,10 @@ class Tiler_Pool2D():
         tile_h_out = solver.IntVar(min_tile_h_out, h_out, 'tile_h_out')
         tile_w_out = solver.IntVar(min_tile_w_out, w_out, 'tile_w_out')
         # scaling is used to ensure datasize is integer
-        ds_x_scale = int(math.floor(32 * self.BitIn))
-        ds_y_scale = int(math.floor(32 * self.BitOut))
+        #ds_x_scale = int(math.floor(32 * self.BitIn))
+        #ds_y_scale = int(math.floor(32 * self.BitOut))
+        ds_x_scale = self.BitIn
+        ds_y_scale = self.BitOut
 
         # CONSTRAINTS: managing of correct dimensions (no decimal h_out and any
         # type of rounding)
@@ -583,10 +591,12 @@ class Tiler_Pool2D():
         solver.Add(0 == (tile_w_in - fs2) % s)
         solver.Add(solver.Max((h_in - tile_h_in - (tile_h_in - fs1 + 1 - p_top)), 0) % (tile_h_in - fs1 + 1) + abs(solver.Min(solver.Max((h_in - tile_h_in - (tile_h_in - fs1 + 1 - p_top)), 0) % (tile_h_in - fs1 + 1), 1) - 1) * fs1 >= fs1)
         solver.Add(solver.Max((w_in - tile_w_in - (tile_w_in - fs2 + 1 - p_left)), 0) % (tile_w_in - fs2 + 1) + abs(solver.Min(solver.Max((w_in - tile_w_in - (tile_w_in - fs2 + 1 - p_left)), 0) % (tile_w_in - fs2 + 1), 1) - 1) * fs2 >= fs2)
-        constraint_all = db * ds_x_scale * tile_n * tile_h_in * tile_w_in + db * ds_y_scale * tile_n * tile_h_out * tile_w_out + 4 * ds_y_scale * tile_h_out * tile_w_out
+        constraint_all = db * ds_x_scale * (tile_n+in_els_per_byte-1)//in_els_per_byte*in_els_per_byte * tile_h_in * tile_w_in + db * ds_y_scale * (tile_n+out_els_per_byte-1)//out_els_per_byte*out_els_per_byte * tile_h_out * tile_w_out + 32 * tile_h_out * tile_w_out
         if self.backend == 'Occamy':
             constraint_all += db * ds_x_scale * tile_n * ((p_top + p_bottom) * (tile_w_in + p_left + p_right) + (p_left + p_right) * tile_h_in)
-        solver.Add(constraint_all <= 32 * self.buffer_size * 8)
+        solver.Add(constraint_all <= self.buffer_size * 8)
+        # force the solver to make channel tile sizes byte-multiples
+        solver.Add(tile_n % (int(8/min(self.BitIn, self.BitOut)))==0)
         if memory <= self.buffer_size * 8:
             solver.Add(tile_h_out * s == (tile_h_in - (fs1 - 1) + p_top + p_bottom + (s - 1)))
             solver.Add(tile_w_out * s == (tile_w_in - (fs2 - 1) + p_left + p_right + (s - 1)))
@@ -616,6 +626,7 @@ class Tiler_Pool2D():
         collector.AddObjective(obj_expr)
 
         solver.Solve(decision_builder, [objective, collector])
+
         if collector.SolutionCount() > 0:
             best_solution = collector.SolutionCount() - 1
 
@@ -632,5 +643,5 @@ class Tiler_Pool2D():
                 tile_w_out = int((tile_w_in -(fs2 - 1) + (p_left + p_right) + (s - 1))/s)
             return (tile_n, tile_n, tile_h_in, tile_h_out, tile_w_in, tile_w_out)
         print("  Pool2d ERROR: no tiling found. Exiting...")
-        os._exit(0) 
+        os._exit(0)
         return None
