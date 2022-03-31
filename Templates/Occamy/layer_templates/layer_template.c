@@ -46,9 +46,10 @@ void ${func_name}(layer* layer_i)
   // Memory allocation
   ${type} *memory_cluster = (${type} *)snrt_cluster_memory().start;
   unsigned int l1_buffer = (unsigned int) memory_cluster;
+  volatile unsigned short x_length_nif_byte;
 % if tile_dim_nif*tile_dim_h*tile_dim_w*number_of_clusters != 1:
   // Input Parameters for DMA loading
-  volatile unsigned short x_tile_size_h, x_tile_size_w, x_length_nif_byte, x_length_nif_byte_last;
+  volatile unsigned short x_tile_size_h, x_tile_size_w;
   volatile int pad_offset_h, pad_offset_w;
 % endif  
   // Weights Parameters
