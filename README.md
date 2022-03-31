@@ -24,7 +24,7 @@ DORY abstracts tiling as a Constraint Programming~(CP) problem: it maximizes L1 
 Then, it generates ANSI C code to orchestrate off- and on-chip transfers and computation phases.
 Layer tiling is depicted in Fig.1.
 <p align="center">
-  <img src="Images/L3_L2_L1_layer_NEW.png" align="middle" width="1024">
+  <img src="images/L3_L2_L1_layer_NEW.png" align="middle" width="1024">
   <br>
   <em> Fig.1 DORY L3-L2-L1 layer routine example. On the left, the I/O DMA copies weights tile in case only Cy is L3-tiled. Two different buffers are used for L2w. Then, the Cluster DMA manages L2-L1 communication using double-buffering, while the cores compute a kernel on the current tile stored in one of the L1 buffers. </em>
 </p>
@@ -32,7 +32,7 @@ Layer tiling is depicted in Fig.1.
 
 Platform Supported
 ------------------
-The current platform supported is GAP8 v3. Future work will include the support of the latest version of OPEN-PULP and ARM processors.
+The current platforms supported are GAP8 and Occamy chip. 
 
 Limitations
 -----------
@@ -47,8 +47,41 @@ Supported layer types
 * Average Pooling (+ BatchNorm)
 * Add (+ BatchNorm + Relu) -- NOT FULLY TESTED
 * Linear Layer (+ BatchNorm + Relu)
-All layers are implemented in 8-bit integers.
 * Linear Layer 32 bits output -- final layer
+
+All layers are implemented in 8-bit integers.
+Each specific layer is read from the Frontend by searching from specific patterns in the .onnx graph.
+
+### Quantlab Frontend
+* Nodes that are accepted from DORY:
+
+*'Conv', 'Pad', 'Mul', 'Add', 'Div', 'Constant', 'AveragePool', 'GlobalAveragePool', 'MaxPool', 'Cast', 'Clip', 'Floor', 'Flatten', 'Gemm', 'MatMul', 'Shape', 'Gather', 'Unsqueeze', 'Concat', 'Reshape', 'Sigmoid', 'LogSoftmax'*
+
+* Nodes that are accepted and neglected by DORY (their functionality are included in the other nodes. E.g., the out of a conv is automatically flattened before a Fully-connected layer)
+ 
+*'Cast', 'Floor', 'Flatten', 'Shape', 'Gather', 'Unsqueeze', 'Concat', 'Reshape', 'Sigmoid', 'LogSoftmax'*
+
+* Nodes that are not merged and become individual nodes in DORY graph
+
+*'AveragePool', 'MaxPool', 'Conv', 'Gemm', 'MatMul', 'GlobalAveragePool', 'Add'*
+
+* Rules that DORY search in the graph
+
+*'Relu' = 'Mul-Div-Floor-Clip'*  
+*'BNRelu' = 'Mul-Add-Div-Floor-Clip'*  
+*'Pad' = 'Pad'*
+
+These nodes are searched as consecutive nodes in the onnx graph.  
+**BNRelu** and **Relu** are always merge to the previous node of the DORY graph.
+**Pad** is always merged to the subsequent node.
+
+Current Issues 
+--------------
+
+* Add topology: right now, there is no support for AddBNRelu with Quantlab Frontend.
+* The BNRelu block on a branch which is executed before an Add, should not be added to the previous node, but to the Add node. Currently, it is neglected.
+* Mixed-precision libraries: Not correctly working
+* 1D Mixed-precision networks: not supported. The 2D mixed-precision kernels are used.
 
 Topology tested
 ---------------
@@ -76,16 +109,13 @@ The following packages are needed:
 ### Input
 The framework receives as input:
 1. an ONNX quantized network generated with the Nemo tool. Refer to [nemo](https://github.com/pulp-platform/nemo) for Nemo framework installation and execution.
-
-Note that only a standard format 8-bit quantized produced by NEMO can be read; key features:
-1. Convolution, Pooling or Matmul/Gemm layers supported;
-2. Sequences of Mul-Add and Mul-Div recognized as Batch normalization and re-quantization;
-Note that other kinds of sequences are not supported (e.g. individual Mul operators).
+2. an ONNX quantized network generated with Quantlab tool.  
+Note that only a standard format 8-bit quantized produced by NEMO/Quantlab can be read given the specific nodes' sequences that are recognized by DORY;  
 Examples are given inside [DORY examples](https://github.com/pulp-platform/dory_examples)
 
 Installation
 ------------
-The execution of dory requires the following folders:
+The execution of DORY for 8-bits networks requires the following folders:
 1. dory: repository with the framework
 2. pulp-nn: repository with backend kernels developed for DORY flow execution
 
@@ -94,18 +124,6 @@ Execute the following commands to clone DORY and pulp-nn backend:
 git clone https://github.com/pulp-platform/dory
 git submodule update --init --recursive
 ```
-
-Execution
----------
-There are two functions to call to generate a network:
-1. extrapolating parameters from ONNX file: 
-
-	*ONNX_management(args).parameters_from_onnx(args)*
-2. starting from a custom graph, create the layers and network file to run on PULP
-
-	*model_deploy(args).print_model_network(args)*
-	
-By correctly running these 2 functions, an application folder is created with all the necessary files.
 
 Examples
 --------
@@ -116,7 +134,7 @@ git submodule update --init --recursive
 ```
 The power profiling on a GAP8 v3 of a 1.0-MobilenetV1-128 is reported in Fig.2.
 <p align="center">
-  <img src="Images/network_power.PNG" align="middle" width="1024">
+  <img src="images/network_power.PNG" align="middle" width="1024">
   <br>
   <em> Fig.2 In the left part, the 1.0-MobileNet-128 power profile when running on GAP-8 @ fc cluster = 100 MHz and VDD = 1V. On the right, number of MAC operations, average power, and time for each layer of the network. Power was sampled at 64 KHz and then filtered with a moving average of 300 micro seconds. </em>
 </p>

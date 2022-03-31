@@ -46,9 +46,10 @@ void ${func_name}(layer* layer_i)
   // Memory allocation
   ${type} *memory_cluster = (${type} *)snrt_cluster_memory().start;
   unsigned int l1_buffer = (unsigned int) memory_cluster;
+  volatile unsigned short x_length_nif_byte;
 % if tile_dim_nif*tile_dim_h*tile_dim_w*number_of_clusters != 1:
   // Input Parameters for DMA loading
-  volatile unsigned short x_tile_size_h, x_tile_size_w, x_length_nif_byte, x_length_nif_byte_last;
+  volatile unsigned short x_tile_size_h, x_tile_size_w;
   volatile int pad_offset_h, pad_offset_w;
 % endif  
   // Weights Parameters
@@ -559,10 +560,10 @@ void ${func_name}(layer* layer_i)
       kernel_i.dim_out_x = y_tile_size_w;
       kernel_i.dim_out_y = y_tile_size_h;
 % if FLAG_BATCHNORM == 1:
-      kernel_i.k = (${type} *) (l1_buffer + ${l1_k_offset} + exec_db_act);
+      kernel_i.kappa = (${type} *) (l1_buffer + ${l1_k_offset} + exec_db_act);
       kernel_i.lambda = (${type} *) (l1_buffer + ${l1_lambda_offset} + exec_db_act);
 % else:
-      kernel_i.k = 0;
+      kernel_i.kappa = 0;
       kernel_i.lambda = 0;
 % endif
       kernel_i.pIm2ColBuffer = (${type} *) (l1_buffer + ${buffer_l1_all});
@@ -579,6 +580,7 @@ void ${func_name}(layer* layer_i)
       //occamy_conv_naive
       //occamy_conv_opt_fp32
       //occamy_conv_chw_opt_fp32
+      //occamy_conv_dw_opt_fp32
 
 % if flag_DW == 0:
       if (iter <  ${tile_dim_nif * tile_dim_h * tile_dim_w * int(tile_dim_nof/number_of_clusters) } || snrt_cluster_idx() == (CLUSTERS-1))
@@ -587,11 +589,11 @@ void ${func_name}(layer* layer_i)
 % endif
       {
 % if first_layer == 1:
-        occamy_conv_naive(&kernel_i);
+        occamy_conv_chw_opt_fp32(&kernel_i);
 % elif flag_DW == 1:
-	    occamy_conv_dw_naive(&kernel_i);
+	    occamy_conv_dw_opt_fp32(&kernel_i);
 % else:
-	    occamy_conv_naive(&kernel_i);
+	    occamy_conv_opt_fp32(&kernel_i);
 % endif
       }
       else

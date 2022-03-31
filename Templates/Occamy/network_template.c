@@ -365,7 +365,13 @@ void network_run()
     {
 % for i in range(len(PULP_Nodes_Graph)):
       case ${i}:
+% if perf_layer == 'Yes':
+        benchmark_get_cycle();
+% endif
         ${func_name[i]}(&layer_i);
+% if perf_layer == 'Yes':
+        benchmark_get_cycle();
+% endif
         break;
 % endfor
     }

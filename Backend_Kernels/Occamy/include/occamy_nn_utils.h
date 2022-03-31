@@ -26,3 +26,5 @@ uint8_t pulp_nn_quant_u8(int32_t phi, int16_t m, int8_t  d);
 void pulp_zero_mem(uint8_t * pBuffer, unsigned int size);
 
 void pulp_nn_im2col_u8_to_u8(uint8_t * pInput, uint8_t * pOutput, unsigned int blockSize);
+
+uint32_t benchmark_get_cycle();

@@ -10,7 +10,6 @@
 [submodule "Backend_Kernels/pulp-nn-mixed"]
 	path = Backend_Kernels/pulp-nn-mixed
 	url = git@github.com:pulp-platform/pulp-nn-mixed.git
-
 [submodule "Backend_Kernels/pulp-nn-1d"]
 	path = Backend_Kernels/pulp-nn-1d
 	url = git@github.com:pulp-platform/pulp-nn-1d.git
