@@ -1,4 +1,4 @@
-# -*- coding: future_fstrings -*-     # should work even without -*-
+     # should work even without -*-
 # -*- coding: utf-8 -*-
 #!/bin/bash
 # ONNX_management.py

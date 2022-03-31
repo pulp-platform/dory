@@ -1,4 +1,4 @@
-# -*- coding: future_fstrings -*-     # should work even without -*-
+     # should work even without -*-
 # -*- coding: utf-8 -*-
 #!/bin/bash
 # ONNX_management.py
@@ -110,6 +110,7 @@ class Quantlab_onnx(ONNX_management):
                     elif np.array(node_iterating.attribute[1].ints).shape[0] == 6:
                         pulp_node.add_parameter('pads',[0, node_iterating.attribute[1].ints[2], 0, node_iterating.attribute[1].ints[5]])
                     break
+
         return pulp_node
 
     def fuse_graph(self):
@@ -162,7 +163,7 @@ class Quantlab_onnx(ONNX_management):
                 node_1.add_parameter('branch_change', node_1.get_parameter('branch_change') + node_2.get_parameter('branch_change'))
             elif key in ['branch_last']:
                 node_1.add_parameter('branch_last', node_1.get_parameter('branch_last') + node_2.get_parameter('branch_last'))
-            elif key not in ['name', 'input_index', 'input_dim']:
+            elif key not in ['name', 'input_index', 'input_dim', 'weight_bits']:
                 node_1.add_parameter(key,value)
             elif key in ['input_dim']:
                 if 'input' not in node_1.get_parameter('input_index') and '0' != node_1.get_parameter('input_index'):

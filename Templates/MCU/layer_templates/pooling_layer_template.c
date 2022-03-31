@@ -3,7 +3,7 @@
  * Alessio Burrello <alessio.burrello@unibo.it>
  *
  * Copyright (C) 2019-2020 University of Bologna
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -14,7 +14,7 @@
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
- * limitations under the License. 
+ * limitations under the License.
  */
 ${verbose_log}
 
@@ -52,7 +52,7 @@ void ${func_name}(
   unsigned short x_length_h_px;
   unsigned short x_length_nif_byte;
   int pad_offset_h, pad_offset_w;
-% endif  
+% endif
   ${type} *x;
   ${type} *y;
   int x_tile_size_nif_exec;
@@ -79,7 +79,7 @@ void ${func_name}(
   DMA_copy_x.stride_1d = ${x_stride_c_byte};
   DMA_copy_x.dir = 1;
   DMA_copy_x.dma_channel = dory_dma_channel;
-  
+
   DMA_copy_y.hwc_to_chw = 0;
   DMA_copy_y.stride_2d = ${y_stride_w_byte};
   DMA_copy_y.stride_1d = ${y_stride_c_byte};
@@ -117,11 +117,11 @@ void ${func_name}(
   for(iter=0; iter<${tile_dim_nof}*${tile_dim_h}*${tile_dim_w}; iter++) {
     // loop nest is nof,h,w,(nif=0)
     _i_w_load += 1;
-    if(_i_w_load==${tile_dim_w}) 
+    if(_i_w_load==${tile_dim_w})
     {
       _i_w_load = 0;
       _i_h_load += 1;
-      if(_i_h_load==${tile_dim_h}) 
+      if(_i_h_load==${tile_dim_h})
       {
         _i_h_load = 0;
         _i_nif_load += 1;
@@ -155,7 +155,7 @@ void ${func_name}(
 
     //switch all double buffering offset and y only after that all n_input_features have been analyzed: we need to pass all n_in to produce a single filter_out
     db_state_y = ! db_state_y;
-    if(iter<${tile_dim_nof}*${tile_dim_h}*${tile_dim_w}-1) 
+    if(iter<${tile_dim_nof}*${tile_dim_h}*${tile_dim_w}-1)
     {
 % if tile_dim_nif*tile_dim_h*tile_dim_w != 1:
       x_tile_size_nif = (last_nif_load) ? ${x_tile_size_nif_last} : ${x_tile_size_nif};
@@ -183,11 +183,11 @@ void ${func_name}(
     }
     x = (${type} *) (l1_buffer + ${l1_x_offset} + exec_db_x);
     y = (${type} *) (l1_buffer + ${l1_y_offset} + db_y);
-   
+
     x_tile_size_nif_exec = (last_nif_exec) ? ${x_tile_size_nif_last} : ${x_tile_size_nif};
     x_tile_size_h_exec   = (last_h_exec)   ? ${x_tile_size_h_last} : ${x_tile_size_h};
     x_tile_size_w_exec   = (last_w_exec)   ? ${x_tile_size_w_last} : ${x_tile_size_w};
-  
+
     y_tile_size_nof = (last_nof_exec) ? ${y_tile_size_nof_last} : ${y_tile_size_nof};
     y_tile_size_h   = (last_h_exec)   ? ${y_tile_size_h_last} : ${y_tile_size_h};
     y_tile_size_w   = (last_w_exec)   ? ${y_tile_size_w_last} : ${y_tile_size_w};
@@ -206,7 +206,7 @@ void ${func_name}(
     if (_i_w_exec == ${tile_dim_w}-1)
       p_r = ${padding_right};
     dory_cores_barrier();
-  
+
 // aggiungere padding su tutti i lati, acc_out, and filter asymettric
   % if 'Max' in optional:
     % if optional_type == 'mixed-sw':
@@ -227,7 +227,7 @@ void ${func_name}(
   % endif
     x,
     x_tile_size_w_exec,
-    % if 'mixed' not in optional_type:
+    % if not ('mixed' in optional_type and 'Max' not in optional):
     x_tile_size_h_exec,
     % endif
     x_tile_size_nif_exec,
@@ -243,9 +243,11 @@ void ${func_name}(
 % endif
     ${stride},
     y_tile_size_w,
-    % if 'mixed' not in optional_type:
+    % if not ('mixed' in optional_type and 'Max' not in optional):
     y_tile_size_h,
+    % if 'mixed' not in optional_type:
     im2col,
+    % endif
     % endif
     y,
     % if 'mixed' not in optional_type:
@@ -262,7 +264,7 @@ void ${func_name}(
 % else:
     0,
     0
-% endif    
+% endif
 % endif
     % else:
     im2col
