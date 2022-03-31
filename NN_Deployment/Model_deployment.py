@@ -1,4 +1,4 @@
-# -*- coding: future_fstrings -*-     # should work even without -*-
+     # should work even without -*-
 # -*- coding: utf-8 -*-
 # Model_deployment.py
 # Alessio Burrello <alessio.burrello@unibo.it>
@@ -418,6 +418,8 @@ class Model_deployment():
                 number_of_deployed_layers, 
                 check_layer,
                 weights_to_write)
+        else:
+            class_out = 0
         if check_layer == 100:
             act_compare = np.asarray([0, 0])
             act_size = [0, 0, 0]

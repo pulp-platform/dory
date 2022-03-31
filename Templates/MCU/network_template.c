@@ -4,7 +4,7 @@
  * Thorir Mar Ingolfsson <thoriri@iis.ee.ethz.ch>
  *
  * Copyright (C) 2019-2020 University of Bologna
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -15,7 +15,7 @@
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
- * limitations under the License. 
+ * limitations under the License.
  */
 #include "mem_controller.h"
 #include "network.h"
@@ -71,7 +71,7 @@ static char * Layers_name[${len(PULP_Nodes_Graph)}] = {\
 };
 static int L3_layers[${len(PULP_Nodes_Graph)}] = {\
 % for i in range(len(PULP_Nodes_Graph)):
-% if 'L3' in func_name[i]: 
+% if 'L3' in func_name[i]:
 1${'' if loop.last else ', '}\
 % else:
 0${'' if loop.last else ', '}\
@@ -80,7 +80,7 @@ static int L3_layers[${len(PULP_Nodes_Graph)}] = {\
 };
 static int L3_input_layers[${len(PULP_Nodes_Graph)}] = {\
 % for i in range(len(PULP_Nodes_Graph)):
-% if PULP_Nodes_Graph[i].L3_input == 1: 
+% if PULP_Nodes_Graph[i].L3_input == 1:
 1${'' if loop.last else ', '}\
 % else:
 0${'' if loop.last else ', '}\
@@ -89,7 +89,7 @@ static int L3_input_layers[${len(PULP_Nodes_Graph)}] = {\
 };
 static int L3_output_layers[${len(PULP_Nodes_Graph)}] = {\
 % for i in range(len(PULP_Nodes_Graph)):
-% if PULP_Nodes_Graph[i].L3_output == 1: 
+% if PULP_Nodes_Graph[i].L3_output == 1:
 1${'' if loop.last else ', '}\
 % else:
 0${'' if loop.last else ', '}\
@@ -98,7 +98,7 @@ static int L3_output_layers[${len(PULP_Nodes_Graph)}] = {\
 };
 static int L3_weights_layers[${len(PULP_Nodes_Graph)}] = {\
 % for i in range(len(PULP_Nodes_Graph)):
-% if PULP_Nodes_Graph[i].L3_weights == 1: 
+% if PULP_Nodes_Graph[i].L3_weights == 1:
 1${'' if loop.last else ', '}\
 % else:
 0${'' if loop.last else ', '}\
@@ -107,7 +107,7 @@ static int L3_weights_layers[${len(PULP_Nodes_Graph)}] = {\
 };
 static int allocate_layer[${len(PULP_Nodes_Graph)}] = {\
 % for i in range(len(PULP_Nodes_Graph)):
-% if PULP_Nodes_Graph[i].L3_allocation!=1 and ('Gemm' in PULP_Nodes_Graph[i].name or 'Conv' in PULP_Nodes_Graph[i].name or 'MatMul' in PULP_Nodes_Graph[i].name): 
+% if PULP_Nodes_Graph[i].L3_allocation!=1 and ('Gemm' in PULP_Nodes_Graph[i].name or 'Conv' in PULP_Nodes_Graph[i].name or 'MatMul' in PULP_Nodes_Graph[i].name):
 1${'' if loop.last else ', '}\
 % else:
 0${'' if loop.last else ', '}\
@@ -166,7 +166,7 @@ ${int((PULP_Nodes_Graph[i].weights_dimension - PULP_Nodes_Graph[i-1].weights_dim
 };
 static int cumulative_weights_dimension[${len(PULP_Nodes_Graph)}] = {\
 % for i in range(len(PULP_Nodes_Graph)):
-% if i == 0: 
+% if i == 0:
 0${'' if loop.last else ', '}\
 % else:
 ${int((PULP_Nodes_Graph[i-1].weights_dimension_L3))}${'' if loop.last else ', '}\
@@ -241,7 +241,7 @@ ${int(PULP_Nodes_Graph[i].output_activation_dimensions)}${'' if loop.last else '
 };
 static int layer_with_weights[${len(PULP_Nodes_Graph)}] = {\
 % for i in range(len(PULP_Nodes_Graph)):
-% if 'Gemm' in PULP_Nodes_Graph[i].name or 'Conv' in PULP_Nodes_Graph[i].name or 'MatMul' in PULP_Nodes_Graph[i].name: 
+% if 'Gemm' in PULP_Nodes_Graph[i].name or 'Conv' in PULP_Nodes_Graph[i].name or 'MatMul' in PULP_Nodes_Graph[i].name:
 1${'' if loop.last else ', '}\
 % else:
 0${'' if loop.last else ', '}\
@@ -292,6 +292,7 @@ static void check_layer_plus(char *output, int dim) {
 #ifdef VERBOSE
 // check for input/output acitvation checksum
 static void check_layer(char *output, int check_sum_true, int dim) {
+  printf("Calling check_layer()...\n");
   int checksum = 0;
   char *ptr = (char *) output;
   for(int j=0; j<dim; j++) {
@@ -300,7 +301,7 @@ static void check_layer(char *output, int check_sum_true, int dim) {
 
   if(check_sum_true == checksum)
     printf("Checksum in/out Layer :\tOk\n");
-  else 
+  else
     printf("Checksum in/out Layer :\tFailed [%u vs. %u]\n", checksum, check_sum_true);
 }
 
@@ -313,7 +314,7 @@ static void check_layer_last(int *output, int check_sum_true, int dim) {
 
   if(check_sum_true == checksum)
     printf("Checksum final :\tOk\n");
-  else 
+  else
     printf("Checksum final :\tFailed [%d vs. %d]\n", checksum, check_sum_true);
 }
 
@@ -327,10 +328,10 @@ static void check_layer_weight(char *weight, int check_sum_true, int dim) {
 
   if(check_sum_true == checksum)
     printf("Checksum weight/bias Layer :\tOk\n");
-  else 
+  else
     printf("Checksum weight/bias Layer :\tFailed [%u vs. %u]\n", checksum, check_sum_true);
 }
-#endif 
+#endif
 % endif
 
 % if 'Last' in verbose_level:
@@ -343,7 +344,7 @@ static void check_layer_last(int *output, int check_sum_true, int dim) {
 
   if(check_sum_true == checksum)
     printf("Checksum final :\tOk\n");
-  else 
+  else
     printf("Checksum final :\tFailed [%d vs. %d]\n", checksum, check_sum_true);
 }
 % endif
@@ -416,13 +417,13 @@ int network_setup()
 % if 'Check_all' in verbose_level:
     sum_weights = 0;
 % endif
-    while(rdDone < (L3_weights_size[i] / sizeof(char))) 
-    { 
+    while(rdDone < (L3_weights_size[i] / sizeof(char)))
+    {
       int size = pi_fs_read(file, flashBuffer, flashBuffSize);
 % if 'Check_all' in verbose_level:
       for (int t = 0; t < size; t++)
         sum_weights+=flashBuffer[t];
-% endif      
+% endif
       pi_ram_write(&ram, L3_weights+rdDone, flashBuffer,size);
       rdDone += size / sizeof(char);
     }
@@ -444,8 +445,8 @@ int network_setup()
   rdDone = 0;
   int flashBuffSize = FLASH_BUFF_SIZE * sizeof(char);
   // loop on chunk in file
-  while(rdDone < (${int(PULP_Nodes_Graph[0].input_activation_dimensions)} / sizeof(char))) 
-  { 
+  while(rdDone < (${int(PULP_Nodes_Graph[0].input_activation_dimensions)} / sizeof(char)))
+  {
     // read from HyperFlash
     int size = pi_fs_read(file, flashBuffer, flashBuffSize);
     // write to HyperRam
@@ -455,8 +456,9 @@ int network_setup()
   return 1;
 }
 
+
 // on cluster function execution
-void cluster_main(void *arg) 
+void cluster_main(void *arg)
 {
   int *real_arg = (int *) arg;
   network_run((unsigned int) real_arg[0]);
@@ -519,9 +521,9 @@ char *exec_weights, *transfer_weights, *bypass_weights;
 int L3_weights_internal;
 
 void network_run(unsigned int L3_weights_size)
-{   
+{
 
-/* 
+/*
   - initial buffer allocation L2 and L1
   - variable declaration
 */
@@ -579,10 +581,10 @@ void network_run(unsigned int L3_weights_size)
 #endif
   }
 /* ---------------------------------- */
-/* --------- SECTION 0 END ---------- */ 
-/* ---------------------------------- */ 
+/* --------- SECTION 0 END ---------- */
+/* ---------------------------------- */
 
-/* 
+/*
   - initial copies from L3 of input
   - copies of weights of first 2 layers
 */
@@ -591,7 +593,7 @@ void network_run(unsigned int L3_weights_size)
 /* ---------------------------------- */
   if(pi_core_id()==0)
   {
-/* 
+/*
   - first layer weights allocation and copy
 */
     dory_L2_alloc(&L2_buffer_allocation,
@@ -600,7 +602,7 @@ void network_run(unsigned int L3_weights_size)
       ${int(PULP_Nodes_Graph[0].weights_dimension)},
       begin_end_n // begin is 1, end is 0
       );
-/* 
+/*
   - input allocation and copy
 */
 % if test:
@@ -622,12 +624,12 @@ void network_run(unsigned int L3_weights_size)
 % endif
     begin_end_n = !begin_end_n;
     transfer_weights = L2_weights_1;
-    exec_weights = L2_weights_1;  
+    exec_weights = L2_weights_1;
     pi_cl_ram_read(&ram, L3_weights_internal, transfer_weights, ${int(PULP_Nodes_Graph[0].weights_dimension)}, &buff_req1);
     pi_cl_ram_read_wait(&buff_req1);
 
 % if 'Gemm' in PULP_Nodes_Graph[1].name or 'Conv' in PULP_Nodes_Graph[1].name:
-/* 
+/*
   - second layer weights allocation
 */
     d_buffering_weights_t = !d_buffering_weights_t;
@@ -639,7 +641,7 @@ void network_run(unsigned int L3_weights_size)
       );
     transfer_weights = d_buffering_weights_t ? L2_weights_2 : L2_weights_1;
 % endif
-/* 
+/*
   - output of the first layer allocation
 */
     dory_L2_alloc(&L2_buffer_allocation,
@@ -652,9 +654,9 @@ void network_run(unsigned int L3_weights_size)
     begin_end_n = !begin_end_n;
   }
 /* ---------------------------------- */
-/* --------- SECTION 1 END ---------- */ 
-/* ---------------------------------- */ 
-% if 'Yes' in performance or 'Perf_final' in verbose_level:  
+/* --------- SECTION 1 END ---------- */
+/* ---------------------------------- */
+% if 'Yes' in performance or 'Perf_final' in verbose_level:
   // perf measurement begin
   int cycle_network_execution = 0;
 % endif
@@ -673,7 +675,7 @@ void network_run(unsigned int L3_weights_size)
     {
       // copy of weights of next layers:
       // 1. copy only if we have to allocate the weights (hence not weights tiled from L3 and not pooling/add layer)
-      // 2. waits before the read if we want to implement a double buffering, after if not. 
+      // 2. waits before the read if we want to implement a double buffering, after if not.
       // Waiting based on the fact if layer need or not transfers from L3 memory.
       if(i < ${len(PULP_Nodes_Graph)-1})
       {
@@ -687,21 +689,25 @@ void network_run(unsigned int L3_weights_size)
         }
       }
     }
-      
+
 % if verbose_level == 'Check_all+Perf_final':
 #ifdef VERBOSE
     if(pi_core_id()==0)
     {
       if (L3_input_layers[i]==1)
         printf("In in L3\n");
-      else if (i==0)
+      else if (i==0) {
+        printf("Checking input of layer %d...\n", i);
         check_layer(L2_input, check_activations[i], check_activations_dimension[i]);
-      else if (branch_change[i-1]==0)
+      }
+      else if (branch_change[i-1]==0) {
+        printf("Checking input of layer %d...\n", i);
         check_layer(L2_input, check_activations[i], check_activations_dimension[i]);
+      }
       else
         printf("Switching branch, already checked activation\n");
     }
-#endif  
+#endif
 % endif
     out_mult = out_mult_vector[i];
     out_shift = out_shift_vector[i];
@@ -719,13 +725,13 @@ void network_run(unsigned int L3_weights_size)
       &ram,
       out_mult,
       inmul1,
-      inmul2, 
+      inmul2,
       out_shift};
-% if 'Yes' in performance or 'Perf_final' in verbose_level:  
+% if 'Yes' in performance or 'Perf_final' in verbose_level:
     // perf measurement begin
-    pi_perf_conf(1<<PI_PERF_CYCLES);          
-    pi_perf_reset();                      
-    pi_perf_stop();                       
+    pi_perf_conf(1<<PI_PERF_CYCLES);
+    pi_perf_reset();
+    pi_perf_stop();
     pi_perf_start();
 % endif
     switch (i)
@@ -737,10 +743,10 @@ void network_run(unsigned int L3_weights_size)
 % endfor
     }
     pi_cl_team_barrier(0);
-% if 'Yes' in performance or 'Perf_final' in verbose_level:  
+% if 'Yes' in performance or 'Perf_final' in verbose_level:
     // performance measurements: end
     pi_perf_stop();
-    int perf_cyc =  pi_perf_read(PI_PERF_CYCLES); 
+    int perf_cyc =  pi_perf_read(PI_PERF_CYCLES);
     cycle_network_execution += perf_cyc;
 % endif
 % if 'Yes' in performance:
@@ -748,10 +754,10 @@ void network_run(unsigned int L3_weights_size)
     float perf_MAC =  (float)MACs/perf_cyc;
     if (pi_core_id() == 0)
     {
-      printf("[%d] Layer %-3d: num_cycles: %-11d,",pi_core_id(), i, perf_cyc); 
-      printf(" MACs: %-11d,",MACs ); 
-      printf(" MAC/cycle: %-8f,",perf_MAC ); 
-      printf(" n. of Cores: %d\n",NUM_CORES); 
+      printf("[%d] Layer %-3d: num_cycles: %-11d,",pi_core_id(), i, perf_cyc);
+      printf(" MACs: %-11d,",MACs );
+      printf(" MAC/cycle: %-8f,",perf_MAC );
+      printf(" n. of Cores: %d\n",NUM_CORES);
     }
 % endif
 
@@ -775,19 +781,22 @@ void network_run(unsigned int L3_weights_size)
       {
         if (L3_output_layers[i]==1)
           printf("Out in L3\n");
-        else
+        else {
+          printf("Checking output of layer %d...\n", i);
           check_layer(L2_output, check_activations_out[i], check_activations_out_dimension[i]);
+        }
+
       }
       else
       {
         check_layer_last((int32_t *) L2_output, check_activations_out[i], check_activations_out_dimension[i]);
       }
       if (i==${check_layer})
-      {    
+      {
         check_layer_plus(L2_output,check_activations_out_dimension[i]);
       }
-    }    
-#endif 
+    }
+#endif
 % elif verbose_level == 'Last+Perf_final':
     if(pi_core_id()==0)
       if (i == ${len(PULP_Nodes_Graph) - 1})
@@ -797,8 +806,8 @@ void network_run(unsigned int L3_weights_size)
     if(pi_core_id()==0)
     {
       printf("Layer %s %d ended: \n", Layers_name[i], i);
-    }     
-#endif   
+    }
+#endif
 % endif
     if (i < ${len(PULP_Nodes_Graph) - 1})
     {
@@ -966,15 +975,15 @@ void network_run(unsigned int L3_weights_size)
 /* ---------------------------------- */
 
 % if 'Perf_final' in verbose_level:
-  int cid = pi_core_id();    
+  int cid = pi_core_id();
   int MACs = ${MACs};
   float perf_MAC =  (float)MACs/cycle_network_execution;
   if (cid == 0)
   {
-    printf("\n[%d] : num_cycles: %d\n",cid,cycle_network_execution); 
-    printf("[%d] : MACs: %d\n",cid,MACs ); 
-    printf("[%d] : MAC/cycle: %f\n",cid,perf_MAC ); 
-    printf("[%d] : n. of Cores: %d\n",cid,NUM_CORES); 
+    printf("\n[%d] : num_cycles: %d\n",cid,cycle_network_execution);
+    printf("[%d] : MACs: %d\n",cid,MACs );
+    printf("[%d] : MAC/cycle: %f\n",cid,perf_MAC );
+    printf("[%d] : n. of Cores: %d\n",cid,NUM_CORES);
   }
 % endif
 
