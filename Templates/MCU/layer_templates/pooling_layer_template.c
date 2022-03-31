@@ -245,6 +245,9 @@ void ${func_name}(
     y_tile_size_w,
     % if not ('mixed' in optional_type and 'Max' not in optional):
     y_tile_size_h,
+    % if 'mixed' not in optional_type:
+    im2col,
+    % endif
     % endif
     y,
     % if 'mixed' not in optional_type:
