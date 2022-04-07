@@ -75,12 +75,11 @@ class Model_deployment_MCU(Model_deployment):
                         layer_mixed_list.append(f'pulp_nn_linear_u{BitIn}_i{BitOut}_i{BitW}.c')
                     else:
                         layer_mixed_list.append(f'pulp_nn_linear_u{BitIn}_u{BitOut}_i{BitW}.c')
+                if 'AveragePool' in nodes_to_deploy.name:
+                    layer_mixed_list.append(f'pulp_nn_avgpool_u{BitIn}_u{BitOut}.c')
             layer_mixed_list.append('pulp_nn_add_u8_u8.c')
-            layer_mixed_list.append('pulp_nn_avgpool_u8.c')
             layer_mixed_list.append('pulp_nn_maxpool_u8.c')
-            layer_mixed_list.append('pulp_nn_avgpool_u4.c')
             layer_mixed_list.append('pulp_nn_maxpool_u4.c')
-            layer_mixed_list.append('pulp_nn_avgpool_u2.c')
             layer_mixed_list.append('pulp_nn_maxpool_u2.c')
         if 'mixed-hw' in optional:
             for i, nodes_to_deploy in enumerate(PULP_Nodes_Graph[:number_of_deployed_layers]):
@@ -95,16 +94,15 @@ class Model_deployment_MCU(Model_deployment):
                     layer_mixed_list.append(f'xpulp_nn_matmul_u{BitIn}_u{BitOut}_i{BitW}.c')
                 if 'Gemm' in nodes_to_deploy.name or 'MatMul' in nodes_to_deploy.name:
                     if BitOut==32:
-                        layer_mixed_list.append(f'pulp_nn_linear_u{BitIn}_i{BitOut}_i{BitW}.c')
+                        layer_mixed_list.append(f'xpulp_nn_linear_u{BitIn}_i{BitOut}_i{BitW}.c')
                     else:
-                        layer_mixed_list.append(f'pulp_nn_linear_u{BitIn}_u{BitOut}_i{BitW}.c')
-            layer_mixed_list.append('pulp_nn_add_u8_u8.c')
-            layer_mixed_list.append('pulp_nn_avgpool_u8.c')
-            layer_mixed_list.append('pulp_nn_maxpool_u8.c')
-            layer_mixed_list.append('pulp_nn_avgpool_u4.c')
-            layer_mixed_list.append('pulp_nn_maxpool_u4.c')
-            layer_mixed_list.append('pulp_nn_avgpool_u2.c')
-            layer_mixed_list.append('pulp_nn_maxpool_u2.c')
+                        layer_mixed_list.append(f'xpulp_nn_linear_u{BitIn}_u{BitOut}_i{BitW}.c')
+                if 'AveragePool' in nodes_to_deploy.name:
+                    layer_mixed_list.append(f'xpulp_nn_avgpool_u{BitIn}_u{BitOut}.c')
+            layer_mixed_list.append('xpulp_nn_add_u8_u8.c')
+            layer_mixed_list.append('xpulp_nn_maxpool_u8.c')
+            layer_mixed_list.append('xpulp_nn_maxpool_u4.c')
+            layer_mixed_list.append('xpulp_nn_maxpool_u2.c')
         version = str(BitActivation) + 'bit'
         self.copy_files(optional, layer_mixed_list, version, sdk, backend, dma_parallelization)
 

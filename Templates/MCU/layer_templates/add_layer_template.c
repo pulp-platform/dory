@@ -218,16 +218,20 @@ void ${func_name}(
     y_length_nof_byte = (last_nof_exec)   ? ${y_length_nof_byte_last} : ${y_tile_size_nof_byte};
     asm volatile("": : :"memory");
     dory_cores_barrier();
+    % if optional_type == '8bit':
     pulp_nn_add(
+    % else:
+    ${"x" if 'hw' in optional_type else ""}pulp_nn_add_u${x_data_size_byte}_u${x_data_size_byte}(
+    % endif
       x,
       x2,
-      x_tile_size_nif_exec,
-      x_tile_size_h_exec,
-      x_tile_size_w_exec,
       y,
       out_mult1,
       out_mult2,
-      out_shift
+      out_shift,
+      x_tile_size_w_exec,
+      x_tile_size_h_exec,
+      x_tile_size_nif_exec
       );
     dory_cores_barrier();
     // wait for DMA write

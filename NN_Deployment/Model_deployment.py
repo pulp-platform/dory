@@ -210,6 +210,7 @@ class Model_deployment():
                         type_data = type_data,
                         out_mul=nodes_to_deploy.outmul,
                         out_shift=nodes_to_deploy.outshift,
+                        out_add = nodes_to_deploy.out_add,
                         name=name_layer,
                         input_L3 = input_L3,
                         input_dim_constraint = input_dim_constraint,
@@ -224,7 +225,9 @@ class Model_deployment():
                         out_shift=nodes_to_deploy.outshift,
                         name=name_layer,
                         type=name)
+
             in_dim2, out_dim2, weights_dim, l1_dim2, L3_tiling, factor_ch_out, factor_h_out, factor_h_in = tile_gen.get_tiling(**d)
+
             if(factor_ch_out > 1):
                 PULP_Nodes_Graph[i].L3_allocation = 1
             else:
@@ -302,6 +305,7 @@ class Model_deployment():
             x_in = pd.read_csv(os.path.join(load_dir, 'input.txt'))
             x_in = x_in.values[:, 0].astype(int)
         except:
+            print(f"========= WARNING ==========\nInput file {os.path.join(load_dir, 'input.txt')} not found; generating random inputs!")
             x_in = torch.Tensor(1, PULP_Nodes_Graph[0].group, PULP_Nodes_Graph[0].ch_in, PULP_Nodes_Graph[0].input_dim[0], PULP_Nodes_Graph[0].input_dim[1]).uniform_(0, (2**(9)))
             x_in[x_in > (2**8 - 1)] = 0
             x_in = torch.round(x_in)
@@ -335,8 +339,8 @@ class Model_deployment():
                 act_compare = Input_compressed
             PULP_Nodes_Graph[f].check_sum_out = sum(Input_compressed)
             if f == len(PULP_Nodes_Graph) - 1:
-                if nodes_to_deploy.weight_bits == 8 and ('Gemm' in nodes_to_deploy.name or 'MatMul' in nodes_to_deploy.name):
-                    ww = np.asarray(nodes_to_deploy.weights).reshape(nodes_to_deploy.ch_out,nodes_to_deploy.ch_in).astype(np.int8).astype(int)
+                if 'Gemm' in nodes_to_deploy.name or 'MatMul' in nodes_to_deploy.name:
+                    ww = np.asarray(nodes_to_deploy.weights_raw).reshape(nodes_to_deploy.ch_out,nodes_to_deploy.ch_in).astype(np.int8).astype(int)
                 X_in = pd.read_csv(os.path.join(load_dir, f'out_layer{f-1}.txt'))
                 X_out = pd.read_csv(os.path.join(load_dir, f'out_layer{f}.txt'))
                 X_in = X_in.values[:, 0].astype(int).reshape(X_in.shape[0],1)
@@ -412,6 +416,7 @@ class Model_deployment():
             if nodes_to_deploy.L3_allocation == 1:
                 name_layer_list_unique.append(name_layer_list[i] + "L3" + ".c")
         # compute the checksums for intermediate activations checking
+
         if 'Check' in verbose_level or 'Last' in verbose_level:
             PULP_Nodes_Graph, class_out = self.generate_intermediate_activations(PULP_Nodes_Graph, 
                 load_dir, 

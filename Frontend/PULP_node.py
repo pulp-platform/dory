@@ -44,6 +44,7 @@ class node_element():
         self.out_activation_bits = 8
         self.input_activation_bits = 8
         self.outshift = 0
+        self.out_add = 0 # used for pool nodes
 
     def log_parameters(self):
         for parameter in self.__dict__:
