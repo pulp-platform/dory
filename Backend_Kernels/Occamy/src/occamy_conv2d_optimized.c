@@ -14,355 +14,7 @@ typedef union {
     v2f32 vec;
 } v2s;
 
-void __attribute__((noinline)) occamy_conv_opt_fp64(kernel* k) {
-    // Parallelization/Pipelining parameters
-    const uint32_t compute_id = snrt_cluster_compute_core_idx();
-    const uint32_t compute_num =
-        (snrt_cluster_compute_core_num()) ? snrt_cluster_compute_core_num() : 1;
-    const uint32_t max_unroll = 8;  // Maximum number of unrolling
-    const uint32_t cleanup_unroll = k->dim_out_y % max_unroll;
-
-    // Calculate strides to access specific dimensions
-    // of input/output feature map and weights
-    // Input feature map (H x W x Ci)
-    // Calculate effective H, W dimension including padding
-    const uint32_t dim_in_eff_x =
-        k->dim_in_x + k->padding_x_left + k->padding_x_right;
-    const uint32_t dim_in_eff_y =
-        k->dim_in_y + k->padding_y_top + k->padding_y_bottom;
-    const uint32_t input_w_stride = k->ch_in;
-    const uint32_t input_h_stride = input_w_stride * dim_in_eff_x;
-
-    // Output feature map (H x W x Co)
-    const uint32_t output_w_stride = k->ch_out;
-    const uint32_t output_h_stride = output_w_stride * k->dim_out_x;
-
-    // Weight (Co x Fh x Fw x Ci)
-    const uint32_t kernel_w_stride = k->ch_in;
-    const uint32_t kernel_h_stride = kernel_w_stride * k->dim_kernel_x;
-    const uint32_t kernel_co_stride = kernel_h_stride * k->dim_kernel_y;
-
-    // Reference Loops
-    // for (uint32_t co = compute_id; co < k->ch_out; co += compute_num) {
-    //     for (uint32_t h0 = 0; h0 < k->dim_in_y / max_unroll; h++) {
-    //         for (uint32_t w = 0; w < k->dim_in_x; w += k->stride_x) {
-    //             for (uint32_t fh = 0; fh < k->dim_kernel_y, fh++) {
-    //                 for (uint32_t fw = 0; fw < k->dim_kernel_x, fw++) {
-    //                     for (uint32_t ci = 0; ci < k->ch_in; ci++) {
-    //                         for (uint32_t h1 = 0; h1 < max_unroll; h1++) {
-    //                             k->pOutBuffer[(h-pad_t)/str_y][(w-pad_l)/str_x][co]
-    //                                   +=  k->pInBuffer[h+fh][w+fw][ci] *
-    //                                       k->pWeightBuffer[co][fh][fw][ci]
-    //                         }
-    //                     }
-    //                 }
-    //             }
-    //         }
-    //     }
-    // }
-
-    // Setup SSRs bounds and strides for input feature map
-    const uint32_t ssr0_b[4] = {max_unroll, k->ch_in, k->dim_kernel_x,
-                                k->dim_kernel_y};
-    const uint32_t ssr0_i[4] = {
-        input_h_stride * k->stride_y * sizeof(double), 1 * sizeof(double),
-        input_w_stride * sizeof(double), input_h_stride * sizeof(double)};
-
-    snrt_ssr_loop_4d(SNRT_SSR_DM0, ssr0_b[0], ssr0_b[1], ssr0_b[2], ssr0_b[3],
-                     ssr0_i[0], ssr0_i[1], ssr0_i[2], ssr0_i[3]);
-
-    // Setup SSRs bounds and strides for kernel
-    // We use only 3D SSRs here as the inner most dimension is repeated
-    const uint32_t ssr1_b[3] = {k->ch_in, k->dim_kernel_x, k->dim_kernel_y};
-    const uint32_t ssr1_i[3] = {1 * sizeof(double),
-                                kernel_w_stride * sizeof(double),
-                                kernel_h_stride * sizeof(double)};
-
-    snrt_ssr_loop_3d(SNRT_SSR_DM1, ssr1_b[0], ssr1_b[1], ssr1_b[2], ssr1_i[0],
-                     ssr1_i[1], ssr1_i[2]);
-
-    snrt_ssr_repeat(SNRT_SSR_DM1, max_unroll);
-
-    // Output channel dimension `k->ch_out` is parallelized over cores
-    for (uint32_t co = compute_id; co < k->ch_out; co += compute_num) {
-        uint32_t h0 = 0;
-
-        // If `k->dim_out_y` is not divisible by `unroll`, we have to clean up
-        // at the end which modifies the SSR loops, thus initialize it again
-        // correctly
-        if (cleanup_unroll) {
-            snrt_ssr_loop_4d(SNRT_SSR_DM0, ssr0_b[0], ssr0_b[1], ssr0_b[2],
-                             ssr0_b[3], ssr0_i[0], ssr0_i[1], ssr0_i[2],
-                             ssr0_i[3]);
-
-            snrt_ssr_loop_3d(SNRT_SSR_DM1, ssr1_b[0], ssr1_b[1], ssr1_b[2],
-                             ssr1_i[0], ssr1_i[1], ssr1_i[2]);
-
-            snrt_ssr_repeat(SNRT_SSR_DM1, max_unroll);
-        }
-
-        // Output height dimension `k->dim_out_y` first split
-        for (h0 = 0; h0 < k->dim_out_y / max_unroll; h0++) {
-            // Output width dimension `k->dim_out_x`
-            for (uint32_t w = 0; w < k->dim_out_x; w++) {
-                // TODO: check if initialization needs to be unrolled by hand
-                volatile register double sum[max_unroll];
-                if (k->flag_y_accumulate_start) {
-                    for (uint32_t i = 0; i < max_unroll; i++) {
-                        sum[i] = 0.0;
-                    }
-                } else {
-                    for (uint32_t i = 0; i < max_unroll; i++) {
-                        sum[i] = *(k->pOutBuffer +
-                                   (h0 * max_unroll + i) * output_h_stride +
-                                   w * output_w_stride + co);
-                    }
-                }
-
-                // SSR address setup and enable
-                snrt_ssr_read(
-                    SNRT_SSR_DM0, SNRT_SSR_4D,
-                    (void*)(k->pInBuffer +
-                            h0 * max_unroll * k->stride_y * input_h_stride +
-                            w * k->stride_x * input_w_stride));
-                snrt_ssr_read(SNRT_SSR_DM1, SNRT_SSR_3D,
-                              (void*)(k->pWeight + co * kernel_co_stride));
-                snrt_ssr_enable();
-
-                asm volatile(
-                    "frep.o %[n_frep], 8, 0, 0 \n"
-                    "fmadd.d %[sum0], ft0, ft1, %[sum0] \n"
-                    "fmadd.d %[sum1], ft0, ft1, %[sum1] \n"
-                    "fmadd.d %[sum2], ft0, ft1, %[sum2] \n"
-                    "fmadd.d %[sum3], ft0, ft1, %[sum3] \n"
-                    "fmadd.d %[sum4], ft0, ft1, %[sum4] \n"
-                    "fmadd.d %[sum5], ft0, ft1, %[sum5] \n"
-                    "fmadd.d %[sum6], ft0, ft1, %[sum6] \n"
-                    "fmadd.d %[sum7], ft0, ft1, %[sum7] \n"
-                    : [ sum0 ] "+f"(sum[0]), [ sum1 ] "+f"(sum[1]),
-                      [ sum2 ] "+f"(sum[2]), [ sum3 ] "+f"(sum[3]),
-                      [ sum4 ] "+f"(sum[4]), [ sum5 ] "+f"(sum[5]),
-                      [ sum6 ] "+f"(sum[6]), [ sum7 ] "+f"(sum[7])
-                    : [ n_frep ] "r"(
-                        k->dim_kernel_y * k->dim_kernel_x * k->ch_in - 1)
-                    : "ft0", "ft1", "ft2");
-
-                snrt_ssr_disable();
-
-                // TODO: Check if needs to be unrolled manually
-                for (uint32_t i = 0; i < max_unroll; i++) {
-                    k->pOutBuffer[(h0 * max_unroll + i) * output_h_stride +
-                                  w * output_w_stride + co] = sum[i];
-                }
-            }
-        }
-
-        // Clean up rows
-        if (cleanup_unroll) {
-            // Modify most inner loop unrolling
-            snrt_ssr_loop_4d(SNRT_SSR_DM0, cleanup_unroll, ssr0_b[1], ssr0_b[2],
-                             ssr0_b[3], ssr0_i[0], ssr0_i[1], ssr0_i[2],
-                             ssr0_i[3]);
-
-            snrt_ssr_loop_3d(SNRT_SSR_DM1, ssr1_b[0], ssr1_b[1], ssr1_b[2],
-                             ssr1_i[0], ssr1_i[1], ssr1_i[2]);
-
-            snrt_ssr_repeat(SNRT_SSR_DM1, cleanup_unroll);
-
-            // Output width dimension `k->dim_out_x`
-            for (uint32_t w = 0; w < k->dim_out_x; w++) {
-                volatile register double sum[max_unroll];
-                if (k->flag_y_accumulate_start) {
-                    for (uint32_t i = 0; i < cleanup_unroll; i++) {
-                        sum[i] = 0.0;
-                    }
-                } else {
-                    for (uint32_t i = 0; i < cleanup_unroll; i++) {
-                        sum[i] = *(k->pOutBuffer +
-                                   (h0 * max_unroll + i) * output_h_stride +
-                                   w * output_w_stride + co);
-                    }
-                }
-
-                // SSR address setup and enable
-                snrt_ssr_read(
-                    SNRT_SSR_DM0, SNRT_SSR_4D,
-                    (void*)(k->pInBuffer +
-                            h0 * max_unroll * k->stride_y * input_h_stride +
-                            w * k->stride_x * input_w_stride));
-                snrt_ssr_read(SNRT_SSR_DM1, SNRT_SSR_3D,
-                              (void*)(k->pWeight + co * kernel_co_stride));
-                snrt_ssr_enable();
-
-                switch (cleanup_unroll) {
-                    case 7:
-                        asm volatile(
-                            "frep.o %[n_frep], 7, 0, 0 \n"
-                            "fmadd.d %[sum0], ft0, ft1, %[sum0] \n"
-                            "fmadd.d %[sum1], ft0, ft1, %[sum1] \n"
-                            "fmadd.d %[sum2], ft0, ft1, %[sum2] \n"
-                            "fmadd.d %[sum3], ft0, ft1, %[sum3] \n"
-                            "fmadd.d %[sum4], ft0, ft1, %[sum4] \n"
-                            "fmadd.d %[sum5], ft0, ft1, %[sum5] \n"
-                            "fmadd.d %[sum6], ft0, ft1, %[sum6] \n"
-                            : [ sum0 ] "+f"(sum[0]), [ sum1 ] "+f"(sum[1]),
-                              [ sum2 ] "+f"(sum[2]), [ sum3 ] "+f"(sum[3]),
-                              [ sum4 ] "+f"(sum[4]), [ sum5 ] "+f"(sum[5]),
-                              [ sum6 ] "+f"(sum[6])
-                            : [ n_frep ] "r"(k->dim_kernel_y * k->dim_kernel_x *
-                                                 k->ch_in -
-                                             1)
-                            : "ft0", "ft1", "ft2");
-                        break;
-                    case 6:
-                        asm volatile(
-                            "frep.o %[n_frep], 6, 0, 0 \n"
-                            "fmadd.d %[sum0], ft0, ft1, %[sum0] \n"
-                            "fmadd.d %[sum1], ft0, ft1, %[sum1] \n"
-                            "fmadd.d %[sum2], ft0, ft1, %[sum2] \n"
-                            "fmadd.d %[sum3], ft0, ft1, %[sum3] \n"
-                            "fmadd.d %[sum4], ft0, ft1, %[sum4] \n"
-                            "fmadd.d %[sum5], ft0, ft1, %[sum5] \n"
-                            : [ sum0 ] "+f"(sum[0]), [ sum1 ] "+f"(sum[1]),
-                              [ sum2 ] "+f"(sum[2]), [ sum3 ] "+f"(sum[3]),
-                              [ sum4 ] "+f"(sum[4]), [ sum5 ] "+f"(sum[5])
-                            : [ n_frep ] "r"(k->dim_kernel_y * k->dim_kernel_x *
-                                                 k->ch_in -
-                                             1)
-                            : "ft0", "ft1", "ft2");
-                        break;
-                    case 5:
-                        asm volatile(
-                            "frep.o %[n_frep], 5, 0, 0 \n"
-                            "fmadd.d %[sum0], ft0, ft1, %[sum0] \n"
-                            "fmadd.d %[sum1], ft0, ft1, %[sum1] \n"
-                            "fmadd.d %[sum2], ft0, ft1, %[sum2] \n"
-                            "fmadd.d %[sum3], ft0, ft1, %[sum3] \n"
-                            "fmadd.d %[sum4], ft0, ft1, %[sum4] \n"
-                            : [ sum0 ] "+f"(sum[0]), [ sum1 ] "+f"(sum[1]),
-                              [ sum2 ] "+f"(sum[2]), [ sum3 ] "+f"(sum[3]),
-                              [ sum4 ] "+f"(sum[4])
-                            : [ n_frep ] "r"(k->dim_kernel_y * k->dim_kernel_x *
-                                                 k->ch_in -
-                                             1)
-                            : "ft0", "ft1", "ft2");
-                        break;
-                    case 4:
-                        asm volatile(
-                            "frep.o %[n_frep], 4, 0, 0 \n"
-                            "fmadd.d %[sum0], ft0, ft1, %[sum0] \n"
-                            "fmadd.d %[sum1], ft0, ft1, %[sum1] \n"
-                            "fmadd.d %[sum2], ft0, ft1, %[sum2] \n"
-                            "fmadd.d %[sum3], ft0, ft1, %[sum3] \n"
-                            : [ sum0 ] "+f"(sum[0]), [ sum1 ] "+f"(sum[1]),
-                              [ sum2 ] "+f"(sum[2]), [ sum3 ] "+f"(sum[3])
-                            : [ n_frep ] "r"(k->dim_kernel_y * k->dim_kernel_x *
-                                                 k->ch_in -
-                                             1)
-                            : "ft0", "ft1", "ft2");
-                        break;
-                    case 3:
-                        asm volatile(
-                            "frep.o %[n_frep], 3, 0, 0 \n"
-                            "fmadd.d %[sum0], ft0, ft1, %[sum0] \n"
-                            "fmadd.d %[sum1], ft0, ft1, %[sum1] \n"
-                            "fmadd.d %[sum2], ft0, ft1, %[sum2] \n"
-                            : [ sum0 ] "+f"(sum[0]), [ sum1 ] "+f"(sum[1]),
-                              [ sum2 ] "+f"(sum[2])
-                            : [ n_frep ] "r"(k->dim_kernel_y * k->dim_kernel_x *
-                                                 k->ch_in -
-                                             1)
-                            : "ft0", "ft1", "ft2");
-                        break;
-                    case 2:
-                        asm volatile(
-                            "frep.o %[n_frep], 2, 0, 0 \n"
-                            "fmadd.d %[sum0], ft0, ft1, %[sum0] \n"
-                            "fmadd.d %[sum1], ft0, ft1, %[sum1] \n"
-                            : [ sum0 ] "+f"(sum[0]), [ sum1 ] "+f"(sum[1])
-                            : [ n_frep ] "r"(k->dim_kernel_y * k->dim_kernel_x *
-                                                 k->ch_in -
-                                             1)
-                            : "ft0", "ft1", "ft2");
-                        break;
-                    case 1:
-                        asm volatile(
-                            "frep.o %[n_frep], 1, 0, 0 \n"
-                            "fmadd.d %[sum0], ft0, ft1, %[sum0] \n"
-                            : [ sum0 ] "+f"(sum[0])
-                            : [ n_frep ] "r"(k->dim_kernel_y * k->dim_kernel_x *
-                                                 k->ch_in -
-                                             1)
-                            : "ft0", "ft1", "ft2");
-                        break;
-                }
-
-                snrt_ssr_disable();
-
-                // TODO: Check if needs to be unrolled manually
-                for (uint32_t i = 0; i < cleanup_unroll; i++) {
-                    k->pOutBuffer[(h0 * max_unroll + i) * output_h_stride +
-                                  w * output_w_stride + co] = sum[i];
-                }
-            }
-        }
-    }
-
-    snrt_cluster_hw_barrier();
-
-    if (k->flag_batch_norm | k->flag_relu) {
-        snrt_ssr_loop_2d(SNRT_SSR_DM0, k->dim_out_x * k->dim_out_y,
-                         k->ch_out / compute_num, sizeof(double) * k->ch_out,
-                         sizeof(double));
-        snrt_ssr_loop_2d(SNRT_SSR_DM1, k->dim_out_x * k->dim_out_y,
-                         k->ch_out / compute_num, sizeof(double) * k->ch_out,
-                         sizeof(double));
-        snrt_ssr_repeat(SNRT_SSR_DM1, 1);
-
-        snrt_ssr_read(SNRT_SSR_DM0, SNRT_SSR_2D, &k->pOutBuffer[compute_id]);
-        snrt_ssr_write(SNRT_SSR_DM1, SNRT_SSR_2D, &k->pOutBuffer[compute_id]);
-
-        snrt_ssr_enable();
-
-        for (uint32_t co = compute_id; co < k->ch_out; co += compute_num) {
-            volatile register double current_lambda = k->lambda[co];
-            volatile register double current_kappa = k->k[co];
-            volatile register double zero = 0.0;
-
-            volatile register double tmp;
-
-            if (k->flag_batch_norm && k->flag_relu) {
-                asm volatile(
-                    "frep.o %[n_frep], 2, 0, 0\n"
-                    "fmadd.d $[tmp], ft0, %[k] %[l]\n"
-                    "fmax.d ft1, %[tmp], %[zero]\n"
-                    : [ tmp ] "+f"(tmp)
-                    : [ k ] "f"(current_kappa), [ l ] "f"(current_lambda),
-                      [ zero ] "f"(zero),
-                      [ n_frep ] "r"(k->dim_out_x * k->dim_out_y - 1)
-                    : "ft0", "ft1", "ft2");
-            } else if (k->flag_batch_norm && !k->flag_relu) {
-                asm volatile(
-                    "frep.o %[n_frep], 1, 0, 0\n"
-                    "fmadd.d $[tmp], ft0, %[k] %[l]\n"
-                    : [ tmp ] "+f"(tmp), [ k ] "+f"(current_kappa),
-                      [ l ] "+f"(current_lambda)
-                    : [ n_frep ] "r"(k->dim_out_x * k->dim_out_y - 1)
-                    : "ft0", "ft1", "ft2");
-            } else if (!k->flag_batch_norm && k->flag_relu) {
-                asm volatile(
-                    "frep.o %[n_frep], 1, 0, 0 \n"
-                    "fmax.d ft1, ft0, %[zero]\n" ::[zero] "f"(zero),
-                    [ n_frep ] "r"(k->dim_out_x * k->dim_out_y - 1)
-                    : "ft0", "ft1", "ft2");
-            }
-        }
-
-        snrt_ssr_disable();
-    }
-}
-
-void __attribute__((noinline)) occamy_conv_opt_fp32(kernel* k) {
+void occamy_conv_opt_fp32(kernel* k) {
     // Parallelization/Pipelining parameters
     const uint32_t compute_id = snrt_cluster_compute_core_idx();
     const uint32_t compute_num =
@@ -776,12 +428,12 @@ void __attribute__((noinline)) occamy_conv_opt_fp32(kernel* k) {
     snrt_cluster_hw_barrier();
 
     if (k->flag_batch_norm | k->flag_relu) {
-        bn_relu(k->pOutBuffer, k->dim_out_x, k->dim_out_y, k->ch_out, k->k,
+        bn_relu(k->pOutBuffer, k->dim_out_x, k->dim_out_y, k->ch_out, k->kappa,
                 k->lambda, k->flag_relu, k->flag_batch_norm);
     }
 }
 
-void __attribute__((noinline)) occamy_conv_dw_opt_fp32(kernel* k) {
+void occamy_conv_dw_opt_fp32(kernel* k) {
     // Parallelization/Pipelining parameters
     const uint32_t compute_id = snrt_cluster_compute_core_idx();
     const uint32_t compute_num =
@@ -1098,12 +750,12 @@ void __attribute__((noinline)) occamy_conv_dw_opt_fp32(kernel* k) {
     snrt_cluster_hw_barrier();
 
     if (k->flag_batch_norm | k->flag_relu) {
-        bn_relu(k->pOutBuffer, k->dim_out_x, k->dim_out_y, k->ch_out, k->k,
+        bn_relu(k->pOutBuffer, k->dim_out_x, k->dim_out_y, k->ch_out, k->kappa,
                 k->lambda, k->flag_relu, k->flag_batch_norm);
     }
 }
 
-void __attribute__((noinline)) occamy_conv_chw_opt_fp32(kernel* k) {
+void occamy_conv_chw_opt_fp32(kernel* k) {
     // Parallelization/Pipelining parameters
     const uint32_t compute_id = snrt_cluster_compute_core_idx();
     const uint32_t compute_num =
@@ -1172,7 +824,7 @@ void __attribute__((noinline)) occamy_conv_chw_opt_fp32(kernel* k) {
     // Setup SSRs bounds and strides for kernel
     // We use only 3D SSRs here as the inner most dimension is repeated
     const uint32_t ssr1_b[3] = {k->dim_kernel_x / 2, k->dim_kernel_y,
-                                k->dim_out_x * k->dim_out_y};
+                                k->dim_out_x};
     const uint32_t ssr1_i[3] = {kernel_fw_stride * sizeof(v2s),
                                 kernel_fh_stride * sizeof(float), 0};
 
@@ -1201,15 +853,18 @@ void __attribute__((noinline)) occamy_conv_chw_opt_fp32(kernel* k) {
                 snrt_ssr_repeat(SNRT_SSR_DM1, max_unroll);
             }
 
-            // Weights SSR can already start here, all loop dimension below
-            // are irrelevant for the weights
-            snrt_ssr_read(SNRT_SSR_DM1, SNRT_SSR_3D,
-                          (void*)(k->pWeight + ci * kernel_ci_stride +
-                                  co * kernel_co_stride));
-
             // Output height dimension `k->dim_out_y` first split
             for (h0 = 0; h0 < k->dim_out_y / max_unroll;
                  h0++, h += max_unroll) {
+                // SSR address setup and enable
+                snrt_ssr_read(
+                    SNRT_SSR_DM0, SNRT_SSR_4D,
+                    (void*)(k->pInBuffer + h * k->stride_y * input_h_stride +
+                            ci * input_ci_stride));
+                snrt_ssr_read(SNRT_SSR_DM1, SNRT_SSR_3D,
+                              (void*)(k->pWeight + ci * kernel_ci_stride +
+                                      co * kernel_co_stride));
+
                 // Output width dimension `k->dim_out_x`
                 for (uint32_t w = 0; w < k->dim_out_x; w++) {
                     volatile register v2s sum[max_unroll];
@@ -1238,12 +893,6 @@ void __attribute__((noinline)) occamy_conv_chw_opt_fp32(kernel* k) {
                         }
                     }
 
-                    // SSR address setup and enable
-                    snrt_ssr_read(SNRT_SSR_DM0, SNRT_SSR_4D,
-                                  (void*)(k->pInBuffer +
-                                          h * k->stride_y * input_h_stride +
-                                          w * k->stride_x * input_w_stride +
-                                          ci * input_ci_stride));
                     snrt_ssr_enable();
 
                     asm volatile(
@@ -1303,6 +952,15 @@ void __attribute__((noinline)) occamy_conv_chw_opt_fp32(kernel* k) {
 
                 snrt_ssr_repeat(SNRT_SSR_DM1, cleanup_unroll);
 
+                // SSR address setup and enable
+                snrt_ssr_read(
+                    SNRT_SSR_DM0, SNRT_SSR_4D,
+                    (void*)(k->pInBuffer + h * k->stride_y * input_h_stride +
+                            ci * input_ci_stride));
+                snrt_ssr_read(SNRT_SSR_DM1, SNRT_SSR_3D,
+                              (void*)(k->pWeight + ci * kernel_ci_stride +
+                                      co * kernel_co_stride));
+
                 // Output width dimension `k->dim_out_x`
                 for (uint32_t w = 0; w < k->dim_out_x; w++) {
                     volatile register v2s sum[max_unroll];
@@ -1325,16 +983,6 @@ void __attribute__((noinline)) occamy_conv_chw_opt_fp32(kernel* k) {
                             reduce_reg[i] = _pOutBuffer[i * output_h_stride];
                         }
                     }
-
-                    // SSR address setup and enable
-                    snrt_ssr_read(SNRT_SSR_DM0, SNRT_SSR_4D,
-                                  (void*)(k->pInBuffer +
-                                          h * k->stride_y * input_h_stride +
-                                          w * k->stride_x * input_w_stride +
-                                          ci * input_ci_stride));
-                    snrt_ssr_read(SNRT_SSR_DM1, SNRT_SSR_3D,
-                                  (void*)(k->pWeight + ci * kernel_ci_stride +
-                                          co * kernel_co_stride));
 
                     snrt_ssr_enable();
 
@@ -1532,15 +1180,14 @@ void __attribute__((noinline)) occamy_conv_chw_opt_fp32(kernel* k) {
     snrt_cluster_hw_barrier();
 
     if (k->flag_batch_norm | k->flag_relu) {
-        bn_relu(k->pOutBuffer, k->dim_out_x, k->dim_out_y, k->ch_out, k->k,
+        bn_relu(k->pOutBuffer, k->dim_out_x, k->dim_out_y, k->ch_out, k->kappa,
                 k->lambda, k->flag_relu, k->flag_batch_norm);
     }
 }
 
-void __attribute__((noinline))
-bn_relu(const float* pBuffer, const uint16_t dim_x, const uint16_t dim_y,
-        const uint16_t ch, float* kappa, float* lambda, int flag_relu,
-        int flag_batch_norm) {
+void bn_relu(const float* pBuffer, const uint16_t dim_x, const uint16_t dim_y,
+             const uint16_t ch, float* kappa, float* lambda, int flag_relu,
+             int flag_batch_norm) {
     // Parallelization/Pipelining parameters
     const uint32_t compute_id = snrt_cluster_compute_core_idx();
     const uint32_t compute_num =

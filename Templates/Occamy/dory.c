@@ -218,12 +218,23 @@ void __attribute__ ((noinline)) dory_dma_memcpy_async(DMA_copy DMA_copy_current)
       for ( int j = start_pixel; j < stop_pixel; j++) 
       {
         if (snrt_is_dm_core())
-          snrt_dma_start_2d(dst, /* dst */
-                            src, /* src */
-                            DMA_copy_current.length_1d_copy, /* size */
-                            dst_stride, /* dst_stride */
-                            src_stride, /* src_stride */
-                            DMA_copy_current.number_of_1d_copies); /* repetitions */
+        {
+          if (DMA_copy_current.number_of_1d_copies > 1) 
+          {
+            snrt_dma_start_2d(dst, /* dst */
+                              src, /* src */
+                              DMA_copy_current.length_1d_copy, /* size */
+                              dst_stride, /* dst_stride */
+                              src_stride, /* src_stride */
+                              DMA_copy_current.number_of_1d_copies); /* repetitions */
+          } 
+          else 
+          {
+            snrt_dma_start_1d(dst, /* dst */
+                              src, /* src */
+                              DMA_copy_current.length_1d_copy /* size */);
+          }
+        }
         dst += dst_stride_2d;
         src += src_stride_2d;
       }
