@@ -365,11 +365,11 @@ void network_run()
     {
 % for i in range(len(PULP_Nodes_Graph)):
       case ${i}:
-% if perf_layer == 'Yes':
+% if performance == 'Yes':
         benchmark_get_cycle();
 % endif
         ${func_name[i]}(&layer_i);
-% if perf_layer == 'Yes':
+% if performance == 'Yes':
         benchmark_get_cycle();
 % endif
         break;
@@ -413,12 +413,14 @@ void network_run()
 /* -------- SECTION 3 BEGIN --------- */
 /* ---------------------------------- */
 % if 'Perf_final' in verbose_level:
+#ifdef VERBOSE
   int cid = snrt_cluster_compute_core_idx();    
   int MACs = ${MACs};
   if (cid == 0)
   {
     printf("[%d] : Total MACs: %d\n",cid,MACs ); 
   }
+#endif
 % endif
 /* ---------------------------------- */
 /* --------- SECTION 3 END ---------- */

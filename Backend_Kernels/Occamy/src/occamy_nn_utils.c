@@ -18,6 +18,7 @@
  * limitations under the License.
  */
 #include "stdint.h"
+#include "../../vendor/riscv-opcodes/encoding.h"
 
 
 
@@ -39,5 +40,5 @@ float __attribute__((always_inline)) pulp_nn_bn_quant(
   return res;
 }
 uint32_t benchmark_get_cycle() { 
-  return 0;//read_csr(mcycle); 
+  return read_csr(mcycle); 
 }

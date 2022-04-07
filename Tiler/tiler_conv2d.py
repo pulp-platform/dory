@@ -761,10 +761,17 @@ class Tiler_Conv2D():
         ###############################################
         ##### L2 DIMENSIONS DEFINITION: EARLY EXIT ####
         ###############################################
-        input_dim = self.BitIn * int(n_in/self.number_of_clusters) * h_in * w_in
+        if n_in < self.number_of_clusters:
+            input_dim = self.BitIn * n_in * h_in * w_in
+        else:
+            input_dim = self.BitIn * int(n_in/self.number_of_clusters) * h_in * w_in
         if self.backend == 'Occamy':
-            input_dim = self.BitIn * int(n_in/self.number_of_clusters) * (h_in + padding_top + padding_bottom) * (w_in + padding_left + padding_right)
-            input_dim += ((padding_top + padding_bottom) * (w_in + padding_left + padding_right) + (padding_left + padding_right) * h_in) * self.BitIn * int(n_in/self.number_of_clusters)
+            if n_in < self.number_of_clusters:
+                input_dim = self.BitIn * n_in * (h_in + padding_top + padding_bottom) * (w_in + padding_left + padding_right)
+                input_dim += ((padding_top + padding_bottom) * (w_in + padding_left + padding_right) + (padding_left + padding_right) * h_in) * self.BitIn * n_in
+            else:
+                input_dim = self.BitIn * int(n_in/self.number_of_clusters) * (h_in + padding_top + padding_bottom) * (w_in + padding_left + padding_right)
+                input_dim += ((padding_top + padding_bottom) * (w_in + padding_left + padding_right) + (padding_left + padding_right) * h_in) * self.BitIn * int(n_in/self.number_of_clusters)
         output_dim = self.BitOut * int(n_out/self.number_of_clusters) * h_out * w_out
         if DW == 0:
             weight_dim = self.BitW * n_in * int(n_out/self.number_of_clusters) * fs1 * fs2
@@ -843,7 +850,7 @@ class Tiler_Conv2D():
         ##### CONSTRAINTS FOR BACKEND LIMITS ##########
         ###############################################
         if DW == 1:
-            if h_in <= 32 and w_in <= 32:
+            if h_in <= 32 and w_in <= 32 and self.backend != 'Occamy':
                 solver.Add(tile_h_in == h_in)
                 solver.Add(tile_w_in == w_in)
                 solver.Add(tile_h_out == h_out)
@@ -853,6 +860,11 @@ class Tiler_Conv2D():
                 #solver.Add(tile_w_out * s == (tile_w_in - (fs2 - 1) + ((tile_w_in % w_in) == 0) * (padding_left + padding_right) + (s - 1)))
                 solver.Add(tile_w_in == w_in)
                 solver.Add(tile_w_out == w_out)
+            if self.backend == 'Occamy':
+                solver.Add(tile_h_out * s == (tile_h_in - (fs1 - 1) + ((tile_h_in % h_in) == 0) * (padding_top + padding_bottom) + (s - 1)))
+                solver.Add(tile_w_in == w_in)
+                solver.Add(tile_w_out == w_out)
+                solver.Add(tile_n_out % 2 == 0)
         if DW == 0:
             if n_in >=self.number_of_clusters and (n_in % self.number_of_clusters == 0):
                 solver.Add(tile_n_in == int(np.ceil(n_in/self.number_of_clusters)))
@@ -921,7 +933,7 @@ class Tiler_Conv2D():
             elif DW == 1:
                 ####### Geometrical Shape of Tiles ############
                 heuristics += 32 * 10000 * ((tile_n_out > 7)) \
-                            + 64 * 10000 * ((tile_n_out - 1) % int(8*8/min(self.BitIn, self.BitOut, self.BitW))) \
+                            + 64 * 10000 * ((tile_n_out - 1) % 16) \
                             + 32 * 10000 * ((tile_h_out % 4) == 0)
                 ####### Total Dimension of Tile ###############
                 heuristics += constraint_all

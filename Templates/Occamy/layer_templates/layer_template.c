@@ -75,11 +75,15 @@ void ${func_name}(layer* layer_i)
   ////////////////////// BEGIN DMA DEDICATED SECTION //////////////////////
   if (snrt_is_dm_core())
   {
+% if number_of_clusters > 1:
     x_length_nif_byte = ${int(x_tile_size_nif_byte)};
     if (snrt_cluster_idx() == (CLUSTERS-1))
     {
       x_length_nif_byte = ${int(x_tile_size_nif_byte_last)};
     }
+% else:
+    x_length_nif_byte = ${int(x_tile_size_nif_byte)};
+% endif
 % if has_bias == 1:
     DMA_copy_bias.hwc_to_chw = 0;
     DMA_copy_bias.stride_2d = 0;
@@ -231,10 +235,6 @@ void ${func_name}(layer* layer_i)
     DMA_copy_x.stride_L1_2d = DMA_copy_x.length_1d_copy*DMA_copy_x.number_of_1d_copies + x_length_nif_byte*(${padding_left} + ${padding_right}*(${tile_dim_w}==1));
     dory_dma_memcpy_async(DMA_copy_x);
 
-
-
-
-
     int cl = 0;
     W_length_nif_byte = ((cl+snrt_cluster_idx()) % CLUSTERS  == (${tile_dim_nif}-1)) ? ${W_tile_nif_byte_last} : ${W_tile_nif_byte}; 
     DMA_copy_W.ext = l2_W +${int(fs1 * fs2 * W_tile_size_nof * W_tile_nif_byte)}*${int(tile_dim_nof/number_of_clusters)}*snrt_cluster_idx();
@@ -355,7 +355,11 @@ void ${func_name}(layer* layer_i)
         // X PARAMETERS (H, W, C) DEFINITION
         x_tile_size_h   = (_i_h_load+1 == ${tile_dim_h})   ? ${x_tile_size_h_last} : ${x_tile_size_h};
         x_tile_size_w   = (_i_w_load+1 == ${tile_dim_w})   ? ${x_tile_size_w_last} : ${x_tile_size_w};
+% if number_of_clusters > 1:
         x_length_nif_byte = ((_i_nif_load+snrt_cluster_idx()) % CLUSTERS  == (${tile_dim_nif}-1)) ? ${x_tile_size_nif_byte_last} : ${x_tile_size_nif_byte};
+% else:
+        x_length_nif_byte = ((_i_nif_load)  == (${tile_dim_nif}-1)) ? ${x_tile_size_nif_byte_last} : ${x_tile_size_nif_byte};
+% endif
 
         // additionally overlap by padding for the first tile after a border one because in the first tile we use less pixels from x_buffer
         pad_offset_h=0, pad_offset_w=0;
@@ -369,6 +373,7 @@ void ${func_name}(layer* layer_i)
         }
 
 % endif
+% if number_of_clusters > 1:
         // W PARAMETERS (NIF, NOF) DEFINITION
         if (snrt_cluster_idx() == (${number_of_clusters - 1}))
         {
@@ -378,6 +383,9 @@ void ${func_name}(layer* layer_i)
         {
           W_tile_size_nof = ${W_tile_size_nof};
         }
+% else:
+        W_tile_size_nof = (_i_nof_load+1 == ${int(tile_dim_nof)}) ? ${W_tile_size_nof_last} : ${W_tile_size_nof};
+% endif
 
 % if tile_dim_nif*tile_dim_h*tile_dim_w*min(x_tile_size_nif,number_of_clusters) != 1:
         if (_i_nif_load !=0 && ${int(flag_DW==0)})
@@ -443,7 +451,7 @@ void ${func_name}(layer* layer_i)
           DMA_copy_x.stride_1d = ${x_stride_c_byte};
           DMA_copy_x.length_1d_copy = x_length_nif_byte;
           DMA_copy_x.stride_L1_1d = DMA_copy_x.length_1d_copy;
-          DMA_copy_x.stride_L1_2d = DMA_copy_x.length_1d_copy*DMA_copy_x.number_of_1d_copies + ${int(x_tile_size_nif_byte)}*(${padding_left}*(_i_w_load == 0) + ${padding_right}*(_i_w_load == ${(tile_dim_w-1)}));
+          DMA_copy_x.stride_L1_2d = DMA_copy_x.length_1d_copy*DMA_copy_x.number_of_1d_copies + x_length_nif_byte*(${padding_left}*(_i_w_load == 0) + ${padding_right}*(_i_w_load == ${(tile_dim_w-1)}));
           dory_dma_memcpy_async(DMA_copy_x);
         }
 % endif
@@ -472,7 +480,7 @@ void ${func_name}(layer* layer_i)
           {
             W_length_nif_byte = ((cl+_i_nif_load+snrt_cluster_idx()) % CLUSTERS  == (${tile_dim_nif}-1)) ? ${W_tile_nif_byte_last} : ${W_tile_nif_byte};
       	    DMA_copy_W.ext = dory_get_tile_3d(l2_W,  _i_nof_load + snrt_cluster_idx() * ${int(tile_dim_nof/number_of_clusters)}, 0, 0, ${W_tile_size_nof}, ${fs1}*${fs2}, ${W_tile_size_nif}, ${fs1}*${fs2}, ${nif}, 0,0,0,0,0,0, ${W_data_size_byte}) + ${int(W_tile_nif_byte/tile_dim_nif)}*cl;
-      		  DMA_copy_W.loc = l1_buffer + (${l1_W_offset} + db_W) + ${W_tile_size_nof * fs1 * fs2 * int(W_tile_nif_byte/tile_dim_nif)}*cl;
+      		DMA_copy_W.loc = l1_buffer + (${l1_W_offset} + db_W) + ${W_tile_size_nof * fs1 * fs2 * int(W_tile_nif_byte/tile_dim_nif)}*cl;
       	    DMA_copy_W.number_of_2d_copies = W_tile_size_nof;
       	    DMA_copy_W.length_1d_copy = (int) W_length_nif_byte/${tile_dim_nif};
             DMA_copy_W.stride_L1_1d = DMA_copy_W.length_1d_copy;
@@ -507,6 +515,7 @@ void ${func_name}(layer* layer_i)
       // SETTING PARAMETERS TO PASS TO THE KERNEL FUNCTION
       y_tile_size_h   = (_i_h_exec+1 == ${tile_dim_h}) ? ${y_tile_size_h_last} : ${y_tile_size_h};
       y_tile_size_w   = (_i_w_exec+1 == ${tile_dim_w}) ? ${y_tile_size_w_last} : ${y_tile_size_w};
+% if number_of_clusters > 1:
       if (snrt_cluster_idx() == (${number_of_clusters - 1}))
       {
         y_length_nof_byte = (_i_nof_exec+1 == ${int(tile_dim_nof/number_of_clusters) + tile_dim_nof%number_of_clusters})   ? ${y_length_nof_byte_last} : ${y_tile_size_nof_byte};
@@ -523,13 +532,21 @@ void ${func_name}(layer* layer_i)
       {
         y_tile_size_nof = ${y_tile_size_nof};
       }
+% else:
+      y_length_nof_byte = (_i_nof_exec+1 == ${int(tile_dim_nof)})   ? ${y_length_nof_byte_last} : ${y_tile_size_nof_byte};
+      y_tile_size_nof = (_i_nof_exec+1 == ${int(tile_dim_nof)}) ? ${y_tile_size_nof_last} : ${y_tile_size_nof};
+% endif
 % if tile_dim_nof*tile_dim_nif*tile_dim_h*tile_dim_w*min(x_tile_size_nif,number_of_clusters) == 1 or flag_DW == 1:
       asm volatile("": : :"memory");
 % endif
       kernel_i.pInBuffer = (${type} *) (l1_buffer + (${l1_x_offset} + exec_db_x));
       kernel_i.dim_in_x = (_i_w_exec+1 == ${tile_dim_w}) ? ${x_tile_size_w_last} : ${x_tile_size_w};
       kernel_i.dim_in_y = (_i_h_exec+1 == ${tile_dim_h}) ? ${x_tile_size_h_last} : ${x_tile_size_h};
+% if flag_DW == 0:
       kernel_i.ch_in = ${x_tile_size_nif};
+% else:
+      kernel_i.ch_in = y_tile_size_nof;
+% endif
 % if tile_dim_nif > 1 and flag_DW == 0:
       kernel_i.pWeight = (${type} *) (l1_buffer + (${l1_W_offset} + exec_db_W + ((snrt_cluster_idx() + _i_nif_exec) % CLUSTERS) * ${int(fs1 * fs2 * W_tile_size_nof * W_tile_nif_byte / tile_dim_nif)}));
 % else:
@@ -624,6 +641,7 @@ void ${func_name}(layer* layer_i)
 % endif
         y_tile_size_h   = (_i_h_exec+1 == ${tile_dim_h}) ? ${y_tile_size_h_last} : ${y_tile_size_h};
         y_tile_size_w   = (_i_w_exec+1 == ${tile_dim_w}) ? ${y_tile_size_w_last} : ${y_tile_size_w};
+% if number_of_clusters > 1:
         if (snrt_cluster_idx() == (${number_of_clusters - 1}))
         {
           y_length_nof_byte = (_i_nof_exec+1 == ${int(tile_dim_nof/number_of_clusters) + tile_dim_nof%number_of_clusters})   ? ${y_length_nof_byte_last} : ${y_tile_size_nof_byte};
@@ -632,6 +650,9 @@ void ${func_name}(layer* layer_i)
         {
           y_length_nof_byte = ${y_tile_size_nof_byte};
         }
+% else:
+        y_length_nof_byte = (_i_nof_exec+1 == ${int(tile_dim_nof)})   ? ${y_length_nof_byte_last} : ${y_tile_size_nof_byte};
+% endif
 % if flag_DW == 0:
 	      if (iter <  ${tile_dim_nif * tile_dim_h * tile_dim_w * int(tile_dim_nof/number_of_clusters) } || snrt_cluster_idx() == (CLUSTERS-1))
 % else:
