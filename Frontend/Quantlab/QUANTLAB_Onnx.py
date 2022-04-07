@@ -43,7 +43,8 @@ class Quantlab_onnx(ONNX_management):
         layers_to_node = ['AveragePool', 'MaxPool', 'Conv', 'Gemm', 'MatMul', 'GlobalAveragePool', 'Add']
         backend = ['ConvBNRelu', 'ConvRelu', 'ConvDWBNRelu', 'ConvDWRelu', 'AveragePool', 'GlobalAveragePool', 'MaxPool', 'LinearBNRelu', 'GemmRelu', 'Gemm', 'MatMulRelu', 'MatMul', 'Add', 'AddBNRelu', 'BNReluAddBNRelu',
                     'PadConvBNRelu', 'PadConvRelu', 'PadConvDWBNRelu', 'PadConvDWRelu', 'PadAveragePool', 'PadGlobalAveragePool', 'PadMaxPool', 'PadLinearBNRelu', 'PadGemmRelu', 'PadGemm', 'PadMatMulRelu', 'PadMatMul', 
-                    'PadAdd', 'PadAddBNRelu', 'PadBNReluAddBNRelu']
+                    'PadAdd', 'PadAddBNRelu', 'PadBNReluAddBNRelu',
+                   'AveragePoolBNRelu', 'AveragePoolRelu', 'GlobalAveragePoolBNRelu', 'GlobalAveragePoolRelu',]
         rules = {}
         rules['Relu'] = 'Mul-Div-Floor-Clip'
         rules['BNRelu'] = 'Mul-Add-Div-Floor-Clip'
@@ -61,7 +62,7 @@ class Quantlab_onnx(ONNX_management):
                 break
         pulp_node.add_parameter('name', key)
         if rule in [self.rules['Relu'], self.rules['BNRelu']]:
-            for node_iterating in (self.model.graph.node):
+            for n_idx, node_iterating in enumerate(self.model.graph.node):
                 if (out == node_iterating.output[0] or i > 0) and node_iterating.op_type == nodes_to_search[i] and i < blocks_to_search:
                     if i == 0:
                         pulp_node.add_parameter('input_index',[input_i for input_i in node_iterating.input if 'weight' not in input_i][0])
@@ -75,6 +76,9 @@ class Quantlab_onnx(ONNX_management):
                         if node_iterating.op_type == 'Mul' and rule == self.rules['BNRelu']:
                             pulp_node.add_parameter('k', const)
                             pulp_node.add_parameter('outmul', 1)
+                            # pulp_node.add_parameter('outmul', const) # this
+                            # will later be divided by kernel area (i.e.,
+                            # k[0]*k[1]) in the case of avgpool
                         elif node_iterating.op_type == 'Mul' and rule == self.rules['Relu']:
                             pulp_node.add_parameter('outmul', const)
 
@@ -143,6 +147,7 @@ class Quantlab_onnx(ONNX_management):
     def fuse_nodes(self, node_1, node_2):
         assert (node_1.get_parameter('output_index') == node_2.get_parameter('input_index')), f"Error in fusion of near nodes with different indexes"
         node_1.add_parameter('name', node_1.get_parameter('name')+node_2.get_parameter('name') )
+
         for key, value in node_2.__dict__.items():
             if (isinstance(value,str)):
                 if value == 'Not-initialized':
@@ -170,6 +175,21 @@ class Quantlab_onnx(ONNX_management):
                     value[0] = value[0]-node_1.get_parameter('pads')[0]-node_1.get_parameter('pads')[2]
                     value[1] = value[1]-node_1.get_parameter('pads')[1]-node_1.get_parameter('pads')[3]
                 node_1.add_parameter(key,value)
+            if 'AveragePool' in node_1.name and 'Relu' in node_2.name:
+                ks_tot = 1
+                # "ReLU" nodes don't have the k attribute
+                try:
+                    kappa = node_2.k
+                except AttributeError:
+                    kappa = 1
+
+                for k in node_1.kernel_shape:
+                    ks_tot *= k
+                # the multiplier must include division by total kernel area
+                node_1.outmul = int(np.round(node_2.outmul*kappa/(ks_tot)))
+                # move "lambda" to scalar out_add parameter here
+                node_1.out_add = int(node_2.get_parameter('lambda'))
+                node_1.requant_pool = True
 
         return node_1
 
@@ -180,7 +200,7 @@ class Quantlab_onnx(ONNX_management):
         return node_2
 
     def fuse_graph_BNReluADD(self):
-        BNRelu_fused = []                
+        BNRelu_fused = []
         for j, node_1 in enumerate(self.PULP_Nodes_Graph):
             if node_1.name == 'BNRelu':
                 for i, node_2 in enumerate(self.PULP_Nodes_Graph):

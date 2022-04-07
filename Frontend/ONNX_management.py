@@ -178,6 +178,8 @@ class ONNX_management():
                     temp = np.transpose(temp, (0, 2, 3, 1))
                     temp = temp.flatten()
                     new_parameters['weights'] = temp
+                    # needed to compute final checksum for <8b layers
+                    new_parameters['weights_raw'] = temp
             if weight.name == bias_name:
                 new_parameters['bias'] = numpy_helper.to_array(weight)
         if 'Add' not in new_parameters['name']:
@@ -291,7 +293,7 @@ class ONNX_management():
                             nodes.add_parameter('out_activation_bits', nodes.get_parameter('input_activation_bits'))
             if i == (len(self.PULP_Nodes_Graph)-1):
                 nodes.add_parameter('out_activation_bits', 32)
-            if 'Pool' in nodes.name:
+            if 'Pool' in nodes.name and not hasattr(nodes, "requant_pool"):
                 nodes.add_parameter('out_activation_bits', nodes.get_parameter('input_activation_bits'))
         for i, nodes in enumerate(self.PULP_Nodes_Graph):
             if nodes.get_parameter('input_activation_bits') != 8 or nodes.get_parameter('out_activation_bits') != 8 or nodes.get_parameter('weight_bits') != 8:
@@ -375,5 +377,3 @@ class ONNX_management():
         self.print_PULP_graph("PULP_Final_Graph")
         self.check_graph()
         return self.PULP_Nodes_Graph
-
-    

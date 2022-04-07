@@ -46,7 +46,8 @@ def print_pool_template_layer_L3(X, W, Y, fs1, fs2, padding, stride,
                             data_type_y,
                             test_location,
                             buffer_l1_all,
-                            input_L3
+                                 input_L3,
+                                 backend
                             ):
     # generation of L3 layers. The layers are generated with this infrustructure if an L3 tiling is demanded.
     tk = OrderedDict([])
@@ -74,14 +75,18 @@ def print_pool_template_layer_L3(X, W, Y, fs1, fs2, padding, stride,
     tk['platform'] = platform
     tk['y_data_size_byte'] = data_type_y
     tk['x_data_size_byte'] = data_type_x
+    tk['BitIn'] = data_type_x
+    tk['BitOut'] = data_type_y
+    tk['weight_dim'] = 0
+    tk['k_dim'] = 0
+    tk['lambda_dim'] = 0
     root = '/'.join(os.getcwd().split('/')[:-1])
-    tmpl = Template(filename=root + f"/Templates/{backend}/layer_templates/layer_template_L3.c")
+    tmpl = Template(filename=root + f"/Templates/{backend}/layer_templates/layer_template_L3.c", strict_undefined=True)
     l = ""
     s = tmpl.render(verbose_log=l,**tk)
     #
     save_string = './application/DORY_network/src/' + tk['func_name_L3'] + '.c'
     with open(save_string, "w") as f: f.write(s)
-
     tmpl = Template(filename=root + f"/Templates/{backend}/layer_templates/layer_template_L3-h.h")
     s = tmpl.render(verbose_log=l, **tk)
     if full_net == 1:
@@ -174,6 +179,7 @@ def print_template_layer_L3(X, W, Y, fs1, fs2, padding, stride,
     tk['platform'] = platform
     tk['y_data_size_byte'] = data_type_y
     tk['x_data_size_byte'] = data_type_x
+
     root = '/'.join(os.getcwd().split('/')[:-1])
     tmpl = Template(filename=root + f"/Templates/{backend}/layer_templates/layer_template_L3.c")
     l = ""

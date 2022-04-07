@@ -35,6 +35,7 @@ def print_template_layer(x, y_gold, W,
                          fs1, fs2, padding_top, padding_bottom, padding_left, padding_right, stride,
                          relu, BN, DW,
                          out_mul, out_mul2, out_shift, factor_ch_out, factor_h_out, factor_h_in,
+                         out_add=0, # used for avgpool layers
                          name_layer='layer',
                          ultra_verbose=True,
                          test=False,
@@ -343,7 +344,12 @@ def print_template_layer(x, y_gold, W,
         l2_dim_weights = int(tk['nof'] * 1 * tk['fs1'] * tk['fs2'] * ds_W / 8.0)
     l2_dim_k = k_buffer_size
     l2_dim_lambda = lambd_buffer_size
+    # only used for avg pool layers
+    tk['out_add'] = out_add
+    tk['out_mul'] = out_mul
+    tk['out_shift'] = out_shift
     root = '/'.join(os.getcwd().split('/')[:-1])
+
     if conv_order == 'PULP-NN':
         tmpl = Template(filename=root+f"/Templates/{backend}/layer_templates/layer_template.c")
     elif conv_order == 'PULP-NN-MAX':
@@ -378,8 +384,6 @@ def print_template_layer(x, y_gold, W,
     with open(save_string, "w") as f:
         f.write(s)
     if 'L2' in test_location and L3_tiling == 0:
-        tk['out_mul'] = out_mul
-        tk['out_shift'] = out_shift
         tk['l1_buffer'] = l1_buffer
         tk['activation_size_out'] = int(math.ceil(l2_dim_output * ds_y / 8.0))
         tk['activation_size_in'] = int(math.ceil(l2_dim_input * ds_x / 8.0))

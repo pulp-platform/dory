@@ -392,7 +392,7 @@ void ${func_name}(
   % elif flag_DW == 0 and 'mixed-hw' in optional_type  and ('Conv' in func_name):
     xpulp_nn_conv_u${x_data_size_byte}_u${y_data_size_byte}_i${W_data_size_byte}(
   % elif flag_DW == 0 and 'mixed' in optional_type  and ('Gemm' in func_name or 'MatMul' in func_name) and y_data_size_byte == 32:
-    pulp_nn_linear_u${x_data_size_byte}_i${y_data_size_byte}_i${W_data_size_byte}(
+    ${"x" if 'hw' in optional_type else ""}pulp_nn_linear_u${x_data_size_byte}_i${y_data_size_byte}_i${W_data_size_byte}(
   % elif flag_DW == 0 and 'mixed' in optional_type  and ('Gemm' in func_name or 'MatMul' in func_name):
     pulp_nn_linear_u${x_data_size_byte}_u${y_data_size_byte}_i${W_data_size_byte}(
   % elif flag_DW == 1 and optional_type == '8bit' and fs1 == 3 and fs2 == 3 and stride==1:
@@ -407,55 +407,47 @@ void ${func_name}(
     xpulp_nn_depthwise_u${x_data_size_byte}_u${y_data_size_byte}_i${W_data_size_byte}( 
   % endif
   % if 'Gemm' in func_name or 'MatMul' in func_name:
-      x, W, x_tile_size_nif_exec, y_tile_size_nof, 0, 0, 
-      % if '_last' in func_name:
-      0, 1,
-      % elif FLAG_RELU == 1:
-      out_shift, out_mult,
-      % else:
-      out_shift, 1,
-      % endif
-      % if '_last' in func_name:
-      0, 0,
-      % elif FLAG_BATCHNORM == 1:
+      x, 0, y, W,
+      % if FLAG_BATCHNORM == 1 and '_last' not in func_name:
       k, lambda,
-      % else:
+      % elif '_last' not in func_name:
       0, 0,
       % endif
-      y,
-      % if '_last' in func_name:
-      0, 0,
-      % else:
-      ${FLAG_RELU}, ${FLAG_BATCHNORM}, 
+      % if '_last' not in func_name:
+        % if FLAG_RELU == 1:
+      out_mult, out_shift,
+        % else:
+        1, out_shift,
+        % endif
       % endif
-      NULL );  
+      x_tile_size_nif_exec, y_tile_size_nof${"," if "_last" not in func_name else ""}
+      % if '_last' not in func_name:
+      ${FLAG_RELU}, ${FLAG_BATCHNORM}
+      % endif
+      );
   % else:
-      x, x_tile_size_w_exec, x_tile_size_h_exec, x_tile_size_nif_exec,
-      W, y_tile_size_nof, ${fs2}, ${fs1},
-      p_t, p_b, p_l, p_r, ${stride}, ${stride},
+      x, im2col,
       % if has_bias:
       b,
       % else:
       NULL,
       % endif
-      ${has_bias},
-      out_shift,
-      % if FLAG_RELU == 1:
-      out_mult,
-      % else:
-      0,
+      y, W,
+      % if flag_DW == 1:
+      pwt_buffer,
       % endif
-      y, y_tile_size_w, y_tile_size_h,
       % if FLAG_BATCHNORM == 1:
       k, lambda,
       % else:
       0, 0,
       % endif
-      im2col,
-      % if flag_DW == 1:
-      pwt_buffer,
-      % endif
-      ${FLAG_RELU}, ${FLAG_BATCHNORM}, NULL);
+      out_mult, out_shift,
+      x_tile_size_w_exec, x_tile_size_h_exec, x_tile_size_nif_exec,
+      y_tile_size_w, y_tile_size_h, y_tile_size_nof,
+      ${fs2}, ${fs1},
+      p_t, p_b, p_l, p_r, ${stride}, ${stride},
+      ${FLAG_RELU}, ${FLAG_BATCHNORM}
+      );
   % endif
     dory_cores_barrier();
     % if tile_dim_nif != 1 and flag_DW == 0:

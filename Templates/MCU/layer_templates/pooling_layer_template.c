@@ -35,7 +35,7 @@ void ${func_name}(
   unsigned int l2_W =(unsigned int)  real_arg[6];
   unsigned int l1_buffer =(unsigned int)  real_arg[7];
   unsigned int hyperram =(unsigned int)  real_arg[8];
-  unsigned int out_mult_in =(unsigned int)  real_arg[9];
+
   unsigned int inmul1 = (unsigned int) real_arg[10];
   unsigned int inmul2 = (unsigned int) real_arg[11];
   unsigned int out_shift_in = (unsigned int) real_arg[12];
@@ -109,10 +109,6 @@ void ${func_name}(
   int last_h_load = (${tile_dim_h} == 1) ? 1 : 0;
   int last_w_load = (${tile_dim_w} == 1) ? 1 : 0;
   int iter;
-% if FLAG_RELU == 1:
-  uint16_t out_mult = out_mult_in;
-  uint16_t out_shift = out_shift_in;
-% endif
   // tile loop nest
   for(iter=0; iter<${tile_dim_nof}*${tile_dim_h}*${tile_dim_w}; iter++) {
     // loop nest is nof,h,w,(nif=0)
@@ -212,63 +208,39 @@ void ${func_name}(
     % if optional_type == 'mixed-sw':
     pulp_nn_maxpool_u${y_data_size_byte}(
     % elif optional_type == 'mixed-hw':
-    pulp_nn_maxpool_u${y_data_size_byte}(
+    xpulp_nn_maxpool_u${y_data_size_byte}(
     % else:
     pulp_nn_maxpool(
     % endif
   % else:
-    % if optional_type == 'mixed-sw':
-    pulp_nn_avgpool_u${y_data_size_byte}(
-    % elif optional_type == 'mixed-hw':
-    pulp_nn_avgpool_u${y_data_size_byte}(
+    % if 'mixed' in optional_type:
+    ${"x" if "hw" in optional_type else ""}pulp_nn_avgpool_u${x_data_size_byte}_u${y_data_size_byte}(
     % else:
     pulp_nn_avgpool(
     % endif
   % endif
-    x,
+    x, y,
+    % if 'Max' not in optional:
+    ${out_mul},
+    ${out_shift},
+    ${out_add},
+  % endif
     x_tile_size_w_exec,
-    % if not ('mixed' in optional_type and 'Max' not in optional):
     x_tile_size_h_exec,
-    % endif
     x_tile_size_nif_exec,
-    % if 'mixed' not in optional_type:
+    y_tile_size_w,
+    y_tile_size_h,
     ${fs2},
-    % endif
     ${fs1},
     p_t,
-% if 'Max' in optional:
     p_b,
     p_l,
     p_r,
-% endif
     ${stride},
-    y_tile_size_w,
-    % if not ('mixed' in optional_type and 'Max' not in optional):
-    y_tile_size_h,
-    % if 'mixed' not in optional_type:
-    im2col,
-    % endif
-    % endif
-    y,
-    % if 'mixed' not in optional_type:
-    0,
-    0,
-% if 'Max' in optional:
-    flag_first_ch_out
-% else:
-    flag_first_ch_out,
-    ${FLAG_RELU},
-% if FLAG_RELU == 1:
-    out_shift,
-    out_mult
-% else:
-    0,
-    0
+    ${stride}${"," if "Max" not in optional else ""}
+% if 'Max' not in optional:
+    ${FLAG_RELU}
 % endif
-% endif
-    % else:
-    im2col
-    % endif
     );
     dory_cores_barrier();
     dory_dma_barrier(DMA_copy_x);

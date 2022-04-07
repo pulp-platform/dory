@@ -67,6 +67,7 @@ class Tiler_Pool2D():
                           relu=0,  BN = 0,
                           out_mul=0,
                           out_shift=0,
+                          out_add=0,
                           name='pool2d',
                           input_L3 = 0,
                           input_dim_constraint = 0,
@@ -105,7 +106,7 @@ class Tiler_Pool2D():
         min_tile_w_out = 1
         min_tile_h_out = 1
         # this is to renormalize all costs
-        max_obj_value = self.buffer_size * 10000 * 8 * 32
+        max_obj_value = self.buffer_size * 10000 * 8
         memory = self.BitIn * n_in * h_in * w_in + self.BitOut * n_out * h_out * w_out
         if memory >= self.L2_buffer_size * 8:
             tiling = self.get_tiling_pool2d_L3(BN, input_L3, input_dim_constraint, output_weights_dim_constraint)
@@ -216,7 +217,8 @@ class Tiler_Pool2D():
             logging.debug("    no. tiles:".ljust(18) + "x: " + x_no_str.ljust(15) +
                           "y: " + y_no_str.ljust(15))
             logging.debug("    Total L1 occupation:".ljust(18) + str(L1_tiles_size * 1.).ljust(15))
-            # printing layer .c file. Either a unique one, or top,bottom and middle one (for which also tiling is computed).
+            # printing layer .c file. Either a unique one, or top,bottom and
+            # middle one (for which also tiling is computed).
             if (p_top+p_bottom) > 0 and (factor_h_in > 1 or factor_h_out > 1):
                 in_dim1, out_dim1, weight_dim1, l2_dim_k, l2_dim_lambda, bias_dim1, l1_dim1, n_out1, w_out1, h_out1 = print_template_layer(
                     X, Y, W, n_in, h_in, w_in,
@@ -227,6 +229,7 @@ class Tiler_Pool2D():
                     fs1, fs2, 0, 0, p_left, p_right, s,
                     relu, 0, 0, out_mul, 0, out_shift,  factor_ch_out, factor_h_out, factor_h_in,
                     name_layer=name,
+                    out_add=out_add,
                     test=False,
                     test_location=self.test_location,
                     has_bias=True,
@@ -251,6 +254,7 @@ class Tiler_Pool2D():
                     fs1, fs2, p_top, p_bottom, p_left, p_right, s,
                     relu, 0, 0, out_mul, 0, out_shift,  factor_ch_out, factor_h_out, factor_h_in,
                     name_layer=name,
+                    out_add=out_add,
                     test=False,
                     test_location=self.test_location,
                     has_bias=True,
@@ -265,6 +269,7 @@ class Tiler_Pool2D():
                     backend = self.backend,
                     number_of_clusters = self.number_of_clusters,
                     dma_parallelization = self.dma_parallelization)
+
             if (p_top + p_bottom) > 0 and (factor_h_in > 1 or factor_h_out > 1):
                 tiling = self.get_tiling_pool2d_like(
                     fs1,
@@ -288,6 +293,7 @@ class Tiler_Pool2D():
                     fs1, fs2, p_top, 0, p_left, p_right, s,
                     relu, 0, 0, out_mul, 0, out_shift,  factor_ch_out, factor_h_out, factor_h_in,
                     name_layer=name,
+                    out_add=out_add,
                     test=False,
                     test_location=self.test_location,
                     has_bias=True,
@@ -412,6 +418,11 @@ class Tiler_Pool2D():
         p_left = self.padding[1]
         p_bottom = self.padding[2]
         p_right = self.padding[3]
+        # we want to make the cost for tiling to a non-byte-aligned # of
+        # channels is the same as next byte-aligned # of channels when tiling
+        # in the channel dimension; for this, calculate #elements per byte
+        in_els_per_byte = 8//self.BitIn
+        out_els_per_byte = 8//self.BitOut
         fs1 = self.filter_size[0]
         fs2 = self.filter_size[1]
         conv_overlap_h = 2 * (fs1 // 2) + fs1 % 2 - 1 - (s - 1)
@@ -428,7 +439,7 @@ class Tiler_Pool2D():
         min_tile_h_in = fs1
         min_tile_h_out = 1
         # this is to renormalize all costs
-        max_obj_value = self.L2_buffer_size * 8 * 32 * 100000
+        max_obj_value = self.L2_buffer_size * 8 * 100000
         # constraints
         input_dim = self.BitIn * n_in * h_in * w_in
         output_dim = self.BitOut * n_out * h_out * w_out
@@ -471,31 +482,31 @@ class Tiler_Pool2D():
                 constraint_all = constr_out
                 solver.Add(constraint_all <= output_weights_dim_constraint)
             # scaling is used to ensure datasize is integer
-            ds_x_scale = int(math.floor(32 * self.BitIn))
-            ds_y_scale = int(math.floor(32 * self.BitOut))
-            ds_W_scale = int(math.floor(32 * self.BitW))
-            ds_bn_scale = int(math.floor(32 * self.BitActivation))
+            ds_x_scale = self.BitIn
+            ds_y_scale = self.BitOut
+            ds_W_scale = self.BitW
+            ds_bn_scale = self.BitActivation
             # geometrical constraint
             if db_x == 2 and db_O == 2:
                 solver.Add(tile_h_out * s == (tile_h_in - (fs1 - 1) + (s - 1)))
             solver.Add(solver.Max((h_in - tile_h_in - (tile_h_in - fs1 + 1 - p_top)), 0) % (tile_h_in - fs1 + 1) + abs(solver.Min(solver.Max((h_in - tile_h_in - (tile_h_in - fs1 + 1 - p_top)), 0) % (tile_h_in - fs1 + 1), 1) - 1) * fs1 >= fs1)
-            constr_in = db_x * ds_x_scale * n_in * tile_h_in * w_in
-            constr_out = db_O * ds_y_scale * n_out * tile_h_out * w_out
+            constr_in = (db_x * ds_x_scale * n_in * tile_h_in * w_in + 7)//8
+            constr_out = (db_O * ds_y_scale * n_out * tile_h_out * w_out + 7)//8
             constr_bn = ds_bn_scale * n_out * 2
             constraint_all = constr_in + constr_out + constr_bn
             # size constraint
             if BN == 0:
                 constraint_all -= constr_bn
-            solver.Add(constraint_all <= 32 * self.L2_buffer_size * 8)
+            solver.Add(constraint_all <= self.L2_buffer_size * 8)
             # objective
             obj_expr = solver.IntVar(0, max_obj_value, "obj_expr")
             # objective function:
             # 1. constraints for pulp-nn perfromance optimization
             # 2. constraints to have all tiles of same dimension
             solver.Add(obj_expr == constraint_all
-                            + 32 * 2 * 100000 * ((tile_h_out - 1) % 8)
-                            + 32 * 2 * 1000000 * (((h_in - tile_h_in + p_top) % (tile_h_in - conv_overlap_h )) == 0)
-                            + 32 * 2 * 100000 * ((tile_h_in - 1) % 4))
+                            + 2 * 100000 * ((tile_h_out - 1) % 8)
+                            + 2 * 1000000 * (((h_in - tile_h_in + p_top) % (tile_h_in - conv_overlap_h )) == 0)
+                            + 2 * 100000 * ((tile_h_in - 1) % 4))
             # maximize the objective
             objective = solver.Maximize(obj_expr, 1)
             decision_builder = solver.Phase([tile_n_out, tile_h_in, tile_h_out],
@@ -563,7 +574,7 @@ class Tiler_Pool2D():
         min_tile_h_out = 1
         # this is to renormalize all costs
         max_obj_value = sys.maxsize
-        memory = np.ceil(self.BitIn * n_in * h_in * w_in/in_els_per_byte)*in_els_per_byte + np.ceil(self.BitOut * n_out * h_out * w_out + 4 * 8 * h_out * w_out/out_els_per_byte)*out_els_per_byte + 32 * h_out * w_out
+        memory = np.ceil(self.BitIn * n_in * h_in * w_in/in_els_per_byte)*in_els_per_byte + np.ceil(self.BitOut * n_out * h_out * w_out/out_els_per_byte)*out_els_per_byte
 
         if self.backend == 'Occamy':
             memory += self.BitIn * n_in * ((p_top + p_bottom) * (w_in + p_left + p_right) + (p_left + p_right) * h_in)
@@ -591,7 +602,7 @@ class Tiler_Pool2D():
         solver.Add(0 == (tile_w_in - fs2) % s)
         solver.Add(solver.Max((h_in - tile_h_in - (tile_h_in - fs1 + 1 - p_top)), 0) % (tile_h_in - fs1 + 1) + abs(solver.Min(solver.Max((h_in - tile_h_in - (tile_h_in - fs1 + 1 - p_top)), 0) % (tile_h_in - fs1 + 1), 1) - 1) * fs1 >= fs1)
         solver.Add(solver.Max((w_in - tile_w_in - (tile_w_in - fs2 + 1 - p_left)), 0) % (tile_w_in - fs2 + 1) + abs(solver.Min(solver.Max((w_in - tile_w_in - (tile_w_in - fs2 + 1 - p_left)), 0) % (tile_w_in - fs2 + 1), 1) - 1) * fs2 >= fs2)
-        constraint_all = db * ds_x_scale * (tile_n+in_els_per_byte-1)//in_els_per_byte*in_els_per_byte * tile_h_in * tile_w_in + db * ds_y_scale * (tile_n+out_els_per_byte-1)//out_els_per_byte*out_els_per_byte * tile_h_out * tile_w_out + 32 * tile_h_out * tile_w_out
+        constraint_all = db * ds_x_scale * (tile_n+in_els_per_byte-1)//in_els_per_byte*in_els_per_byte * tile_h_in * tile_w_in + db * ds_y_scale * (tile_n+out_els_per_byte-1)//out_els_per_byte*out_els_per_byte * tile_h_out * tile_w_out
         if self.backend == 'Occamy':
             constraint_all += db * ds_x_scale * tile_n * ((p_top + p_bottom) * (tile_w_in + p_left + p_right) + (p_left + p_right) * tile_h_in)
         solver.Add(constraint_all <= self.buffer_size * 8)
@@ -607,9 +618,9 @@ class Tiler_Pool2D():
         obj_expr = solver.IntVar(0, max_obj_value, "obj_expr")
 
         solver.Add(obj_expr == cost_dim * (ds_x_scale * tile_n * tile_h_in * tile_w_in + ds_y_scale * tile_n * tile_h_out * tile_w_out)
-                   + 32 * cost_w * tile_w_in
-                   + 32 * cost_h * tile_h_in
-                   + 32 * cost_n * tile_n)
+                   + cost_w * tile_w_in
+                   + cost_h * tile_h_in
+                   + cost_n * tile_n)
         objective = solver.Maximize(obj_expr, 1)
         decision_builder = solver.Phase([tile_n, tile_h_in, tile_w_in, tile_h_out, tile_w_out],
                                         solver.CHOOSE_FIRST_UNBOUND,
