@@ -6,3 +6,4 @@ application/BUILD
 application
 .DS_Store
 *DS_Store
+**/gmon.out
