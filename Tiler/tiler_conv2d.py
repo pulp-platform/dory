@@ -950,7 +950,7 @@ class Tiler_Conv2D():
             heuristics += 64 * 10000 * (((((h_out-zero_variable - 1) % tile_h_out)) % 8) > 4) 
             heuristics += 64 * 10000 * (((tile_h_out - 1) % 8) > 4) \
                         + 64 * 10000 * ((tile_n_out - 1) % 8) \
-                        + 64 * 10000 * tile_n_out 
+                        + 64 * 10000 * (tile_w_out * tile_h_out) ## better to have a bigger spatial dimension then more out_channels to reduce memory overhead in copying overlapping input pixels
             # ####### Total Dimension of Tile ###############
             heuristics += constraint_all
             ####### Geometrical Shape of Border Tiles #####
