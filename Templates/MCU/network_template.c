@@ -836,7 +836,7 @@ void network_run(unsigned int L3_weights_size)
           d_buffering_weights_e = !d_buffering_weights_e;
           exec_weights = d_buffering_weights_e ? L2_weights_2 : L2_weights_1;
         }
-        if (i < ${len(PULP_Nodes_Graph) - 1})
+        if (i < ${len(PULP_Nodes_Graph) - 2})
         {
           // allocation of weights for next next layer, if necessary.
           if (layer_with_weights[i+2] == 1)
