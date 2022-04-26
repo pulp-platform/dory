@@ -318,7 +318,7 @@ class Model_deployment():
             X_in = pd.read_csv(os.path.join(load_dir, f'out_layer{f}.txt'))
             X_in = X_in.values[:, 0].astype(int)
             if f == len(PULP_Nodes_Graph[:number_of_deployed_layers]) - 1:
-                class_out = np.where(X_in == np.max(X_in))[0][0]
+                class_out = int(np.where(X_in == np.max(X_in))[0][0])
             for i, _ in enumerate(X_in):
                 X_in[i] = np.uint8(X_in[i])
             BitIn = nodes_to_deploy.input_activation_bits
@@ -351,7 +351,7 @@ class Model_deployment():
             if f != len(PULP_Nodes_Graph[:number_of_deployed_layers]) - 1:
                 PULP_Nodes_Graph[f + 1].check_sum_in = sum(Input_compressed)
             if 'Gemm' in nodes_to_deploy.name or 'Conv' in nodes_to_deploy.name or 'MatMul' in nodes_to_deploy.name:
-                PULP_Nodes_Graph[f].check_sum_w = sum(weights_to_write[f_w])
+                PULP_Nodes_Graph[f].check_sum_w = int(sum(weights_to_write[f_w]))
                 f_w += 1
             else:
                 PULP_Nodes_Graph[f].check_sum_w = 0

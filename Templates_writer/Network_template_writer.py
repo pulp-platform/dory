@@ -4,7 +4,7 @@
 # Thorir Mar Ingolfsson <thoriri@iis.ee.ethz.ch>
 #
 # Copyright (C) 2019-2020 University of Bologna
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -26,6 +26,7 @@ import sys
 import os
 import re
 import writer_utils as utils
+import json
 
 def print_template_network(
     file_list_w,
@@ -120,3 +121,18 @@ def print_template_network(
     save_string = './application/DORY_network/src/network.c'
     with open(save_string, "w") as f:
         f.write(s)
+
+    # convert nodes to dicts to make them dumpable to JSON
+    tmp = [x.__dict__ for x in PULP_Nodes_Graph]
+    # remove weights, kappas and lambdas from nodes
+    for x in tmp:
+        try:
+            _ = x.pop('weights')
+            _ = x.pop('k')
+            _ = x.pop('lambda')
+        except KeyError:
+            pass
+    tk['PULP_Nodes_Graph'] = tmp
+    # dump to json
+    with open('./application/template_data.json', 'w') as f:
+        json.dump(tk, f, indent=4)
