@@ -388,6 +388,7 @@ void ${func_name}(layer* layer_i)
 % endif
 
 % if tile_dim_nif*tile_dim_h*tile_dim_w*min(x_tile_size_nif,number_of_clusters) != 1:
+% if number_of_clusters > 1:
         if (_i_nif_load !=0 && ${int(flag_DW==0)})
         {
           DMA_copy_x.ext = ((snrt_cluster_idx() + 1) % CLUSTERS) * 131072 + (${l1_x_offset} + exec_db_x);
@@ -403,6 +404,7 @@ void ${func_name}(layer* layer_i)
         }
         else
         {
+% endif
           if (_i_h_load == 0 && ${padding_top} > 0)
           {
             DMA_copy_p_top.loc = l1_buffer + (${l1_x_offset} + db_x);
@@ -453,7 +455,9 @@ void ${func_name}(layer* layer_i)
           DMA_copy_x.stride_L1_1d = DMA_copy_x.length_1d_copy;
           DMA_copy_x.stride_L1_2d = DMA_copy_x.length_1d_copy*DMA_copy_x.number_of_1d_copies + x_length_nif_byte*(${padding_left}*(_i_w_load == 0) + ${padding_right}*(_i_w_load == ${(tile_dim_w-1)}));
           dory_dma_memcpy_async(DMA_copy_x);
+% if number_of_clusters > 1:
         }
+% endif
 % endif
         // transfer of next weight tile if changed input or output channels
 % if flag_DW == 0:
