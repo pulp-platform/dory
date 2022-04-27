@@ -866,12 +866,16 @@ class Tiler_Conv2D():
                 solver.Add(tile_w_out == w_out)
                 solver.Add(tile_n_out % 2 == 0)
         if DW == 0:
-            if n_in >=self.number_of_clusters and (n_in % self.number_of_clusters == 0):
-                solver.Add(tile_n_in == int(np.ceil(n_in/self.number_of_clusters)))
-            else:
+            if self.backend == 'MCU':
                 solver.Add(tile_n_in == int(n_in))
+
             if self.number_of_clusters>1:
+                if n_in >=self.number_of_clusters and (n_in % self.number_of_clusters == 0):
+                    solver.Add(tile_n_in == int(np.ceil(n_in/self.number_of_clusters)))
+                else:
+                    solver.Add(tile_n_in == int(n_in))
                 solver.Add(tile_n_out <= int(n_out/self.number_of_clusters))
+
         if DW == 1:
             if n_in >=self.number_of_clusters:
                 solver.Add(tile_n_out <= int(n_out/self.number_of_clusters))
@@ -947,10 +951,15 @@ class Tiler_Conv2D():
                             + 32 * 100 * (((h_out-zero_variable) % (tile_h_out+1)) % 4)
         else:
             ####### Geometrical Shape of Tiles ############
-            heuristics += 64 * 10000 * (((((h_out-zero_variable - 1) % tile_h_out)) % 8) > 4) 
-            heuristics += 64 * 10000 * (((tile_h_out - 1) % 8) > 4) \
-                        + 64 * 10000 * ((tile_n_out - 1) % 8) \
-                        + 64 * 10000 * (tile_w_out * tile_h_out) ## better to have a bigger spatial dimension then more out_channels to reduce memory overhead in copying overlapping input pixels
+            heuristics += 64 * 1000000 * (((((h_out-zero_variable - 1) % tile_h_out)) % 8) > 4) 
+            heuristics += 64 * 1000000 * (((tile_h_out - 1) % 8) > 4) \
+                        + 64 * 1000000 * ((tile_n_out - 1) % 8) \
+                        + 64 * 1000000 * ((tile_n_in - 1) % 2) \
+                        + 64 * 1000000 * ((tile_w_out - 1) % 2) \
+                        + 64 * 50000  * (tile_n_in) * (tile_n_in < 33) \
+                        + 64 * 1000  * (tile_n_in) * (tile_n_in > 32) \
+                        + 64 * 50000  * (32) * (tile_n_in > 32) \
+                        + 64 * 100   * (tile_n_in * tile_w_out * tile_h_out * tile_n_out) ## better to have a bigger spatial dimension then more out_channels to reduce memory overhead in copying overlapping input pixels
             # ####### Total Dimension of Tile ###############
             heuristics += constraint_all
             ####### Geometrical Shape of Border Tiles #####
