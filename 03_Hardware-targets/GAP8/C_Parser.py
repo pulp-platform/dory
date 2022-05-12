@@ -57,18 +57,17 @@ class C_Parser(Parser_HW_to_C):
             files = os.path.join(root, "03_Hardware-targets", self.HW_description["name"], "Backend_Kernels/pulp-nn-mixed/XpulpV2/")
         elif self.precision_library == "mixed-hw":
             files = os.path.join(root, "03_Hardware-targets", self.HW_description["name"], "Backend_Kernels/pulp-nn-mixed/XpulpNN/")
-        if isinstance(node.constant_bits, type(None)):
-            node.constant_bits = 32
-        for file in os.listdir(os.path.join(files, "{}bit/include".format(node.constant_bits))):
-            file_to_copy = os.path.join(files, "{}bit/include".format(node.constant_bits), file)
-            os.system('cp "{}" application/DORY_network/inc'.format(file_to_copy))
-        if self.precision_library == "8bit":
-            if os.listdir(os.path.join(files, "{}bit/src".format(node.constant_bits)))[0] not in os.listdir("application/DORY_network/src"):
-                for file in os.listdir(os.path.join(files, "{}bit/src".format(node.constant_bits))):
-                    file_to_copy = os.path.join(files, "{}bit/src".format(node.constant_bits), file)
-                    os.system('cp "{}" application/DORY_network/src'.format(file_to_copy))
-        else:
-            print("WARNING: Still to implement the mixed part\n")
+        if not isinstance(node.constant_bits, type(None)):
+            for file in os.listdir(os.path.join(files, "{}bit/include".format(node.constant_bits))):
+                file_to_copy = os.path.join(files, "{}bit/include".format(node.constant_bits), file)
+                os.system('cp "{}" application/DORY_network/inc'.format(file_to_copy))
+            if self.precision_library == "8bit":
+                if os.listdir(os.path.join(files, "{}bit/src".format(node.constant_bits)))[0] not in os.listdir("application/DORY_network/src"):
+                    for file in os.listdir(os.path.join(files, "{}bit/src".format(node.constant_bits))):
+                        file_to_copy = os.path.join(files, "{}bit/src".format(node.constant_bits), file)
+                        os.system('cp "{}" application/DORY_network/src'.format(file_to_copy))
+            else:
+                print("WARNING: Still to implement the mixed part\n")
 
     def mapping_layers_to_C_files(self):
         print("\nMapping the layers files to their templates and copying the kernels associated.")
@@ -78,7 +77,7 @@ class C_Parser(Parser_HW_to_C):
                 Layer2D_writer.print_template_layer_L3(node)
                 node.name = node.name + "_L2"
                 padding = node.pads
-                node.pads = [0, 0, 0, 0]
+                node.pads = [0, padding[1], 0, padding[3]]
                 Layer2D_writer.print_template_layer(node)
                 node.name = node.name[:-3]
                 if padding[0] > 0:
@@ -87,29 +86,11 @@ class C_Parser(Parser_HW_to_C):
                     Layer2D_writer.print_template_layer(node)
                     node.name = node.name[:-1] + "b"
                     node.pads = [0, padding[1], padding[2], padding[3]]
-                    # h_in_last = h_in
-                    # h_out_last = int(np.floor((h_in_last + p_bottom - (fs1 - 1) + (s - 1)) / s))
-                    # #### CHECK WELL especially second nested if
-                    # if factor_h_in > 2 or factor_h_out > 2:
-                    #     if ((self.x_shape[-2] - h_in - h_in + conv_overlap_h + p_top) % (h_in - conv_overlap_h )) != 0:
-                    #         h_in_last = ((self.x_shape[-2] - h_in - h_in + conv_overlap_h + p_top) % (h_in - conv_overlap_h )) + conv_overlap_h
-                    #         h_out_last = int(np.floor((h_in_last + p_bottom - (fs1 - 1) + (s - 1)) / s))
-                    #     elif (h_in - conv_overlap_h ) == 1:
-                    #         h_in_last = h_in - 1
-                    #         h_out_last = int(np.floor((h_in_last + p_bottom - (fs1 - 1) + (s - 1)) / s))
-                    #     pad_bot = p_bottom - ((self.x_shape[-2] - h_in - h_in + conv_overlap_h + p_top + p_bottom) % (h_in - conv_overlap_h ))
-                    # elif factor_h_in > 1 or factor_h_out > 1:
-                    #     if ((self.x_shape[-2] - h_in) % (h_in - conv_overlap_h -p_top)) != 0:
-                    #         h_in_last = ((self.x_shape[-2] - h_in) % (h_in - conv_overlap_h -p_top)) + conv_overlap_h + p_bottom
-                    #         h_out_last = int(np.floor((h_in_last + p_bottom - (fs1 - 1) + (s - 1)) / s))
-                    #     elif (h_in - conv_overlap_h ) == 1:
-                    #         h_in_last = h_in - 1
-                    #         h_out_last = int(np.floor((h_in_last + p_bottom - (fs1 - 1) + (s - 1)) / s))
-                    #     pad_bot = p_bottom - ((self.x_shape[-2] - h_in) % (h_in - conv_overlap_h -p_top))
+                    #pad_bot = padding[2] - ((node.tiling_dimensions["L3"]["input_dimensions"][1] - node.tiling_dimensions["L3"]["input_dimensions"][2]) % (node.tiling_dimensions["L3"]["input_dimensions"][2] - (2 * (node.kernel_shape[0] // 2) + node.kernel_shape[0] % 2 - 1 - (node.strides[0] - 1)) -padding[0]))
+                    #node.pads = [0, padding[1], pad_bot, padding[3]]
                     Layer2D_writer.print_template_layer(node)
                     node.name = node.name[:-7]
             else:
                 Layer2D_writer.print_template_layer(node)
-
 
 

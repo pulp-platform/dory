@@ -34,7 +34,7 @@ class Pattern_rewriter():
             self.BNRelu_pattern_rewriter(i)
         if rule == "Relu" or rule == "Relu1" or rule == "Relu2":
             self.Relu_pattern_rewriter(i)
-        if rule == "PadConvolution" or rule == "PadPooling":
+        if rule == "PadConvolution" or rule == "PadConvolution1" or rule == "PadPooling":
             self.PADNode_pattern_rewriter(i)
         if rule == "QAdd":
             self.QAdd_pattern_rewriter(i)
@@ -133,17 +133,21 @@ class Pattern_rewriter():
         self.graph.insert(i[0], DORY_Relu_node)
 
     def PADNode_pattern_rewriter(self, i):
-        DORY_Pad_node = self.graph[i[1]]
+        DORY_Pad_node = self.graph[i[-1]]
         DORY_Pad_node.input_indexes = self.graph[i[0]].input_indexes
         ### 2D ###
-        if len(DORY_Pad_node.pads) == 4:
-            DORY_Pad_node.pads[0] += self.graph[i[0]].pads[2]
-            DORY_Pad_node.pads[1] += self.graph[i[0]].pads[3]
-            DORY_Pad_node.pads[2] += self.graph[i[0]].pads[6]
-            DORY_Pad_node.pads[3] += self.graph[i[0]].pads[7]
-        else:
-            DORY_Pad_node.pads[0] += self.graph[i[0]].pads[2]
-            DORY_Pad_node.pads[1] += self.graph[i[0]].pads[5]
+        for j in np.arange(len(i)-1):
+            if len(DORY_Pad_node.pads) == 4:
+                DORY_Pad_node.pads[0] += self.graph[i[j]].pads[2]
+                DORY_Pad_node.pads[1] += self.graph[i[j]].pads[3]
+                DORY_Pad_node.pads[2] += self.graph[i[j]].pads[6]
+                DORY_Pad_node.pads[3] += self.graph[i[j]].pads[7]
+                DORY_Pad_node.input_dimensions[0] -= (self.graph[i[j]].pads[2] + self.graph[i[j]].pads[6])
+                DORY_Pad_node.input_dimensions[1] -= (self.graph[i[j]].pads[3] + self.graph[i[j]].pads[7])
+            else:
+                DORY_Pad_node.pads[0] += self.graph[i[j]].pads[2]
+                DORY_Pad_node.pads[1] += self.graph[i[j]].pads[5]
+                DORY_Pad_node.input_dimensions[0] -= (self.graph[i[j]].pads[2] + self.graph[i[j]].pads[5])
         for ele in sorted(i, reverse = True):
             del self.graph[ele]
         self.graph.insert(i[0], DORY_Pad_node)

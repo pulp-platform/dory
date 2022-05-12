@@ -29,10 +29,10 @@ from ortools.constraint_solver import pywrapcp
 from ortools.constraint_solver import solver_parameters_pb2
 
 # tilers for layers
-# from tiler_add import Tiler_Add
 # from tiler_conv1d import Tiler_Conv1D
 from tiler_conv2d import Tiler_Conv2D
 from tiler_pool2d import Tiler_Pool2D
+from tiler_add import Tiler_Add
 
 
 # template for output
@@ -56,7 +56,7 @@ class Tiler():
         elif 'Pool' in self.HW_node.name:
             return Tiler_Pool2D(self).get_tiling(level)
         elif 'Addition' in self.HW_node.name:
-            return Tiler_Add(self).get_tiling()
+            return Tiler_Add(self).get_tiling(level)
         else:
             print("Not supported Layer.")
             return None

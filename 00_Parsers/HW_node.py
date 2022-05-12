@@ -47,7 +47,13 @@ class HW_node(DORY_node):
             self.tiling_dimensions["L{}".format(level+1)]["input_activation_memory"] = None
             self.tiling_dimensions["L{}".format(level+1)]["output_activation_memory"] = None
 
-        self.tiling_dimensions["L{}".format(level+1)]["weights_dimensions"] = [self.output_channels, self.input_channels]
+        weight_name = ""
+        for name in self.constant_names:
+            if name not in ["l","k","outshift","outmul"]:
+                if "bias" not in name:
+                    weight_name = name
+        if weight_name != "":
+            self.tiling_dimensions["L{}".format(level+1)]["weights_dimensions"] = [self.output_channels, self.input_channels]
         self.tiling_dimensions["L{}".format(level+1)]["input_dimensions"] = [self.input_channels] + self.input_dimensions
         self.tiling_dimensions["L{}".format(level+1)]["output_dimensions"] = [self.output_channels] + self.output_dimensions
         self.tiling_dimensions["L{}".format(level+1)]["weight_memory"] = self.weight_memory
@@ -89,6 +95,15 @@ class HW_node(DORY_node):
             self.tiling_dimensions["L{}".format(level-1)]["input_activation_memory"] = np.prod(self.tiling_dimensions["L{}".format(level-1)]["input_dimensions"])*self.input_activation_bits/8
             self.tiling_dimensions["L{}".format(level-1)]["output_activation_memory"] = np.prod(self.tiling_dimensions["L{}".format(level-1)]["output_dimensions"])*self.output_activation_bits/8
 
+    def rename_weights(self):
+        weight_name = ""
+        for i, name in enumerate(self.constant_names):
+            if name not in ["l","k","outshift","outmul"]:
+                if "bias" not in name:
+                    if len(self.__dict__[name]["value"].flatten()) > self.output_channels:
+                        self.__dict__["weights"] = self.__dict__.pop(name)
+                        self.constant_names[i] = "weights"
+
     def add_checksum_w_integer(self):
         self.check_sum_w = 0
 
@@ -118,7 +133,7 @@ class HW_node(DORY_node):
         bias_name = ""
         for name in self.constant_names:
             if name not in ["l","k","outshift","outmul"]:
-                if "weight" not in name:
+                if "bias" in name:
                     bias_name = name
         if bias_name in self.__dict__:
             self.__dict__[bias_name]["value"] = self.__dict__[bias_name]["value"].flatten().tolist()
