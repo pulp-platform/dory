@@ -1,0 +1,38 @@
+{
+	"name": "Occamy",
+	"memory": {
+		"levels": 2,
+		"L1": {
+			"dimension": 128000,
+			"bandwidth": null,
+			"latency": null,
+			"frequency": null
+		},
+		"L2": {
+			"dimension": 8000000,
+			"bandwidth": null,
+			"latency": null,
+			"frequency": null
+		},
+		"DMA": "yes",
+		"cache": "no"
+	},
+	"architecture": "multi-cluster",
+	"software development kit": {
+		"name": null,
+		"directory": null
+	},
+	"peak MAC/cycle":
+	{
+		"8bits": null,
+		"float32": 16 
+	},
+	"core frequency": null,
+	"accelerator frequency": null,
+	"HW specific parameters":{
+		"accelerator core0 stack": 2500,
+		"accelerator core1-7 stack": 2500,
+		"clusters": 2
+	}
+
+}
