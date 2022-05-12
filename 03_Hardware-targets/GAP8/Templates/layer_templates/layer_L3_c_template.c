@@ -53,9 +53,9 @@ void __attribute__ ((noinline)) ${func_name_L3}(void *args)
   char* L2_weights_2;
   int d_buffering_weights_t = 0;
   int d_buffering_weights_e = 0;
-  pi_cl_ram_req_t buff_req_w1, buff_req_w2, buff_req_w3;
+  pi_cl_ram_req_t buff_req_w1, buff_req_w2, buff_req_w3, buff_req_w4;
   L2_weights_1 = l2_W;
-  L2_weights_2 = l2_W + ${weight_dim} + ${lambda_dim} + ${k_dim};
+  L2_weights_2 = l2_W + ${weight_dim} + ${lambda_dim} + ${k_dim} + ${bias_dim};
   transfer_weights = L2_weights_1;
   exec_weights = L2_weights_1;  
   // first tile transfer. Weights, k, lambda
@@ -63,14 +63,20 @@ void __attribute__ ((noinline)) ${func_name_L3}(void *args)
   {
     pi_cl_ram_read(hyperram, l3_W, transfer_weights, ${weight_dim}, &buff_req_w1);
     % if k_dim != 0:
-    pi_cl_ram_read(hyperram, l3_W+${weight_dim*n_tile_W}, transfer_weights + ${weight_dim}, ${k_dim}, &buff_req_w2);
-    pi_cl_ram_read(hyperram, l3_W+${(weight_dim+k_dim)*n_tile_W}, transfer_weights + ${weight_dim} + ${k_dim}, ${lambda_dim}, &buff_req_w3);
+    pi_cl_ram_read(hyperram, l3_W+${(weight_dim+bias_dim)*n_tile_W}, transfer_weights + ${weight_dim} + ${bias_dim}, ${k_dim}, &buff_req_w2);
+    pi_cl_ram_read(hyperram, l3_W+${(weight_dim+bias_dim+k_dim)*n_tile_W}, transfer_weights + ${weight_dim} + ${k_dim} + ${bias_dim}, ${lambda_dim}, &buff_req_w3);
+    % endif 
+    % if bias_dim != 0:
+    pi_cl_ram_read(hyperram, l3_W+${weight_dim*n_tile_W}, transfer_weights + ${weight_dim}, ${bias_dim}, &buff_req_w4);
     % endif 
     pi_cl_ram_read_wait(&buff_req_w1);
     % if k_dim != 0:
     pi_cl_ram_read_wait(&buff_req_w2);
     pi_cl_ram_read_wait(&buff_req_w3);
     % endif
+    % if bias_dim != 0:
+    pi_cl_ram_read_wait(&buff_req_w4);
+    % endif 
   }
   // switching buffers
   d_buffering_weights_t = !d_buffering_weights_t;
@@ -163,9 +169,12 @@ void __attribute__ ((noinline)) ${func_name_L3}(void *args)
       {
         pi_cl_ram_read(hyperram, (l3_W+(k+1)*${weight_dim}), transfer_weights, ${weight_dim}, &buff_req_w1);
         % if k_dim != 0:
-        pi_cl_ram_read(hyperram, l3_W+${weight_dim*n_tile_W}+ (k+1)*${k_dim}, transfer_weights + ${weight_dim}, ${k_dim}, &buff_req_w2);
-        pi_cl_ram_read(hyperram, l3_W+${(weight_dim+k_dim)*n_tile_W} + (k+1)*${lambda_dim}, transfer_weights + ${weight_dim}+ ${k_dim}, ${lambda_dim}, &buff_req_w3);
+        pi_cl_ram_read(hyperram, l3_W+${(weight_dim+bias_dim)*n_tile_W}+ (k+1)*${k_dim}, transfer_weights + ${weight_dim} + ${bias_dim}, ${k_dim}, &buff_req_w2);
+        pi_cl_ram_read(hyperram, l3_W+${(weight_dim+bias_dim+k_dim)*n_tile_W} + (k+1)*${lambda_dim}, transfer_weights + ${weight_dim}+ ${k_dim} + ${bias_dim}, ${lambda_dim}, &buff_req_w3);
         % endif
+        % if bias_dim != 0:
+        pi_cl_ram_read(hyperram, l3_W+${weight_dim*n_tile_W}+ (k+1)*${bias_dim}, transfer_weights + ${weight_dim}, ${bias_dim}, &buff_req_w4);
+        % endif 
       }
     }  
   % else:
@@ -264,6 +273,9 @@ void __attribute__ ((noinline)) ${func_name_L3}(void *args)
           % if k_dim != 0:
           pi_cl_ram_read_wait(&buff_req_w2);
           pi_cl_ram_read_wait(&buff_req_w3);
+          % endif
+          % if bias_dim != 0:
+          pi_cl_ram_read_wait(&buff_req_w4);
           % endif
         }
         d_buffering_weights_e = !d_buffering_weights_e;

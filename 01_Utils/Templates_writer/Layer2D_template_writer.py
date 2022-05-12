@@ -107,6 +107,11 @@ def print_template_layer_L3(node, layer_type = "8bit"):
     tk['h_in'] = h_in_L2
     tk['n_in'] = n_in_L2
     tk['weight_dim'] = int( node.tiling_dimensions["L2"]["weight_memory"] )
+    tk['has_bias'] = int(len([1 for name in node.constant_names if "bias" in name])>0)
+    if tk['has_bias'] == 1:
+        tk['bias_dim'] = node.tiling_dimensions["L2"]["bias_memory"]
+    else:
+        tk['bias_dim'] = 0
     if not isinstance(node.tiling_dimensions["L2"]["constants_memory"], type(None)):
         tk['lambda_dim'] = int(node.tiling_dimensions["L2"]["constants_memory"] / 2)
         tk['k_dim'] = int(node.tiling_dimensions["L2"]["constants_memory"] / 2)

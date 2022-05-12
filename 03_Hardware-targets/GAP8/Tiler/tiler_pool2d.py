@@ -94,8 +94,8 @@ class Tiler_Pool2D():
                 if db_x == 2:
                     db_O = 2
 
-            input_tile_dimension  = np.ceil((db_x * in_ch * tile_h_in * inp_dim[1] * self.HW_node.input_activation_bits + 7 ) / 8) # the 7 is to account for bit precision of 1, which still occupy an entire byte
-            output_tile_dimension = np.ceil((db_O * out_ch * tile_h_out * out_dim[1] * self.HW_node.output_activation_bits + 7 ) / 8) # the 7 is to account for bit precision of 1, which still occupy an entire byte
+            input_tile_dimension  = (db_x * in_ch * tile_h_in * inp_dim[1] * self.HW_node.input_activation_bits + 7 ) // 8 # the 7 is to account for bit precision of 1, which still occupy an entire byte
+            output_tile_dimension = (db_O * out_ch * tile_h_out * out_dim[1] * self.HW_node.output_activation_bits + 7 ) // 8  # the 7 is to account for bit precision of 1, which still occupy an entire byte
             constants = 0
             for name in self.HW_node.constant_names:
                 if name in ["l","k"]:

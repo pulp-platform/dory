@@ -184,6 +184,11 @@ class Parser_DORY_to_HW():
             previous_node = New_HW_node
             self.DORY_Graph[i] = New_HW_node
 
+    def renaming_weights(self):
+        print("\nGAP8 Backend: Renaming Weights tensors.")
+        for i, node in enumerate(self.DORY_Graph):            
+            node.rename_weights()           
+
     def formatting_constant_parameters_tensors_and_activations(self):
         print("\nGAP8 Backend: Formatting constants and adding checksums")
         for i, node in enumerate(self.DORY_Graph):            
@@ -213,6 +218,7 @@ class Parser_DORY_to_HW():
         self.tiling()
         self.Printer_Frontend.print_json_from_DORY_graph("06_DORY_HW_tiled_graph", self.DORY_Graph)
         self.Printer_Frontend.print_onnx_from_DORY_graph("06_DORY_HW_tiled_graph", self.DORY_Graph)
+        self.renaming_weights()
         self.formatting_constant_parameters_tensors_and_activations()
         self.Printer_Frontend.print_json_from_DORY_graph("07_DORY_HW_with_checksums", self.DORY_Graph)
         self.Printer_Frontend.print_onnx_from_DORY_graph("07_DORY_HW_with_checksums", self.DORY_Graph)
