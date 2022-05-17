@@ -19,25 +19,22 @@
 
 #include "pmsis.h"
 #include "pulp_nn_utils.h"
-#include "pulp_nn_kernels.h"
+
 
 
 void pulp_nn_linear_u8_u8_i4(
-                  uint8_t *pInBuffer,
-                  int8_t *pWeights,
-                  uint16_t dim_vec,
-                  uint16_t num_o_neurons,
-                  int8_t *bias,
-                  uint16_t bias_shift,
-                  int8_t out_shift,
-                  uint16_t out_mult,
-                  int64_t *k,
-                  int64_t *lambda,
-                  uint8_t *pOutBuffer,
-                  int flag_relu,
-                  int flag_batch_norm,
-                  unsigned int * memory_chan
-)
+                        uint8_t *pIn,
+                        int8_t *pBias,
+                        uint8_t *pOut,
+                        int8_t *pWeight,
+                        int64_t *pKappa,
+                        int64_t *pLambda,
+                        uint16_t out_mult,
+                        uint16_t out_shift,
+                        uint16_t dim_vec,
+                        uint16_t num_o_neurons,
+                        uint8_t flag_relu,
+                        uint8_t flag_batch_norm)
 {
     uint16_t dim_vec_in = dim_vec;
     uint16_t dim_vec_wt = dim_vec >> 1;
@@ -52,21 +49,21 @@ void pulp_nn_linear_u8_u8_i4(
     v4s vecB[2];
     v4s vecB2[2];
 
-    uint8_t *pOut = (uint8_t *) pOutBuffer + start;
+    uint8_t *pOutBuffer = (uint8_t *) pOut + start;
     int lft_neurons = chunk & 0x01;
     int stop_even = stop - lft_neurons;
 
     int i;
-    int64_t *k1 = k + start;
-    int64_t *lambda1 = lambda + start;
+    int64_t *k1 = pKappa + start;
+    int64_t *lambda1 = pLambda + start;
 
     for(i=start; i<stop_even; i+=2)
     {
         int sum = 0;
         int sum2 = 0;
 
-        uint8_t *pA = pInBuffer;
-        int8_t *pB = pWeights + (i * dim_vec_wt);
+        uint8_t *pA = pIn;
+        int8_t *pB = pWeight + (i * dim_vec_wt);
         int8_t *pB2 = pB + dim_vec_wt;
 
         for (int j=0; j<(dim_vec >> 3); j++)
@@ -80,9 +77,9 @@ void pulp_nn_linear_u8_u8_i4(
           sum = SumDotp4(vecA[1], vecB[1], sum);
           sum2 = SumDotp4(vecA[0], vecB2[0], sum2);
           sum2 = SumDotp4(vecA[1], vecB2[1], sum2);
-          //pA+=4;
-          //pB+=4;
-          //pB2+=4;
+          pA+=4;
+          pB+=4;
+          pB2+=4;
         }
         uint16_t col_cnt = dim_vec & 0x7;
         while (col_cnt)
@@ -105,10 +102,10 @@ void pulp_nn_linear_u8_u8_i4(
         }
         if (flag_batch_norm && flag_relu)
         {
-          *pOut = pulp_nn_bn_quant_u8(sum, *k1, *lambda1, out_shift);
-          pOut++;
-          *pOut = pulp_nn_bn_quant_u8(sum2, *(k1 + 1), *(lambda1 + 1), out_shift);
-          pOut++;
+          *pOutBuffer = pulp_nn_bn_quant_u8(sum, *k1, *lambda1, out_shift);
+          pOutBuffer++;
+          *pOutBuffer = pulp_nn_bn_quant_u8(sum2, *(k1 + 1), *(lambda1 + 1), out_shift);
+          pOutBuffer++;
           k1+=2;
           lambda1+=2;
         }
@@ -116,17 +113,17 @@ void pulp_nn_linear_u8_u8_i4(
         {
           if (flag_relu == 1)
           {
-            *pOut = pulp_nn_quant_u8(sum, out_mult, out_shift);
-            pOut++;
-            *pOut = pulp_nn_quant_u8(sum2, out_mult, out_shift);
-            pOut++;
+            *pOutBuffer = pulp_nn_quant_u8(sum, out_mult, out_shift);
+            pOutBuffer++;
+            *pOutBuffer = pulp_nn_quant_u8(sum2, out_mult, out_shift);
+            pOutBuffer++;
           }
           else
           {
-            *pOut = (uint8_t) clip8(sum >> out_shift);
-            pOut++;
-            *pOut = (uint8_t) clip8(sum2 >> out_shift);
-            pOut++;
+            *pOutBuffer = (uint8_t) clip8(sum >> out_shift);
+            pOutBuffer++;
+            *pOutBuffer = (uint8_t) clip8(sum2 >> out_shift);
+            pOutBuffer++;
           }
         }
     }
@@ -134,8 +131,8 @@ void pulp_nn_linear_u8_u8_i4(
     {
         int sum = 0;
 
-        uint8_t *pA = pInBuffer;
-        int8_t *pB = pWeights + (i * dim_vec_wt);
+        uint8_t *pA = pIn;
+        int8_t *pB = pWeight + (i * dim_vec_wt);
 
         for (int j=0; j<(dim_vec >> 3); j++)
         {
@@ -164,22 +161,22 @@ void pulp_nn_linear_u8_u8_i4(
         }
         if (flag_batch_norm && flag_relu)
         {
-          *pOut = pulp_nn_bn_quant_u8(sum, *k, *lambda, out_shift);
-          pOut++;
-          k++;
-          lambda++;
+          *pOutBuffer = pulp_nn_bn_quant_u8(sum, *pKappa, *pLambda, out_shift);
+          pOutBuffer++;
+          pKappa++;
+          pLambda++;
         }
         else
         {
           if (flag_relu == 1)
           {
-            *pOut = pulp_nn_quant_u8(sum, out_mult, out_shift);
-            pOut++;
+            *pOutBuffer = pulp_nn_quant_u8(sum, out_mult, out_shift);
+            pOutBuffer++;
           }
           else
           {
-            *pOut = (uint8_t) clip8(sum >> out_shift);
-            pOut++;
+            *pOutBuffer = (uint8_t) clip8(sum >> out_shift);
+            pOutBuffer++;
           }
         }
     }

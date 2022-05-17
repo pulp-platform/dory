@@ -42,6 +42,7 @@ class DORY_node():
         self.branch_last = None
         self.constant_bits = None
         self.weight_bits = None
+        self.bias_bits = None
         self.output_activation_bits = None
         self.input_activation_bits = None
         self.weight_type = None

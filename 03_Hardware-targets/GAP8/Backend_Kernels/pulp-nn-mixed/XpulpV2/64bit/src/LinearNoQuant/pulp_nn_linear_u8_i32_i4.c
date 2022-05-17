@@ -19,25 +19,15 @@
 
 #include "pmsis.h"
 #include "pulp_nn_utils.h"
-#include "pulp_nn_kernels.h"
 
 
 void pulp_nn_linear_u8_i32_i4(
-                  uint8_t *pInBuffer,
-                  int8_t *pWeights,
+                  uint8_t *pIn,
+                  int8_t *pBias,
+                  int8_t *pOut,
+                  int8_t *pWeight,
                   uint16_t dim_vec,
-                  uint16_t num_o_neurons,
-                  int8_t *bias,
-                  uint16_t bias_shift,
-                  int8_t out_shift,
-                  uint16_t out_mult,
-                  int64_t *k,
-                  int64_t *lambda,
-                  uint8_t *pOutBuffer,
-                  int flag_relu,
-                  int flag_batch_norm,
-                  unsigned int * memory_chan
-)
+                  uint16_t num_o_neurons)
 {
     uint16_t dim_vec_in = dim_vec;
     uint16_t dim_vec_wt = dim_vec >> 1;
@@ -52,9 +42,9 @@ void pulp_nn_linear_u8_i32_i4(
     v4s vecB[2];
     v4s vecB2[2];
 
-    int32_t *pOut = (int32_t *) pOutBuffer + start;
+    int32_t *pOutBuffer = (int32_t *) pOut + start;
 
-      int lft_neurons = chunk & 0x01;
+    int lft_neurons = chunk & 0x01;
     int stop_even = stop - lft_neurons;
     int i;
 
@@ -63,8 +53,8 @@ void pulp_nn_linear_u8_i32_i4(
         int sum = 0;
         int sum2 = 0;
 
-        uint8_t *pA = pInBuffer;
-        int8_t *pB = pWeights + (i * dim_vec_wt);
+        uint8_t *pA = pIn;
+        int8_t *pB = pWeight + (i * dim_vec_wt);
         int8_t *pB2 = pB + dim_vec_wt;
 
         for (int j=0; j<(dim_vec >> 3); j++)
@@ -101,17 +91,17 @@ void pulp_nn_linear_u8_i32_i4(
             sum2 += inA2 * inB6;
                   col_cnt--;
             }
-        *pOut = sum;
-        pOut++;
-        *pOut = sum2;
-        pOut++;
+        *pOutBuffer = sum;
+        pOutBuffer++;
+        *pOutBuffer = sum2;
+        pOutBuffer++;
     }
     if (lft_neurons && (stop - start) > 0)
     {
         int sum = 0;
 
-        uint8_t *pA = pInBuffer;
-        int8_t *pB = pWeights + (i * dim_vec_wt);
+        uint8_t *pA = pIn;
+        int8_t *pB = pWeight + (i * dim_vec_wt);
 
         for (int j=0; j<(dim_vec >> 3); j++)
         {
@@ -138,8 +128,8 @@ void pulp_nn_linear_u8_i32_i4(
             sum += inA2 * inB2;
                   col_cnt--;
             }
-        *pOut = sum;
-        pOut++;
+        *pOutBuffer = sum;
+        pOutBuffer++;
     }
     pi_cl_team_barrier(0);
 }

@@ -19,25 +19,22 @@
 
 #include "pmsis.h"
 #include "pulp_nn_utils.h"
-#include "pulp_nn_kernels.h"
+
 
 
 void pulp_nn_linear_u4_u4_i4(
-                  uint8_t *pInBuffer,
-                  int8_t *pWeights,
-                  uint16_t dim_vec,
-                  uint16_t num_o_neurons,
-                  int8_t *bias,
-                  uint16_t bias_shift,
-                  int8_t out_shift,
-                  uint16_t out_mult,
-                  int64_t *k,
-                  int64_t *lambda,
-                  uint8_t *pOutBuffer,
-                  int flag_relu,
-                  int flag_batch_norm,
-                  unsigned int * memory_chan
-)
+                        uint8_t *pIn,
+                        int8_t *pBias,
+                        uint8_t *pOut,
+                        int8_t *pWeight,
+                        int64_t *pKappa,
+                        int64_t *pLambda,
+                        uint16_t out_mult,
+                        uint16_t out_shift,
+                        uint16_t dim_vec,
+                        uint16_t num_o_neurons,
+                        uint8_t flag_relu,
+                        uint8_t flag_batch_norm)
 {
     int8_t mask = 0xf0;
     int8_t n_mask = ~ mask;
@@ -55,19 +52,19 @@ void pulp_nn_linear_u4_u4_i4(
     v4s vecB[2];
     v4s vecB2[2];
 
-    uint8_t *pOut = (uint8_t *) pOutBuffer + (start >> 1);
+    uint8_t *pOutBuffer = (uint8_t *) pOut + (start >> 1);
 
     int i;
-    int64_t *k1 = k + start;
-    int64_t *lambda1 = lambda + start;
+    int64_t *k1 = pKappa + start;
+    int64_t *lambda1 = pLambda + start;
 
     for(i=start; i<stop; i+=2)
     {
         int sum = 0;
         int sum2 = 0;
 
-        uint8_t *pA = pInBuffer;
-        int8_t *pB = pWeights + (i * dim_vec_wt);
+        uint8_t *pA = pIn;
+        int8_t *pB = pWeight + (i * dim_vec_wt);
         int8_t *pB2 = pB + dim_vec_wt;
 
         for (int j=0; j<(dim_vec >> 3); j++)
@@ -79,15 +76,15 @@ void pulp_nn_linear_u4_u4_i4(
           sum = SumDotp4(vecA[1], vecB[1], sum);
           sum2 = SumDotp4(vecA[0], vecB2[0], sum2);
           sum2 = SumDotp4(vecA[1], vecB2[1], sum2);
-          //pA+=4;
-          //pB+=4;
-          //pB2+=4;
+          pA+=4;
+          pB+=4;
+          pB2+=4;
         }
         uint16_t col_cnt = dim_vec & 0x7;
         while (col_cnt)
         {
-          uint8_t inA = (uint8_t) bitext((unsigned int) *pA, 4, 0);
-          uint8_t inA2 = (uint8_t) bitext((unsigned int) *pA, 4, 4);
+          uint8_t inA = (uint8_t) bitextu((uint32_t) *pA, 4, 0);
+          uint8_t inA2 = (uint8_t) bitextu((uint32_t) *pA, 4, 4);
           pA++;
           int8_t inB = (int8_t) bitext((int) *pB, 4, 0);
           int8_t inB2 = (int8_t) bitext((int) *pB, 4, 4);
@@ -105,8 +102,8 @@ void pulp_nn_linear_u4_u4_i4(
         {
           sum = pulp_nn_bn_quant_u4(sum, *k1, *lambda1, out_shift);
           sum2 = pulp_nn_bn_quant_u4(sum2, *(k1 + 1), *(lambda1 + 1), out_shift);
-          *pOut = bitins(sum, n_mask, sum2, mask, off);
-          pOut++;
+          *pOutBuffer = bitins(sum, n_mask, sum2, mask, off);
+          pOutBuffer++;
           k1+=2;
           lambda1+=2;
         }
@@ -116,15 +113,15 @@ void pulp_nn_linear_u4_u4_i4(
           {
             sum = pulp_nn_quant_u4(sum, out_mult, out_shift);
             sum2 = pulp_nn_quant_u4(sum2, out_mult, out_shift);
-            *pOut = bitins(sum, n_mask, sum2, mask, off);
-            pOut++;
+            *pOutBuffer = bitins(sum, n_mask, sum2, mask, off);
+            pOutBuffer++;
           }
           else
           {
             sum = (uint8_t) clip4(sum >> out_shift);
             sum2 = (uint8_t) clip4(sum2 >> out_shift);
-            *pOut = bitins(sum, n_mask, sum2, mask, off);
-            pOut++;
+            *pOutBuffer = bitins(sum, n_mask, sum2, mask, off);
+            pOutBuffer++;
           }
         }
     }

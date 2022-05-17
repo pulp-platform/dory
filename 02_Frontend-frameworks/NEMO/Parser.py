@@ -61,6 +61,7 @@ class NEMO_onnx(Parser_ONNX_to_DORY):
             node.add_existing_parameter("constant_type", "int")
             node.add_existing_parameter("output_activation_type", "int")
             node.add_existing_parameter("input_activation_type", "int")
+            node.add_existing_parameter("bias_bits", 32)
             if node.name in ["Convolution", "FullyConnected"]:
                 node.add_existing_parameter("weight_bits", 8)
                 node.add_existing_parameter("output_activation_bits", 32)

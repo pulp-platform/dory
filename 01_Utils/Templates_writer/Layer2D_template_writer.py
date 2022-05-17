@@ -27,7 +27,7 @@ import os
 import re
 
 
-def print_template_layer_L3(node, layer_type = "8bit"):
+def print_template_layer_L3(node):
     ks =      node.kernel_shape
     s =       node.strides
     g =       node.group
@@ -134,7 +134,7 @@ def print_template_layer_L3(node, layer_type = "8bit"):
     with open(save_string, "w") as f:
         f.write(s)
 
-def print_template_layer(node, layer_type = "8bit"):
+def print_template_layer(node, layer_type):
     ks =      node.kernel_shape
     inp_dim = node.tiling_dimensions["L2"]["input_dimensions"][1:]
     out_dim = node.tiling_dimensions["L2"]["output_dimensions"][1:]
