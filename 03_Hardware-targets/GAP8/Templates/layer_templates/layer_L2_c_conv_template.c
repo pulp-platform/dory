@@ -406,7 +406,7 @@ void ${func_name}(
   % elif flag_DW == 1 and optional_type == 'mixed-hw':
     xpulp_nn_depthwise_u${x_data_size_byte}_u${y_data_size_byte}_i${W_data_size_byte}( 
   % endif
-  % if 'Gemm' in func_name or 'MatMul' in func_name or 'FullyConnected' in func_name:
+  % if 'Gemm' in func_name or 'FullyConnected' in func_name:
       % if has_bias:
       x, b, y, W,
       % else:

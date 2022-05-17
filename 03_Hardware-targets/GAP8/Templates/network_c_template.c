@@ -208,7 +208,7 @@ void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_outpu
   dory_L2_alloc(&L2_memory_buffer,
     &L2_memory_buffer_end,
     &L2_input,
-    ${int(DORY_HW_graph[0].tiling_dimensions["L2"]["input_activation_memory"])},
+    check_activations_dimension[0],
     begin_end_n // begin is 1, end is 0
     );
   begin_end_n = !begin_end_n;
@@ -218,7 +218,7 @@ void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_outpu
   dory_L2_alloc(&L2_memory_buffer,
     &L2_memory_buffer_end,
     &L2_output,
-    ${int(DORY_HW_graph[0].tiling_dimensions["L2"]["output_activation_memory"])},
+    check_activations_out_dimension[0],
     begin_end_n // begin is 1, end is 0
     );
   if(L2_output == NULL) return -1;

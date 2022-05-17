@@ -113,10 +113,12 @@ class HW_node(DORY_node):
                 if "bias" not in name:
                     weight_name = name
         if weight_name in self.__dict__:
-            self.__dict__[weight_name]["value"] = self.__dict__[weight_name]["value"].flatten().tolist()
-            # self.__dict__[weight_name+"_raw"] = self.__dict__[weight_name]
             if self.weight_bits < 8 and self.group > 1:
+                self.__dict__[weight_name]["value"] = np.asarray(self.__dict__[weight_name]["value"])
                 self.__dict__[weight_name]["value"] = self.__dict__[weight_name]["value"].reshape(int(self.__dict__[weight_name]["value"].shape[0]/2),2,self.__dict__[weight_name]["value"].shape[1],self.__dict__[weight_name]["value"].shape[2],self.__dict__[weight_name]["value"].shape[3]).transpose(0,2,3,1,4).flatten().tolist()
+            else:
+                self.__dict__[weight_name]["value"] = self.__dict__[weight_name]["value"].flatten().tolist()
+            # self.__dict__[weight_name+"_raw"] = self.__dict__[weight_name]
             temp = []
             z = 0
             for i_w, _ in enumerate(self.__dict__[weight_name]["value"]):

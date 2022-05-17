@@ -22,35 +22,34 @@
 #include "pulp_nn_kernels.h"
 
 
+
 void pulp_nn_conv_u2_u2_i2(
-          const uint8_t *pInBuffer,
-          const uint16_t dim_in_x,
-          const uint16_t dim_in_y,
-          const uint16_t ch_in,
-          const int8_t *pWeight,
-          const uint16_t ch_out,
-          const uint16_t dim_kernel_x,
-          const uint16_t dim_kernel_y,
-          const uint16_t padding_y_top,
-          const uint16_t padding_y_bottom,
-          const uint16_t padding_x_left,
-          const uint16_t padding_x_right,
-          const uint16_t stride_x,
-          const uint16_t stride_y,
-          const int8_t *bias,
-          const uint16_t bias_shift,
-          const int8_t out_shift,
-          const uint16_t out_mult,
-          uint8_t *pOutBuffer,
-          const uint16_t dim_out_x,
-          const uint16_t dim_out_y,
-          int64_t *k,
-          int64_t *lambda,
-          uint8_t *pIm2ColBuffer,
-          int flag_relu,
-          int flag_batch_norm,
-          unsigned int * memory_chan
-) {
+                        uint8_t *pIn,
+                        uint8_t *pIm2ColBuffer,
+                        int8_t *pBias,
+                        uint8_t *pOut,
+                        int8_t *pWeight,
+                        int64_t *pKappa,
+                        int64_t *pLambda,
+                        uint16_t out_mult,
+                        uint16_t out_shift,
+                        uint16_t dim_in_x,
+                        uint16_t dim_in_y,
+                        uint16_t ch_in,
+                        uint16_t dim_out_x,
+                        uint16_t dim_out_y,
+                        uint16_t ch_out,
+                        uint16_t dim_kernel_x,
+                        uint16_t dim_kernel_y,
+                        uint16_t padding_y_top,
+                        uint16_t padding_y_bottom,
+                        uint16_t padding_x_left,
+                        uint16_t padding_x_right,
+                        uint16_t stride_x,
+                        uint16_t stride_y,
+                        uint8_t flag_relu,
+                        uint8_t flag_batch_norm)
+{
   uint16_t ch_in_r = ch_in >> 2;
   uint16_t ch_out_r = ch_out >> 2;
 
@@ -91,7 +90,7 @@ void pulp_nn_conv_u2_u2_i2(
   int stop_pixel = min(start_pixel + chunk, dim_out_y);
 
   uint8_t *pIm2Col = pIm2ColBase;
-  uint8_t *pOut = pOutBuffer + (start_pixel * ch_out_r * dim_out_x) + (section * ch_out_r * dim_out_x_r);
+  uint8_t *pOutBuffer = pOut + (start_pixel * ch_out_r * dim_out_x) + (section * ch_out_r * dim_out_x_r);
 
   for (i_out_y = start_pixel; i_out_y < stop_pixel; i_out_y++)
   {
@@ -109,7 +108,7 @@ void pulp_nn_conv_u2_u2_i2(
             }
             else
             {
-              pulp_nn_im2col_u2_to_u8((uint8_t*) (pInBuffer + ((i_ker_y * dim_in_x + i_ker_x) * ch_in_r)), pIm2Col, ch_in);
+              pulp_nn_im2col_u2_to_u8((uint8_t*) (pIn + ((i_ker_y * dim_in_x + i_ker_x) * ch_in_r)), pIm2Col, ch_in);
             }
             pIm2Col+=ch_in;
           }
@@ -129,7 +128,7 @@ void pulp_nn_conv_u2_u2_i2(
               }
               else
               {
-                pulp_nn_im2col_u2_to_u8((uint8_t*) (pInBuffer + ((i_ker_y * dim_in_x + i_ker_x) * ch_in_r)), pIm2Col, ch_in);
+                pulp_nn_im2col_u2_to_u8((uint8_t*) (pIn + ((i_ker_y * dim_in_x + i_ker_x) * ch_in_r)), pIm2Col, ch_in);
               }
               pIm2Col+=ch_in;
             }
@@ -139,7 +138,7 @@ void pulp_nn_conv_u2_u2_i2(
         {
           for(i_ker_y=((i_out_y * stride_y) - padding_y_top); i_ker_y<((i_out_y * stride_y) - padding_y_top + dim_kernel_y); i_ker_y++)
           {
-            pulp_nn_im2col_u2_to_u8((uint8_t*) pInBuffer + (i_ker_y * dim_in_x + i_out_x * stride_x - padding_x_left)*ch_in_r,pIm2Col,ch_in * dim_kernel_x);
+            pulp_nn_im2col_u2_to_u8((uint8_t*) pIn + (i_ker_y * dim_in_x + i_out_x * stride_x - padding_x_left)*ch_in_r,pIm2Col,ch_in * dim_kernel_x);
             pIm2Col+=(ch_in * dim_kernel_x);
           }
         }
@@ -155,7 +154,7 @@ void pulp_nn_conv_u2_u2_i2(
               }
               else
               {
-                pulp_nn_im2col_u2_to_u8((uint8_t *)pInBuffer+ (i_ker_y*dim_in_x+i_ker_x)* ch_in_r, pIm2Col, ch_in);
+                pulp_nn_im2col_u2_to_u8((uint8_t *)pIn + (i_ker_y*dim_in_x+i_ker_x)* ch_in_r, pIm2Col, ch_in);
               }
               pIm2Col+=ch_in;
             }
@@ -174,7 +173,7 @@ void pulp_nn_conv_u2_u2_i2(
             }
             else
             {
-              pulp_nn_im2col_u2_to_u8((uint8_t *) pInBuffer + (i_ker_y * dim_in_x + i_ker_x) * ch_in_r, pIm2Col, ch_in);
+              pulp_nn_im2col_u2_to_u8((uint8_t *) pIn + (i_ker_y * dim_in_x + i_ker_x) * ch_in_r, pIm2Col, ch_in);
             }
             pIm2Col+=ch_in;
           }
@@ -182,21 +181,22 @@ void pulp_nn_conv_u2_u2_i2(
       }
       if(pIm2Col == (pIm2ColBase + ((ch_in * dim_kernel_x * dim_kernel_y) << 1)))
       {
-        pOut = pulp_nn_matmul_u2_i2(
-          pWeight,
+        pOutBuffer = pulp_nn_matmul_u8_u2_i2(
           pIm2ColBase,
-          ch_out,
-          (ch_in * dim_kernel_x * dim_kernel_y),
-          bias_shift,
-          out_shift,
+          pBias,
+          pOutBuffer,
+          pOutBuffer + ch_out_r,
+          pWeight,
+          pKappa,
+          pLambda,
           out_mult,
-          k,
-          lambda,
-          bias,
-          pOut,
+          out_shift,
+          (ch_in * dim_kernel_x * dim_kernel_y),
+          ch_out,
           flag_relu,
           flag_batch_norm
-        );
+          );
+
         pIm2Col = pIm2ColBase;
       }
     }
@@ -216,14 +216,18 @@ void pulp_nn_conv_u2_u2_i2(
       int8_t off6 = 6;
       const int8_t *pA = pWeight;
       int i;
-      int64_t * k1 = k;
-      int64_t * lambda1 = lambda;
+      int64_t * k1 = pKappa;
+      int64_t * lambda1 = pLambda;
       v4s inA[4];
       v4u inB;
       uint8_t out[4];
       for(i = 0; i < ch_out; i++)
       {
-        int sum = 0;//((int)(bias[i]) << bias_shift);// + nn_round(out_shift);
+        int sum = 0;
+        if (pBias != NULL)
+        {
+          sum = ((int) (*pBias++));
+        }
 
         uint8_t *pB = pIm2ColBase;
         uint16_t col_cnt_im2col = ch_in * dim_kernel_x * dim_kernel_y >> 4;
@@ -254,8 +258,6 @@ void pulp_nn_conv_u2_u2_i2(
           pB+=4;
 
           sum = SumDotp4(inB, inA[3], sum);
-
-          //pA+=4;
         }
         col_cnt_im2col = (ch_in * dim_kernel_y * dim_kernel_x) & 0xf;
         while (col_cnt_im2col)
@@ -286,8 +288,8 @@ void pulp_nn_conv_u2_u2_i2(
           {
             out[0] = bitins(out[0], n_mask2, out[1], mask2, off2);
             out[0] = bitins(out[0], n_mask4, out[2], mask4, off4);
-            *pOut = bitins(out[0], n_mask6, out[3], mask6, off6);
-            pOut++;
+            *pOutBuffer = bitins(out[0], n_mask6, out[3], mask6, off6);
+            pOutBuffer++;
           }
         }
         else
@@ -300,8 +302,8 @@ void pulp_nn_conv_u2_u2_i2(
             {
               out[0] = bitins(out[0], n_mask2, out[1], mask2, off2);
               out[0] = bitins(out[0], n_mask4, out[2], mask4, off4);
-              *pOut = bitins(out[0], n_mask6, out[3], mask6, off6);
-              pOut++;
+              *pOutBuffer = bitins(out[0], n_mask6, out[3], mask6, off6);
+              pOutBuffer++;
             }
           }
           else
@@ -312,14 +314,14 @@ void pulp_nn_conv_u2_u2_i2(
             {
               out[0] = bitins(out[0], n_mask2, out[1], mask2, off2);
               out[0] = bitins(out[0], n_mask4, out[2], mask4, off4);
-              *pOut = bitins(out[0], n_mask6, out[3], mask6, off6);
-              pOut++;
+              *pOutBuffer = bitins(out[0], n_mask6, out[3], mask6, off6);
+              pOutBuffer++;
             }
           }
         }
       }
     }
-    pOut+=(extra_chunk * ((dim_out_x_r + ((1 - section) * flag_dim_out_x_odd)) * ch_out_r));
+    pOutBuffer+=(extra_chunk * ((dim_out_x_r + ((1 - section) * flag_dim_out_x_odd)) * ch_out_r));
     pIm2Col = pIm2ColBase;
   }
   pi_cl_team_barrier(0);

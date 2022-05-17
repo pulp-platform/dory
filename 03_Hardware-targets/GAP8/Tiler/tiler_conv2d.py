@@ -325,7 +325,7 @@ class Tiler_Conv2D():
             im2col_dimension = 8 * (ks[0] * (tile_n_in + p[0] + p[2]) + ks[0]) * int( 8 / min(self.HW_node.input_activation_bits, self.HW_node.output_activation_bits, self.HW_node.weight_bits))
             weight_full_prec_dimension = 0
             if self.HW_node.weight_bits != 8:
-                weight_full_prec_dimension = db * 32 * 8 * 8 * np.prod(ks) * int( 8 / min(self.HW_node.input_activation_bits, self.HW_node.output_activation_bits, self.HW_node.weight_bits))
+                weight_full_prec_dimension = db * 8 * 8 * np.prod(ks) * int( 8 / min(self.HW_node.input_activation_bits, self.HW_node.output_activation_bits, self.HW_node.weight_bits))
         if "FullyConnected" in self.HW_node.name:
             im2col_dimension = 0
 
@@ -414,7 +414,7 @@ class Tiler_Conv2D():
                 tile_w_in = inp_dim[1]
                 tile_w_out = int((tile_w_in -(ks[1] - 1) + (p[1] + p[3]) + (s[0] - 1))/s[0])
             return ([tile_n_out, tile_n_in], [tile_n_in, tile_h_in, tile_w_in], [tile_n_out, tile_h_out, tile_w_out])
-        print("  Conv2d ERROR: no L2-L1 tiling found. Exiting...")
+        print("  Conv2d ERROR: no L2-L1 tiling found of layer {} with dimensions {} / {}, input / output channels {} / {}. Exiting...".format(self.HW_node.__dict__["name"], self.HW_node.__dict__["input_dimensions"], self.HW_node.__dict__["output_dimensions"], self.HW_node.__dict__["input_channels"], self.HW_node.__dict__["output_channels"] ))
         os._exit(0)
         return None
 

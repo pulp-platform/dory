@@ -75,8 +75,6 @@ class Layer_node(DORY_node):
         self.populate_DORY_node(node_iterating,graph)
         Layer_parameters = {}
         ## kernel_shape, dilations, group, strides, pads DEFAULTS
-        if 'Global' in node_iterating.name:
-            Layer_parameters['kernel_shape'] = Layer_parameters['input_dimensions']
         if self.name in ['FullyConnected', 'Addition']:
             Layer_parameters['kernel_shape'] = [1, 1]
             Layer_parameters['dilations'] = [1, 1]
@@ -102,6 +100,9 @@ class Layer_node(DORY_node):
             Layer_parameters = self.update_output_dimensions(activation_tensor, Layer_parameters)
         for activation_tensor in graph.graph.output:
             Layer_parameters = self.update_output_dimensions(activation_tensor, Layer_parameters)
+        if 'Global' in node_iterating.name:
+            Layer_parameters['kernel_shape'] = Layer_parameters['input_dimensions']
+            Layer_parameters['strides'] = [1, 1]
         self.add_existing_dict_parameter(Layer_parameters)
 
     def add_memory_and_MACs(self):
