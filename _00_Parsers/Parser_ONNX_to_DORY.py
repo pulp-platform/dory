@@ -20,23 +20,17 @@
 
 # Libraries
 import onnx
-from onnx import numpy_helper
-from onnx import helper, shape_inference
-import numpy as np
-import os
+from onnx import shape_inference
 import sys
-import json
-import copy 
+import copy
 
-# Directories to be added
-sys.path.append('../')
+# DORY modules
+from _00_Parsers import Layer_node
+from _00_Parsers import DORY_node
+from _01_Utils.DORY_utils import Printer
 
-## DORY modules
-import Layer_node 
-import DORY_node
-from DORY_utils import Printer
 
-class Parser_ONNX_to_DORY():
+class Parser_ONNX_to_DORY:
     # Used to manage the ONNX files. By now, supported Convolutions (PW and DW), Pooling, Fully Connected and Relu.
     def __init__(self, network, rules, layers_accepted, layers_neglected, layers_to_node):
         self.graph = onnx.load(network)
