@@ -19,13 +19,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Libraries
-import numpy as np
 
-# DORY modules
-import DORY_node
-
-class Pattern_rewriter():
+class Pattern_rewriter:
     def __init__(self, graph):
         self.graph = graph
 

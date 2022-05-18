@@ -18,9 +18,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from DORY_node import DORY_node
 import numpy as np
-import pdb
+from _00_Parsers.DORY_node import DORY_node
+
 
 class Layer_node(DORY_node):
     # A node allocated in the PULP_Graph

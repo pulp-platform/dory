@@ -19,28 +19,18 @@
 # limitations under the License.
 
 # Libraries
-import onnx
-from onnx import numpy_helper
-from onnx import helper, shape_inference
 import numpy as np
-import os
 import sys
-import json
-import copy 
+import copy
 
-# Directories to be added
-sys.path.append('../')
-
-## DORY modules
-import HW_node 
-import Layer_node 
-import DORY_node
-from DORY_utils import Printer
+# DORY modules
+from _00_Parsers.HW_node import HW_node
+from _01_Utils.DORY_utils import Printer
 
 
-class Parser_DORY_to_HW():
+class Parser_DORY_to_HW:
     # Used to manage the ONNX files. By now, supported Convolutions (PW and DW), Pooling, Fully Connected and Relu.
-    def __init__(self, graph, rules, Pattern_rewriter, supported_nodes, HW_description, network_directory):
+    def __init__(self, graph, rules, Pattern_rewriter, supported_nodes, HW_description, network_directory, Tiler):
         self.supported_nodes = supported_nodes
         self.DORY_Graph = graph
         self.Printer_Frontend = Printer("logs/HW_related")
@@ -48,6 +38,7 @@ class Parser_DORY_to_HW():
         self.rules = rules
         self.HW_description = HW_description
         self.network_directory = network_directory
+        HW_node.Tiler = Tiler
 
     def mapping_to_HW_nodes(self):
         print("\nGAP8 Backend: Matching patterns from generated DORY ONNX to HW Nodes.")
@@ -176,7 +167,7 @@ class Parser_DORY_to_HW():
             ######################## NEED A  FIX ####################################################
             #### OTHERWISE ONLY WEIGHT < L2/2 GO in L2 --> much more L3 tiling not needed############
             #########################################################################################
-            New_HW_node = HW_node.HW_node(node_to_tile, self.HW_description)
+            New_HW_node = HW_node(node_to_tile, self.HW_description)
             if i > 0:
                 New_HW_node.create_tiling_dimensions(previous_node)
             else:
