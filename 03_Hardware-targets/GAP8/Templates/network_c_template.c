@@ -167,7 +167,7 @@ void execute_layer_fork(void *arg)
     pmsis_l1_malloc_free(real_arg[7], (uint32_t) ${l1_buffer});
 }
 
-void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_output_to_pass, struct pi_device ram)
+void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_output_to_pass, int begin_end, struct pi_device ram)
 {
 
 /*
@@ -178,7 +178,7 @@ void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_outpu
 /* -------- SECTION 0 BEGIN --------- */
 /* ---------------------------------- */
   bypass_activations = 0;
-  int begin_end_n = 1;
+  int begin_end_n = begin_end;
   int L2_memory_buffer_end = L2_memory_buffer + L2_memory_dimension;
   int residual_number = 0;
   L3_weights_internal = L3_weights;
@@ -463,6 +463,10 @@ void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_outpu
           begin_end_n // begin is 1, end is 0
           );
     }
+  }
+  for(int i = 0; i < check_activations_out_dimension[${len(DORY_HW_graph)}]; i++)
+  {
+    *(L2_output_to_pass + i) = *(L2_output + i);
   }
 /* ---------------------------------- */
 /* --------- SECTION 2 END ---------- */

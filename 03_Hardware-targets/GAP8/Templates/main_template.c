@@ -117,7 +117,9 @@ int main () {
     Allocating space for input and copying it
 */
   L2_memory_buffer = pi_l2_malloc((uint32_t) ${l2_buffer_size});
-  L2_input = L2_memory_buffer;
+  int begin_end = 1;
+  L2_input = L2_memory_buffer + (1 - begin_end) * (${l2_buffer_size} - rdDone);
+  L2_output = L2_memory_buffer;
 #ifdef VERBOSE
   printf("\nL2 Buffer alloc initial\t@ 0x%08x:\t%s\n", (unsigned int)L2_memory_buffer, L2_memory_buffer?"Ok":"Failed");
 #endif
@@ -130,7 +132,15 @@ int main () {
 /*
     Running of the network
 */
-  	network_run(L2_memory_buffer, ${l2_buffer_size}, L2_output, ram);
+  	network_run(L2_memory_buffer, ${l2_buffer_size}, L2_output, begin_end, ram);
+#ifdef VERBOSE
+    printf("Network Output: ");
+    for(int i = 0; i < ${int(DORY_HW_graph[-1].tiling_dimensions["L2"]["output_activation_memory"] * (1 + int(DORY_HW_graph[-1].tiling_dimensions["L3"]["output_dimensions"] != DORY_HW_graph[-1].tiling_dimensions["L2"]["output_dimensions"])))}; i++)
+    {
+      printf("%d ", *(L2_output + i));
+    }
+    printf("\n");
+#endif
 /*
     Deallocation
 */

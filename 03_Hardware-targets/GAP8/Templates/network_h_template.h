@@ -30,7 +30,7 @@
 
 void network_free(struct pi_device ram);
 void network_alloc(struct pi_device fs, struct pi_device ram);
-void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_output_to_pass, struct pi_device ram);
+void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_output_to_pass, int begin_end, struct pi_device ram);
 void execute_layer_fork(void *arg);
 void execute_layer(void *arg);
 
