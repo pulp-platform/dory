@@ -20,14 +20,15 @@
 
 # Libraries
 import sys
-import onnx 
+from onnx import numpy_helper
 import numpy as np
 
-class DORY_node():
-    '''
-    This class define a generic node in the DORY graph, with name, connections, and general informations.
+
+class DORY_node:
+    """
+    This class define a generic node in the DORY graph, with name, connections, and general information.
     The class also define the methods to manage these nodes.
-    '''
+    """
     def __init__(self):
         self.name = None
         self.op_type = None
@@ -121,13 +122,13 @@ class DORY_node():
         for weight_tensor in graph.graph.initializer:
             if weight_tensor.name in self.constant_names:
                 self.__dict__[weight_tensor.name] = {}
-                self.__dict__[weight_tensor.name]["value"] = onnx.numpy_helper.to_array(weight_tensor)
+                self.__dict__[weight_tensor.name]["value"] = numpy_helper.to_array(weight_tensor)
                 self.__dict__[weight_tensor.name]["layout"] = None
 
         for weight_tensor in graph.graph.node:
             if weight_tensor.op_type == 'Constant' and weight_tensor.output[0] in self.input_indexes:
                 self.__dict__["constant"] = {}
-                self.__dict__["constant"]["value"] = onnx.numpy_helper.to_array(weight_tensor.attribute[0].t)
+                self.__dict__["constant"]["value"] = numpy_helper.to_array(weight_tensor.attribute[0].t)
                 self.__dict__["constant"]["layout"] = None
                 self.constant_names.append(weight_tensor.output[0])
                 self.input_indexes.remove(weight_tensor.output[0])

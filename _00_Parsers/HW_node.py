@@ -25,13 +25,17 @@ import os
 import pandas as pd 
 import torch
 
-## DORY modules
-from DORY_node import DORY_node
-from Layer_node import Layer_node
-from tiler import Tiler
+# DORY modules
+from _00_Parsers.DORY_node import DORY_node
+from _00_Parsers.Layer_node import Layer_node
+
 
 class HW_node(DORY_node):
     # A self allocated in the PULP_Graph
+
+    # Class attributes
+    Tiler = None
+
     def __init__(self, node, HW_description):
         super().__init__()
         self.__dict__ = node.__dict__
@@ -69,7 +73,7 @@ class HW_node(DORY_node):
     def create_tiling_dimensions(self, previous_node):
         #  ATTENTION MEMORY L3 --> TILE MEMORY DIMENSION --> Decide how to set. Re-init the whole memory?
         for level in np.arange(self.HW_description["memory"]["levels"],1, -1):
-            (weights_dim, input_dims, output_dims) = Tiler(self, previous_node).get_tiling(level)
+            (weights_dim, input_dims, output_dims) = self.Tiler(self, previous_node).get_tiling(level)
             self.tiling_dimensions["L{}".format(level-1)]["input_dimensions"] = input_dims
             self.tiling_dimensions["L{}".format(level-1)]["output_dimensions"] = output_dims
             weight_name = ""

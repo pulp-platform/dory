@@ -21,23 +21,15 @@
 # Libraries
 import numpy as np
 import os
-import sys
-import json
-import copy
 import torch
 import pandas as pd
 
-# Directories to be added
-sys.path.append('../')
+# DORY modules
+import _01_Utils.Templates_writer.Network_template_writer as Network_writer
+import _01_Utils.Templates_writer.Makefile_template_writer as Makefile_writer
 
-## DORY modules
-import Layer_node 
-import DORY_node
-from DORY_utils import Printer
-import Network_template_writer as Network_writer
-import Makefile_template_writer as Makefile_writer
 
-class Parser_HW_to_C():
+class Parser_HW_to_C:
     # Used to manage the ONNX files. By now, supported Convolutions (PW and DW), Pooling, Fully Connected and Relu.
     def __init__(self, graph, network_directory, HW_description, verbose_level, perf_layer, save_string):
         self.HWgraph = graph
@@ -74,10 +66,9 @@ class Parser_HW_to_C():
 
     def copy_utils_files(self):
         print("\nCopying Utils.")
-        root = '/'.join(os.getcwd().split('/')[:-1])
-        files = os.path.join(root, "03_Hardware-targets", self.HW_description["name"], "Utils_files/")
-        for file in os.listdir(files):
-            file_to_copy = os.path.join(root, "03_Hardware-targets", self.HW_description["name"], "Utils_files/", file)
+        utils_files_dir = os.path.join(os.path.dirname(__file__), '../_03_Hardware-targets', self.HW_description["name"], 'Utils_files')
+        for file in os.listdir(utils_files_dir):
+            file_to_copy = os.path.join(utils_files_dir, file)
             if file_to_copy[-1] == 'c':
                 os.system('cp "{}" application/DORY_network/src'.format(file_to_copy))
             elif file_to_copy[-1] == 'h': 

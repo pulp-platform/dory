@@ -19,32 +19,32 @@
 # limitations under the License.
 
 # Libraries
-import sys
-import onnx 
 import numpy as np
 import json
-import os 
+import os
+
+# DORY modules
+from _00_Parsers import HW_node, Layer_node
+from _00_Parsers.Parser_DORY_to_HW import Parser_DORY_to_HW
+from .HW_Pattern_rewriter import Pattern_rewriter
+from .Tiler.tiler import Tiler
 
 # Directory
 file_path = "/".join(os.path.realpath(__file__).split("/")[:-1])
 
-## DORY modules
-import HW_node 
-import Layer_node 
-from Parser_DORY_to_HW import Parser_DORY_to_HW
-from HW_Pattern_rewriter import Pattern_rewriter
 
-class GAP8_onnx(Parser_DORY_to_HW):
+class onnx_manager(Parser_DORY_to_HW):
     # Used to manage the ONNX files. By now, supported Convolutions (PW and DW), Pooling, Fully Connected and Relu.
-    def __init__(self, graph, json_configuration_file):
+    def __init__(self, graph, config_file, config_file_dir):
         layers_supported_by_HW_Backend_IR = ["Convolution", "Pooling", "FullyConnected", "Addition", "QAddition"]
         layers_supported_by_HW_Backend_IR+= ["ReluConvolution", "ReluPooling", "ReluFullyConnected", "ReluAddition", "ReluQAddition"]
         layers_supported_by_HW_Backend_IR+= ["BNReluConvolution", "BNReluPooling", "BNReluFullyConnected", "BNReluAddition", "BNReluQAddition"]
-        f = open(os.path.join(file_path, "pattern_rules.json"))
-        rules = json.load(f)
-        f = open(os.path.join(file_path, "HW_description.json"))
-        HW_description = json.load(f)
-        super().__init__(graph, rules, Pattern_rewriter, layers_supported_by_HW_Backend_IR, HW_description, os.path.dirname(json_configuration_file["onnx_file"]))
+        with open(os.path.join(file_path, "pattern_rules.json")) as f:
+            rules = json.load(f)
+        with open(os.path.join(file_path, "HW_description.json")) as f:
+            HW_description = json.load(f)
+        super().__init__(graph, rules, Pattern_rewriter, layers_supported_by_HW_Backend_IR, HW_description,
+                         os.path.join(config_file_dir, os.path.dirname(config_file["onnx_file"])), Tiler)
 
     def adjust_data_layout(self):
         print("\nGAP8 Backend: Adjusting Data Layout to HWC and CoutKCin.")

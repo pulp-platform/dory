@@ -27,7 +27,7 @@ import os
 import re
 
 
-def print_template_layer_L3(node):
+def print_template_layer_L3(node, tmpl_dir, out_dir):
     ks =      node.kernel_shape
     s =       node.strides
     g =       node.group
@@ -121,20 +121,20 @@ def print_template_layer_L3(node):
     tk['dim_out'] = int( n_out_L2 * w_out_L2 * h_out_L2 * node.output_activation_bits / 8 )
     tk['dim_in'] = int( n_in_L2 * w_in_L2 * h_in_L2 * node.input_activation_bits / 8 )
 
-    root = '/'.join(os.getcwd().split('/')[:-1])
-    tmpl = Template(filename=os.path.join(root, "03_Hardware-targets", node.HW_description["name"], "Templates/layer_templates/layer_L3_c_template.c"))
+    tmpl = Template(filename=os.path.join(tmpl_dir, "layer_L3_c_template.c"))
     l = ""
-    s = tmpl.render(verbose_log=l,**tk)
-    save_string = './application/DORY_network/src/' + node.name + '.c'
-    with open(save_string, "w") as f: f.write(s)
-    tmpl = Template(filename=os.path.join(root, "03_Hardware-targets", node.HW_description["name"], "Templates/layer_templates/layer_L3_h_template.h"))
+    s = tmpl.render(verbose_log=l, **tk)
+    save_string = os.path.join(out_dir, 'src', node.name + '.c')
+    with open(save_string, "w") as f:
+        f.write(s)
+    tmpl = Template(filename=os.path.join(tmpl_dir, "layer_L3_h_template.h"))
     l = ""
-    s = tmpl.render(verbose_log=l,**tk)
-    save_string = './application/DORY_network/inc/' + node.name + '.h'
+    s = tmpl.render(verbose_log=l, **tk)
+    save_string = os.path.join(out_dir, 'inc', node.name + '.h')
     with open(save_string, "w") as f:
         f.write(s)
 
-def print_template_layer(node, layer_type):
+def print_template_layer(node, layer_type, tmpl_dir, out_dir):
     ks =      node.kernel_shape
     inp_dim = node.tiling_dimensions["L2"]["input_dimensions"][1:]
     out_dim = node.tiling_dimensions["L2"]["output_dimensions"][1:]
@@ -401,26 +401,26 @@ def print_template_layer(node, layer_type):
     tk['out_mul'] = node.outmul["value"] if 'outmul' in node.constant_names else 1
     tk['out_shift'] = node.outshift["value"] if 'outshift' in node.constant_names else 0
 
-    root = '/'.join(os.getcwd().split('/')[:-1])
     if "Addition" not in node.name and "Pool" not in node.name:
-        tmpl = Template(filename=os.path.join(root, "03_Hardware-targets", node.HW_description["name"], "Templates/layer_templates/layer_L2_c_conv_template.c"))
+        tmpl = Template(filename=os.path.join(tmpl_dir, "layer_L2_c_conv_template.c"))
     elif "Pool" in node.name:
         if(layer_type == '1D_Conv'):
-            tmpl = Template(filename=os.path.join(root, "03_Hardware-targets", node.HW_description["name"], "Templates/layer_templates/pooling_layer_1D_template.c"))
+            tmpl = Template(filename=os.path.join(tmpl_dir, "pooling_layer_1D_template.c"))
         else:
-            tmpl = Template(filename=os.path.join(root, "03_Hardware-targets", node.HW_description["name"], "Templates/layer_templates/layer_L2_c_pooling_template.c"))
+            tmpl = Template(filename=os.path.join(tmpl_dir, "layer_L2_c_pooling_template.c"))
     elif "Addition" in node.name:
         if(layer_type == '1D_Conv'):
-            tmpl = Template(filename=os.path.join(root, "03_Hardware-targets", node.HW_description["name"], "Templates/layer_templates/add_layer_1D_template.c"))
+            tmpl = Template(filename=os.path.join(tmpl_dir, "add_layer_1D_template.c"))
         else:
-            tmpl = Template(filename=os.path.join(root, "03_Hardware-targets", node.HW_description["name"], "Templates/layer_templates/layer_L2_c_addition_template.c"))
+            tmpl = Template(filename=os.path.join(tmpl_dir, "layer_L2_c_addition_template.c"))
+
     s = tmpl.render(verbose_log=l, **tk)
-    save_string = './application/DORY_network/src/' + name_layer.replace("h", "c")
+    save_string = os.path.join(out_dir, 'src', name_layer.replace("h", "c"))
     with open(save_string, "w") as f:
         f.write(s)
-    tmpl = Template(filename=os.path.join(root, "03_Hardware-targets", node.HW_description["name"], "Templates/layer_templates/layer_L2_h_template.h"))
+    tmpl = Template(filename=os.path.join(tmpl_dir, "layer_L2_h_template.h"))
     s = tmpl.render(verbose_log=l, **tk)
-    save_string = './application/DORY_network/inc/' + name_layer
+    save_string = os.path.join(out_dir, 'inc', name_layer)
     with open(save_string, "w") as f:
         f.write(s)
 

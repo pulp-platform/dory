@@ -17,16 +17,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import math
 from mako.template import Template
-import re
 from collections import OrderedDict
-import numpy as np
-import sys
 import os
-import re
-import writer_utils as utils
-import json
+from . import writer_utils as utils
+
 
 def print_template_network(
     graph,
@@ -88,21 +83,21 @@ def print_template_network(
             except TypeError:
                 l += "// %s %s\n" % (k.ljust(30), v)
     tk['DORY_HW_graph'] = graph
-    root = '/'.join(os.getcwd().split('/')[:-1])
-    tmpl = Template(filename=os.path.join(root, "03_Hardware-targets", HW_description["name"], "Templates/network_c_template.c"))
-    s = tmpl.render(verbose_log=l,**tk)
+    root = os.path.dirname(__file__)
+    tmpl = Template(filename=os.path.join(root, "../../_03_Hardware-targets", HW_description["name"], "Templates/network_c_template.c"))
+    s = tmpl.render(verbose_log=l, **tk)
     save_string = './application/DORY_network/src/network.c'
     with open(save_string, "w") as f:
         f.write(s)
 
-    tmpl = Template(filename=os.path.join(root, "03_Hardware-targets", HW_description["name"], "Templates/network_h_template.h"))
-    s = tmpl.render(verbose_log=l,**tk)
+    tmpl = Template(filename=os.path.join(root, "../../_03_Hardware-targets", HW_description["name"], "Templates/network_h_template.h"))
+    s = tmpl.render(verbose_log=l, **tk)
     save_string = './application/DORY_network/inc/network.h'
     with open(save_string, "w") as f:
         f.write(s)
 
-    tmpl = Template(filename=os.path.join(root, "03_Hardware-targets", HW_description["name"], "Templates/main_template.c"))
-    s = tmpl.render(verbose_log=l,**tk)
+    tmpl = Template(filename=os.path.join(root, "../../_03_Hardware-targets", HW_description["name"], "Templates/main_template.c"))
+    s = tmpl.render(verbose_log=l, **tk)
     save_string = './application/DORY_network/src/main.c'
     with open(save_string, "w") as f:
         f.write(s)

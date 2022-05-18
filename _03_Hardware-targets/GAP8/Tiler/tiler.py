@@ -19,36 +19,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import math
-import numpy as np
-import torch
-import torch.nn as nn
-
-# constraint solver for optimization
-from ortools.constraint_solver import pywrapcp
-from ortools.constraint_solver import solver_parameters_pb2
-
-# tilers for layers
-# from tiler_conv1d import Tiler_Conv1D
-from tiler_conv2d import Tiler_Conv2D
-from tiler_pool2d import Tiler_Pool2D
-from tiler_add import Tiler_Add
+from .tiler_conv2d import Tiler_Conv2D
+from .tiler_pool2d import Tiler_Pool2D
+from .tiler_add import Tiler_Add
 
 
-# template for output
-import logging
-import os
-import sys
-
-class Tiler():
+class Tiler:
     # Class to generate the Tiling of the layer.
     def __init__(self, HW_node, previous_HW_node):
         self.HW_node = HW_node
         self.previous_HW_node = previous_HW_node
 
     def get_tiling(self, level):
-        # This function is used to create the tiling of either a convolutional layer or a fully connected or a pooling layer.
-        # The relu is included automatically in conv/FC.
+        # This function is used to create the tiling of either a convolutional layer or
+        # a fully connected or a pooling layer. The relu is included automatically in conv/FC.
         if 'Conv1D' in self.HW_node.name:
             return Tiler_Conv1D(self).get_tiling()
         elif 'Conv' in self.HW_node.name or  'FullyConnected' in self.HW_node.name:

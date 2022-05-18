@@ -23,9 +23,10 @@
 import numpy as np
 
 # DORY modules
-import DORY_node
+from _00_Parsers import DORY_node
 
-class Pattern_rewriter():
+
+class Pattern_rewriter:
     def __init__(self, graph):
         self.graph = graph
 

@@ -17,14 +17,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import math
 from mako.template import Template
-import re
 from collections import OrderedDict
-import numpy as np
-import sys
 import os
-import re
+
 
 def print_template_Makefile(
     graph,
@@ -39,8 +35,8 @@ def print_template_Makefile(
 
     tk['layers_w'] = file_list_w
     tk['sdk'] = HW_description["software development kit"]["name"]
-    root = '/'.join(os.getcwd().split('/')[:-1])
-    tmpl = Template(filename=os.path.join(root, "03_Hardware-targets", HW_description["name"], "Templates/Makefile_template"))
+    root = os.path.dirname(__file__)
+    tmpl = Template(filename=os.path.join(root, "../../_03_Hardware-targets", HW_description["name"], "Templates/Makefile_template"))
     s = tmpl.render(**tk)
     save_string = './application/' + save_string
     with open(save_string, "w") as f:
