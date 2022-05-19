@@ -22,8 +22,6 @@
 import numpy as np
 import copy
 import os
-import pandas as pd 
-import torch
 
 # DORY modules
 from Parsers.DORY_node import DORY_node
@@ -182,22 +180,18 @@ class HW_node(DORY_node):
         ######################################################################################
         if node_number == 0:        
             try:
-                x_in = pd.read_csv(os.path.join(load_directory, 'input.txt'))
-                x_in = x_in.values[:, 0].astype(int)
+                x_in = np.loadtxt(os.path.join(load_directory, 'input.txt'), delimiter=',', dtype=np.uint8, usecols=[0])
+                x_in = x_in.flatten()
             except FileNotFoundError:
                 print(f"========= WARNING ==========\nInput file {os.path.join(load_directory, 'input.txt')} not found; generating random inputs!")
-                x_in = torch.Tensor(1, self.group, self.input_channels, self.input_dimensions[0], self.input_dimensions[1]).uniform_(0, (2**(9)))
-                x_in[x_in > (2**8 - 1)] = 0
-                x_in = torch.round(x_in)
-                x_in = x_in.flatten().numpy().astype(int)
-            for i, _ in enumerate(x_in):
-                x_in[i] = np.uint8(x_in[i])
+                x_in = np.random.randint(low=0, high=2*8 - 1,
+                                         size=self.group * self.input_channels * self.input_dimensions[0] * self.input_dimensions[1],
+                                         dtype=np.uint8)
             self.check_sum_in = sum(x_in)
         else:
-            x_in = pd.read_csv(os.path.join(load_directory, 'out_layer{}.txt'.format(node_number-1)))
-            x_in = x_in.values[:, 0].astype(int)
-            for i, _ in enumerate(x_in):
-                x_in[i] = np.uint8(x_in[i])
+            x_in = np.loadtxt(os.path.join(load_directory, f'out_layer{node_number-1}.txt'), delimiter=',',
+                              dtype=np.uint8, usecols=[0])
+            x_in = x_in.flatten()
             in_compressed = []
             z = 0
             Loop_over = copy.deepcopy(x_in)
@@ -209,11 +203,10 @@ class HW_node(DORY_node):
                 z += 1
             self.check_sum_in = sum(in_compressed)
 
-        x_out = pd.read_csv(os.path.join(load_directory, 'out_layer{}.txt'.format(node_number)))
-        x_out = x_out.values[:, 0].astype(int)
+        x_out = np.loadtxt(os.path.join(load_directory, f'out_layer{node_number}.txt'), delimiter=',',
+                           dtype=np.uint8, usecols=[0])
+        x_out = x_out.flatten()
         if self.output_activation_bits <= 8:
-            for i, _ in enumerate(x_out):
-                x_out[i] = np.uint8(x_out[i])
             out_compressed = []
             z = 0
             Loop_over = copy.deepcopy(x_out)
