@@ -75,7 +75,7 @@ class Tiler_Pool2D():
         for iteration in range(0, 2):
             parameters = pywrapcp.Solver.DefaultSolverParameters()
             solver = pywrapcp.Solver("simple_CP", parameters)
-            tile_n_out = solver.IntVar(out_ch, out_ch, 'tile_n_out')
+            tile_n = solver.IntVar(out_ch, out_ch, 'tile_n')
             tile_h_out = solver.IntVar(1, out_dim[0], 'tile_h_out')
             if input_L3 == 0:
                 tile_h_in = solver.IntVar(inp_dim[0], inp_dim[0], 'tile_h_in')
@@ -119,17 +119,16 @@ class Tiler_Pool2D():
             obj_expr = solver.IntVar(0, 1000000000000, "obj_expr")
             solver.Add(obj_expr == constraint_all
                             + 2 * 100000 * ((tile_h_out - 1) % 8)
-                            + 2 * 1000000 * (((h_in - tile_h_in + p[0]) % (tile_h_in - conv_overlap_h )) == 0)
                             + 2 * 100000 * ((tile_h_in - 1) % 4))
             # maximize the objective
             objective = solver.Maximize(obj_expr, 1)
-            decision_builder = solver.Phase([tile_n_out, tile_h_in, tile_h_out],
+            decision_builder = solver.Phase([tile_n, tile_h_in, tile_h_out],
                                             solver.CHOOSE_FIRST_UNBOUND,
                                             solver.ASSIGN_MIN_VALUE)
             # Create a solution collector.
             collector = solver.LastSolutionCollector()
             # Add the decision variables.
-            collector.Add(tile_n_out)
+            collector.Add(tile_n)
             collector.Add(tile_h_in)
             collector.Add(tile_h_out)
             # Add the objective.
@@ -137,10 +136,10 @@ class Tiler_Pool2D():
             solver.Solve(decision_builder, [objective, collector])
             if collector.SolutionCount() > 0:
                 best_solution = collector.SolutionCount() - 1
-                tile_n_out = collector.Value(best_solution, tile_n_out)
+                tile_n = collector.Value(best_solution, tile_n)
                 tile_h_in = collector.Value(best_solution, tile_h_in)
                 tile_h_out = collector.Value(best_solution, tile_h_out)
-                return ([], [tile_n, tile_h_in, tile_w_in], [tile_n, tile_h_out, tile_w_out])
+                return ([], [tile_n, tile_h_in, self.HW_node.input_dimensions[1]], [tile_n, tile_h_out, self.HW_node.output_dimensions[1]])
         print("  Pool2D ERROR: no L3-L2 tiling found. Exiting...")
         os._exit(0)
         return None

@@ -79,7 +79,7 @@ def main():
     onnx_manager = importlib.import_module(f'_03_Hardware-targets.{args.hardware_target}.C_Parser')
     DORY_HW_to_C = onnx_manager.C_Parser
     DORY_Graph = DORY_HW_to_C(DORY_Graph, json_configuration_file, json_configuration_file_root,
-                              args.verbose_level, args.perf_layer, args.optional).full_graph_parsing()
+                              args.verbose_level, args.perf_layer, args.optional, args.app_dir).full_graph_parsing()
 
 
 if __name__ == '__main__':

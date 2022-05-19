@@ -33,12 +33,12 @@ file_path = "/".join(os.path.realpath(__file__).split("/")[:-1])
 
 class C_Parser(Parser_HW_to_C):
     # Used to manage the ONNX files. By now, supported Convolutions (PW and DW), Pooling, Fully Connected and Relu.
-    def __init__(self, graph, conf_file, conf_file_dir, verbose_level, perf_layer, precision_library):
+    def __init__(self, graph, conf_file, conf_file_dir, verbose_level, perf_layer, precision_library, app_directory):
         f = open(os.path.join(file_path, "HW_description.json"))
         HW_description = json.load(f)
         self.precision_library = precision_library
         self.source_Constant_bits_library = conf_file["BNRelu_bits"]
-        super().__init__(graph, os.path.join(conf_file_dir, os.path.dirname(conf_file["onnx_file"])), HW_description, verbose_level, perf_layer, "Makefile")
+        super().__init__(graph, os.path.join(conf_file_dir, os.path.dirname(conf_file["onnx_file"])), HW_description, verbose_level, perf_layer, "Makefile", app_directory)
 
     def copy_backend_files(self, node):
         if self.precision_library == 'auto':
@@ -57,15 +57,15 @@ class C_Parser(Parser_HW_to_C):
             files = os.path.join(root, "Backend_Kernels/pulp-nn-mixed/XpulpV2/")
         elif self.precision_library == "mixed-hw":
             files = os.path.join(root, "Backend_Kernels/pulp-nn-mixed/XpulpNN/")
-        if os.listdir(os.path.join(files, "{}bit/include".format(self.source_Constant_bits_library)))[0] not in os.listdir("application/DORY_network/inc"):
+        if os.listdir(os.path.join(files, "{}bit/include".format(self.source_Constant_bits_library)))[0] not in os.listdir(os.path.join(self.app_directory, "DORY_network/inc")):
             for file in os.listdir(os.path.join(files, "{}bit/include".format(self.source_Constant_bits_library))):
                 file_to_copy = os.path.join(files, "{}bit/include".format(self.source_Constant_bits_library), file)
-                os.system('cp "{}" application/DORY_network/inc'.format(file_to_copy))
+                os.system('cp "{}" {}'.format(file_to_copy, os.path.join(self.app_directory, 'DORY_network/inc')))
         if self.precision_library == "8bit":
-            if os.listdir(os.path.join(files, "{}bit/src".format(self.source_Constant_bits_library)))[0] not in os.listdir("application/DORY_network/src"):
+            if os.listdir(os.path.join(files, "{}bit/src".format(self.source_Constant_bits_library)))[0] not in os.listdir(os.path.join(self.app_directory, "DORY_network/src")):
                 for file in os.listdir(os.path.join(files, "{}bit/src".format(self.source_Constant_bits_library))):
                     file_to_copy = os.path.join(files, "{}bit/src".format(self.source_Constant_bits_library), file)
-                    os.system('cp "{}" application/DORY_network/src'.format(file_to_copy))
+                    os.system('cp "{}" {}'.format(file_to_copy, os.path.join(self.app_directory, 'DORY_network/src')))
         elif self.precision_library == "mixed-sw":
             if "Addition" in node.name:
                 file = 'pulp_nn_add_u{}_u{}.c'.format(node.get_parameter('input_activation_bits'), node.get_parameter('output_activation_bits'))
@@ -82,16 +82,16 @@ class C_Parser(Parser_HW_to_C):
             elif "FullyConnected" in node.name:     
                 file = 'LinearQuant/pulp_nn_linear_u{}_u{}_i{}.c'.format(node.get_parameter('input_activation_bits'), node.get_parameter('output_activation_bits'), node.get_parameter('weight_bits'))
             file_to_copy = os.path.join(files, "{}bit/src".format(self.source_Constant_bits_library), file)
-            os.system('cp "{}" application/DORY_network/src'.format(file_to_copy))
+            os.system('cp "{}" {}'.format(file_to_copy, os.path.join(self.app_directory, 'DORY_network/src')))
             if ("Conv" in node.name or "FullyConnected" in node.name) and node.get_parameter('output_activation_bits') != 32:
                 file = 'MatrixMultiplication/pulp_nn_matmul_u8_u{}_i{}.c'.format(node.get_parameter('output_activation_bits'), node.get_parameter('weight_bits'))
                 file_to_copy = os.path.join(files, "{}bit/src".format(self.source_Constant_bits_library), file)
-                os.system('cp "{}" application/DORY_network/src'.format(file_to_copy))
+                os.system('cp "{}" {}'.format(file_to_copy, os.path.join(self.app_directory, 'DORY_network/src')))
 
     def mapping_layers_to_C_files(self):
         print("\nMapping the layers files to their templates and copying the kernels associated.")
         tmpl_dir = os.path.join(os.path.dirname(__file__), 'Templates/layer_templates')
-        out_dir = './application/DORY_network'
+        out_dir = '{}/DORY_network'.format(self.app_directory)
         for i, node in enumerate(self.HWgraph):
             self.copy_backend_files(node)
             if (node.tiling_dimensions["L3"]["input_dimensions"] != node.tiling_dimensions["L2"]["input_dimensions"]) or (node.tiling_dimensions["L3"]["output_dimensions"] != node.tiling_dimensions["L2"]["output_dimensions"]) or (node.tiling_dimensions["L3"]["weights_dimensions"] != node.tiling_dimensions["L2"]["weights_dimensions"]):

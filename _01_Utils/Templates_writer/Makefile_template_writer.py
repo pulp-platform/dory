@@ -25,7 +25,8 @@ import os
 def print_template_Makefile(
     graph,
     HW_description,
-    save_string):
+    save_string,
+    app_directory):
     # Generate the Makefile, including all files to upload on the hyperflash
     tk = OrderedDict([])
     file_list_w = []
@@ -38,6 +39,6 @@ def print_template_Makefile(
     root = os.path.dirname(__file__)
     tmpl = Template(filename=os.path.join(root, "../../_03_Hardware-targets", HW_description["name"], "Templates/Makefile_template"))
     s = tmpl.render(**tk)
-    save_string = './application/' + save_string
+    save_string = os.path.join(app_directory, save_string)
     with open(save_string, "w") as f:
         f.write(s)

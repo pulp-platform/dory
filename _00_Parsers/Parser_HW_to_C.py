@@ -31,13 +31,14 @@ import _01_Utils.Templates_writer.Makefile_template_writer as Makefile_writer
 
 class Parser_HW_to_C:
     # Used to manage the ONNX files. By now, supported Convolutions (PW and DW), Pooling, Fully Connected and Relu.
-    def __init__(self, graph, network_directory, HW_description, verbose_level, perf_layer, save_string):
+    def __init__(self, graph, network_directory, HW_description, verbose_level, perf_layer, save_string, app_directory):
         self.HWgraph = graph
         self.HW_description = HW_description
         self.verbose_level = verbose_level
         self.perf_layer = perf_layer
-        self.save_string = save_string
+        self.save_string_for_Makefile = save_string
         self.network_directory = network_directory
+        self.app_directory = app_directory
 
     def adding_numbers_to_layers(self):
         for i, node in enumerate(self.HWgraph):
@@ -49,14 +50,16 @@ class Parser_HW_to_C:
             self.HWgraph,
             self.HW_description,
             self.verbose_level,
-            self.perf_layer)
+            self.perf_layer,
+            self.app_directory)
 
     def mapping_makefile(self):
         print("\nGenerating the Makefile.")
         Makefile_writer.print_template_Makefile(
             self.HWgraph,
             self.HW_description,
-            self.save_string)
+            self.save_string_for_Makefile,
+            self.app_directory)
 
     def mapping_layers_to_C_files(self):
         print("\nTo be implemented in the target backend")
@@ -70,9 +73,9 @@ class Parser_HW_to_C:
         for file in os.listdir(utils_files_dir):
             file_to_copy = os.path.join(utils_files_dir, file)
             if file_to_copy[-1] == 'c':
-                os.system('cp "{}" application/DORY_network/src'.format(file_to_copy))
+                os.system('cp "{}" {}/DORY_network/src'.format(file_to_copy, self.app_directory))
             elif file_to_copy[-1] == 'h': 
-                os.system('cp "{}" application/DORY_network/inc'.format(file_to_copy))
+                os.system('cp "{}" {}/DORY_network/inc'.format(file_to_copy, self.app_directory))
 
     def create_hex_weights_files(self):
         print("\nGenerating .hex weight files.")
@@ -95,7 +98,7 @@ class Parser_HW_to_C:
                 weights = np.concatenate((weights, np.asarray([0])))
             if weights.shape[0] != 0:
                 string_layer = node.name + "_weights.hex"
-                save_s = './application/DORY_network/' + string_layer
+                save_s = '{}/DORY_network/'.format(self.app_directory) + string_layer
                 with open(save_s, 'wb') as f:
                     for l in weights.astype('uint8').flatten():
                         f.write(bytes((l,)))
@@ -115,7 +118,7 @@ class Parser_HW_to_C:
             x_in[i] = np.uint8(x_in[i])
 
         string_layer = "inputs.hex"
-        save_s = './application/DORY_network/' + string_layer
+        save_s = '{}/DORY_network/'.format(self.app_directory) + string_layer
         with open(save_s, 'wb') as f:
             for i in x_in.astype('uint8').flatten():
                 f.write(bytes((i,)))
@@ -125,11 +128,11 @@ class Parser_HW_to_C:
         print("## DORY GENERAL PARSING FROM DORY HW IR TO C FILES ##")
         print("## FINAL RAPRESENTATION: COMPILABLE C PROJECT      ##")
         print("#####################################################")
-        os.system('rm -rf application')
-        os.system('mkdir application')
-        os.system('mkdir application/DORY_network')
-        os.system('mkdir application/DORY_network/inc')
-        os.system('mkdir application/DORY_network/src')
+        os.system('rm -rf {}'.format(self.app_directory))
+        os.system('mkdir {}'.format(self.app_directory))
+        os.system('mkdir {}/DORY_network'.format(self.app_directory))
+        os.system('mkdir {}/DORY_network/inc'.format(self.app_directory))
+        os.system('mkdir {}/DORY_network/src'.format(self.app_directory))
         self.adding_numbers_to_layers()
         self.mapping_network_to_C_file()
         self.mapping_makefile()
