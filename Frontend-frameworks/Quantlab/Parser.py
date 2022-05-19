@@ -24,8 +24,8 @@ import json
 import os
 
 # DORY modules
+from Parsers.Parser_ONNX_to_DORY import Parser_ONNX_to_DORY
 from .Pattern_rewriter import Pattern_rewriter
-from _00_Parsers.Parser_ONNX_to_DORY import Parser_ONNX_to_DORY
 
 # Directory
 file_path = "/".join(os.path.realpath(__file__).split("/")[:-1])
@@ -44,7 +44,7 @@ class onnx_manager(Parser_ONNX_to_DORY):
         super().__init__(onnx, rules, layers_accepted, layers_neglected, layers_to_node)
 
     def frontend_mapping_to_DORY_nodes(self):
-        print("\nNEMO Frontend: Matching patterns from generated ONNX to DORY.")
+        print("\nQuantlab Frontend: Matching patterns from generated ONNX to DORY.")
         for i, node in enumerate(self.DORY_Graph):
             string_matching, indexes = self.pattern_matching(node, i)
             if isinstance(string_matching, str):
@@ -58,35 +58,24 @@ class onnx_manager(Parser_ONNX_to_DORY):
             node.add_existing_parameter("constant_type", "int")
             node.add_existing_parameter("output_activation_type", "int")
             node.add_existing_parameter("input_activation_type", "int")
-            node.add_existing_parameter("bias_bits", 32)
+            if node.name in ["Addition"]:
+                node.add_existing_parameter("output_activation_bits", node.add_bits)
             if node.name in ["Convolution", "FullyConnected"]:
-                node.add_existing_parameter("weight_bits", 8)
                 node.add_existing_parameter("output_activation_bits", 32)
+            if i == 0:
                 node.add_existing_parameter("input_activation_bits", 8)
-            elif node.name in ["Addition"]:
-                node.add_existing_parameter("output_activation_bits", 32)
-                node.add_existing_parameter("input_activation_bits", 32)
-            elif node.name in ["QAddition"]:
+            elif i > 0:
+                node.add_existing_parameter("input_activation_bits", self.DORY_Graph[i-1].output_activation_bits)
+            if node.name in ["QAddition", "Relu", "BNRelu", "Clip", "Mul", "Add", "Div", "Shift"]:
                 node.add_existing_parameter("constant_bits", self.BNRelu_bits)
-                node.add_existing_parameter("output_activation_bits", 8)
-                node.add_existing_parameter("input_activation_bits", 8)
-            elif node.name in ["Pooling"]:
-                node.add_existing_parameter("output_activation_bits", 8)
-                node.add_existing_parameter("input_activation_bits", 8)
-            elif node.name in ["Relu", "BNRelu", "Clip"]:
-                node.add_existing_parameter("constant_bits", self.BNRelu_bits)
-                node.add_existing_parameter("output_activation_bits", 8)
-                node.add_existing_parameter("input_activation_bits", 32)
-            elif node.name in [ "Mul", "Add", "Div", "Shift"]:
-                node.add_existing_parameter("constant_bits", self.BNRelu_bits)
-                node.add_existing_parameter("output_activation_bits", 32)
-                node.add_existing_parameter("input_activation_bits", 32)
+            if node.name in ["Pooling"]:
+                node.add_existing_parameter("output_activation_bits", self.DORY_Graph[i].input_activation_bits)
 
     def add_data_layout(self):
         print("\nNEMO Frontend: Adding Data Layout.")
         for i, node in enumerate(self.DORY_Graph):
             for name in node.constant_names:
-                if name not in ["l","k","outshift","outmul", "inmul1", "inmul2"]:
+                if name not in ["l","k","outshift","outmul","outadd", "inmul1", "inmul2"]:
                     if "bias" not in name:
                         weights_name = name
             if weights_name in node.__dict__:

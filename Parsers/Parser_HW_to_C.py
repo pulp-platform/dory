@@ -25,8 +25,8 @@ import torch
 import pandas as pd
 
 # DORY modules
-import _01_Utils.Templates_writer.Network_template_writer as Network_writer
-import _01_Utils.Templates_writer.Makefile_template_writer as Makefile_writer
+import Utils.Templates_writer.Network_template_writer as Network_writer
+import Utils.Templates_writer.Makefile_template_writer as Makefile_writer
 
 
 class Parser_HW_to_C:
