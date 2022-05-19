@@ -69,7 +69,7 @@ class Parser_HW_to_C:
 
     def copy_utils_files(self):
         print("\nCopying Utils.")
-        utils_files_dir = os.path.join(os.path.dirname(__file__), '../_03_Hardware-targets', self.HW_description["name"], 'Utils_files')
+        utils_files_dir = os.path.join(os.path.dirname(__file__), '../Hardware-targets', self.HW_description["name"], 'Utils_files')
         for file in os.listdir(utils_files_dir):
             file_to_copy = os.path.join(utils_files_dir, file)
             if file_to_copy[-1] == 'c':

@@ -71,12 +71,12 @@ def main():
     DORY_Graph = onnx_to_DORY(onnx_file, json_configuration_file).full_graph_parsing()
 
     ## Including and running the transformation from DORY IR to DORY HW IR
-    onnx_manager = importlib.import_module(f'_03_Hardware-targets.{args.hardware_target}.HW_Parser')
+    onnx_manager = importlib.import_module(f'Hardware-targets.{args.hardware_target}.HW_Parser')
     DORY_to_DORY_HW = onnx_manager.onnx_manager
     DORY_Graph = DORY_to_DORY_HW(DORY_Graph, json_configuration_file, json_configuration_file_root).full_graph_parsing()
 
     ## Deployment of the model on the target architecture
-    onnx_manager = importlib.import_module(f'_03_Hardware-targets.{args.hardware_target}.C_Parser')
+    onnx_manager = importlib.import_module(f'Hardware-targets.{args.hardware_target}.C_Parser')
     DORY_HW_to_C = onnx_manager.C_Parser
     DORY_Graph = DORY_HW_to_C(DORY_Graph, json_configuration_file, json_configuration_file_root,
                               args.verbose_level, args.perf_layer, args.optional, args.app_dir).full_graph_parsing()
