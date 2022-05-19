@@ -144,12 +144,6 @@ def print_template_layer(node, layer_type):
     p =       node.pads
     conv_overlap_h = 2 * (ks[0] // 2) + ks[0] % 2 - 1 - (s[0] - 1)
     padding_top = p[0]; padding_left = p[1]; padding_bottom = p[2]; padding_right = p[3];
-
-    if inp_dim[1] > node.tiling_dimensions["L1"]["input_dimensions"][2]:
-        node.tiling_dimensions["L1"]["output_dimensions"][2] = int((node.tiling_dimensions["L1"]["input_dimensions"][2] - (ks[1] - 1) + (s[1] - 1)) / s[1])
-    else:
-        node.tiling_dimensions["L1"]["output_dimensions"][2] = int((node.tiling_dimensions["L1"]["input_dimensions"][2] + (padding_left + padding_right) - (ks[1] - 1) + (s[1] - 1)) / s[1])
-
     name_layer = node.name + '.h'
     conv_overlap1 = 2 * (ks[0] // 2) + ks[0] % 2 - 1 - (s[0] - 1)
     conv_overlap2 = 2 * (ks[1] // 2) + ks[1] % 2 - 1 - (s[1] - 1)
@@ -189,10 +183,7 @@ def print_template_layer(node, layer_type):
         tk['g'] = node.tiling_dimensions["L2"]["input_dimensions"][0]
         tk['nif'] = 1
     n_in       = node.tiling_dimensions["L2"]["input_dimensions"][0]
-    if node.tiling_dimensions["L3"]["output_dimensions"][1] > node.tiling_dimensions["L2"]["output_dimensions"][1]:
-        h_in   = node.tiling_dimensions["L2"]["output_dimensions"][1] * s[0] + (ks[0] - 1) - (s[0] - 1)
-    else:
-        h_in   = node.tiling_dimensions["L2"]["input_dimensions"][1]
+    h_in       = node.tiling_dimensions["L2"]["input_dimensions"][1]
     w_in       = node.tiling_dimensions["L2"]["input_dimensions"][2]
     tile_n_in  = node.tiling_dimensions["L1"]["input_dimensions"][0]
     tile_h_in  = node.tiling_dimensions["L1"]["input_dimensions"][1]
@@ -203,10 +194,7 @@ def print_template_layer(node, layer_type):
         n_out  = node.tiling_dimensions["L2"]["weights_dimensions"][0]
     else:
         n_out  = node.tiling_dimensions["L2"]["output_dimensions"][0]
-    if node.tiling_dimensions["L3"]["input_dimensions"][1] > node.tiling_dimensions["L2"]["input_dimensions"][1]:
-        h_out  = int(np.floor((node.tiling_dimensions["L2"]["input_dimensions"][1] - (ks[0] - 1) + (s[0] - 1)) / s[0]))
-    else:
-        h_out  = node.tiling_dimensions["L2"]["output_dimensions"][1]
+    h_out      = node.tiling_dimensions["L2"]["output_dimensions"][1]
     w_out      = node.tiling_dimensions["L2"]["output_dimensions"][2]
     tile_n_out = node.tiling_dimensions["L1"]["output_dimensions"][0]
     tile_h_out = node.tiling_dimensions["L1"]["output_dimensions"][1]
