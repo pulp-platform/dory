@@ -66,7 +66,7 @@ def main():
     print(f"Using {onnx_file} target input onnx.\n")
 
     ## Including and running the transformation from Onnx to a DORY compatible graph
-    onnx_manager = importlib.import_module(f'_02_Frontend-frameworks.{args.frontend}.Parser')
+    onnx_manager = importlib.import_module(f'Frontend-frameworks.{args.frontend}.Parser')
     onnx_to_DORY = onnx_manager.onnx_manager
     DORY_Graph = onnx_to_DORY(onnx_file, json_configuration_file).full_graph_parsing()
 

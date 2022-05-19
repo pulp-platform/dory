@@ -26,8 +26,8 @@ import pandas as pd
 import torch
 
 # DORY modules
-from _00_Parsers.DORY_node import DORY_node
-from _00_Parsers.Layer_node import Layer_node
+from Parsers.DORY_node import DORY_node
+from Parsers.Layer_node import Layer_node
 
 
 class HW_node(DORY_node):

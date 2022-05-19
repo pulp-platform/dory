@@ -24,8 +24,8 @@ import sys
 import copy
 
 # DORY modules
-from _00_Parsers.HW_node import HW_node
-from _01_Utils.DORY_utils import Printer
+from Parsers.HW_node import HW_node
+from Utils.DORY_utils import Printer
 
 
 class Parser_DORY_to_HW:
