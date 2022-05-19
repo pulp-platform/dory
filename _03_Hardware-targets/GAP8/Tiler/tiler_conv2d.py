@@ -84,6 +84,7 @@ class Tiler_Conv2D():
             solver = pywrapcp.Solver("simple_CP", parameters)
             tile_n_out = solver.IntVar(1, out_ch, 'tile_n_out')
             tile_h_out = solver.IntVar(1, out_dim[0], 'tile_h_out')
+            zero_variable = solver.IntVar(0, 0, 'zero_variable')
             if input_L3 == 0:
                 tile_h_in = solver.IntVar(inp_dim[0], inp_dim[0], 'tile_h_in')
                 db_x = 1
@@ -141,6 +142,8 @@ class Tiler_Conv2D():
             # geometrical constraint
             if db_x == 2 and db_O == 2:   
                 solver.Add(tile_h_out * s[0] == (tile_h_in - (ks[0] - 1) + (s[0] - 1)))
+            if db_x == 2:
+                solver.Add(0  == (out_dim[0] - zero_variable) % ((tile_h_in - ks[0] + s[0]) // s[0]))
 
 
             # objective              
@@ -182,7 +185,6 @@ class Tiler_Conv2D():
                                     + 100000 * ((tile_n_out) % 4 == 0)
                                     + 1000000 * (((out_ch - tile_n_out) % tile_n_out) == 0)
                                     + 1000000 * (((out_dim[0] - tile_h_out) % tile_h_out) == 0)
-                                    + 1000000 * (((inp_dim[0] - tile_h_in + p[0]) % (tile_h_in - conv_overlap_h )) == 0)
                                     + 100000 * (tile_h_out == out_dim[0])
                                     + 10000 * (tile_n_out == out_ch)))
 

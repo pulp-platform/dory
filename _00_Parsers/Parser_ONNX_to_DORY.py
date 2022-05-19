@@ -41,7 +41,7 @@ class Parser_ONNX_to_DORY:
         self.layers_accepted = layers_accepted
         self.layers_neglected = layers_neglected
         self.layers_to_node = layers_to_node
-        self.layers_supported_by_DORY_Frontend_IR = ["Convolution", "Pooling", "FullyConnected", "Addition", "QAddition", "Relu", "BNRelu"]
+        self.layers_supported_by_DORY_Frontend_IR = ["Convolution", "Pooling", "FullyConnected", "Addition", "QAddition", "Relu", "BNRelu", "Requant"]
         self.rules = rules
         self.DORY_Graph = []
 

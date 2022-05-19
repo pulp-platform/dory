@@ -31,8 +31,8 @@ class Pattern_rewriter:
         self.graph = graph
 
     def execute(self, rule, i):
-        if rule == "BNRelu":
-            self.BNRelu_pattern_rewriter(i)
+        if rule == "BNRelu_requant":
+            self.BNRelu_requant_pattern_rewriter(i)
         if rule == "Relu":
             self.Relu_pattern_rewriter(i)
         if rule == "PadConvolution" or rule == "PadPooling":
@@ -41,7 +41,7 @@ class Pattern_rewriter:
         #     self.QAdd_pattern_rewriter(i)
         return self.graph
 
-    def BNRelu_pattern_rewriter(self, i):
+    def BNRelu_requant_pattern_rewriter(self, i):
         DORY_BNRelu_node = DORY_node.DORY_node()
         DORY_BNRelu_node.name = "BNRelu"
         DORY_BNRelu_node.op_type = "BNRelu"
@@ -54,31 +54,48 @@ class Pattern_rewriter:
         DORY_BNRelu_node.branch_in = None
         DORY_BNRelu_node.branch_change = None
         DORY_BNRelu_node.branch_last = None
-
         ### k ###
+        DORY_BNRelu_node.constant_names = ["outshift"]
         for key, value in self.graph[i[0]].__dict__.items():
             if isinstance(value, dict):
-                k = value["value"]
+                if bool(value["value"].shape):
+                    k = value["value"]
+                    DORY_BNRelu_node.k = {}
+                    DORY_BNRelu_node.k["value"] = k
+                    DORY_BNRelu_node.k["layout"] = ""
+                    DORY_BNRelu_node.constant_names.append("k")
+                else:
+                    DORY_BNRelu_node.name = "Requant"
+                    DORY_BNRelu_node.op_type = "Requant"
+                    outmul = value["value"]
+                    DORY_BNRelu_node.outmul = {}
+                    DORY_BNRelu_node.outmul["value"] = outmul
+                    DORY_BNRelu_node.outmul["layout"] = ""
+                    DORY_BNRelu_node.constant_names.append("outmul")
         ### l ###
         for key, value in self.graph[i[1]].__dict__.items():
             if isinstance(value, dict):
-                l = value["value"]
+                if bool(value["value"].shape):
+                    l = value["value"]
+                    DORY_BNRelu_node.l = {}
+                    DORY_BNRelu_node.l["value"] = l
+                    DORY_BNRelu_node.l["layout"] = ""
+                    DORY_BNRelu_node.constant_names.append("l")
+                else:
+                    outadd = value["value"]
+                    DORY_BNRelu_node.outadd = {}
+                    DORY_BNRelu_node.outadd["value"] = outadd
+                    DORY_BNRelu_node.outadd["layout"] = ""
+                    DORY_BNRelu_node.constant_names.append("outadd")
         ### outshift ###
         for key, value in self.graph[i[2]].__dict__.items():
             if isinstance(value, dict):
                 outshift = (value["value"][0] if isinstance(value["value"].tolist(),list) else value["value"])
-        DORY_BNRelu_node.k = {}
-        DORY_BNRelu_node.k["value"] = k
-        DORY_BNRelu_node.k["layout"] = ""
-        DORY_BNRelu_node.l = {}
-        DORY_BNRelu_node.l["value"] = l
-        DORY_BNRelu_node.l["layout"] = ""
-        DORY_BNRelu_node.outshift = {}
-        DORY_BNRelu_node.outshift["value"] = round(np.log2(outshift))
-        DORY_BNRelu_node.outshift["layout"] = ""
+                DORY_BNRelu_node.outshift = {}
+                DORY_BNRelu_node.outshift["value"] = round(np.log2(outshift))
+                DORY_BNRelu_node.outshift["layout"] = ""
         DORY_BNRelu_node.min = self.graph[i[-1]].min
         DORY_BNRelu_node.max = self.graph[i[-1]].max
-        DORY_BNRelu_node.constant_names = ["k", "l", "outshift"]
         for ele in sorted(i, reverse = True):
             del self.graph[ele]
         self.graph.insert(i[0], DORY_BNRelu_node)

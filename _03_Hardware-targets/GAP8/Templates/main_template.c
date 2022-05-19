@@ -135,9 +135,9 @@ int main () {
   	network_run(L2_memory_buffer, ${l2_buffer_size}, L2_output, begin_end, ram);
 #ifdef VERBOSE
     printf("Network Output: ");
-    for(int i = 0; i < ${int(DORY_HW_graph[-1].tiling_dimensions["L2"]["output_activation_memory"] * (1 + int(DORY_HW_graph[-1].tiling_dimensions["L3"]["output_dimensions"] != DORY_HW_graph[-1].tiling_dimensions["L2"]["output_dimensions"])))}; i++)
+    for(int i = 0; i < ${int(DORY_HW_graph[-1].tiling_dimensions["L2"]["output_activation_memory"] * (1 + int(DORY_HW_graph[-1].tiling_dimensions["L3"]["output_dimensions"] != DORY_HW_graph[-1].tiling_dimensions["L2"]["output_dimensions"]))) / 4}; i+=4)
     {
-      printf("%d ", *(L2_output + i));
+      printf("%d ", *(int32_t *)(L2_output + i));
     }
     printf("\n");
 #endif
