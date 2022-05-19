@@ -85,19 +85,19 @@ def print_template_network(
                 l += "// %s %s\n" % (k.ljust(30), v)
     tk['DORY_HW_graph'] = graph
     root = os.path.dirname(__file__)
-    tmpl = Template(filename=os.path.join(root, "../../_03_Hardware-targets", HW_description["name"], "Templates/network_c_template.c"))
+    tmpl = Template(filename=os.path.join(root, "../../Hardware-targets", HW_description["name"], "Templates/network_c_template.c"))
     s = tmpl.render(verbose_log=l, **tk)
     save_string = os.path.join(app_directory, 'DORY_network/src/network.c') 
     with open(save_string, "w") as f:
         f.write(s)
 
-    tmpl = Template(filename=os.path.join(root, "../../_03_Hardware-targets", HW_description["name"], "Templates/network_h_template.h"))
+    tmpl = Template(filename=os.path.join(root, "../../Hardware-targets", HW_description["name"], "Templates/network_h_template.h"))
     s = tmpl.render(verbose_log=l, **tk)
     save_string = os.path.join(app_directory, 'DORY_network/inc/network.h') 
     with open(save_string, "w") as f:
         f.write(s)
 
-    tmpl = Template(filename=os.path.join(root, "../../_03_Hardware-targets", HW_description["name"], "Templates/main_template.c"))
+    tmpl = Template(filename=os.path.join(root, "../../Hardware-targets", HW_description["name"], "Templates/main_template.c"))
     s = tmpl.render(verbose_log=l, **tk)
     save_string = os.path.join(app_directory, 'DORY_network/src/main.c')
     with open(save_string, "w") as f:
