@@ -95,6 +95,10 @@ class C_Parser(Parser_HW_to_C):
             self.copy_backend_files(node)
             if (node.tiling_dimensions["L3"]["input_dimensions"] != node.tiling_dimensions["L2"]["input_dimensions"]) or (node.tiling_dimensions["L3"]["output_dimensions"] != node.tiling_dimensions["L2"]["output_dimensions"]) or (node.tiling_dimensions["L3"]["weights_dimensions"] != node.tiling_dimensions["L2"]["weights_dimensions"]):
                 Layer2D_writer.print_template_layer_L3(node)
+                if node.tiling_dimensions["L3"]["input_dimensions"][1] > node.tiling_dimensions["L2"]["input_dimensions"][1]:
+                    node.tiling_dimensions["L2"]["output_dimensions"][1]  = int(np.floor((node.tiling_dimensions["L2"]["input_dimensions"][1] - node.kernel_shape[0] + node.strides[0]) / node.strides[0]))
+                if node.tiling_dimensions["L3"]["output_dimensions"][1] > node.tiling_dimensions["L2"]["output_dimensions"][1]:
+                    node.tiling_dimensions["L2"]["input_dimensions"][1]   = node.tiling_dimensions["L2"]["output_dimensions"][1] * node.strides[0] + node.kernel_shape[0] - node.strides[0]
                 node.name = node.name + "_L2"
                 padding = node.pads
                 node.pads = [0, padding[1], 0, padding[3]]
@@ -106,11 +110,16 @@ class C_Parser(Parser_HW_to_C):
                     Layer2D_writer.print_template_layer(node, self.precision_library)
                     node.name = node.name[:-1] + "b"
                     node.pads = [0, padding[1], padding[2], padding[3]]
-                    #pad_bot = padding[2] - ((node.tiling_dimensions["L3"]["input_dimensions"][1] - node.tiling_dimensions["L3"]["input_dimensions"][2]) % (node.tiling_dimensions["L3"]["input_dimensions"][2] - (2 * (node.kernel_shape[0] // 2) + node.kernel_shape[0] % 2 - 1 - (node.strides[0] - 1)) -padding[0]))
-                    #node.pads = [0, padding[1], pad_bot, padding[3]]
+                    if (node.tiling_dimensions["L2"]["input_dimensions"][1] == node.tiling_dimensions["L1"]["input_dimensions"][1]) or (node.tiling_dimensions["L2"]["output_dimensions"][1] == node.tiling_dimensions["L1"]["output_dimensions"][1]):
+                        node.tiling_dimensions["L1"]["input_dimensions"][1] = node.tiling_dimensions["L1"]["output_dimensions"][1] * node.strides[0] - node.strides[0] + node.kernel_shape[0] - node.pads[0] - node.pads[2]
+                        node.tiling_dimensions["L2"]["input_dimensions"][1] = node.tiling_dimensions["L2"]["output_dimensions"][1] * node.strides[0] - node.strides[0] + node.kernel_shape[0] - node.pads[0] - node.pads[2]
                     Layer2D_writer.print_template_layer(node, self.precision_library)
                     node.name = node.name[:-7]
             else:
+                if node.tiling_dimensions["L2"]["input_dimensions"][2] == node.tiling_dimensions["L1"]["input_dimensions"][2]:
+                    node.tiling_dimensions["L1"]["output_dimensions"][2] = int((node.tiling_dimensions["L1"]["input_dimensions"][2] + (node.pads[1] + node.pads[3]) - node.kernel_shape[1] + node.strides[1]) / node.strides[1])
+                if node.tiling_dimensions["L2"]["input_dimensions"][1] == node.tiling_dimensions["L1"]["input_dimensions"][1]:
+                    node.tiling_dimensions["L1"]["output_dimensions"][1] = int((node.tiling_dimensions["L1"]["input_dimensions"][1] + (node.pads[0] + node.pads[2]) - node.kernel_shape[0] + node.strides[0]) / node.strides[0])
                 Layer2D_writer.print_template_layer(node, self.precision_library)
 
 

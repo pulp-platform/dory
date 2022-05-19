@@ -61,6 +61,8 @@ class Quantlab_onnx(Parser_ONNX_to_DORY):
             node.add_existing_parameter("constant_type", "int")
             node.add_existing_parameter("output_activation_type", "int")
             node.add_existing_parameter("input_activation_type", "int")
+            if node.name in ["Addition"]:
+                node.add_existing_parameter("output_activation_bits", node.add_bits)
             if node.name in ["Convolution", "FullyConnected"]:
                 node.add_existing_parameter("output_activation_bits", 32)
             if i == 0:
