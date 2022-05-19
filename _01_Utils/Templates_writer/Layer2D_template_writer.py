@@ -205,6 +205,7 @@ def print_template_layer(node, layer_type, tmpl_dir, out_dir):
     fs1        = node.kernel_shape[0]
     fs2        = node.kernel_shape[1]
     ds_W       = node.weight_bits
+    ds_bias    = node.bias_bits
 
     DW = tk['flag_DW']
     has_bias = tk['has_bias']
@@ -248,7 +249,7 @@ def print_template_layer(node, layer_type, tmpl_dir, out_dir):
     tk['W_data_size_byte'] = ds_W
     tk['W_tile_size_nof'] = tile_n_out 
     if tk['has_bias'] == 1:
-        tk['b_size_byte'] = int(math.ceil(n_out * ds_W / 8.0))
+        tk['b_size_byte'] = int(math.ceil(n_out * ds_bias / 8.0))
     else:
         tk['b_size_byte'] = 0
 
@@ -324,8 +325,8 @@ def print_template_layer(node, layer_type, tmpl_dir, out_dir):
                 tk['k_tile_size_byte'] = int(math.ceil(tile_n_out * ds_act / 8.0 * 2))
                 tk['lambda_tile_size_byte'] = int(math.ceil(tile_n_out * ds_act / 8.0 * 2))
         if has_bias == 1:
-            tk['bias_tile_size_byte'] = tile_n_out
-            tk['b_size_byte'] = int(n_out)
+            tk['bias_tile_size_byte'] = tile_n_out * int(ds_bias / 8.0)
+            tk['b_size_byte'] = int(n_out)* int(ds_bias / 8.0)
         else:
             tk['bias_tile_size_byte'] = 0
             tk['b_size_byte'] = 0
@@ -343,41 +344,29 @@ def print_template_layer(node, layer_type, tmpl_dir, out_dir):
         if has_bias == 1:
             tk['l1_b_offset'] = x_buffer_size + 8 + y_buffer_size + 8 + W_buffer_size + 8 + tk['k_tile_size_byte'] + 8 + tk['lambda_tile_size_byte']  + 8
 
-
-    # x last
-    tk['x_tile_size_nif_last'] = n_in % tile_n_in if (n_in % tile_n_in) > 0 else tile_n_in
-    tk['x_tile_size_nif_byte_last'] = int(math.ceil(tk['x_tile_size_nif_last'] * ds_x / 8.0))
-    if tk['tile_dim_h'] == 1:
-        tk['x_tile_size_h_last'] = tk['x_tile_size_h']
-    elif tk['tile_dim_h'] == 2:
-        tk['x_tile_size_h_last'] = h_in - tile_h_in + tk['conv_overlap1'] + padding_top
-    elif tk['tile_dim_h'] == 3:
-        tk['x_tile_size_h_last'] = h_in - tile_h_in - (tile_h_in - tk['conv_overlap1'] - padding_top) + tk['conv_overlap1']
-    else:
-        tk['x_tile_size_h_last'] = h_in - tile_h_in - (tile_h_in - tk['conv_overlap1'] - padding_top) - (tk['tile_dim_h'] - 3) * (tile_h_in - tk['conv_overlap1']) + tk['conv_overlap1']
-    if tk['tile_dim_w'] == 1:
-        tk['x_tile_size_w_last'] = tk['x_tile_size_w']
-    elif tk['tile_dim_w'] == 2:
-        tk['x_tile_size_w_last'] = w_in - tile_w_in + tk['conv_overlap2'] + padding_left
-    elif tk['tile_dim_w'] == 3:
-        tk['x_tile_size_w_last'] = w_in - tile_w_in - (tile_w_in - tk['conv_overlap2'] - padding_left) + tk['conv_overlap2']
-    else:
-        tk['x_tile_size_w_last'] = w_in - tile_w_in - (tile_w_in - tk['conv_overlap2'] - padding_left) - (tk['tile_dim_w'] - 3) * (tile_w_in - tk['conv_overlap2']) + tk['conv_overlap2']
-    if tk['x_tile_size_h_last'] > tk['x_tile_size_h']:
-        tk['x_tile_size_h_last'] = tk['x_tile_size_h']
-    if tk['x_tile_size_w_last'] > tk['x_tile_size_w']:
-        tk['x_tile_size_w_last'] = tk['x_tile_size_w']
-
     # W last
     if "Addition" not in node.name and "Pool" not in node.name:
         tk['W_tile_size_nof_last'] = n_out % tile_n_out if (n_out % tile_n_out) > 0 else tile_n_out
         tk['W_tile_size_nif_last'] = tk['W_tile_size_nif']
         tk['W_tile_size_nif_byte_last'] = int(math.ceil(tk['W_tile_size_nif_last'] * ds_W / 8.0))
+    
     # y last
     tk['y_tile_size_nof_last'] = n_out % tile_n_out if (n_out % tile_n_out) > 0 else tile_n_out
     tk['y_tile_size_h_last'] = h_out % tile_h_out if (h_out % tile_h_out) > 0 else tile_h_out
     tk['y_tile_size_w_last'] = w_out % tile_w_out if (w_out % tile_w_out) > 0 else tile_w_out
     tk['y_length_nof_byte_last'] = int(math.ceil(tk['y_tile_size_nof_last'] * ds_y / 8.0))
+
+    # x last
+    tk['x_tile_size_nif_last'] = n_in % tile_n_in if (n_in % tile_n_in) > 0 else tile_n_in
+    tk['x_tile_size_nif_byte_last'] = int(math.ceil(tk['x_tile_size_nif_last'] * ds_x / 8.0))
+    tk['x_tile_size_h_last'] = tk['y_tile_size_h_last'] * s[0] + ks[0] - s[0] - (padding_bottom - ((h_in + padding_bottom + padding_top) - (h_out* s[0] + ks[0] - s[0])))
+    tk['x_tile_size_w_last'] = tk['y_tile_size_w_last'] * s[1] + ks[1] - s[1] - (padding_right - ((w_in + padding_left + padding_right) - (w_out* s[1] + ks[1] - s[1])))
+    ## single tile execution
+    if tk['x_tile_size_h_last'] > tk['x_tile_size_h']:
+        tk['x_tile_size_h_last'] = tk['x_tile_size_h']
+    if tk['x_tile_size_w_last'] > tk['x_tile_size_w']:
+        tk['x_tile_size_w_last'] = tk['x_tile_size_w']
+
     l = ""
     for k, v in tk.items():
         try:
@@ -397,7 +386,7 @@ def print_template_layer(node, layer_type, tmpl_dir, out_dir):
     tk['buffer_l1_all'] = buffer_l1_all
 
     # only used for avg pool layers
-    tk['out_add'] = 0
+    tk['out_add'] = node.outadd["value"] if 'outadd' in node.constant_names else 0
     tk['out_mul'] = node.outmul["value"] if 'outmul' in node.constant_names else 1
     tk['out_shift'] = node.outshift["value"] if 'outshift' in node.constant_names else 0
 

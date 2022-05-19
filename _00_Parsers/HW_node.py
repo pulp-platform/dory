@@ -53,7 +53,7 @@ class HW_node(DORY_node):
 
         weight_name = ""
         for name in self.constant_names:
-            if name not in ["l","k","outshift","outmul"]:
+            if name not in ["l","k","outshift","outmul","outadd"]:
                 if "bias" not in name:
                     weight_name = name
         if weight_name != "":
@@ -78,7 +78,7 @@ class HW_node(DORY_node):
             self.tiling_dimensions["L{}".format(level-1)]["output_dimensions"] = output_dims
             weight_name = ""
             for name in self.constant_names:
-                if name not in ["l","k","outshift","outmul"]:
+                if name not in ["l","k","outshift","outmul","outadd"]:
                     if "bias" not in name:
                         weight_name = name
             if weight_name != "":
@@ -93,7 +93,7 @@ class HW_node(DORY_node):
                 if name in ["l","k"]:
                     constants_memory+=weights_dim[0]*self.constant_bits/8
                 if "bias" in name:
-                    bias_memory+=weights_dim[0]*self.weight_bits/8
+                    bias_memory+=weights_dim[0]*self.bias_bits/8
             self.tiling_dimensions["L{}".format(level-1)]["bias_memory"] = int(bias_memory)
             self.tiling_dimensions["L{}".format(level-1)]["constants_memory"] = int(constants_memory)
             self.tiling_dimensions["L{}".format(level-1)]["input_activation_memory"] = np.prod(self.tiling_dimensions["L{}".format(level-1)]["input_dimensions"])*self.input_activation_bits/8
@@ -102,7 +102,7 @@ class HW_node(DORY_node):
     def rename_weights(self):
         weight_name = ""
         for i, name in enumerate(self.constant_names):
-            if name not in ["l","k","outshift","outmul"]:
+            if name not in ["l","k","outshift","outmul","outadd"]:
                 if "bias" not in name:
                     if len(self.__dict__[name]["value"].flatten()) > self.output_channels:
                         self.__dict__["weights"] = self.__dict__.pop(name)
@@ -113,7 +113,7 @@ class HW_node(DORY_node):
 
         weight_name = ""
         for name in self.constant_names:
-            if name not in ["l","k","outshift","outmul"]:
+            if name not in ["l","k","outshift","outmul","outadd"]:
                 if "bias" not in name:
                     weight_name = name
         if weight_name in self.__dict__:
@@ -138,13 +138,17 @@ class HW_node(DORY_node):
 
         bias_name = ""
         for name in self.constant_names:
-            if name not in ["l","k","outshift","outmul"]:
+            if name not in ["l","k","outshift","outmul","outadd"]:
                 if "bias" in name:
                     bias_name = name
         if bias_name in self.__dict__:
             self.__dict__[bias_name]["value"] = self.__dict__[bias_name]["value"].flatten().tolist()
+            bias_byte = []
             for i_w, _ in enumerate(self.__dict__[bias_name]["value"]):
-                self.__dict__[bias_name]["value"][i_w] = np.uint8(self.__dict__[bias_name]["value"][i_w])
+                val = np.int32(self.__dict__[bias_name]["value"][i_w])
+                for shift in np.arange(0,self.bias_bits,8):
+                    bias_byte.append(np.uint8((val >> shift)  & 255))
+            self.__dict__[bias_name]["value"] = bias_byte
             self.check_sum_w += sum(self.__dict__[bias_name]["value"])
 
         if 'k' in self.__dict__:

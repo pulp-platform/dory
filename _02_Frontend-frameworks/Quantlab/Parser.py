@@ -75,7 +75,7 @@ class onnx_manager(Parser_ONNX_to_DORY):
         print("\nNEMO Frontend: Adding Data Layout.")
         for i, node in enumerate(self.DORY_Graph):
             for name in node.constant_names:
-                if name not in ["l","k","outshift","outmul", "inmul1", "inmul2"]:
+                if name not in ["l","k","outshift","outmul","outadd", "inmul1", "inmul2"]:
                     if "bias" not in name:
                         weights_name = name
             if weights_name in node.__dict__:

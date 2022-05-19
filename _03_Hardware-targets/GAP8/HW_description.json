@@ -38,7 +38,7 @@
 	"HW specific parameters":{
 		"accelerator core0 stack": 3500,
 		"accelerator core1-7 stack": 3400,
-		"code reserved space": 92000
+		"code reserved space": 152000
 	}
 
 }

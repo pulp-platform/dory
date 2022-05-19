@@ -108,7 +108,7 @@ class Layer_node(DORY_node):
     def add_memory_and_MACs(self):
         weight_name = ""
         for name in self.constant_names:
-            if name not in ["l","k","outshift","outmul"]:
+            if name not in ["l","k","outshift","outmul","outadd"]:
                 if "bias" not in name:
                     weight_name = name
         if weight_name != "":

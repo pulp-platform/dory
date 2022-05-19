@@ -11,8 +11,8 @@
 				"outputs":[]}
 		}
 	},
-	"BNRelu": {
-		"number_of_nodes": 5,
+	"BNRelu_requant": {
+		"number_of_nodes": 4,
 		"nodes_name": ["Mul","Add","Div","Clip"],
 		"dependencies": {
 			"0": {"inputs": [],

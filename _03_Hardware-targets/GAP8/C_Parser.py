@@ -111,9 +111,11 @@ class C_Parser(Parser_HW_to_C):
                     Layer2D_writer.print_template_layer(node, self.precision_library, tmpl_dir, out_dir)
                     node.name = node.name[:-1] + "b"
                     node.pads = [0, padding[1], padding[2], padding[3]]
-                    if (node.tiling_dimensions["L2"]["input_dimensions"][1] == node.tiling_dimensions["L1"]["input_dimensions"][1]) or (node.tiling_dimensions["L2"]["output_dimensions"][1] == node.tiling_dimensions["L1"]["output_dimensions"][1]):
-                        node.tiling_dimensions["L1"]["input_dimensions"][1] = node.tiling_dimensions["L1"]["output_dimensions"][1] * node.strides[0] - node.strides[0] + node.kernel_shape[0] - node.pads[0] - node.pads[2]
-                        node.tiling_dimensions["L2"]["input_dimensions"][1] = node.tiling_dimensions["L2"]["output_dimensions"][1] * node.strides[0] - node.strides[0] + node.kernel_shape[0] - node.pads[0] - node.pads[2]
+                    node.tiling_dimensions["L2"]["input_dimensions"][1] -= (padding[2] - ((node.tiling_dimensions["L3"]["input_dimensions"][1] + padding[0] + padding[2]) - (node.tiling_dimensions["L3"]["output_dimensions"][1]* node.strides[0] + node.kernel_shape[0] - node.strides[0])))
+                    if node.tiling_dimensions["L1"]["input_dimensions"][1] > node.tiling_dimensions["L2"]["input_dimensions"][1]:
+                        node.tiling_dimensions["L1"]["input_dimensions"][1] = node.tiling_dimensions["L2"]["input_dimensions"][1]
+                    if node.tiling_dimensions["L1"]["output_dimensions"][1] > node.tiling_dimensions["L2"]["output_dimensions"][1]:
+                        node.tiling_dimensions["L1"]["output_dimensions"][1] = node.tiling_dimensions["L2"]["output_dimensions"][1]
                     Layer2D_writer.print_template_layer(node, self.precision_library, tmpl_dir, out_dir)
                     node.name = node.name[:-7]
             else:

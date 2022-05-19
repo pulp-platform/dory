@@ -38,7 +38,7 @@ class onnx_manager(Parser_DORY_to_HW):
     def __init__(self, graph, config_file, config_file_dir):
         layers_supported_by_HW_Backend_IR = ["Convolution", "Pooling", "FullyConnected", "Addition", "QAddition"]
         layers_supported_by_HW_Backend_IR+= ["ReluConvolution", "ReluPooling", "ReluFullyConnected", "ReluAddition", "ReluQAddition"]
-        layers_supported_by_HW_Backend_IR+= ["BNReluConvolution", "BNReluPooling", "BNReluFullyConnected", "BNReluAddition", "BNReluQAddition"]
+        layers_supported_by_HW_Backend_IR+= ["BNReluConvolution", "RequantPooling", "BNReluFullyConnected", "BNReluAddition", "BNReluQAddition"]
         with open(os.path.join(file_path, "pattern_rules.json")) as f:
             rules = json.load(f)
         with open(os.path.join(file_path, "HW_description.json")) as f:
