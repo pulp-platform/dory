@@ -4,12 +4,3 @@
 [submodule "Backend_Kernels/pulp-nnx"]
 	path = Backend_Kernels/pulp-nnx
 	url = git@iis-git.ee.ethz.ch:fconti/pulp-nnx.git
-[submodule "Backend_Kernels/pulp-nn"]
-	path = Backend_Kernels/pulp-nn
-	url = https://github.com/pulp-platform/pulp-nn.git
-[submodule "Backend_Kernels/pulp-nn-mixed"]
-	path = Backend_Kernels/pulp-nn-mixed
-	url = git@github.com:pulp-platform/pulp-nn-mixed.git
-[submodule "Backend_Kernels/pulp-nn-1d"]
-	path = Backend_Kernels/pulp-nn-1d
-	url = git@github.com:pulp-platform/pulp-nn-1d.git
