@@ -21,8 +21,6 @@
 
 import math
 import numpy as np
-import torch
-import torch.nn as nn
 
 # constraint solver for optimization
 from ortools.constraint_solver import pywrapcp

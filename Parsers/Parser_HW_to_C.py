@@ -21,8 +21,6 @@
 # Libraries
 import numpy as np
 import os
-import torch
-import pandas as pd
 
 # DORY modules
 import Utils.Templates_writer.Network_template_writer as Network_writer
@@ -104,23 +102,20 @@ class Parser_HW_to_C:
                         f.write(bytes((l,)))
 
     def create_hex_input(self):    
-        print("\nGenerating .hex input file.")  
+        print("\nGenerating .hex input file.")
         try:
-            x_in = pd.read_csv(os.path.join(self.network_directory, 'input.txt'))
-            x_in = x_in.values[:, 0].astype(int)
+            x_in = np.loadtxt(os.path.join(self.network_directory, 'input.txt'), delimiter=',', dtype=np.uint8, usecols=[0])
+            x_in = x_in.flatten()
         except FileNotFoundError:
             print(f"========= WARNING ==========\nInput file {os.path.join(self.network_directory, 'input.txt')} not found; generating random inputs!")
-            x_in = torch.Tensor(1, self.HWgraph[0].group, self.HWgraph[0].input_channels, self.HWgraph[0].input_dimensions[0], self.HWgraph[0].input_dimensions[1]).uniform_(0, (2**(9)))
-            x_in[x_in > (2**8 - 1)] = 0
-            x_in = torch.round(x_in)
-            x_in = x_in.flatten().numpy().astype(int)
-        for i, _ in enumerate(x_in):
-            x_in[i] = np.uint8(x_in[i])
+            x_in = np.random.randint(low=0, high=2*8 - 1,
+                                     size=self.group * self.input_channels * self.input_dimensions[0] * self.input_dimensions[1],
+                                     dtype=np.uint8)
 
         string_layer = "inputs.hex"
         save_s = '{}/DORY_network/'.format(self.app_directory) + string_layer
         with open(save_s, 'wb') as f:
-            for i in x_in.astype('uint8').flatten():
+            for i in x_in:
                 f.write(bytes((i,)))
 
     def full_graph_parsing(self):
