@@ -204,9 +204,11 @@ class HW_node(DORY_node):
             self.check_sum_in = sum(in_compressed)
 
         x_out = np.loadtxt(os.path.join(load_directory, f'out_layer{node_number}.txt'), delimiter=',',
-                           dtype=np.uint8, usecols=[0])
-        x_out = x_out.flatten()
+                           dtype=float, usecols=[0])
+        x_out = x_out.astype(int).flatten()
         if self.output_activation_bits <= 8:
+            for i, _ in enumerate(x_out):
+                x_out[i] = np.uint8(x_out[i])
             out_compressed = []
             z = 0
             Loop_over = copy.deepcopy(x_out)
