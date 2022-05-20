@@ -25,8 +25,8 @@
 	},
 	"architecture": "single-core+accelerator",
 	"software development kit": {
-		"name": "pulp-sdk",
-		"directory": "~/pulp/sdk/"
+		"name": "gap_sdk",
+		"directory": "~/gap_sdk/"
 	},
 	"peak MAC/cycle":
 	{
