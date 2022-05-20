@@ -111,7 +111,6 @@ class Parser_HW_to_C:
             x_in = np.random.randint(low=0, high=2*8 - 1,
                                      size=self.group * self.input_channels * self.input_dimensions[0] * self.input_dimensions[1],
                                      dtype=np.uint8)
-
         string_layer = "inputs.hex"
         save_s = '{}/DORY_network/'.format(self.app_directory) + string_layer
         with open(save_s, 'wb') as f:
