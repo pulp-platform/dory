@@ -36,20 +36,11 @@ def print_template_network(
         tk['verbose'] = True
     else:
         tk['verbose'] = False
-    i_conv = []
-    i = 0
-    for ind, nodes in enumerate(graph[:-1]):
-        if ('FullyConnected' in graph[ind + 1].name or 'Conv' in graph[ind + 1].name):
-            i += 1
-            i_conv.append(i)
-        else:
-            i_conv.append(i)
     weights_number = 0
     for nodes in graph:
         if 'FullyConnected' in nodes.name or 'Conv' in nodes.name:
             weights_number += 1
     tk['weights_number'] = weights_number
-    tk['i_conv'] = i_conv
     tk['verbose_level'] = verbose_level
     tk['performance'] = perf_layer
     tk['l1_buffer'] = HW_description["memory"]["L1"]["dimension"] - HW_description["HW specific parameters"]["accelerator core0 stack"] - 7 * HW_description["HW specific parameters"]["accelerator core1-7 stack"]
