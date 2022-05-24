@@ -48,6 +48,7 @@ class Pattern_rewriter:
         DORY_BNRelu_node.constant_names.append("l")
         DORY_BNRelu_node.constant_names.append("outshift")
         DORY_BNRelu_node.output_activation_bits = self.graph[i[1]].output_activation_bits
+        DORY_BNRelu_node.output_activation_type = self.graph[i[1]].output_activation_type
         for ele in sorted(i, reverse = True):
             del self.graph[ele]
         self.graph.insert(i[0], DORY_BNRelu_node)
@@ -67,6 +68,7 @@ class Pattern_rewriter:
         DORY_BNRelu_node.constant_names.append("outadd")
         DORY_BNRelu_node.constant_names.append("outshift")
         DORY_BNRelu_node.output_activation_bits = self.graph[i[1]].output_activation_bits
+        DORY_BNRelu_node.output_activation_type = self.graph[i[1]].output_activation_type
         for ele in sorted(i, reverse = True):
             del self.graph[ele]
         self.graph.insert(i[0], DORY_BNRelu_node)
@@ -83,6 +85,7 @@ class Pattern_rewriter:
         DORY_Relu_node.constant_names.append("outmul")
         DORY_Relu_node.constant_names.append("outshift")
         DORY_Relu_node.output_activation_bits = self.graph[i[1]].output_activation_bits
+        DORY_Relu_node.output_activation_type = self.graph[i[1]].output_activation_type
         for ele in sorted(i, reverse = True):
             del self.graph[ele]
         self.graph.insert(i[0], DORY_Relu_node)

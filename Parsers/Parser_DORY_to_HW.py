@@ -176,12 +176,12 @@ class Parser_DORY_to_HW:
             self.DORY_Graph[i] = New_HW_node
 
     def renaming_weights(self):
-        print("\nGAP8 Backend: Renaming Weights tensors.")
+        print("\nDORY Backend: Renaming Weights tensors.")
         for i, node in enumerate(self.DORY_Graph):            
             node.rename_weights()           
 
     def formatting_constant_parameters_tensors_and_activations(self):
-        print("\nGAP8 Backend: Formatting constants and adding checksums")
+        print("\nDORY Backend: Formatting constants and adding checksums")
         for i, node in enumerate(self.DORY_Graph):            
             node.add_checksum_w_integer()           
             node.add_checksum_activations_integer(self.network_directory, i)

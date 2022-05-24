@@ -96,6 +96,7 @@ class Pattern_rewriter:
                 DORY_BNRelu_node.outshift["layout"] = ""
         DORY_BNRelu_node.min = self.graph[i[-1]].min
         DORY_BNRelu_node.max = self.graph[i[-1]].max
+        DORY_BNRelu_node.output_activation_type = "int" if self.graph[i[-1]].min < 0 else "uint"
         for ele in sorted(i, reverse = True):
             del self.graph[ele]
         self.graph.insert(i[0], DORY_BNRelu_node)
@@ -130,6 +131,7 @@ class Pattern_rewriter:
         DORY_Relu_node.outshift["layout"] = ""
         DORY_Relu_node.min = self.graph[i[-1]].min
         DORY_Relu_node.max = self.graph[i[-1]].max
+        DORY_BNRelu_node.output_activation_type = "int" if self.graph[i[-1]].min < 0 else "uint"
         DORY_Relu_node.constant_names = ["outmul", "outshift"]
         for ele in sorted(i, reverse = True):
             del self.graph[ele]

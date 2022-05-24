@@ -67,24 +67,33 @@ class C_Parser(Parser_HW_to_C):
                     file_to_copy = os.path.join(files, "{}bit/src".format(self.source_Constant_bits_library), file)
                     os.system('cp "{}" {}'.format(file_to_copy, os.path.join(self.app_directory, 'DORY_network/src')))
         elif self.precision_library == "mixed-sw":
+            Input_bits = str(node.get_parameter('input_activation_bits'))
+            Output_bits = str(node.get_parameter('output_activation_bits'))
+            Input_type = node.get_parameter('input_activation_type')[0]
+            Output_type = node.get_parameter('output_activation_type')[0]
+            in_out = "_" + Input_type + Input_bits + "_" + Output_type + Output_bits
             if "Addition" in node.name:
-                file = 'pulp_nn_add_u{}_u{}.c'.format(node.get_parameter('input_activation_bits'), node.get_parameter('output_activation_bits'))
+                in1_in2_out = "_" + Input_type + Input_bits + "_" + node.get_parameter('second_input_activation_type')[0] + str(node.get_parameter('second_input_activation_bits')) + "_" + Output_type + Output_bits
+                file = 'Add/pulp_nn_add{}.c'.format(in1_in2_out)
             elif "Pool" in node.name and "Max" in node.op_type:
-                file = 'Pooling/MaxPool/pulp_nn_maxpool_u{}_u{}.c'.format(node.get_parameter('input_activation_bits'), node.get_parameter('output_activation_bits'))
+                file = 'Pooling/MaxPool/pulp_nn_maxpool{}.c'.format(in_out)
             elif "Pool" in node.name and ("Avg" in node.op_type or "Average" in node.op_type):
-                file = 'Pooling/AvgPool/pulp_nn_avgpool_u{}_u{}.c'.format(node.get_parameter('input_activation_bits'), node.get_parameter('output_activation_bits'))
-            elif "Conv" in node.name and node.group > 1:
-                file = 'Depthwise/pulp_nn_depthwise_u{}_u{}_i{}.c'.format(node.get_parameter('input_activation_bits'), node.get_parameter('output_activation_bits'), node.get_parameter('weight_bits'))
+                file = 'Pooling/AvgPool/pulp_nn_avgpool{}.c'.format(in_out)
+
+            in_out_weights = "_" + Input_type + Input_bits + "_" + Output_type + Output_bits + "_" + node.get_parameter('weight_type')[0] + str(node.get_parameter('weight_bits'))
+            if "Conv" in node.name and node.group > 1:
+                file = 'Depthwise/pulp_nn_depthwise{}.c'.format(in_out_weights)
             elif "Conv" in node.name and node.group == 1:
-                file = 'Convolution/pulp_nn_conv_u{}_u{}_i{}.c'.format(node.get_parameter('input_activation_bits'), node.get_parameter('output_activation_bits'), node.get_parameter('weight_bits'))
+                file = 'Convolution/pulp_nn_conv{}.c'.format(in_out_weights)
             elif "FullyConnected" in node.name and node.output_activation_bits == 32: 
-                file = 'LinearNoQuant/pulp_nn_linear_u{}_i{}_i{}.c'.format(node.get_parameter('input_activation_bits'), node.get_parameter('output_activation_bits'), node.get_parameter('weight_bits'))
+                file = 'LinearNoQuant/pulp_nn_linear{}.c'.format(in_out_weights)
             elif "FullyConnected" in node.name:     
-                file = 'LinearQuant/pulp_nn_linear_u{}_u{}_i{}.c'.format(node.get_parameter('input_activation_bits'), node.get_parameter('output_activation_bits'), node.get_parameter('weight_bits'))
+                file = 'LinearQuant/pulp_nn_linear{}.c'.format(in_out_weights)
             file_to_copy = os.path.join(files, "{}bit/src".format(self.source_Constant_bits_library), file)
             os.system('cp "{}" {}'.format(file_to_copy, os.path.join(self.app_directory, 'DORY_network/src')))
             if ("Conv" in node.name or "FullyConnected" in node.name) and node.get_parameter('output_activation_bits') != 32:
-                file = 'MatrixMultiplication/pulp_nn_matmul_u8_u{}_i{}.c'.format(node.get_parameter('output_activation_bits'), node.get_parameter('weight_bits'))
+                in_out_weights = "_" + Input_type + "8" + "_" + Output_type + Output_bits + "_" + node.get_parameter('weight_type')[0] + str(node.get_parameter('weight_bits'))
+                file = 'MatrixMultiplication/pulp_nn_matmul{}.c'.format(in_out_weights)
                 file_to_copy = os.path.join(files, "{}bit/src".format(self.source_Constant_bits_library), file)
                 os.system('cp "{}" {}'.format(file_to_copy, os.path.join(self.app_directory, 'DORY_network/src')))
 
