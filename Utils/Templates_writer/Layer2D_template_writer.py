@@ -26,7 +26,6 @@ import sys
 import os
 import re
 
-
 def print_template_layer_L3(node, tmpl_dir, out_dir):
     ks =      node.kernel_shape
     s =       node.strides
@@ -165,7 +164,7 @@ def print_template_layer(node, layer_type, tmpl_dir, out_dir):
     tk['FLAG_BATCHNORM'] = 1 if 'k' in node.constant_names else 0
     tk['has_bias'] = int(len([1 for name in node.constant_names if "bias" in name])>0)
     tk['FLAG_RELU'] = 1 if 'outshift' in node.constant_names else 0
-    tk['type'] = "char" if node.input_activation_type == "int" else "float"
+    tk['type'] = "char" if node.input_activation_type in ["int", "uint"] else "float"
     tk['conv_overlap1'] = conv_overlap1
     tk['conv_overlap2'] = conv_overlap2
     tk['padding_top'] = padding_top
@@ -188,7 +187,6 @@ def print_template_layer(node, layer_type, tmpl_dir, out_dir):
     tile_n_in  = node.tiling_dimensions["L1"]["input_dimensions"][0]
     tile_h_in  = node.tiling_dimensions["L1"]["input_dimensions"][1]
     tile_w_in  = node.tiling_dimensions["L1"]["input_dimensions"][2]
-    ds_x       = node.input_activation_bits
 
     if "Addition" not in node.name and "Pool" not in node.name:
         n_out  = node.tiling_dimensions["L2"]["weights_dimensions"][0]
@@ -199,17 +197,44 @@ def print_template_layer(node, layer_type, tmpl_dir, out_dir):
     tile_n_out = node.tiling_dimensions["L1"]["output_dimensions"][0]
     tile_h_out = node.tiling_dimensions["L1"]["output_dimensions"][1]
     tile_w_out = node.tiling_dimensions["L1"]["output_dimensions"][2]
-    ds_y       = node.output_activation_bits
-    ds_act     = node.constant_bits
  
     fs1        = node.kernel_shape[0]
     fs2        = node.kernel_shape[1]
+
+    ds_x       = node.input_activation_bits
+    ds_y       = node.output_activation_bits
+    ds_act     = node.constant_bits
     ds_W       = node.weight_bits
     ds_bias    = node.bias_bits
+
+    dt_x       = node.input_activation_type
+    dt_y       = node.output_activation_type
+    dt_act     = node.constant_type
+    dt_W       = node.weight_type
+
+    if "Addition" in node.name:
+        ds_x2  = node.input_activation_bits
+        dt_x2  = node.input_activation_type
+        tk["data_type_x2"] = dt_x2
+        tk['x_data_size_byte2'] = ds_x2
+        tk["inmul1"] = node.inmul1["value"]
+        tk["inadd1"] = node.inadd1["value"]
+        tk["inshift1"] = node.inshift1["value"]
+        tk["inmul2"] = node.inmul2["value"]
+        tk["inadd2"] = node.inadd2["value"]
+        tk["inshift2"] = node.inshift2["value"]
+        tk["outmul"] = node.outmul["value"]
+        tk["outadd"] = node.outadd["value"]
+        tk["outshift"] = node.outshift["value"]
 
     DW = tk['flag_DW']
     has_bias = tk['has_bias']
     number_of_clusters = tk['number_of_clusters']
+
+    tk["data_type_x"] = dt_x
+    tk["data_type_y"] = dt_y
+    tk["data_type_activations"] = dt_act
+    tk["data_type_weights"] = dt_W
     ################################################################################
 
     tk['nof'] = n_out

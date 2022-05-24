@@ -91,9 +91,9 @@ static void check_layer_weight(char *weight, int check_sum_true, int dim) {
 void network_alloc(struct pi_device fs, struct pi_device ram)
 {
   pi_fs_file_t *file;
-  pi_ram_alloc(&ram, &L3_weights, (uint32_t) 4800000);
-  pi_ram_alloc(&ram, &L3_input, (uint32_t) 1000000);
-  pi_ram_alloc(&ram, &L3_output, (uint32_t) 1000000);
+  pi_ram_alloc(&ram, &L3_weights, (uint32_t) 4000000);
+  pi_ram_alloc(&ram, &L3_input, (uint32_t) 1500000);
+  pi_ram_alloc(&ram, &L3_output, (uint32_t) 1500000);
 #ifdef VERBOSE
   printf("\nL3 Buffer alloc initial\t@ %d:\t%s\n", (unsigned int)L3_weights, L3_weights?"Ok":"Failed");
   printf("\nL3 Buffer alloc initial\t@ %d:\t%s\n", (unsigned int)L3_input, L3_input?"Ok":"Failed");
@@ -145,9 +145,9 @@ void network_alloc(struct pi_device fs, struct pi_device ram)
 /* Remove RAM memory */
 void network_free(struct pi_device ram)
 {
-  pi_ram_free(&ram, L3_weights, (uint32_t) 4800000);
-  pi_ram_free(&ram, L3_input, (uint32_t) 1000000);
-  pi_ram_free(&ram, L3_output, (uint32_t) 1000000);
+  pi_ram_free(&ram, L3_weights, (uint32_t) 4000000);
+  pi_ram_free(&ram, L3_input, (uint32_t) 1500000);
+  pi_ram_free(&ram, L3_output, (uint32_t) 1500000);
 }
 
 void execute_layer_fork(void *arg)
@@ -410,12 +410,12 @@ void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_outpu
       {
         if (branch_output[i-1]==1 && L3_input_layers[i]==1)
         {
-          pi_cl_ram_alloc(&ram, &L3_input, (uint32_t) 1000000);
+          pi_ram_alloc(&ram, &L3_input, (uint32_t) 1500000);
         }
       }
       if (branch_output[i]==1 && L3_output_layers[i]==1)
       {
-        pi_ram_free(&ram, (uint32_t) L3_input + check_activations_out_dimension[i], (uint32_t) 1000000 - check_activations_out_dimension[i]);
+        pi_ram_free(&ram, (uint32_t) L3_input + check_activations_out_dimension[i], (uint32_t) 1500000 - check_activations_out_dimension[i]);
         layers_pointers[residual_number] = L3_input;
         residual_number++;
       }

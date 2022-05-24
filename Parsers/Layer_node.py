@@ -106,12 +106,7 @@ class Layer_node(DORY_node):
         self.add_existing_dict_parameter(Layer_parameters)
 
     def add_memory_and_MACs(self):
-        weight_name = ""
-        for name in self.constant_names:
-            if name not in ["l","k","outshift","outmul","outadd"]:
-                if "bias" not in name:
-                    weight_name = name
-        if weight_name != "":
+        if "Convolution" in self.name or "FullyConnected" in self.name:
             self.add_existing_parameter("MACs", int(np.prod(self.output_dimensions)*self.output_channels*self.input_channels*np.prod(self.kernel_shape)/self.group))
             self.add_existing_parameter("weight_memory", int(self.output_channels*self.input_channels*np.prod(self.kernel_shape)/self.group*self.weight_bits/8))
         else:
@@ -119,7 +114,6 @@ class Layer_node(DORY_node):
             self.add_existing_parameter("weight_memory", int(0))
         self.add_existing_parameter("input_activation_memory", int(np.prod(self.input_dimensions)*self.input_channels*self.input_activation_bits/8))
         self.add_existing_parameter("output_activation_memory", int(np.prod(self.output_dimensions)*self.output_channels*self.output_activation_bits/8))
-        weight_name = ""
         constants_memory = 0
         bias_memory = 0
         for name in self.constant_names:

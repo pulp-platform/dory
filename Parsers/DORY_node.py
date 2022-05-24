@@ -148,10 +148,8 @@ class DORY_node:
                     self.__dict__[attribute.name] = int(attribute.f)
                 elif bool(attribute.ints):
                     self.__dict__[attribute.name] = list(attribute.ints)
-                elif attribute.name == 'min':
+                elif attribute.i == 0:
                     self.__dict__[attribute.name] = 0
-                elif bool(attribute.t):
-                    self.__dict__[attribute.name] = 'tensor'
                 else:
                     sys.exit("DORY FRONTEND error. DORY does not find any values for the attribute {}".format(attribute.name))
 

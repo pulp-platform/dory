@@ -221,18 +221,26 @@ void ${func_name}(
     % if optional_type == '8bit':
     pulp_nn_add(
     % else:
-    ${"x" if 'hw' in optional_type else ""}pulp_nn_add_u${x_data_size_byte}_u${x_data_size_byte}(
+    ${"x" if 'hw' in optional_type else ""}pulp_nn_add_${data_type_x[0]}${x_data_size_byte}_${data_type_x2[0]}${x_data_size_byte2}_${data_type_y[0]}${y_data_size_byte}(
     % endif
       x,
       x2,
       y,
-      out_mult1,
-      out_mult2,
-      out_shift,
+      ${inmul2},
+      ${inadd2},
+      ${inshift2},
+      ${inmul1},
+      ${inadd1},
+      ${inshift1},
+      ${outmul},
+      ${outadd},
+      ${outshift},
       x_tile_size_w_exec,
       x_tile_size_h_exec,
-      x_tile_size_nif_exec
+      x_tile_size_nif_exec,
+      1
       );
+
     dory_cores_barrier();
     // wait for DMA write
     dory_dma_barrier(DMA_copy_y);

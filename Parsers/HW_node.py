@@ -48,14 +48,9 @@ class HW_node(DORY_node):
             self.tiling_dimensions["L{}".format(level+1)]["constants_memory"] = None
             self.tiling_dimensions["L{}".format(level+1)]["input_activation_memory"] = None
             self.tiling_dimensions["L{}".format(level+1)]["output_activation_memory"] = None
-
-        weight_name = ""
-        for name in self.constant_names:
-            if name not in ["l","k","outshift","outmul","outadd"]:
-                if "bias" not in name:
-                    weight_name = name
-        if weight_name != "":
-            self.tiling_dimensions["L{}".format(level+1)]["weights_dimensions"] = [self.output_channels, self.input_channels]
+        if not isinstance(self.name, type(None)):
+            if "Convolution" in self.name or "FullyConnected" in self.name:
+                self.tiling_dimensions["L{}".format(level+1)]["weights_dimensions"] = [self.output_channels, self.input_channels]
         self.tiling_dimensions["L{}".format(level+1)]["input_dimensions"] = [self.input_channels] + self.input_dimensions
         self.tiling_dimensions["L{}".format(level+1)]["output_dimensions"] = [self.output_channels] + self.output_dimensions
         self.tiling_dimensions["L{}".format(level+1)]["weight_memory"] = self.weight_memory
@@ -74,12 +69,7 @@ class HW_node(DORY_node):
             (weights_dim, input_dims, output_dims) = self.Tiler(self, previous_node).get_tiling(level)
             self.tiling_dimensions["L{}".format(level-1)]["input_dimensions"] = input_dims
             self.tiling_dimensions["L{}".format(level-1)]["output_dimensions"] = output_dims
-            weight_name = ""
-            for name in self.constant_names:
-                if name not in ["l","k","outshift","outmul","outadd"]:
-                    if "bias" not in name:
-                        weight_name = name
-            if weight_name != "":
+            if "Convolution" in self.name or "FullyConnected" in self.name:
                 self.tiling_dimensions["L{}".format(level-1)]["weights_dimensions"] = weights_dim
                 groups = self.group if self.group < weights_dim[0] else weights_dim[0]
                 self.tiling_dimensions["L{}".format(level-1)]["weight_memory"] = np.prod(weights_dim)/groups*np.prod(self.kernel_shape)*self.weight_bits/8
@@ -99,21 +89,23 @@ class HW_node(DORY_node):
 
     def rename_weights(self):
         weight_name = ""
-        for i, name in enumerate(self.constant_names):
-            if name not in ["l","k","outshift","outmul","outadd"]:
-                if "bias" not in name:
-                    if len(self.__dict__[name]["value"].flatten()) > self.output_channels:
-                        self.__dict__["weights"] = self.__dict__.pop(name)
-                        self.constant_names[i] = "weights"
+        if "Convolution" in self.name or "FullyConnected" in self.name:
+            for i, name in enumerate(self.constant_names):
+                if name not in ["l","k","outshift","outmul","outadd"]:
+                    if "bias" not in name:
+                        if len(self.__dict__[name]["value"].flatten()) > self.output_channels:
+                            self.__dict__["weights"] = self.__dict__.pop(name)
+                            self.constant_names[i] = "weights"
 
     def add_checksum_w_integer(self):
         self.check_sum_w = 0
 
         weight_name = ""
-        for name in self.constant_names:
-            if name not in ["l","k","outshift","outmul","outadd"]:
-                if "bias" not in name:
-                    weight_name = name
+        if "Convolution" in self.name or "FullyConnected" in self.name:
+            for name in self.constant_names:
+                if name not in ["l","k","outshift","outmul","outadd"]:
+                    if "bias" not in name:
+                        weight_name = name
         if weight_name in self.__dict__:
             if self.weight_bits < 8 and self.group > 1:
                 self.__dict__[weight_name]["value"] = np.asarray(self.__dict__[weight_name]["value"])
@@ -135,10 +127,11 @@ class HW_node(DORY_node):
             self.check_sum_w += sum(self.__dict__[weight_name]["value"])
 
         bias_name = ""
-        for name in self.constant_names:
-            if name not in ["l","k","outshift","outmul","outadd"]:
-                if "bias" in name:
-                    bias_name = name
+        if "Convolution" in self.name or "FullyConnected" in self.name:
+            for name in self.constant_names:
+                if name not in ["l","k","outshift","outmul","outadd"]:
+                    if "bias" in name:
+                        bias_name = name
         if bias_name in self.__dict__:
             self.__dict__[bias_name]["value"] = self.__dict__[bias_name]["value"].flatten().tolist()
             bias_byte = []

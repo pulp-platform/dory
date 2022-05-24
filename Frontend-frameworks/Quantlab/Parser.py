@@ -49,33 +49,102 @@ class onnx_manager(Parser_ONNX_to_DORY):
             string_matching, indexes = self.pattern_matching(node, i)
             if isinstance(string_matching, str):
                 self.DORY_Graph = Pattern_rewriter(self.DORY_Graph).execute(string_matching, indexes)
+        print("\nQuantlab Frontend: Updating Add nodes with constants.")
+        for i, node in enumerate(self.DORY_Graph):
+            if "Addition" in node.name:
+                ## output parameters 
+                node.outshift = {}
+                node.outshift["value"] = node.out_shift
+                node.outshift["layout"] = ""
+                node.constant_names.append("outshift")
+                delattr(node, 'out_shift')
+                node.outmul = {}
+                node.outmul["value"] = node.out_mul
+                node.outmul["layout"] = ""
+                node.constant_names.append("outmul")
+                delattr(node, 'out_mul')
+                node.outadd = {}
+                node.outadd["value"] = node.out_add
+                node.outadd["layout"] = ""
+                node.constant_names.append("outadd")
+                delattr(node, 'out_add')
+                # input 1 parameters
+                node.inshift1 = {}
+                node.inshift1["value"] = node.in1_shift
+                node.inshift1["layout"] = ""
+                node.constant_names.append("inshift1")
+                delattr(node, 'in1_shift')
+                node.inmul1 = {}
+                node.inmul1["value"] = node.in1_mul
+                node.inmul1["layout"] = ""
+                node.constant_names.append("inmul1")
+                delattr(node, 'in1_mul')
+                node.inadd1 = {}
+                node.inadd1["value"] = node.in1_add
+                node.inadd1["layout"] = ""
+                node.constant_names.append("inadd1")
+                delattr(node, 'in1_add')
+                # input 2 parameters
+                node.inshift2 = {}
+                node.inshift2["value"] = node.in2_shift
+                node.inshift2["layout"] = ""
+                node.constant_names.append("inshift2")
+                delattr(node, 'in2_shift')
+                node.inmul2 = {}
+                node.inmul2["value"] = node.in2_mul
+                node.inmul2["layout"] = ""
+                node.constant_names.append("inmul2")
+                delattr(node, 'in2_mul')
+                node.inadd2 = {}
+                node.inadd2["value"] = node.in2_add
+                node.inadd2["layout"] = ""
+                node.constant_names.append("inadd2")
+                delattr(node, 'in2_add')
+                # removing irrelevant parameters
+                delattr(node, 'in2_n_levels')
+                delattr(node, 'in2_rq')
+                delattr(node, 'out_n_levels')
+                delattr(node, 'out_rq')
+                delattr(node, 'in1_n_levels')
+                delattr(node, 'in1_rq')
         
     def add_nodes_precision(self):
-        print("\nNEMO Frontend: Adding Bit and Types to Nodes.")
+        print("\nQuantlab Frontend: Adding Bit and Types to Nodes.")
         # Right now, the precision is fixed. We can extract it from either the original onnx graph or from a json.
         for i, node in enumerate(self.DORY_Graph):
             node.add_existing_parameter("weight_type", "int")
             node.add_existing_parameter("constant_type", "int")
-            node.add_existing_parameter("output_activation_type", "int")
-            node.add_existing_parameter("input_activation_type", "int")
+            if i == 0:
+                node.add_existing_parameter("input_activation_type", "uint")
+                node.add_existing_parameter("input_activation_bits", 8)
+            else:
+                for previous_nodes in self.DORY_Graph:
+                    if previous_nodes.output_index == self.DORY_Graph[i].input_indexes[0]:
+                        node.add_existing_parameter("input_activation_type", previous_nodes.output_activation_type)
+                        node.add_existing_parameter("input_activation_bits", previous_nodes.output_activation_bits)
+                if len(self.DORY_Graph[i].input_indexes) == 2:
+                    for previous_nodes in self.DORY_Graph:
+                        if previous_nodes.output_index == self.DORY_Graph[i].input_indexes[1]:
+                            node.second_input_activation_type = previous_nodes.output_activation_type
+                            node.second_input_activation_bits = previous_nodes.output_activation_bits
             if node.name in ["Addition"]:
                 node.add_existing_parameter("output_activation_bits", node.add_bits)
+                delattr(node, "add_bits")
+                node.add_existing_parameter("output_activation_type", self.DORY_Graph[i].input_activation_type)
             if node.name in ["Convolution", "FullyConnected"]:
                 node.add_existing_parameter("output_activation_bits", 32)
-            if i == 0:
-                node.add_existing_parameter("input_activation_bits", 8)
-            elif i > 0:
-                node.add_existing_parameter("input_activation_bits", self.DORY_Graph[i-1].output_activation_bits)
             if node.name in ["QAddition", "Relu", "BNRelu", "Clip", "Mul", "Add", "Div", "Shift"]:
                 node.add_existing_parameter("constant_bits", self.BNRelu_bits)
             if node.name in ["Pooling"]:
                 node.add_existing_parameter("output_activation_bits", self.DORY_Graph[i].input_activation_bits)
+                node.add_existing_parameter("output_activation_type", self.DORY_Graph[i].input_activation_type)
+        node.add_existing_parameter("output_activation_type", "int") # last node is always int
 
     def add_data_layout(self):
-        print("\nNEMO Frontend: Adding Data Layout.")
+        print("\nQuantlab Frontend: Adding Data Layout.")
         for i, node in enumerate(self.DORY_Graph):
             for name in node.constant_names:
-                if name not in ["l","k","outshift","outmul","outadd", "inmul1", "inmul2"]:
+                if name not in ["l","k","outshift","outmul","outadd", "inmul1", "inmul2", "inshift1", "inshift2", "inadd1", "inadd2"]:
                     if "bias" not in name:
                         weights_name = name
             if weights_name in node.__dict__:

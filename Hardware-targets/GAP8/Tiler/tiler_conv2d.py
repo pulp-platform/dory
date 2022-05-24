@@ -254,9 +254,11 @@ class Tiler_Conv2D():
         h_out   = self.HW_node.tiling_dimensions["L2"]["output_dimensions"][1]
         if self.HW_node.tiling_dimensions["L3"]["output_dimensions"][1] > self.HW_node.tiling_dimensions["L2"]["output_dimensions"][1]:
             h_in   = self.HW_node.tiling_dimensions["L2"]["output_dimensions"][1] * s[0] + (ks[0] - 1) - (s[0] - 1)
+            inp_dim[0] = h_in
             in_mem = int(self.HW_node.tiling_dimensions["L2"]["input_activation_memory"] / self.HW_node.tiling_dimensions["L2"]["input_dimensions"][1] * h_in)
         if self.HW_node.tiling_dimensions["L3"]["input_dimensions"][1] > self.HW_node.tiling_dimensions["L2"]["input_dimensions"][1]:
             h_out  = int(np.floor((self.HW_node.tiling_dimensions["L2"]["input_dimensions"][1] - (ks[0] - 1) + (s[0] - 1)) / s[0]))
+            out_dim[0] = h_out
             out_mem = int(self.HW_node.tiling_dimensions["L2"]["output_activation_memory"] / self.HW_node.tiling_dimensions["L2"]["output_dimensions"][1] * h_out)
         if "Addition" not in self.HW_node.name and "Pool" not in self.HW_node.name:
             out_mem = int(self.HW_node.tiling_dimensions["L2"]["output_activation_memory"] / self.HW_node.tiling_dimensions["L2"]["output_dimensions"][0] * self.HW_node.tiling_dimensions["L2"]["weights_dimensions"][0])
@@ -415,6 +417,7 @@ class Tiler_Conv2D():
             if tile_w_in >= inp_dim[1]:
                 tile_w_in = inp_dim[1]
                 tile_w_out = int((tile_w_in -(ks[1] - 1) + (p[1] + p[3]) + (s[0] - 1))/s[0])
+
             return ([tile_n_out, tile_n_in], [tile_n_in, tile_h_in, tile_w_in], [tile_n_out, tile_h_out, tile_w_out])
         print("  Conv2d ERROR: no L2-L1 tiling found of layer {} with dimensions {} / {}, input / output channels {} / {}. Exiting...".format(self.HW_node.__dict__["name"], self.HW_node.__dict__["input_dimensions"], self.HW_node.__dict__["output_dimensions"], self.HW_node.__dict__["input_channels"], self.HW_node.__dict__["output_channels"] ))
         os._exit(0)
