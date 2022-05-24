@@ -54,7 +54,7 @@ class Tiler_Conv2D():
 
     def get_tiling_conv2d_L3(self):
 
-        L2_memory = self.HW_node.HW_description["memory"]["L2"]["dimension"] - self.HW_node.HW_description["HW specific parameters"]["code reserved space"] 
+        L2_memory = self.HW_node.HW_description["memory"]["L2"]["dimension"] - self.code_reserved_space 
         # 4 iterations, adding each time a different part to be tiled, either weights, outputs, or both. Input is forced
         
         ## This is not completly the correct check. It is not always the previous node in the graph, but it could also be one other. You have to check its input node.

@@ -47,6 +47,7 @@ class Parser_HW_to_C:
         Network_writer.print_template_network(
             self.HWgraph,
             self.HW_description,
+            self.config_file,
             self.verbose_level,
             self.perf_layer,
             self.app_directory)

@@ -63,10 +63,10 @@ class HW_node(DORY_node):
         self.check_sum_in = None
         self.check_sum_out = None
 
-    def create_tiling_dimensions(self, previous_node):
+    def create_tiling_dimensions(self, previous_node, config_file):
         #  ATTENTION MEMORY L3 --> TILE MEMORY DIMENSION --> Decide how to set. Re-init the whole memory?
         for level in np.arange(self.HW_description["memory"]["levels"],1, -1):
-            (weights_dim, input_dims, output_dims) = self.Tiler(self, previous_node).get_tiling(level)
+            (weights_dim, input_dims, output_dims) = self.Tiler(self, previous_node, config_file["code reserved space"]).get_tiling(level)
             self.tiling_dimensions["L{}".format(level-1)]["input_dimensions"] = input_dims
             self.tiling_dimensions["L{}".format(level-1)]["output_dimensions"] = output_dims
             if "Convolution" in self.name or "FullyConnected" in self.name:
