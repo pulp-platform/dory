@@ -26,6 +26,7 @@ from . import writer_utils as utils
 def print_template_network(
     graph,
     HW_description,
+    config_file,
     verbose_level,
     perf_layer,
     app_directory
@@ -46,7 +47,7 @@ def print_template_network(
     tk['l1_buffer'] = HW_description["memory"]["L1"]["dimension"] - HW_description["HW specific parameters"]["accelerator core0 stack"] - 7 * HW_description["HW specific parameters"]["accelerator core1-7 stack"]
     tk['master_stack'] = HW_description["HW specific parameters"]["accelerator core0 stack"] 
     tk['slave_stack'] = HW_description["HW specific parameters"]["accelerator core1-7 stack"]
-    tk['l2_buffer_size'] = HW_description["memory"]["L2"]["dimension"] - HW_description["HW specific parameters"]["code reserved space"] 
+    tk['l2_buffer_size'] = HW_description["memory"]["L2"]["dimension"] - config_file["code reserved space"] 
     MACs = 0
     file_list_w = []
     list_h = []

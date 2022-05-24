@@ -30,7 +30,7 @@ from Utils.DORY_utils import Printer
 
 class Parser_DORY_to_HW:
     # Used to manage the ONNX files. By now, supported Convolutions (PW and DW), Pooling, Fully Connected and Relu.
-    def __init__(self, graph, rules, Pattern_rewriter, supported_nodes, HW_description, network_directory, Tiler):
+    def __init__(self, graph, rules, Pattern_rewriter, supported_nodes, HW_description, network_directory, config_file, Tiler):
         self.supported_nodes = supported_nodes
         self.DORY_Graph = graph
         self.Printer_Frontend = Printer("logs/HW_related")
@@ -38,6 +38,7 @@ class Parser_DORY_to_HW:
         self.rules = rules
         self.HW_description = HW_description
         self.network_directory = network_directory
+        self.config_file = config_file
         HW_node.Tiler = Tiler
 
     def mapping_to_HW_nodes(self):
@@ -169,9 +170,9 @@ class Parser_DORY_to_HW:
             #########################################################################################
             New_HW_node = HW_node(node_to_tile, self.HW_description)
             if i > 0:
-                New_HW_node.create_tiling_dimensions(previous_node)
+                New_HW_node.create_tiling_dimensions(previous_node, self.config_file)
             else:
-                New_HW_node.create_tiling_dimensions(New_HW_node)
+                New_HW_node.create_tiling_dimensions(New_HW_node, self.config_file)
             previous_node = New_HW_node
             self.DORY_Graph[i] = New_HW_node
 

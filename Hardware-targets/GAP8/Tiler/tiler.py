@@ -26,9 +26,10 @@ from .tiler_add import Tiler_Add
 
 class Tiler:
     # Class to generate the Tiling of the layer.
-    def __init__(self, HW_node, previous_HW_node):
+    def __init__(self, HW_node, previous_HW_node, code_reserved_space):
         self.HW_node = HW_node
         self.previous_HW_node = previous_HW_node
+        self.code_reserved_space = code_reserved_space
 
     def get_tiling(self, level):
         # This function is used to create the tiling of either a convolutional layer or

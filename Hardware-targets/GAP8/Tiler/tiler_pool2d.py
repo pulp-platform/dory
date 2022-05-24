@@ -47,7 +47,7 @@ class Tiler_Pool2D():
         os._exit(0)
 
     def get_tiling_pool2d_L3(self):
-        L2_memory = self.HW_node.HW_description["memory"]["L2"]["dimension"] - self.HW_node.HW_description["HW specific parameters"]["code reserved space"] 
+        L2_memory = self.HW_node.HW_description["memory"]["L2"]["dimension"] - self.code_reserved_space
         # tiling for L3-L2 management
         # parameters instantiation
         ks = self.HW_node.kernel_shape

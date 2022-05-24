@@ -33,12 +33,13 @@ file_path = "/".join(os.path.realpath(__file__).split("/")[:-1])
 
 class C_Parser(Parser_HW_to_C):
     # Used to manage the ONNX files. By now, supported Convolutions (PW and DW), Pooling, Fully Connected and Relu.
-    def __init__(self, graph, conf_file, conf_file_dir, verbose_level, perf_layer, precision_library, app_directory):
+    def __init__(self, graph, config_file, config_file_dir, verbose_level, perf_layer, precision_library, app_directory):
         f = open(os.path.join(file_path, "HW_description.json"))
         HW_description = json.load(f)
         self.precision_library = precision_library
-        self.source_Constant_bits_library = conf_file["BNRelu_bits"]
-        super().__init__(graph, os.path.join(conf_file_dir, os.path.dirname(conf_file["onnx_file"])), HW_description, verbose_level, perf_layer, "Makefile", app_directory)
+        self.source_Constant_bits_library = config_file["BNRelu_bits"]
+        self.config_file = config_file
+        super().__init__(graph, os.path.join(config_file_dir, os.path.dirname(config_file["onnx_file"])), HW_description, verbose_level, perf_layer, "Makefile", app_directory)
 
     def copy_backend_files(self, node):
         if self.precision_library == 'auto':
