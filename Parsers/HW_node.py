@@ -97,6 +97,22 @@ class HW_node(DORY_node):
                             self.__dict__["weights"] = self.__dict__.pop(name)
                             self.constant_names[i] = "weights"
 
+    def _compress(x, bits):
+        compressed = []
+        n_elements_in_byte = 8 // bits
+        i_element_in_byte = 0
+        for el in x:
+            if i_element_in_byte == 0:
+                compressed.append(el.item())
+            else:
+                compressed[-1] += el.item() << i_element_in_byte * bits
+
+            i_element_in_byte += 1
+            if i_element_in_byte == n_elements_in_byte:
+                i_element_in_byte = 0
+
+        return np.asarray(compressed, dtype=np.uint8)
+
     def add_checksum_w_integer(self):
         self.check_sum_w = 0
 
@@ -150,52 +166,34 @@ class HW_node(DORY_node):
             self.check_sum_w += sum(self.l["value"])
 
     def add_checksum_activations_integer(self, load_directory, node_number):
-        ######################################################################################
-        ###### SECTION 4: GENERATE CHECKSUM BY USING WEIGHT AND OUT_LAYER{i}.TXT FILES  ######
-        ######################################################################################
+        ###########################################################################
+        ###### SECTION 4: GENERATE CHECKSUM BY USING OUT_LAYER{i}.TXT FILES  ######
+        ###########################################################################
         if node_number == 0:        
             try:
-                x_in = np.loadtxt(os.path.join(load_directory, 'input.txt'), delimiter=',', dtype=np.uint8, usecols=[0])
-                x_in = x_in.flatten()
+                x = np.loadtxt(os.path.join(load_directory, 'input.txt'), delimiter=',', dtype=np.uint8, usecols=[0])
+                x = x.ravel()
             except FileNotFoundError:
-                print(f"========= WARNING ==========\nInput file {os.path.join(load_directory, 'input.txt')} not found; generating random inputs!")
-                x_in = np.random.randint(low=0, high=2*8 - 1,
-                                         size=self.group * self.input_channels * self.input_dimensions[0] * self.input_dimensions[1],
+                print("========= WARNING ==========")
+                print(f"Input file {os.path.join(load_directory, 'input.txt')} not found; generating random inputs!")
+                x = np.random.randint(low=0, high=2**8 - 1,
+                                         size=self.input_channels * self.input_dimensions[0] * self.input_dimensions[1],
                                          dtype=np.uint8)
-            self.check_sum_in = sum(x_in)
         else:
-            x_in = np.loadtxt(os.path.join(load_directory, f'out_layer{node_number-1}.txt'), delimiter=',',
+            x = np.loadtxt(os.path.join(load_directory, f'out_layer{node_number-1}.txt'), delimiter=',',
                               dtype=np.uint8, usecols=[0])
-            x_in = x_in.flatten()
-            in_compressed = []
-            z = 0
-            Loop_over = copy.deepcopy(x_in)
-            for _, i_x in enumerate(Loop_over):
-                if (z % int(8 / self.input_activation_bits)) == 0:
-                    in_compressed.append(int(i_x.item()))
-                else:
-                    in_compressed[-1] += int(i_x.item()) << (self.input_activation_bits * (z % int(8 / self.input_activation_bits)))
-                z += 1
-            self.check_sum_in = sum(in_compressed)
+            if self.input_activation_bits < 8:
+                x = self._compress(x.ravel(), self.input_activation_bits)
 
-        x_out = np.loadtxt(os.path.join(load_directory, f'out_layer{node_number}.txt'), delimiter=',',
-                           dtype=float, usecols=[0])
-        x_out = x_out.astype(int).flatten()
-        if self.output_activation_bits <= 8:
-            for i, _ in enumerate(x_out):
-                x_out[i] = np.uint8(x_out[i])
-            out_compressed = []
-            z = 0
-            Loop_over = copy.deepcopy(x_out)
-            for _, i_x in enumerate(Loop_over):
-                if (z % int(8 / self.output_activation_bits)) == 0:
-                    out_compressed.append(int(i_x.item()))
-                else:
-                    out_compressed[-1] += int(i_x.item()) << (self.output_activation_bits * (z % int(8 / self.output_activation_bits)))
-                z += 1
-        else:
-            out_compressed = x_out
-        self.check_sum_out = sum(out_compressed)
+        self.check_sum_in = sum(x)
+
+        y = np.loadtxt(os.path.join(load_directory, f'out_layer{node_number}.txt'), delimiter=',',
+                           dtype=np.int64, usecols=[0])
+
+        if self.output_activation_bits < 8:
+            y = self._compress(y, self.output_activation_bits)
+
+        self.check_sum_out = y.sum()
 
     def export_to_dict(self):
         node_dict = {}
