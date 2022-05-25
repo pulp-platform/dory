@@ -132,39 +132,21 @@ class HW_node(DORY_node):
                 if name not in ["l","k","outshift","outmul","outadd"]:
                     if "bias" in name:
                         bias_name = name
+
+        def to_byte(x, bits):
+            x = x.ravel().astype(np.int64 if bits > 32 else np.int32)
+            return [np.uint8((el >> shift) & 255) for el in x for shift in range(0, bits, 8)]
+
         if bias_name in self.__dict__:
-            self.__dict__[bias_name]["value"] = self.__dict__[bias_name]["value"].flatten().tolist()
-            bias_byte = []
-            for i_w, _ in enumerate(self.__dict__[bias_name]["value"]):
-                val = np.int32(self.__dict__[bias_name]["value"][i_w])
-                for shift in np.arange(0,self.bias_bits,8):
-                    bias_byte.append(np.uint8((val >> shift)  & 255))
-            self.__dict__[bias_name]["value"] = bias_byte
+            self.__dict__[bias_name]["value"] = to_byte(self.__dict__[bias_name]['value'], self.bias_bits)
             self.check_sum_w += sum(self.__dict__[bias_name]["value"])
 
         if 'k' in self.__dict__:
-            k_byte = []
-            for i_k, _ in enumerate(self.k["value"].flatten()):
-                if self.constant_bits == 64:
-                    val = np.int64(self.k["value"].flatten()[i_k])
-                else:
-                    val = np.int32(self.k["value"].flatten()[i_k])
-                for shift in np.arange(0,self.constant_bits,8):
-                    k_byte.append(np.uint8((val >> shift)  & 255))
-            self.k["value"] = k_byte
+            self.k["value"] = to_byte(self.k['value'], self.constant_bits)
             self.check_sum_w += sum(self.k["value"])
 
         if 'l' in self.__dict__:
-            lambd = np.float64(self.l["value"].flatten())
-            lambd_byte = []
-            for i_l, _ in enumerate(self.l["value"].flatten()):
-                if self.constant_bits == 64:
-                    val = np.int64(lambd[i_l])
-                else:
-                    val = np.int32(lambd[i_l])
-                for shift in np.arange(0,self.constant_bits,8):
-                    lambd_byte.append(np.uint8((val >> shift)  & 255))
-            self.l["value"] = lambd_byte
+            self.l["value"] = to_byte(self.l['value'], self.constant_bits)
             self.check_sum_w += sum(self.l["value"])
 
     def add_checksum_activations_integer(self, load_directory, node_number):
