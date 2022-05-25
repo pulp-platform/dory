@@ -58,10 +58,9 @@ static void check_layer(char *output, int check_sum_true, int dim) {
     printf("Checksum in/out Layer :\tFailed [%u vs. %u]\n", checksum, check_sum_true);
 }
 
-static void check_layer_last(int *output, int check_sum_true, int dim) {
+static void check_layer_last(${DORY_HW_graph[-1].output_activation_type}${DORY_HW_graph[-1].output_activation_bits}_t *ptr, int check_sum_true, int dim) {
   int checksum = 0;
-  int *ptr = (int *) output;
-  for(int j=0; j<(int)(dim/4); j++) {
+  for(int j=0; j<dim/${DORY_HW_graph[-1].output_activation_bits // 8}; j++) {
     checksum += ptr[j];
   }
 
@@ -268,14 +267,16 @@ void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_outpu
 % if verbose_level == 'Check_all+Perf_final':
 #ifdef VERBOSE
     if (L3_input_layers[i]==1)
-      printf("In in L3\n");
+      printf("Input in L3\n");
     else if (i==0) {
       printf("Checking input of layer %d...\n", i);
       check_layer(L2_input, check_activations[i], check_activations_dimension[i]);
+      check_layer_weight(L2_weights, check_weights[i], check_weights_dimension[i]);
     }
     else if (branch_change[i-1]==0) {
       printf("Checking input of layer %d...\n", i);
       check_layer(L2_input, check_activations[i], check_activations_dimension[i]);
+      check_layer_weight(L2_weights, check_weights[i], check_weights_dimension[i]);
     }
     else
       printf("Switching branch, already checked activation\n");
@@ -354,12 +355,12 @@ void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_outpu
     }
     else
     {
-      check_layer_last((int32_t *) L2_output, check_activations_out[i], check_activations_out_dimension[i]);
+      check_layer_last((${DORY_HW_graph[-1].output_activation_type}${DORY_HW_graph[-1].output_activation_bits}_t *) L2_output, check_activations_out[i], check_activations_out_dimension[i]);
     }
 #endif
 % elif verbose_level == 'Last+Perf_final':
     if (i == ${len(DORY_HW_graph) - 1})
-        check_layer_last((int32_t *) L2_output, check_activations_out[i], check_activations_out_dimension[i]);
+        check_layer_last((${DORY_HW_graph[-1].output_activation_type}${DORY_HW_graph[-1].output_activation_bits}_t *) L2_output, check_activations_out[i], check_activations_out_dimension[i]);
 % else:
 #ifdef VERBOSE
     printf("Layer %s %d ended: \n", Layers_name[i], i);
