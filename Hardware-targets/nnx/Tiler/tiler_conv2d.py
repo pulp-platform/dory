@@ -20,16 +20,19 @@
 # limitations under the License.
 
 # Libraries
-import numpy as np
 import os
+import sys
+import numpy as np
 from ortools.constraint_solver import pywrapcp
 from ..ne16 import weights_size, heuristic_l1, heuristic_l2
 
 
 class Tiler_Conv2D:
     # Class to generate the Tiling of the layer.
-    def __init__(self, node):
+    def __init__(self, node, code_reserved_space, prev_node):
         self.node = node
+        self.code_reserved_space = code_reserved_space
+        self.prev_node = prev_node
 
     def get_tiling(self, level):
         # This function generate the layer function to be included in the project for the
@@ -41,27 +44,26 @@ class Tiler_Conv2D:
                     and ((self.node.input_dimensions[0] > tiling[1][1]) or (
                     self.node.output_dimensions[0] > tiling[2][1])):
                 print("Convolution: Tiling of weights and Input/output activation from L3 not yet working. Exiting...")
-                os._exit(0)
+                sys.exit(0)
         elif level == 2:
             # L2 tiling
             tiling = self.get_tiling_conv2d_L2()
         else:
             print("Error: Either you should be in L3-L2 tiling or L2-L1 tiling")
-            os._exit(0)
+            sys.exit(0)
 
         return tiling
 
     def get_tiling_conv2d_L3(self):
         # TODO In the current setup, width cannot be tiled. Is this the best solution?
 
-        L2_memory = self.node.HW_description["memory"]["L2"]["dimension"] - \
-                    self.node.HW_description["HW specific parameters"]["code reserved space"]
+        L2_memory = self.node.HW_description["memory"]["L2"]["dimension"] - self.code_reserved_space
         # 4 iterations, adding each time a different part to be tiled, either weights, outputs, or both. Input is forced
 
         # This is not completely the correct check. It is not always the previous node in the graph,
         # but it could also be one other. You have to check its input node.
-        l3_out_dims = self.previous_node.tiling_dimensions["L3"]["output_dimensions"]
-        l2_out_dims = self.previous_node.tiling_dimensions["L2"]["output_dimensions"]
+        l3_out_dims = self.prev_node.tiling_dimensions["L3"]["output_dimensions"]
+        l2_out_dims = self.prev_node.tiling_dimensions["L2"]["output_dimensions"]
         input_in_l3 = l3_out_dims != l2_out_dims and l2_out_dims is not None
 
         # tiling for L3-L2 management
@@ -172,7 +174,7 @@ class Tiler_Conv2D:
                 return [tile_n_out, in_ch], [in_ch, tile_h_in, in_dim[1]], [out_ch, tile_h_out, out_dim[1]]
 
         print("  Conv2d ERROR: no L3-L2 tiling found. Exiting...")
-        os._exit(0)
+        sys.exit(0)
 
     def get_tiling_conv2d_L2(self):
         '''
@@ -334,4 +336,4 @@ class Tiler_Conv2D:
             return [tile_n_out, tile_n_in], [tile_n_in, tile_h_in, tile_w_in], [tile_n_out, tile_h_out, tile_w_out]
 
         print("  Conv2d ERROR: no L2-L1 tiling found. Exiting...")
-        os._exit(0)
+        sys.exit(0)

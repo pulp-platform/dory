@@ -24,22 +24,23 @@ import os
 import shutil
 
 # DORY modules
-from _00_Parsers.Parser_HW_to_C import Parser_HW_to_C
-from _01_Utils.Templates_writer import Layer2D_template_writer as Layer2D_writer
+from Parsers.Parser_HW_to_C import Parser_HW_to_C
+from Utils.Templates_writer import Layer2D_template_writer as Layer2D_writer
 
 
 class C_Parser(Parser_HW_to_C):
     # Used to manage the ONNX files. By now, supported Convolutions (PW and DW), Pooling, Fully Connected and Relu.
-    def __init__(self, graph, conf, conf_dir, app_dir, verbose_level, perf_layer, precision_library):
-        with open("HW_description.json", 'r') as f:
-            hw_desc = json.load(f)
+    def __init__(self, graph, config_file, config_file_dir, verbose_level, perf_layer, precision_library, app_directory):
+        with open(os.path.join(os.path.dirname(__file__), 'HW_description.json'), 'r') as f:
+            HW_description = json.load(f)
         self.precision_library = precision_library
-        self.app_dir = app_dir
-        super().__init__(graph, os.path.join(conf_dir, os.path.dirname(conf["onnx_file"])),
-                         hw_desc, verbose_level, perf_layer, "Makefile")
+        self.source_Constant_bits_library = config_file["BNRelu_bits"]
+        self.config_file = config_file
+        super().__init__(graph, os.path.join(config_file_dir, os.path.dirname(config_file["onnx_file"])),
+                         HW_description, verbose_level, perf_layer, "Makefile", app_directory)
 
     def copy_backend_files(self, node):
-        out_dir = os.path.join(self.app_dir, 'DORY_network')
+        out_dir = os.path.join(self.app_directory, 'DORY_network')
         out_inc_dir = os.path.join(out_dir, 'inc')
         out_src_dir = os.path.join(out_dir, 'src')
         backend_dir = "Backend_Kernels/pulp-nnx"
@@ -66,7 +67,7 @@ class C_Parser(Parser_HW_to_C):
     def mapping_layers_to_C_files(self):
         print("\nMapping the layers files to their templates and copying the kernels associated.")
         tmpl_dir = os.path.join(os.path.dirname(__file__), 'Templates/layer_templates')
-        out_dir = os.path.join(self.app_dir, 'DORY_network')
+        out_dir = os.path.join(self.app_directory, 'DORY_network')
         for i, node in enumerate(self.HWgraph):
             self.copy_backend_files(node)
             if (node.tiling_dimensions["L3"]["input_dimensions"] != node.tiling_dimensions["L2"]["input_dimensions"]) \
@@ -81,12 +82,12 @@ class C_Parser(Parser_HW_to_C):
                 if padding[0] > 0:
                     node.name = node.name + "_L2_p_t"
                     node.pads = [padding[0], padding[1], 0, padding[3]]
-                    Layer2D_writer.print_template_layer(node, tmpl_dir, out_dir)
+                    Layer2D_writer.print_template_layer(node, self.precision_library, tmpl_dir, out_dir)
                     node.name = node.name[:-1] + "b"
                     node.pads = [0, padding[1], padding[2], padding[3]]
                     # pad_bot = padding[2] - ((node.tiling_dimensions["L3"]["input_dimensions"][1] - node.tiling_dimensions["L3"]["input_dimensions"][2]) % (node.tiling_dimensions["L3"]["input_dimensions"][2] - (2 * (node.kernel_shape[0] // 2) + node.kernel_shape[0] % 2 - 1 - (node.strides[0] - 1)) -padding[0]))
                     # node.pads = [0, padding[1], pad_bot, padding[3]]
-                    Layer2D_writer.print_template_layer(node, tmpl_dir, out_dir)
+                    Layer2D_writer.print_template_layer(node, self.precision_library, tmpl_dir, out_dir)
                     node.name = node.name[:-7]
             else:
-                Layer2D_writer.print_template_layer(node, tmpl_dir, out_dir)
+                Layer2D_writer.print_template_layer(node, self.precision_library, tmpl_dir, out_dir)

@@ -24,8 +24,8 @@ import json
 import os
 
 # DORY modules
-from _00_Parsers import HW_node, Layer_node
-from _00_Parsers.Parser_DORY_to_HW import Parser_DORY_to_HW
+from Parsers import HW_node, Layer_node
+from Parsers.Parser_DORY_to_HW import Parser_DORY_to_HW
 from .HW_Pattern_rewriter import Pattern_rewriter
 from .Tiler.tiler import Tiler
 from .ne16 import conv_unroll
@@ -41,7 +41,7 @@ class onnx_manager(Parser_DORY_to_HW):
         with open(os.path.join(mod_dir, "HW_description.json")) as f:
             hw_description = json.load(f)
         super().__init__(graph, rules, Pattern_rewriter, supported_layers, hw_description,
-                         os.path.join(conf_file_dir, os.path.dirname(conf_file["onnx_file"])), Tiler)
+                         os.path.join(conf_file_dir, os.path.dirname(conf_file["onnx_file"])), conf_file, Tiler)
 
     def adjust_data_layout(self):
         print("\nNNX Backend: Adjusting Feature Data Layout to HWC and Weights Data Layout to accelerator specific")
