@@ -10,3 +10,6 @@
 [submodule "Hardware-targets/GAP8/Backend_Kernels/pulp-nn-1d"]
 	path = Hardware-targets/GAP8/Backend_Kernels/pulp-nn-1d
 	url = git@github.com:pulp-platform/pulp-nn-1d.git
+[submodule "Hardware-targets/nnx/Backend_Kernels/pulp-nnx"]
+	path = Hardware-targets/nnx/Backend_Kernels/pulp-nnx
+	url = git@iis-git.ee.ethz.ch:fconti/pulp-nnx.git
