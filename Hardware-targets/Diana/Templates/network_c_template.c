@@ -271,26 +271,12 @@ void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_outpu
     else if (i==0) {
       printf("Checking input of layer %d...\n", i);
       check_layer(L2_input, check_activations[i], check_activations_dimension[i]);
-      if (allocate_layer[i] == 1)
-      {
-        check_layer_weight(L2_weights, check_weights[i], check_weights_dimension[i]);
-      }
-      else
-      {
-        printf("Weights in L3\n");
-      }
+      check_layer_weight(L2_weights, check_weights[i], check_weights_dimension[i]);
     }
     else if (branch_change[i-1]==0) {
       printf("Checking input of layer %d...\n", i);
       check_layer(L2_input, check_activations[i], check_activations_dimension[i]);
-      if (allocate_layer[i] == 1)
-      {
-        check_layer_weight(L2_weights, check_weights[i], check_weights_dimension[i]);
-      }
-      else
-      {
-        printf("Weights in L3\n");
-      }
+      check_layer_weight(L2_weights, check_weights[i], check_weights_dimension[i]);
     }
     else
       printf("Switching branch, already checked activation\n");
