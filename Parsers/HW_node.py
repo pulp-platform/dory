@@ -97,7 +97,7 @@ class HW_node(DORY_node):
                             self.__dict__["weights"] = self.__dict__.pop(name)
                             self.constant_names[i] = "weights"
 
-    def _compress(x, bits):
+    def _compress(self, x, bits):
         compressed = []
         n_elements_in_byte = 8 // bits
         i_element_in_byte = 0
@@ -181,8 +181,8 @@ class HW_node(DORY_node):
                                          dtype=np.uint8)
         else:
             x = np.loadtxt(os.path.join(load_directory, f'out_layer{node_number-1}.txt'), delimiter=',',
-                              dtype=np.uint8, usecols=[0])
-            if self.input_activation_bits < 8:
+                              dtype=np.int64, usecols=[0])
+            if self.input_activation_bits <= 8:
                 x = self._compress(x.ravel(), self.input_activation_bits)
 
         self.check_sum_in = sum(x)
@@ -190,8 +190,8 @@ class HW_node(DORY_node):
         y = np.loadtxt(os.path.join(load_directory, f'out_layer{node_number}.txt'), delimiter=',',
                            dtype=np.int64, usecols=[0])
 
-        if self.output_activation_bits < 8:
-            y = self._compress(y, self.output_activation_bits)
+        if self.output_activation_bits <= 8:
+            y = self._compress(y.ravel(), self.output_activation_bits)
 
         self.check_sum_out = y.sum()
 
