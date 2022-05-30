@@ -134,5 +134,5 @@ def print_template_network(
             pass
     tk['PULP_Nodes_Graph'] = tmp
     # dump to json
-    with open('./application/template_data.json', 'w') as f:
-        json.dump(tk, f, indent=4)
+    # with open('./application/template_data.json', 'w') as f:
+    #     json.dump(tk, f, indent=4)

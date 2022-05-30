@@ -172,6 +172,7 @@ class Quantlab_onnx(ONNX_management):
                 node_1.add_parameter(key,value)
             elif key in ['input_dim']:
                 if 'input' not in node_1.get_parameter('input_index') and '0' != node_1.get_parameter('input_index'):
+                    import pdb;pdb.set_trace()
                     value[0] = value[0]-node_1.get_parameter('pads')[0]-node_1.get_parameter('pads')[2]
                     value[1] = value[1]-node_1.get_parameter('pads')[1]-node_1.get_parameter('pads')[3]
                 node_1.add_parameter(key,value)

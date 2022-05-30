@@ -69,7 +69,7 @@ class Model_deployment_MCU(Model_deployment):
                 elif 'Conv' in PULP_Nodes_Graph[i].name:
                     layer_mixed_list.append(f'pulp_nn_conv_u{BitIn}_u{BitOut}_i{BitW}.c')
                 if ('Conv' in PULP_Nodes_Graph[i].name or 'Gemm' in PULP_Nodes_Graph[i].name or 'MatMul' in PULP_Nodes_Graph[i].name) and BitOut!=32:
-                    layer_mixed_list.append(f'pulp_nn_matmul_u{BitOut}_i{BitW}.c')
+                    layer_mixed_list.append(f'pulp_nn_matmul_u8_u{BitOut}_i{BitW}.c')
                 if 'Gemm' in nodes_to_deploy.name or 'MatMul' in nodes_to_deploy.name:
                     if BitOut==32:
                         layer_mixed_list.append(f'pulp_nn_linear_u{BitIn}_i{BitOut}_i{BitW}.c')

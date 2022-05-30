@@ -924,12 +924,12 @@ class Tiler_Conv2D():
                 heuristics += constraint_all
                 ####### Maximization of Reuse of im2col #######
                 heuristics += 64 * 10000 * tile_n_out \
-                            + 64 * 10000 * ((n_out-zero_variable) % (tile_n_out+1))
+                            + 64 * 10000 * ((n_out-zero_variable-1) % (tile_n_out))
                 ####### Geometrical Shape of Border Tiles #####
-                heuristics += 64 * 10000 * ((n_out-zero_variable) % (tile_n_out+1)) \
-                            + 64 * 10000 * (((n_out-zero_variable) % (tile_n_out+1)) % 4) \
-                            + 64 * 20000 * (((h_out-zero_variable) % (tile_h_out+1)) % 8) \
-                            + 64 * 30000 * (((w_out-zero_variable) % (tile_w_out+1)) % 2)
+                heuristics += 64 * 10000 * ((n_out-zero_variable-1) % (tile_n_out)) \
+                            + 64 * 10000 * (((n_out-zero_variable-1) % (tile_n_out)) % 4) \
+                            + 64 * 20000 * (((h_out-zero_variable-1) % (tile_h_out)) % 8) \
+                            + 64 * 30000 * (((w_out-zero_variable-1) % (tile_w_out)) % 2)
             elif DW == 1:
                 ####### Geometrical Shape of Tiles ############
                 heuristics += 32 * 10000 * ((tile_n_out > 7)) \
@@ -940,11 +940,11 @@ class Tiler_Conv2D():
                 ####### Maximization of Reuse of im2col #######
                 heuristics += 32 * 1000 * tile_w_out \
                             + 32 * 1000 * tile_h_out \
-                            + 32 * 100 * (((h_out-zero_variable) % (tile_h_out+1))) \
-                            + 32 * 100 * (((w_out-zero_variable) % (tile_w_out+1)))
+                            + 32 * 100 * (((h_out-zero_variable-1) % (tile_h_out))) \
+                            + 32 * 100 * (((w_out-zero_variable-1) % (tile_w_out)))
                 ####### Geometrical Shape of Border Tiles #####
-                heuristics += 32 * 100 * (((n_out-zero_variable) % (tile_n_out+1)) > 7) \
-                            + 32 * 100 * (((h_out-zero_variable) % (tile_h_out+1)) % 4)
+                heuristics += 32 * 100 * (((n_out-zero_variable-1) % (tile_n_out)) > 7) \
+                            + 32 * 100 * (((h_out-zero_variable-1) % (tile_h_out)) % 4)
         else:
             ####### Geometrical Shape of Tiles ############
             heuristics += 64 * 10000 * (((((h_out-zero_variable - 1) % tile_h_out)) % 8) > 4) 
