@@ -257,6 +257,9 @@ void __attribute__ ((noinline)) dory_dma_memcpy_async(DMA_copy DMA_copy_current)
           #elif (MCHAN_VERSION == 7)
           mchan_transfer(DMA_copy_current.length_1d_copy * DMA_copy_current.number_of_1d_copies, DMA_copy_current.dir, 1, 0, 0, 1, 0, 0, (unsigned int)(DMA_copy_current.ext), (unsigned int)(DMA_copy_current.loc), 0, 0, 0, 0);
           #endif
+          % if chip == 'GAP8v2':
+          mchan_barrier(DMA_copy_current.dma_channel);
+          % endif
           DMA_copy_current.loc += DMA_copy_current.length_1d_copy * DMA_copy_current.number_of_1d_copies;
           DMA_copy_current.ext = DMA_copy_current.ext + DMA_copy_current.stride_2d;
         }
