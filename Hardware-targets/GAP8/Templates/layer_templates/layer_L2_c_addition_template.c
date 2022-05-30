@@ -41,9 +41,7 @@ void ${func_name}(
   unsigned int l1_buffer =(unsigned int)  real_arg[7];
   unsigned int hyperram =(unsigned int)  real_arg[8];
   unsigned int out_mult_in =(unsigned int)  real_arg[9];
-  unsigned int inmul1_in = (unsigned int) real_arg[10];
-  unsigned int inmul2_in = (unsigned int) real_arg[11];
-  unsigned int out_shift_in = (unsigned int) real_arg[12];
+  unsigned int out_shift_in = (unsigned int) real_arg[10];
 
   int last_nof_exec;
   int last_nif_exec;
@@ -134,8 +132,6 @@ void ${func_name}(
   int last_h_load = (${tile_dim_h} == 1) ? 1 : 0;
   int last_w_load = (${tile_dim_w} == 1) ? 1 : 0;
   int iter;
-  uint16_t out_mult1 = inmul2_in;
-  uint16_t out_mult2 = inmul1_in;
   uint16_t out_shift = out_shift_in;
   // tile loop nest
   for(iter=0; iter<${tile_dim_nof}*${tile_dim_h}*${tile_dim_w}; iter++) {
@@ -220,9 +216,18 @@ void ${func_name}(
     dory_cores_barrier();
     % if optional_type == '8bit':
     pulp_nn_add(
+      x,
+      x2,
+      y,
+      ${inmul2},
+      ${inmul1},
+      ${outshift},
+      x_tile_size_w_exec,
+      x_tile_size_h_exec,
+      x_tile_size_nif_exec
+      );
     % else:
     ${"x" if 'hw' in optional_type else ""}pulp_nn_add_${data_type_x[0]}${x_data_size_byte}_${data_type_x2[0]}${x_data_size_byte2}_${data_type_y[0]}${y_data_size_byte}(
-    % endif
       x,
       x2,
       y,
@@ -240,6 +245,7 @@ void ${func_name}(
       x_tile_size_nif_exec,
       1
       );
+    % endif
 
     dory_cores_barrier();
     // wait for DMA write

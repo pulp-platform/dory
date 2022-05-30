@@ -151,24 +151,6 @@ ${DORY_HW_graph[i].outshift["value"]}${'' if loop.last else ', '}\
 % endif
 % endfor
 };
-static int inmul1_vector[${len(DORY_HW_graph)}] = {\
-% for i in range(len(DORY_HW_graph)):
-% if "inmul1" not in DORY_HW_graph[i].__dict__:
-0${'' if loop.last else ', '}\
-% else:
-${DORY_HW_graph[i].inmul1["value"]}${'' if loop.last else ', '}\
-% endif
-% endfor
-};
-static int inmul2_vector[${len(DORY_HW_graph)}] = {\
-% for i in range(len(DORY_HW_graph)):
-% if "inmul2" not in DORY_HW_graph[i].__dict__:
-0${'' if loop.last else ', '}\
-% else:
-${DORY_HW_graph[i].inmul2["value"]}${'' if loop.last else ', '}\
-% endif
-% endfor
-};
 static int check_activations_out[${len(DORY_HW_graph)}] = {\
 % for i in range(len(DORY_HW_graph)):
 ${DORY_HW_graph[i].check_sum_out}${'' if loop.last else ', '}\

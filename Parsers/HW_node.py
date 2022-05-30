@@ -171,7 +171,10 @@ class HW_node(DORY_node):
         ###########################################################################
         if node_number == 0:        
             try:
-                x = np.loadtxt(os.path.join(load_directory, 'input.txt'), delimiter=',', dtype=np.uint8, usecols=[0])
+                try:
+                    x = np.loadtxt(os.path.join(load_directory, 'input.txt'), delimiter=',', dtype=np.uint8, usecols=[0])
+                except ValueError:
+                    x = np.loadtxt(os.path.join(load_directory, f'out_layer{node_number}.txt'), delimiter=',', dtype=np.float, usecols=[0])
                 x = x.ravel()
             except FileNotFoundError:
                 print("========= WARNING ==========")
@@ -180,20 +183,23 @@ class HW_node(DORY_node):
                                          size=self.input_channels * self.input_dimensions[0] * self.input_dimensions[1],
                                          dtype=np.uint8)
         else:
-            x = np.loadtxt(os.path.join(load_directory, f'out_layer{node_number-1}.txt'), delimiter=',',
-                              dtype=np.int64, usecols=[0])
+            try:
+                x = np.loadtxt(os.path.join(load_directory, f'out_layer{node_number-1}.txt'), delimiter=',', dtype=np.int64, usecols=[0])
+            except ValueError:
+                x = np.loadtxt(os.path.join(load_directory, f'out_layer{node_number-1}.txt'), delimiter=',', dtype=np.float, usecols=[0])
             if self.input_activation_bits <= 8:
                 x = self._compress(x.ravel(), self.input_activation_bits)
 
-        self.check_sum_in = sum(x)
-
-        y = np.loadtxt(os.path.join(load_directory, f'out_layer{node_number}.txt'), delimiter=',',
-                           dtype=np.int64, usecols=[0])
+        self.check_sum_in = int(sum(x))
+        try:
+            y = np.loadtxt(os.path.join(load_directory, f'out_layer{node_number}.txt'), delimiter=',', dtype=np.int64, usecols=[0])
+        except ValueError:
+            y = np.loadtxt(os.path.join(load_directory, f'out_layer{node_number}.txt'), delimiter=',', dtype=np.float, usecols=[0])
 
         if self.output_activation_bits <= 8:
             y = self._compress(y.ravel(), self.output_activation_bits)
 
-        self.check_sum_out = y.sum()
+        self.check_sum_out = int(y.sum())
 
     def export_to_dict(self):
         node_dict = {}
