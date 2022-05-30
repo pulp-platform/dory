@@ -155,7 +155,10 @@ unsigned int  dory_get_tile_3d(
 
 void __attribute__ ((noinline)) dory_dma_memcpy_async(DMA_copy DMA_copy_current)
 {
-
+  % if chip == 'GAP8v2':
+  if (pi_core_id()  == 0)
+  {
+  %endif
   if ((DMA_copy_current.number_of_1d_copies == 1) && (DMA_copy_current.number_of_2d_copies == 1))
     current_transfer = TRANSFER_1D;
   else if ((DMA_copy_current.number_of_1d_copies != 1) && (DMA_copy_current.number_of_2d_copies == 1))
@@ -164,17 +167,23 @@ void __attribute__ ((noinline)) dory_dma_memcpy_async(DMA_copy DMA_copy_current)
     current_transfer = TRANSFER_3D;
   if (DMA_copy_current.hwc_to_chw == 1)
     current_transfer = TRANSFER_HWC_TO_CHW;
-
+  % if chip == 'GAP8v2':
+  }
+  %endif
   switch (current_transfer)
   {
-
     case TRANSFER_1D:
       if (pi_core_id() == 0)
+      {
         #if (MCHAN_VERSION < 7)
         mchan_transfer(DMA_copy_current.length_1d_copy, DMA_copy_current.dir, 1, 0, 1, 0, 0, (unsigned int)(DMA_copy_current.ext), (unsigned int)(DMA_copy_current.loc), 0, 0);
         #elif (MCHAN_VERSION == 7)
         mchan_transfer(DMA_copy_current.length_1d_copy, DMA_copy_current.dir, 1, 0, 0, 1, 0, 0, (unsigned int)(DMA_copy_current.ext), (unsigned int)(DMA_copy_current.loc), 0, 0, 0, 0);
         #endif
+        % if chip == 'GAP8v2':
+        mchan_barrier(DMA_copy_current.dma_channel);
+        % endif
+      }
         break;
 
     case TRANSFER_2D:
@@ -186,6 +195,9 @@ void __attribute__ ((noinline)) dory_dma_memcpy_async(DMA_copy DMA_copy_current)
           #elif (MCHAN_VERSION == 7)
           mchan_transfer(DMA_copy_current.length_1d_copy, DMA_copy_current.dir, 1, 0, 0, 1, 0, 0, (unsigned int)(DMA_copy_current.ext), (unsigned int)(DMA_copy_current.loc), 0, 0, 0, 0);
           #endif
+          % if chip == 'GAP8v2':
+          mchan_barrier(DMA_copy_current.dma_channel);
+          % endif
           DMA_copy_current.loc += DMA_copy_current.length_1d_copy;
           DMA_copy_current.ext += DMA_copy_current.stride_1d;
         }
@@ -225,18 +237,13 @@ void __attribute__ ((noinline)) dory_dma_memcpy_async(DMA_copy DMA_copy_current)
         {
           for (int i = 0; i < DMA_copy_current.number_of_1d_copies; i++)
           {
-            % if chip == 'GAP8v2':
-            // alloc channels with barrier after if we consider v2 chips, with DMA issue
-            int dma_evt = mchan_alloc();
-            % endif
             #if (MCHAN_VERSION < 7)
             mchan_transfer(DMA_copy_current.length_1d_copy, DMA_copy_current.dir, 1, 0, 1, 0, 0, (unsigned int)(DMA_copy_current.ext), (unsigned int)(DMA_copy_current.loc), 0, 0);
             #elif (MCHAN_VERSION == 7)
             mchan_transfer(DMA_copy_current.length_1d_copy, DMA_copy_current.dir, 1, 0, 0, 1, 0, 0, (unsigned int)(DMA_copy_current.ext), (unsigned int)(DMA_copy_current.loc), 0, 0, 0, 0);
             #endif
             % if chip == 'GAP8v2':
-            mchan_barrier(dma_evt);
-            mchan_free(dma_evt);
+            mchan_barrier(DMA_copy_current.dma_channel);
             % endif
             DMA_copy_current.loc += DMA_copy_current.length_1d_copy;
             DMA_copy_current.ext += DMA_copy_current.stride_1d;
