@@ -75,6 +75,7 @@ void ${func_name}(
   // copy first tiles
   //l2_x has input activations
 
+  DMA_copy_x.hwc_to_chw = 0;
   DMA_copy_x.stride_2d = ${x_stride_w_byte};
   DMA_copy_x.stride_1d = ${x_stride_c_byte};
   DMA_copy_x.dir = 1;
