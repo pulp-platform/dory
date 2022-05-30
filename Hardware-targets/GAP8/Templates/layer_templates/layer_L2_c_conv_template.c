@@ -40,9 +40,7 @@ void ${func_name}(
   unsigned int l1_buffer =(unsigned int)  real_arg[7];
   unsigned int hyperram =(unsigned int)  real_arg[8];
   unsigned int out_mult_in =(unsigned int)  real_arg[9];
-  unsigned int inmul1 = (unsigned int) real_arg[10];
-  unsigned int inmul2 = (unsigned int) real_arg[11];
-  unsigned int out_shift_in = (unsigned int) real_arg[12];
+  unsigned int out_shift_in = (unsigned int) real_arg[10];
 
   /////////////////////
   // DMA declaration //

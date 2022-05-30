@@ -49,6 +49,36 @@ class onnx_manager(Parser_ONNX_to_DORY):
             string_matching, indexes = self.pattern_matching(node, i)
             if isinstance(string_matching, str):
                 self.DORY_Graph = Pattern_rewriter(self.DORY_Graph).execute(string_matching, indexes)
+        print("\nNEMO Frontend: Updating Add nodes with constants.")
+        for i, node in enumerate(self.DORY_Graph):
+            if "Addition" in node.name:
+                ## output parameters 
+                node.outmul = {}
+                node.outmul["value"] = 1
+                node.outmul["layout"] = ""
+                node.constant_names.append("outmul")
+                node.outadd = {}
+                node.outadd["value"] = 0
+                node.outadd["layout"] = ""
+                node.constant_names.append("outadd")
+                # input 1 parameters
+                node.inshift1 = {}
+                node.inshift1["value"] = 0
+                node.inshift1["layout"] = ""
+                node.constant_names.append("inshift1")
+                node.inadd1 = {}
+                node.inadd1["value"] = 0
+                node.inadd1["layout"] = ""
+                node.constant_names.append("inadd1")
+                # input 2 parameters
+                node.inshift2 = {}
+                node.inshift2["value"] = 0
+                node.inshift2["layout"] = ""
+                node.constant_names.append("inshift2")
+                node.inadd2 = {}
+                node.inadd2["value"] = 0
+                node.inadd2["layout"] = ""
+                node.constant_names.append("inadd2")
         
     def add_nodes_precision(self):
         print("\nNEMO Frontend: Adding Bit and Types to Nodes.")

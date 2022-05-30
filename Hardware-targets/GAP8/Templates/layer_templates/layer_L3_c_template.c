@@ -38,9 +38,7 @@ void __attribute__ ((noinline)) ${func_name_L3}(void *args)
   unsigned int l1_buffer =(unsigned int)  real_arg[7];
   unsigned int hyperram =(unsigned int)  real_arg[8];
   unsigned int outmult =(unsigned int)  real_arg[9];
-  unsigned int mult1 = (unsigned int) real_arg[10];
-  unsigned int mult2 = (unsigned int) real_arg[11];
-  unsigned int out_shift = (unsigned int) real_arg[12];
+  unsigned int out_shift = (unsigned int) real_arg[10];
   char* exec_weights,*transfer_weights;
   char* exec_input,*transfer_input;
   char* exec_output,*transfer_output;
@@ -184,7 +182,7 @@ void __attribute__ ((noinline)) ${func_name_L3}(void *args)
     pi_cl_team_barrier(0);
     if (j==0)
     {
-      unsigned int args[13] = {l3_x,
+      unsigned int args[11] = {l3_x,
           l3_y,
           l3_W,
           exec_input,
@@ -194,8 +192,6 @@ void __attribute__ ((noinline)) ${func_name_L3}(void *args)
           l1_buffer,
           hyperram,
           outmult,
-          mult1,
-          mult2,
           out_shift};
       % if (n_tile_x > 1 or n_tile_y > 1) and padding > 0:
       ${func_name[1]}(\
@@ -211,7 +207,7 @@ void __attribute__ ((noinline)) ${func_name_L3}(void *args)
     else if (j==(${n_tile_y-1}))
     {
     % endif
-      unsigned int args[13] = {l3_x,
+      unsigned int args[11] = {l3_x,
           l3_y,
           l3_W,
           % if n_tile_x > 1 or n_tile_W > 1:
@@ -229,8 +225,6 @@ void __attribute__ ((noinline)) ${func_name_L3}(void *args)
           l1_buffer,
           hyperram,
           outmult,
-          mult1,
-          mult2,
           out_shift};
       % if (n_tile_x > 1 or n_tile_y > 1) and padding > 0:
       ${func_name[2]}(\
@@ -241,7 +235,7 @@ void __attribute__ ((noinline)) ${func_name_L3}(void *args)
     }
     else
     {
-      unsigned int args[13] = {l3_x,
+      unsigned int args[11] = {l3_x,
           l3_y,
           l3_W,
           % if n_tile_x > 1 or n_tile_W > 1:
@@ -259,8 +253,6 @@ void __attribute__ ((noinline)) ${func_name_L3}(void *args)
           l1_buffer,
           hyperram,
           outmult,
-          mult1,
-          mult2,
           out_shift};
       ${func_name[0]}(args);   
       }    

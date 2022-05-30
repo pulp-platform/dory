@@ -154,7 +154,7 @@ void execute_layer_fork(void *arg)
   unsigned int *real_arg = (unsigned int *) arg;
   real_arg[7] = pmsis_l1_malloc((uint32_t) ${l1_buffer});
   void *args = (void *) real_arg;
-  switch (real_arg[13])
+  switch (real_arg[11])
   {
 % for i in range(len(DORY_HW_graph)):
     case ${i}:
@@ -296,7 +296,7 @@ void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_outpu
       printf("Switching branch, already checked activation\n");
 #endif
 % endif
-    unsigned int args[14] = {L3_input,
+    unsigned int args[12] = {L3_input,
       L3_output,
       L3_weights_internal + cumulative_weights_dimension[i],
       L2_input,
@@ -306,8 +306,6 @@ void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_outpu
       l1_buffer,
       &ram,
       out_mult_vector[i],
-      inmul1_vector[i],
-      inmul2_vector[i],
       out_shift_vector[i],
       i};
 
