@@ -1,5 +1,5 @@
 {
-	"name": "GAP8",
+	"name": "nnx",
 	"memory": {
 		"levels": 3,
 		"L1": {
@@ -37,7 +37,7 @@
 	"accelerator frequency": 100000000,
 	"HW specific parameters":{
 		"accelerator core0 stack": 3500,
-		"accelerator core1-7 stack": 3400,
+		"accelerator core1-7 stack": 4,
 		"code reserved space": 152000
 	}
 

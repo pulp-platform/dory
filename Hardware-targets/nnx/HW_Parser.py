@@ -24,11 +24,12 @@ import json
 import os
 
 # DORY modules
-from Parsers import HW_node, Layer_node
+from Parsers.HW_node import HW_node
+from Parsers.Layer_node import Layer_node
 from Parsers.Parser_DORY_to_HW import Parser_DORY_to_HW
 from .HW_Pattern_rewriter import Pattern_rewriter
 from .Tiler.tiler import Tiler
-from .ne16 import conv_unroll
+from .ne16 import conv_unroll, weights_size
 
 
 class onnx_manager(Parser_DORY_to_HW):
@@ -41,7 +42,8 @@ class onnx_manager(Parser_DORY_to_HW):
         with open(os.path.join(mod_dir, "HW_description.json")) as f:
             hw_description = json.load(f)
         super().__init__(graph, rules, Pattern_rewriter, supported_layers, hw_description,
-                         os.path.join(conf_file_dir, os.path.dirname(conf_file["onnx_file"])), conf_file, Tiler)
+                         os.path.join(conf_file_dir, os.path.dirname(conf_file["onnx_file"])), conf_file, Tiler,
+                         weights_size=lambda self, dim: weights_size(dim[0] if self.group == 1 else 1, dim[1] if self.group == 1 else dim[0], self.kernel_shape, self.weight_bits))
 
     def adjust_data_layout(self):
         print("\nNNX Backend: Adjusting Feature Data Layout to HWC and Weights Data Layout to accelerator specific")
@@ -50,11 +52,12 @@ class onnx_manager(Parser_DORY_to_HW):
                 for name in node.constant_names:
                     if name not in ["l", "k", "outshift", "outmult"] and "bias" not in name:
                         weights_name = name
+                weights = getattr(node, weights_name)
                 qw = node.weight_bits
-                layout = node.__dict__[weights_name]["layout"]
                 dw = node.group > 1
-                w = node.__dict__[weights_name]["value"].astype(np.uint8)
-                node.__dict__[weights_name]["value"] = conv_unroll(w, qw, layout, dw)
+                layout = weights["layout"]
+                w = weights["value"].astype(np.uint8)
+                weights["value"] = conv_unroll(w, qw, layout, dw)
             # Todo elif "Fullyconnected"
 
     def check_parameters(self):
@@ -65,8 +68,8 @@ class onnx_manager(Parser_DORY_to_HW):
 
         for node in self.DORY_Graph:
             for key, value in node.__dict__.items():
-                if key not in HW_node.HW_node(Layer_node.Layer_node(), self.HW_description).__dict__.keys() and \
-                        key not in Layer_node.Layer_node().__dict__.keys() and \
+                if key not in HW_node(Layer_node(), self.HW_description).__dict__.keys() and \
+                        key not in Layer_node().__dict__.keys() and \
                         key not in node.constant_names:
                     warning(key, node.name, 'is not inside the predefined parameters for DORY nodes.')
                     warning_count += 1

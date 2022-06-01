@@ -29,8 +29,6 @@ static struct pi_device ram;
 static int activations_input;
 static uint8_t flashBuffer[FLASH_BUFF_SIZE];
 
-char* L2_memory_buffer;
-char* L2_input;
 char* L2_output;
 
 % if sdk == 'pulp-sdk':
@@ -72,7 +70,8 @@ void open_filesystem_and_ram(struct pi_device *flash, struct pi_device *fs)
 }
 
 int main () {
-
+  char* L2_memory_buffer;
+  char* L2_input;
   PMU_set_voltage(1000, 0);
   pi_time_wait_us(10000);
   pi_freq_set(PI_FREQ_DOMAIN_FC, ${fc_frequency});
@@ -117,12 +116,12 @@ int main () {
     Allocating space for input and copying it
 */
   L2_memory_buffer = pi_l2_malloc((uint32_t) ${l2_buffer_size});
-  L2_input = L2_memory_buffer;
+  int begin_end = 1;
+  L2_input = L2_memory_buffer + (1 - begin_end) * (${l2_buffer_size} - rdDone);
+  L2_output = L2_memory_buffer;
 #ifdef VERBOSE
   printf("\nL2 Buffer alloc initial\t@ 0x%08x:\t%s\n", (unsigned int)L2_memory_buffer, L2_memory_buffer?"Ok":"Failed");
 #endif
-    pi_ram_read(&ram, activations_input, L2_input, ${int(DORY_HW_graph[0].tiling_dimensions["L2"]["input_activation_memory"])});
-    pi_ram_free(&ram, activations_input, ${int(DORY_HW_graph[0].tiling_dimensions["L2"]["input_activation_memory"])});
 /*
     Allocation
 */
@@ -130,10 +129,20 @@ int main () {
 /*
     Running of the network
 */
-  	network_run(L2_memory_buffer, ${l2_buffer_size}, L2_output, ram);
+    pi_ram_read(&ram, activations_input, L2_input, ${int(DORY_HW_graph[0].tiling_dimensions["L2"]["input_activation_memory"])});
+  	network_run(L2_memory_buffer, ${l2_buffer_size}, L2_output, begin_end, ram);
+#if 0
+    printf("Network Output: ");
+    for(int i = 0; i < ${int(DORY_HW_graph[-1].tiling_dimensions["L2"]["output_activation_memory"] * (1 + int(DORY_HW_graph[-1].tiling_dimensions["L3"]["output_dimensions"] != DORY_HW_graph[-1].tiling_dimensions["L2"]["output_dimensions"]))) }; i+=4)
+    {
+      printf("%d ", *(int32_t *)(L2_output + i));
+    }
+    printf("\n");
+#endif
 /*
     Deallocation
 */
+    pi_ram_free(&ram, activations_input, ${int(DORY_HW_graph[0].tiling_dimensions["L2"]["input_activation_memory"])});
     network_free(ram);  
     pi_l2_free(L2_memory_buffer, (uint32_t) ${l2_buffer_size});
 }

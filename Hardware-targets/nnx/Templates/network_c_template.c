@@ -42,58 +42,100 @@ char* l1_buffer;
 char* bypass_activations;
 int L3_weights_internal;
 
-% if verbose_level == 'Check_all+Perf_final':
+% if 'Check_all' in verbose_level:
 #ifdef VERBOSE
-// check for input/output acitvation checksum
-static void check_layer(char *output, int check_sum_true, int dim) {
-  int checksum = 0;
-  char *ptr = (char *) output;
-  for(int j=0; j<dim; j++) {
-    checksum += ptr[j];
-  }
+static void check_layer_last(${DORY_HW_graph[-1].output_activation_type}${DORY_HW_graph[-1].output_activation_bits}_t *d, int size, int sum_true) {
+  int sum = 0;
+  for (int i = 0; i < size / ${DORY_HW_graph[-1].output_activation_bits // 8}; i++) sum += d[i];
 
-  if(check_sum_true == checksum)
-    printf("Checksum in/out Layer :\tOk\n");
+  printf("Checking final layer: Checksum ");
+  if(sum_true == sum)
+    printf("OK\n");
   else
-    printf("Checksum in/out Layer :\tFailed [%u vs. %u]\n", checksum, check_sum_true);
+    printf("Failed: true [%d] vs. calculated [%d]\n", sum_true, sum);
 }
 
-static void check_layer_last(int *output, int check_sum_true, int dim) {
-  int checksum = 0;
-  int *ptr = (int *) output;
-  for(int j=0; j<(int)(dim/4); j++) {
-    checksum += ptr[j];
-  }
+static void checksum(char *name, char *d, int size, int sum_true) {
+    int sum = 0;
+    for (int i = 0; i < size; i++) sum += d[i];
 
-  if(check_sum_true == checksum)
-    printf("Checksum final :\tOk\n");
-  else
-    printf("Checksum final :\tFailed [%d vs. %d]\n", checksum, check_sum_true);
-}
-
-// check for weight checksum
-static void check_layer_weight(char *weight, int check_sum_true, int dim) {
-  int checksum = 0;
-  char *ptr = (char *) weight;
-  for(int j=0; j<dim; j++) {
-    checksum += ptr[j];
-  }
-
-  if(check_sum_true == checksum)
-    printf("Checksum weight/bias Layer :\tOk\n");
-  else
-    printf("Checksum weight/bias Layer :\tFailed [%u vs. %u]\n", checksum, check_sum_true);
+    printf("Checking %s: Checksum ", name);
+    if (sum_true == sum)
+        printf("OK\n");
+    else
+        printf("Failed: true [%d] vs. calculated [%d]\n", sum_true, sum);
 }
 #endif
 % endif
 
 /* Moves the weights and the biases from hyperflash to hyperram */
+void luka_network_alloc(struct pi_device ram)
+{
+  pi_ram_alloc(&ram, &L3_weights, 4000000);
+  pi_ram_alloc(&ram, &L3_input, 1500000);
+  pi_ram_alloc(&ram, &L3_output, 1500000);
+
+#ifdef VERBOSE
+  printf("\nL3 Weights Buffer alloc initial\t@%p:\t%s\n", L3_weights, L3_weights?"Ok":"Failed");
+  printf("L3 Input Buffer alloc initial\t@%p:\t%s\n", L3_input, L3_input?"Ok":"Failed");
+  printf("L3 Output Buffer alloc initial\t@%p:\t%s\n\n", L3_output, L3_output?"Ok":"Failed");
+#endif
+}
+
+void luka_move_weights(struct pi_device fs, struct pi_device ram)
+{
+  int weights_begin = 0;
+% if 'Check_all' in verbose_level:
+  int layer_number = 0;
+% endif
+  pi_fs_file_t *file;
+
+  for (int i = 0; i < ${weights_number}; i++) {
+% if 'Check_all' in verbose_level:
+    if (layer_with_weights[layer_number]==0)
+      layer_number +=1;
+% endif
+    file = pi_fs_open(&fs, L3_weights_files[i], 0);
+    if (file == NULL) {
+      printf("file %s open failed \n", L3_weights_files[i]);
+      return -1;
+    }
+    const int file_size = file->size;
+% if 'Check_all' in verbose_level:
+    int sum = 0;
+% endif
+    int read_bytes_total = 0;
+    do {
+      int read_bytes = pi_fs_read(file, flashBuffer, FLASH_BUFF_SIZE);
+% if 'Check_all' in verbose_level:
+      for (int t = 0; t < read_bytes; t++) sum += flashBuffer[t];
+% endif
+      pi_ram_write(&ram, L3_weights + weights_begin + read_bytes_total, flashBuffer, read_bytes);
+      read_bytes_total += read_bytes;
+    } while (read_bytes_total < file_size);
+
+% if 'Check_all' in verbose_level:
+    if (weights_checksum[layer_number] == sum)
+      printf("Checking flash memory layer %d: OK\n", layer_number);
+    else
+      printf("Checking flash memory layer %d: Failed: true [%d] vs. calculated [%d]\n", layer_number, weights_checksum[layer_number], sum);
+
+    layer_number +=1;
+% endif
+    weights_begin += read_bytes_total;
+    L3_weights_size[i] = weights_begin;
+    // L3_weights_end[i] = weights_begin;  // beginning of the next weights is the end of the current one
+  }
+  return 1;
+}
+
+/* Moves the weights and the biases from hyperflash to hyperram */
 void network_alloc(struct pi_device fs, struct pi_device ram)
 {
   pi_fs_file_t *file;
-  pi_ram_alloc(&ram, &L3_weights, (uint32_t) 4800000);
-  pi_ram_alloc(&ram, &L3_input, (uint32_t) 1000000);
-  pi_ram_alloc(&ram, &L3_output, (uint32_t) 1000000);
+  pi_ram_alloc(&ram, &L3_weights, (uint32_t) 4000000);
+  pi_ram_alloc(&ram, &L3_input, (uint32_t) 1500000);
+  pi_ram_alloc(&ram, &L3_output, (uint32_t) 1500000);
 #ifdef VERBOSE
   printf("\nL3 Buffer alloc initial\t@ %d:\t%s\n", (unsigned int)L3_weights, L3_weights?"Ok":"Failed");
   printf("\nL3 Buffer alloc initial\t@ %d:\t%s\n", (unsigned int)L3_input, L3_input?"Ok":"Failed");
@@ -132,10 +174,10 @@ void network_alloc(struct pi_device fs, struct pi_device ram)
       rdDone += size / sizeof(char);
     }
 % if 'Check_all' in verbose_level:
-    if (check_weights[layer_number] == sum_weights)
-      printf("Layer %-3d: Checksum = %-12d, FLASH %-12d, Check OK\n", layer_number, check_weights[layer_number], sum_weights);
+    if (weights_checksum[layer_number] == sum_weights)
+      printf("Layer %-3d: Checksum = %-12d, FLASH %-12d, Check OK\n", layer_number, weights_checksum[layer_number], sum_weights);
     else
-      printf("Layer %-3d: Checksum = %-12d, FLASH %-12d, Check FAILED\n", layer_number, check_weights[layer_number], sum_weights);
+      printf("Layer %-3d: Checksum = %-12d, FLASH %-12d, Check FAILED\n", layer_number, weights_checksum[layer_number], sum_weights);
     layer_number +=1;
 % endif
   }
@@ -145,29 +187,29 @@ void network_alloc(struct pi_device fs, struct pi_device ram)
 /* Remove RAM memory */
 void network_free(struct pi_device ram)
 {
-  pi_ram_free(&ram, L3_weights, (uint32_t) 4800000);
-  pi_ram_free(&ram, L3_input, (uint32_t) 1000000);
-  pi_ram_free(&ram, L3_output, (uint32_t) 1000000);
+  pi_ram_free(&ram, L3_weights, (uint32_t) 4000000);
+  pi_ram_free(&ram, L3_input, (uint32_t) 1500000);
+  pi_ram_free(&ram, L3_output, (uint32_t) 1500000);
 }
 
 void execute_layer_fork(void *arg)
 {
-  unsigned int *real_arg = (unsigned int *) arg;
-  real_arg[7] = pmsis_l1_malloc((uint32_t) ${l1_buffer});
-  void *args = (void *) real_arg;
-  switch (real_arg[13])
+  unsigned int *real_arg = (unsigned int *)arg;
+  if (pi_core_id() == 0) // TODO: Why is only core 0 freeing when all the cores have allocated?
+      real_arg[7] = pmsis_l1_malloc((uint32_t) ${l1_buffer}); // TODO: What is this l1_buffer?
+  switch (real_arg[11])
   {
 % for i in range(len(DORY_HW_graph)):
     case ${i}:
-      pi_cl_team_fork(NUM_CORES, (void *)${func_name[i]}, args);
+      pi_cl_team_fork(NUM_CORES, (void *)${func_name[i]}, arg); // TODO Can't we just pass the pointer to the function?
       break;
 % endfor
   }
-  if (pi_core_id()==0)
+  if (pi_core_id() == 0) // TODO: Why is only core 0 freeing when all the cores have allocated?
     pmsis_l1_malloc_free(real_arg[7], (uint32_t) ${l1_buffer});
 }
 
-void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_output_to_pass, struct pi_device ram)
+void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_output_to_pass, int begin_end, struct pi_device ram)
 {
 
 /*
@@ -178,7 +220,7 @@ void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_outpu
 /* -------- SECTION 0 BEGIN --------- */
 /* ---------------------------------- */
   bypass_activations = 0;
-  int begin_end_n = 1;
+  int begin_end_n = begin_end;
   int L2_memory_buffer_end = L2_memory_buffer + L2_memory_dimension;
   int residual_number = 0;
   L3_weights_internal = L3_weights;
@@ -208,7 +250,7 @@ void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_outpu
   dory_L2_alloc(&L2_memory_buffer,
     &L2_memory_buffer_end,
     &L2_input,
-    ${int(DORY_HW_graph[0].tiling_dimensions["L2"]["input_activation_memory"])},
+    activations_size[0],
     begin_end_n // begin is 1, end is 0
     );
   begin_end_n = !begin_end_n;
@@ -218,7 +260,7 @@ void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_outpu
   dory_L2_alloc(&L2_memory_buffer,
     &L2_memory_buffer_end,
     &L2_output,
-    ${int(DORY_HW_graph[0].tiling_dimensions["L2"]["output_activation_memory"])},
+    activations_out_size[0],
     begin_end_n // begin is 1, end is 0
     );
   if(L2_output == NULL) return -1;
@@ -250,38 +292,39 @@ void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_outpu
       dory_L2_alloc(&L2_memory_buffer,
         &L2_memory_buffer_end,
         &L2_input,
-        check_activations_dimension[i],
+        activations_size[i],
         begin_end_n // begin is 1, end is 0
         );
+
     if (layer_with_weights[i] == 1)
       dory_L2_alloc(&L2_memory_buffer,
         &L2_memory_buffer_end,
         &L2_weights,
-        check_weights_dimension[i],
+        weights_size[i],
         begin_end_n // begin is 1, end is 0
         );
-    if (allocate_layer[i] == 1)
-    {
-      pi_ram_read(&ram, L3_weights_internal + cumulative_weights_dimension[i], L2_weights, check_weights_dimension[i]);
-    }
 
-% if verbose_level == 'Check_all+Perf_final':
+    if (allocate_layer[i] == 1)
+      pi_ram_read(&ram, L3_weights_internal + cumulative_weights_dimension[i], L2_weights, weights_size[i]);
+
+% if 'Check_all' in verbose_level:
 #ifdef VERBOSE
-    if (L3_input_layers[i]==1)
-      printf("In in L3\n");
-    else if (i==0) {
+    if (L3_input_layers[i] == 1)
+      printf("Input in L3\n");
+    else if (i == 0 || branch_change[i-1] == 0) {
       printf("Checking input of layer %d...\n", i);
-      check_layer(L2_input, check_activations[i], check_activations_dimension[i]);
-    }
-    else if (branch_change[i-1]==0) {
-      printf("Checking input of layer %d...\n", i);
-      check_layer(L2_input, check_activations[i], check_activations_dimension[i]);
+      checksum("L2 input", L2_input, activations_size[i], activations_checksum[i]);
+      if (allocate_layer[i] == 1)
+        checksum("L2 weights", L2_weights, weights_size[i], weights_checksum[i]);
+      else
+        printf("Weights in L3\n");
     }
     else
       printf("Switching branch, already checked activation\n");
 #endif
 % endif
-    unsigned int args[14] = {L3_input,
+    unsigned int args[12] = {
+      L3_input,
       L3_output,
       L3_weights_internal + cumulative_weights_dimension[i],
       L2_input,
@@ -291,10 +334,9 @@ void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_outpu
       l1_buffer,
       &ram,
       out_mult_vector[i],
-      inmul1_vector[i],
-      inmul2_vector[i],
       out_shift_vector[i],
-      i};
+      i
+    };
 
 /*
 - Execution of the layers_pointers
@@ -340,26 +382,23 @@ void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_outpu
     L3_output = temp;
     asm volatile("": : :"memory");
 
-% if verbose_level == 'Check_all+Perf_final':
+% if 'Check_all' in verbose_level:
 #ifdef VERBOSE
     printf("Layer %s %d ended: \n", Layers_name[i], i);
-    if (i < ${len(DORY_HW_graph) - 1})
-    {
-      if (L3_output_layers[i]==1)
+    if (i < ${len(DORY_HW_graph) - 1}) {
+      if (L3_output_layers[i]==1) {
         printf("Out in L3\n");
-      else {
-        check_layer(L2_output, check_activations_out[i], check_activations_out_dimension[i]);
+      } else {
+        checksum("L2 output", L2_output, activations_out_size[i], activations_out_checksum[i]);
       }
       printf("\n");
-    }
-    else
-    {
-      check_layer_last((int32_t *) L2_output, check_activations_out[i], check_activations_out_dimension[i]);
+    } else {
+      check_layer_last((${DORY_HW_graph[-1].output_activation_type}${DORY_HW_graph[-1].output_activation_bits}_t *) L2_output, activations_out_size[i], activations_out_checksum[i]);
     }
 #endif
-% elif verbose_level == 'Last+Perf_final':
+% elif 'Last' in verbose_level:
     if (i == ${len(DORY_HW_graph) - 1})
-        check_layer_last((int32_t *) L2_output, check_activations_out[i], check_activations_out_dimension[i]);
+        check_layer_last((${DORY_HW_graph[-1].output_activation_type}${DORY_HW_graph[-1].output_activation_bits}_t *) L2_output, activations_out_size[i], activations_out_checksum[i]);
 % else:
 #ifdef VERBOSE
     printf("Layer %s %d ended: \n", Layers_name[i], i);
@@ -372,59 +411,56 @@ void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_outpu
     if (layer_with_weights[i] == 1)
       dory_L2_free(&L2_memory_buffer,
         &L2_memory_buffer_end,
-        check_weights_dimension[i],
+        weights_size[i],
         begin_end_n // begin is 1, end is 0
         );
     dory_L2_free(&L2_memory_buffer,
       &L2_memory_buffer_end,
-      check_activations_dimension[i],
+      activations_size[i],
       begin_end_n // begin is 1, end is 0
       );
     if (branch_input[i]==1)
       dory_L2_free(&L2_memory_buffer,
         &L2_memory_buffer_end,
-        check_activations_dimension[i],
+        activations_size[i],
         begin_end_n // begin is 1, end is 0
         );
     L2_input = L2_output;
     if (i < ${len(DORY_HW_graph) - 1})
     {
-      if (branch_input[i]==1 || branch_change[i-1] == 1)
-      {
-        pi_ram_free(&ram, layers_pointers[residual_number], (uint32_t) check_activations_dimension[i]);
-      }
       if (branch_input[i+1]==1)
       {
         begin_end_n = !begin_end_n;
         dory_L2_alloc(&L2_memory_buffer,
           &L2_memory_buffer_end,
           &bypass_activations,
-          check_activations_out_dimension[i],
+          activations_out_size[i],
           begin_end_n // begin is 1, end is 0
           );
         begin_end_n = !begin_end_n;
         residual_number--;
-        pi_ram_read(&ram, layers_pointers[residual_number], bypass_activations, check_activations_out_dimension[i]);
+        pi_ram_read(&ram, layers_pointers[residual_number], bypass_activations, activations_out_size[i]);
+        pi_ram_free(&ram, layers_pointers[residual_number], (uint32_t) activations_out_size[i]);
       }
       if (i>0)
       {
         if (branch_output[i-1]==1 && L3_input_layers[i]==1)
         {
-          pi_cl_ram_alloc(&ram, &L3_input, (uint32_t) 1000000);
+          pi_ram_alloc(&ram, &L3_input, (uint32_t) 1500000);
         }
       }
       if (branch_output[i]==1 && L3_output_layers[i]==1)
       {
-        pi_ram_free(&ram, (uint32_t) L3_input + check_activations_out_dimension[i], (uint32_t) 1000000 - check_activations_out_dimension[i]);
+        pi_ram_free(&ram, (uint32_t) L3_input + activations_out_size[i], (uint32_t) 1500000 - activations_out_size[i]);
         layers_pointers[residual_number] = L3_input;
         residual_number++;
       }
       else if (branch_output[i]==1 || branch_change[i] == 1)
       {
         int32_t temp_adress;
-        pi_ram_alloc(&ram, &temp_adress, (uint32_t) check_activations_out_dimension[i]);
+        pi_ram_alloc(&ram, &temp_adress, (uint32_t) activations_out_size[i]);
         layers_pointers[residual_number] = temp_adress;
-        pi_ram_write(&ram, temp_adress, L2_output, (uint32_t) check_activations_out_dimension[i]);
+        pi_ram_write(&ram, temp_adress, L2_output, (uint32_t) activations_out_size[i]);
         residual_number++;
       }
       if (branch_change[i]==1)
@@ -432,26 +468,27 @@ void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_outpu
         begin_end_n = !begin_end_n;
         dory_L2_free(&L2_memory_buffer,
           &L2_memory_buffer_end,
-          check_activations_out_dimension[i],
+          activations_out_size[i],
           begin_end_n // begin is 1, end is 0
           );
         dory_L2_alloc(&L2_memory_buffer,
           &L2_memory_buffer_end,
           &L2_input,
-          check_activations_dimension[i+1],
+          activations_size[i+1],
           begin_end_n // begin is 1, end is 0
           );
         begin_end_n = !begin_end_n;
         residual_number--;
         residual_number--;
-        pi_ram_read(&ram, layers_pointers[residual_number], L2_input, check_activations_dimension[i+1]);
+        pi_ram_read(&ram, layers_pointers[residual_number], L2_input, activations_size[i+1]);
+        pi_ram_free(&ram, layers_pointers[residual_number], (uint32_t) activations_out_size[i+1]);
         residual_number++;
         residual_number++;
       }
       dory_L2_alloc(&L2_memory_buffer,
         &L2_memory_buffer_end,
         &L2_output,
-        check_activations_out_dimension[i+1],
+        activations_out_size[i+1],
         begin_end_n // begin is 1, end is 0
         );
       //switching output and input in the buffer for allocation.
@@ -459,10 +496,14 @@ void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_outpu
       if (L3_output_layers[i] == 1)
         dory_L2_free(&L2_memory_buffer,
           &L2_memory_buffer_end,
-          check_activations_out_dimension[i],
+          activations_out_size[i],
           begin_end_n // begin is 1, end is 0
           );
     }
+  }
+  for(int i = 0; i < activations_out_size[${len(DORY_HW_graph)}]; i++)
+  {
+    *(L2_output_to_pass + i) = *(L2_output + i);
   }
 /* ---------------------------------- */
 /* --------- SECTION 2 END ---------- */

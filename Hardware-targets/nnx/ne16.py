@@ -8,16 +8,19 @@ INPUT_BUFFER_H = 5
 INPUT_BUFFER_W = 5
 
 
-def conv1x1_pad_ki(ki):
-    return 16 * (ki // 16 + (1 if ki % 16 != 0 else 0))
-
-
 def div_and_ceil(a, b):
     return ((a - 1) // b) + 1
 
 
-def weights_ki_size(ki, ks, qw):
-    return div_and_ceil(ki, TP_IN) * qw * ks[0] * ks[1] * 2
+def rem(a, b):
+    return ((a - 1) % b) + 1
+
+
+def weights_ki_size(ki, ks, qw, depthwise=False):
+    if depthwise:
+        return qw * ks[0] * ks[1] * (TP_IN // 8)
+    else:
+        return div_and_ceil(ki, TP_IN) * qw * ks[0] * ks[1] * (TP_IN // 8)
 
 
 def weights_size(ko, ki, ks, qw):

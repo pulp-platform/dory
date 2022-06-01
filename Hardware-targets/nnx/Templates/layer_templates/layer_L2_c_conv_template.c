@@ -80,11 +80,11 @@ void ${func_name}(
   const unsigned int l2_y = real_arg[5];
   const unsigned int l2_W = real_arg[6];
 % if FLAG_BATCHNORM == 1:
-  const unsigned int l2_scale = l2_W + ${k_l2_weights_offset};
-  const unsigned int l2_bias = l2_W + ${lambda_l2_weights_offset};
+  const unsigned int l2_scale = l2_W + ${l2_k_offset - l2_W_offset};
+  const unsigned int l2_bias  = l2_W + ${l2_lambda_offset - l2_W_offset};
 % endif
   const unsigned int l1_buffer = real_arg[7];
-  const unsigned int out_shift = real_arg[12];
+  const unsigned int out_shift = real_arg[10];
 
   /////////////////////
   // DMA declaration //
@@ -103,8 +103,8 @@ void ${func_name}(
   //////////////////
 
   DMA_copy_x.hwc_to_chw = 0;
-  DMA_copy_x.stride_2d = ${x_dma_stride_2d};
-  DMA_copy_x.stride_1d = ${x_dma_stride_1d};
+  DMA_copy_x.stride_2d = ${l1_x_dma_stride_2d};
+  DMA_copy_x.stride_1d = ${l1_x_dma_stride_1d};
   DMA_copy_x.dir = 1;
   DMA_copy_x.dma_channel = dory_dma_channel;
   
@@ -136,8 +136,8 @@ void ${func_name}(
   
   for (int i = 0; i < DMA_Y_CONTEXT_SIZE; i++) {
     DMA_copy_y[i].hwc_to_chw = 0;
-    DMA_copy_y[i].stride_2d = ${y_dma_stride_2d};
-    DMA_copy_y[i].stride_1d = ${y_dma_stride_1d};
+    DMA_copy_y[i].stride_2d = ${l1_y_dma_stride_2d};
+    DMA_copy_y[i].stride_1d = ${l1_y_dma_stride_1d};
     DMA_copy_y[i].dir = 0;
     DMA_copy_y[i].dma_channel = dory_dma_channel;
   }
@@ -165,7 +165,7 @@ void ${func_name}(
 
   int W_tile_size_nof = ${W_tile_size_nof};
   int W_tile_size_nif = ${W_tile_size_nif};
-  int W_tile_ko_len = ${W_tile_ko_len};
+  int W_tile_ko_len = ${l1_W_tile_ko_len};
 
   // Tile loop indices
   int i_nof = 0, i_nif = 0, i_h = 0, i_w = 0;
@@ -246,8 +246,8 @@ void ${func_name}(
     .width = ${fs2},
     .depth = ${W_tile_size_nif},
     .n_weights = ${W_tile_size_nof},
-    .bitwidth = 8,
-    .offset_factor = -128,
+    .bitwidth = ${W_data_size},
+    .offset_factor = ${-(2**(W_data_size-1))},
     .offset_mode = weightOffsetModeLayerWise
   };
 
@@ -355,11 +355,11 @@ void ${func_name}(
       W_tile_size_nof = (i_nof + 1 == ${tile_dim_nof}) ? ${W_tile_size_nof_last} : ${W_tile_size_nof};
       W_tile_size_nif = (i_nif + 1 == ${tile_dim_nif}) ? ${W_tile_size_nif_last} : ${W_tile_size_nif};
 
-      W_tile_ko_len = (i_nof + 1 == ${tile_dim_nof}) ? ${W_tile_ko_len_last} : ${W_tile_ko_len};
+      W_tile_ko_len = (i_nof + 1 == ${tile_dim_nof}) ? ${l1_W_tile_ko_len_last} : ${l1_W_tile_ko_len};
 
-      DMA_copy_W.ext = l2_W + ${W_tile_ko_len * W_tile_ki_size} * i_nof;
+      DMA_copy_W.ext = l2_W + ${l1_W_tile_ko_len * l1_W_tile_ki_size} * i_nof;
       DMA_copy_W.loc = w_tile_ptr;
-      DMA_copy_W.length_1d_copy = W_tile_ko_len * ${W_tile_ki_size};
+      DMA_copy_W.length_1d_copy = W_tile_ko_len * ${l1_W_tile_ki_size};
 
 % if FLAG_BATCHNORM == 1:
       DMA_copy_k.ext = l2_scale + ${k_tile_size_byte_transfer} * i_nof;
