@@ -255,6 +255,7 @@ void ${func_name}(
     _i_nif_exec = _i_nif_load;
     _i_h_exec = _i_h_load;
     _i_w_exec = _i_w_load;
+    dory_cores_barrier();
   }
 % if not TEST:
   // wait for final write

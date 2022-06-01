@@ -402,10 +402,6 @@ void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_outpu
     L2_input = L2_output;
     if (i < ${len(DORY_HW_graph) - 1})
     {
-      if (branch_input[i]==1 || branch_change[i-1] == 1)
-      {
-        pi_ram_free(&ram, layers_pointers[residual_number], (uint32_t) check_activations_dimension[i]);
-      }
       if (branch_input[i+1]==1)
       {
         begin_end_n = !begin_end_n;
@@ -418,6 +414,7 @@ void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_outpu
         begin_end_n = !begin_end_n;
         residual_number--;
         pi_ram_read(&ram, layers_pointers[residual_number], bypass_activations, check_activations_out_dimension[i]);
+        pi_ram_free(&ram, layers_pointers[residual_number], (uint32_t) check_activations_out_dimension[i]);
       }
       if (i>0)
       {
@@ -458,6 +455,7 @@ void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_outpu
         residual_number--;
         residual_number--;
         pi_ram_read(&ram, layers_pointers[residual_number], L2_input, check_activations_dimension[i+1]);
+        pi_ram_free(&ram, layers_pointers[residual_number], (uint32_t) check_activations_out_dimension[i+1]);
         residual_number++;
         residual_number++;
       }

@@ -44,7 +44,7 @@ def main():
                              "final performances \nLast+Perf_final: all check + final performances \nExtract the "
                              "parameters from the onnx model")
     parser.add_argument('--perf_layer', default='No', help='Yes: MAC/cycles per layer. No: No perf per layer.')
-    parser.add_argument('--optional', default='mixed-sw',
+    parser.add_argument('--optional', default='auto',
                         help='auto (based on layer precision, 8bits or mixed-sw), 8bit, mixed-hw, mixed-sw')
     parser.add_argument('--app_dir', default='./application', help='Path to the generated application. Default: ./application')
 
