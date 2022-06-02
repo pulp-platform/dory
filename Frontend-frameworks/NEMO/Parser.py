@@ -86,8 +86,10 @@ class onnx_manager(Parser_ONNX_to_DORY):
         for i, node in enumerate(self.DORY_Graph):
             node.add_existing_parameter("weight_type", "int")
             node.add_existing_parameter("constant_type", "int")
-            node.add_existing_parameter("output_activation_type", "int")
-            node.add_existing_parameter("input_activation_type", "int")
+            node.add_existing_parameter("output_activation_type", "uint")
+            if i == len(self.DORY_Graph) -1:
+                node.add_existing_parameter("output_activation_type", "int")
+            node.add_existing_parameter("input_activation_type", "uint")
             node.add_existing_parameter("bias_bits", 32)
             if node.name in ["Convolution", "FullyConnected"]:
                 node.add_existing_parameter("weight_bits", 8)

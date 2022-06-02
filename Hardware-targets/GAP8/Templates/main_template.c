@@ -90,7 +90,7 @@ int main () {
   struct pi_device fs;
   struct pi_device flash;
   open_filesystem_and_ram(&flash, &fs);
-  pi_ram_alloc(&ram, &activations_input, (uint32_t) 1000000);
+  pi_ram_alloc(&ram, &activations_input, (uint32_t) 500000);
   pi_fs_file_t *file;
   file = pi_fs_open(&fs, "inputs.hex", 0);
   if (file == NULL)
@@ -125,11 +125,11 @@ int main () {
 /*
     Allocation
 */
+    pi_ram_read(&ram, activations_input, L2_input, ${int(DORY_HW_graph[0].tiling_dimensions["L2"]["input_activation_memory"])});
     network_alloc(fs, ram);  
 /*
     Running of the network
 */
-    pi_ram_read(&ram, activations_input, L2_input, ${int(DORY_HW_graph[0].tiling_dimensions["L2"]["input_activation_memory"])});
   	network_run(L2_memory_buffer, ${l2_buffer_size}, L2_output, begin_end, ram);
 #ifdef VERBOSE
     printf("Network Output: ");
@@ -142,7 +142,7 @@ int main () {
 /*
     Deallocation
 */
-    pi_ram_free(&ram, activations_input, ${int(DORY_HW_graph[0].tiling_dimensions["L2"]["input_activation_memory"])});
+    pi_ram_free(&ram, activations_input, 500000);
     network_free(ram);  
     pi_l2_free(L2_memory_buffer, (uint32_t) ${l2_buffer_size});
 }
