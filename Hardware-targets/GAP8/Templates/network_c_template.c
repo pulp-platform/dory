@@ -45,11 +45,11 @@ int L3_weights_internal;
 % if verbose_level == 'Check_all+Perf_final':
 #ifdef VERBOSE
 // check for input/output acitvation checksum
-static void check_layer(char *output, int check_sum_true, int dim) {
+static void check_layer(uint8_t *output, int check_sum_true, int dim) {
   int checksum = 0;
-  char *ptr = (char *) output;
+  uint8_t *ptr = (uint8_t *) output;
   for(int j=0; j<dim; j++) {
-    checksum += ptr[j];
+    checksum += *(uint8_t *)(ptr+j);
   }
 
   if(check_sum_true == checksum)
@@ -90,7 +90,7 @@ static void check_layer_weight(char *weight, int check_sum_true, int dim) {
 void network_alloc(struct pi_device fs, struct pi_device ram)
 {
   pi_fs_file_t *file;
-  pi_ram_alloc(&ram, &L3_weights, (uint32_t) 4000000);
+  pi_ram_alloc(&ram, &L3_weights, (uint32_t) 4500000);
   pi_ram_alloc(&ram, &L3_input, (uint32_t) 1500000);
   pi_ram_alloc(&ram, &L3_output, (uint32_t) 1500000);
 #ifdef VERBOSE
@@ -144,7 +144,7 @@ void network_alloc(struct pi_device fs, struct pi_device ram)
 /* Remove RAM memory */
 void network_free(struct pi_device ram)
 {
-  pi_ram_free(&ram, L3_weights, (uint32_t) 4000000);
+  pi_ram_free(&ram, L3_weights, (uint32_t) 4500000);
   pi_ram_free(&ram, L3_input, (uint32_t) 1500000);
   pi_ram_free(&ram, L3_output, (uint32_t) 1500000);
 }

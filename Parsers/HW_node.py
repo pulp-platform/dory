@@ -110,7 +110,6 @@ class HW_node(DORY_node):
             i_element_in_byte += 1
             if i_element_in_byte == n_elements_in_byte:
                 i_element_in_byte = 0
-
         return np.asarray(compressed, dtype=np.uint8)
 
     def add_checksum_w_integer(self):
