@@ -24,11 +24,6 @@
 #include "${layer}"
 % endfor
 
-% if sdk == 'pulp-sdk':
-#define ICACHE_CTRL_UNIT 0x10201400
-#define ICACHE_PREFETCH ICACHE_CTRL_UNIT + 0x1C
-% endif
-#define FLASH_BUFF_SIZE 128
 % if verbose:
 #define VERBOSE 1
 % endif
@@ -87,66 +82,33 @@ static void check_layer_weight(char *weight, int check_sum_true, int dim) {
 % endif
 
 /* Moves the weights and the biases from hyperflash to hyperram */
-void network_alloc(struct pi_device fs, struct pi_device ram)
+void network_alloc()
 {
-  pi_fs_file_t *file;
-  pi_ram_alloc(&ram, &L3_weights, (uint32_t) 4000000);
-  pi_ram_alloc(&ram, &L3_input, (uint32_t) 1500000);
-  pi_ram_alloc(&ram, &L3_output, (uint32_t) 1500000);
-#ifdef VERBOSE
-  printf("\nL3 Buffer alloc initial\t@ %d:\t%s\n", (unsigned int)L3_weights, L3_weights?"Ok":"Failed");
-  printf("\nL3 Buffer alloc initial\t@ %d:\t%s\n", (unsigned int)L3_input, L3_input?"Ok":"Failed");
-  printf("\nL3 Buffer alloc initial\t@ %d:\t%s\n", (unsigned int)L3_output, L3_output?"Ok":"Failed");
-#endif
-  unsigned int rdDone = 0;
 % if 'Check_all' in verbose_level:
-  int layer_number = 0;
   int sum_weights;
-% endif
-  for (int i=0;i<${weights_number};i++)
+  for (int i=0;i<${len(DORY_HW_graph)};i++)
   {
-% if 'Check_all' in verbose_level:
-    if (layer_with_weights[layer_number]==0)
-      layer_number +=1;
-% endif
-    file = pi_fs_open(&fs, L3_weights_files[i], 0);
-    if (file == NULL)
+    if (layer_with_weights[i]==1)
     {
-      printf("file %s open failed \n", L3_weights_files[i]);
-      return -1;
+      sum_weights = 0;
+      for (int j = 0; j < check_weights_dimension[i]; j++)
+      {
+        sum_weights+= Weights_name[i][j];
+      }
+      if (check_weights[i] == sum_weights)
+        printf("Layer %-3d: Checksum = %-12d, FLASH %-12d, Check OK\n", layer_number, check_weights[layer_number], sum_weights);
+      else
+        printf("Layer %-3d: Checksum = %-12d, FLASH %-12d, Check FAILED\n", layer_number, check_weights[layer_number], sum_weights);
     }
-    L3_weights_size[i] = file->size + rdDone;
-    int flashBuffSize = FLASH_BUFF_SIZE * sizeof(char);
-% if 'Check_all' in verbose_level:
-    sum_weights = 0;
-% endif
-    while(rdDone < (L3_weights_size[i] / sizeof(char)))
-    {
-      int size = pi_fs_read(file, flashBuffer, flashBuffSize);
-% if 'Check_all' in verbose_level:
-      for (int t = 0; t < size; t++)
-        sum_weights+=flashBuffer[t];
-% endif
-      pi_ram_write(&ram, L3_weights+rdDone, flashBuffer,size);
-      rdDone += size / sizeof(char);
-    }
-% if 'Check_all' in verbose_level:
-    if (check_weights[layer_number] == sum_weights)
-      printf("Layer %-3d: Checksum = %-12d, FLASH %-12d, Check OK\n", layer_number, check_weights[layer_number], sum_weights);
-    else
-      printf("Layer %-3d: Checksum = %-12d, FLASH %-12d, Check FAILED\n", layer_number, check_weights[layer_number], sum_weights);
-    layer_number +=1;
-% endif
   }
+% endif
   return 1;
 }
 
 /* Remove RAM memory */
 void network_free(struct pi_device ram)
 {
-  pi_ram_free(&ram, L3_weights, (uint32_t) 4000000);
-  pi_ram_free(&ram, L3_input, (uint32_t) 1500000);
-  pi_ram_free(&ram, L3_output, (uint32_t) 1500000);
+  return 1;
 }
 
 void execute_layer_fork(void *arg)

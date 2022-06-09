@@ -69,6 +69,17 @@ class onnx_manager(Parser_ONNX_to_DORY):
                 node.constant_names.append("outadd")
                 delattr(node, 'out_add')
                 # input 1 parameters
+                #### Look at the order of inputs in Onnx. If the lowest index is not the first argument, revert the order inmul1 and inmul2
+                if int(node.input_indexes[0]) > int(node.input_indexes[1]):
+                    temp_shift = node.in1_shift
+                    temp_mul   = node.in1_mul
+                    temp_add   = node.in1_add
+                    node.in1_shift = node.in2_shift
+                    node.in1_mul   = node.in2_mul
+                    node.in1_add   = node.in2_add
+                    node.in2_shift = temp_shift
+                    node.in2_mul   = temp_mul
+                    node.in2_add   = temp_add
                 node.inshift1 = {}
                 node.inshift1["value"] = node.in1_shift
                 node.inshift1["layout"] = ""

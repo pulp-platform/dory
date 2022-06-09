@@ -35,117 +35,12 @@ class Tiler_Pool2D():
 
     def get_tiling(self, level):
         # This function generate the layer function to be included in the project for the conv2d operations (Convolutions and Fully Connected layers).
-        if level == 3:
-            # L3 tiling
-            tiling = self.get_tiling_pool2d_L3()
-            return tiling
         if level == 2:
             # L3 tiling
             tiling = self.get_tiling_pool2d_L2()
             return tiling
         print("Error: Either you should be in L3-L2 tiling or L2-L1 tiling")
         os._exit(0)
-
-    def get_tiling_pool2d_L3(self):
-        L2_memory = self.HW_node.HW_description["memory"]["L2"]["dimension"] - self.code_reserved_space
-        # tiling for L3-L2 management
-        # parameters instantiation
-        ks = self.HW_node.kernel_shape
-        inp_dim = self.HW_node.input_dimensions
-        out_dim = self.HW_node.output_dimensions
-        out_ch = self.HW_node.output_channels
-        in_ch = self.HW_node.input_channels
-        s = self.HW_node.strides
-        p = self.HW_node.pads
-
-        conv_overlap_h = 2 * (ks[0] // 2) + ks[0] % 2 - 1 - (s[0] - 1)
-
-        if self.previous_HW_node.tiling_dimensions["L3"]["output_dimensions"] != self.previous_HW_node.tiling_dimensions["L3"]["output_dimensions"]:
-            input_L3 = 1
-            input_dim_constraint = self.previous_HW_node.tiling_dimensions["L2"]["output_activation_memory"]
-        else:
-            input_L3 = 0
-        buffer_total = self.HW_node.input_activation_memory + self.HW_node.output_activation_memory + self.HW_node.constants_memory
-        if (buffer_total <= L2_memory) and input_L3==0:
-            return ([], [self.HW_node.input_channels, self.HW_node.input_dimensions[0], self.HW_node.input_dimensions[1]], [self.HW_node.output_channels, self.HW_node.output_dimensions[0], self.HW_node.output_dimensions[1]])
-        else:
-            db_O = 1
-        
-        # 2 iterations, adding each time a different part to be tiled, either weights, outputs, or both. Input is forced
-        for iteration in range(0, 2):
-            parameters = pywrapcp.Solver.DefaultSolverParameters()
-            solver = pywrapcp.Solver("simple_CP", parameters)
-            tile_n = solver.IntVar(out_ch, out_ch, 'tile_n')
-            tile_h_out = solver.IntVar(1, out_dim[0], 'tile_h_out')
-            if input_L3 == 0:
-                tile_h_in = solver.IntVar(inp_dim[0], inp_dim[0], 'tile_h_in')
-                db_x = 1
-            else:
-                tile_h_in = solver.IntVar(ks[0], inp_dim[0], 'tile_h_in')
-                solver.Add(0 == (tile_h_in - ks[0]) % s[0])
-                db_x = 2
-            if iteration == 0:
-                if db_x == 1:
-                    db_O = 2
-                else:
-                    solver.Add(tile_h_out == out_dim[0])
-                    db_O = 1
-            elif iteration == 1:
-                if db_x == 2:
-                    db_O = 2
-
-            input_tile_dimension  = (db_x * in_ch * tile_h_in * inp_dim[1] * self.HW_node.input_activation_bits + 7 ) // 8 # the 7 is to account for bit precision of 1, which still occupy an entire byte
-            output_tile_dimension = (db_O * out_ch * tile_h_out * out_dim[1] * self.HW_node.output_activation_bits + 7 ) // 8  # the 7 is to account for bit precision of 1, which still occupy an entire byte
-            constants = 0
-            for name in self.HW_node.constant_names:
-                if name in ["l","k"]:
-                    constants+=1
-            if constants > 0:
-                constants_tile_dimension = db_W * out_ch * constants  * self.HW_node.constant_bits / 8
-            else:
-                constants_tile_dimension = 0
-            constraint_all = input_tile_dimension + output_tile_dimension + constants_tile_dimension
-
-            # L2 constraints on input and output dimension
-            solver.Add(constraint_all <= L2_memory)
-            if input_L3 == 1:
-                solver.Add(input_tile_dimension <= input_dim_constraint)
-
-            # geometrical constraint
-            if db_x == 2 and db_O == 2:   
-                solver.Add(tile_h_out * s[0] == (tile_h_in - (ks[0] - 1) + (s[0] - 1)))
-
-            # objective
-            obj_expr = solver.IntVar(0, 1000000000000, "obj_expr")
-            solver.Add(obj_expr == constraint_all
-                            + 2 * 100000 * ((tile_h_out - 1) % 8)
-                            + 2 * 100000 * ((tile_h_in - 1) % 4))
-            # maximize the objective
-            objective = solver.Maximize(obj_expr, 1)
-            decision_builder = solver.Phase([tile_n, tile_h_in, tile_h_out],
-                                            solver.CHOOSE_FIRST_UNBOUND,
-                                            solver.ASSIGN_MIN_VALUE)
-            # Create a solution collector.
-            collector = solver.LastSolutionCollector()
-            # Add the decision variables.
-            collector.Add(tile_n)
-            collector.Add(tile_h_in)
-            collector.Add(tile_h_out)
-            # Add the objective.
-            collector.AddObjective(obj_expr)
-            solver.Solve(decision_builder, [objective, collector])
-            if collector.SolutionCount() > 0:
-                best_solution = collector.SolutionCount() - 1
-                tile_n = collector.Value(best_solution, tile_n)
-                tile_h_in = collector.Value(best_solution, tile_h_in)
-                tile_h_out = collector.Value(best_solution, tile_h_out)
-                return ([], [tile_n, tile_h_in, self.HW_node.input_dimensions[1]], [tile_n, tile_h_out, self.HW_node.output_dimensions[1]])
-        print("  Pool2D ERROR: no L3-L2 tiling found. Exiting...")
-        os._exit(0)
-        return None
-
-
-
 
     def get_tiling_pool2d_L2(self):
         '''
