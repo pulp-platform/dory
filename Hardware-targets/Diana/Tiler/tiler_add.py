@@ -33,48 +33,19 @@ class Tiler_Add():
 
     def get_tiling(self, level):
         # This function generate the layer function to be included in the project for the conv2d operations (Convolutions and Fully Connected layers).
-        if level == 3:
-            # L3 tiling
-            tiling = self.get_tiling_Add_L3()
-            return tiling
         if level == 2:
             # L3 tiling
             tiling = self.get_tiling_Add_L2()
             return tiling
         print("Error: Either you should be in L3-L2 tiling or L2-L1 tiling")
         os._exit(0)
-
-    def get_tiling_Add_L3(self):
-        L2_memory = self.HW_node.HW_description["memory"]["L2"]["dimension"] - self.code_reserved_space
-        # tiling for L3-L2 management
-        # parameters instantiation
-        ks = self.HW_node.kernel_shape
-        inp_dim = self.HW_node.input_dimensions
-        out_dim = self.HW_node.output_dimensions
-        out_ch = self.HW_node.output_channels
-        in_ch = self.HW_node.input_channels
-        s = self.HW_node.strides
-        p = self.HW_node.pads
-
-        conv_overlap_h = 2 * (ks[0] // 2) + ks[0] % 2 - 1 - (s[0] - 1)
-
-        if self.previous_HW_node.tiling_dimensions["L3"]["output_dimensions"] != self.previous_HW_node.tiling_dimensions["L3"]["output_dimensions"]:
-            input_L3 = 1
-        else:
-            input_L3 = 0
-        buffer_total = self.HW_node.input_activation_memory + self.HW_node.output_activation_memory + self.HW_node.constants_memory
-        if (buffer_total <= L2_memory) and input_L3==0:
-            return ([], [self.HW_node.input_channels, self.HW_node.input_dimensions[0], self.HW_node.input_dimensions[1]], [self.HW_node.output_channels, self.HW_node.output_dimensions[0], self.HW_node.output_dimensions[1]])
-        print("  Add ERROR: no L3-L2 tiling supported. Exiting...")
-        os._exit(0)
-        return None
         
     def get_tiling_Add_L2(self):
         # This function generate the layer function to be included in the project for the addition operation.
         ###############################################
         ##### PARAMETERS INITIALIZATION ###############
         ###############################################
-        L1_memory = self.HW_node.HW_description["memory"]["L1"]["dimension"] - self.HW_node.HW_description["HW specific parameters"]["accelerator core0 stack"] - 7 * self.HW_node.HW_description["HW specific parameters"]["accelerator core1-7 stack"]
+        L1_memory = self.HW_node.HW_description["memory"]["L1"]["dimension"]
         inp_dim = self.HW_node.tiling_dimensions["L2"]["input_dimensions"][1:]
         out_dim = self.HW_node.tiling_dimensions["L2"]["output_dimensions"][1:]
         out_ch = self.HW_node.tiling_dimensions["L2"]["output_dimensions"][0]
