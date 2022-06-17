@@ -17,13 +17,41 @@
  * limitations under the License. 
  */
 
-#include "mchan_test.h"
-
-#if (GAP_SDK == 1)
-#include "pulp.h"
-#endif 
+#include "math.h"
+#include <archi/hwme/hwme_v1.h>
+#include <hal/hwme/hwme_v1.h>
+#include <hal/pulp.h>
+#include <pulp.h>
 
 #pragma once
+
+typedef struct 
+{
+  unsigned int L2_input;
+  unsigned int L2_input_add;
+  unsigned int L2_output;
+  unsigned int L2_weights;
+  unsigned int out_shift;
+} layer;
+
+typedef struct 
+{
+  uint16_t  cx;
+  uint16_t  cy;
+  uint16_t  c;
+  uint16_t  ox;
+  uint16_t  oy;
+  uint16_t  k;
+  uint16_t  fx;
+  uint16_t  fy;
+  uint16_t  padding;
+  uint16_t  stride_x;
+  uint16_t  stride_y;
+  uint16_t  output_shift;
+  uint16_t  dilation;
+  uint16_t  activation_function;
+} Kernel;
+
 typedef enum
 {
   TRANSFER_1D,

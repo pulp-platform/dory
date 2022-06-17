@@ -156,9 +156,9 @@ unsigned int  dory_get_tile_3d(
 void __attribute__ ((noinline)) dory_dma_memcpy_async(DMA_copy DMA_copy_current)
 {
 
-  if ((DMA_copy_current.number_of_1d_copies == 1) && (DMA_copy_current.number_of_2d_copies == 1))
+  if      ( ( DMA_copy_current.number_of_1d_copies * DMA_copy_current.length_1d_copy ) == DMA_copy_current.stride_2d)
     current_transfer = TRANSFER_1D;
-  else if ((DMA_copy_current.number_of_1d_copies != 1) && (DMA_copy_current.number_of_2d_copies == 1))
+  else if ( DMA_copy_current.length_1d_copy == DMA_copy_current.stride_1d )
     current_transfer = TRANSFER_2D;
   else
     current_transfer = TRANSFER_3D;
@@ -171,23 +171,23 @@ void __attribute__ ((noinline)) dory_dma_memcpy_async(DMA_copy DMA_copy_current)
     case TRANSFER_1D:
       if (pi_core_id() == 0)
         #if (MCHAN_VERSION < 7)
-        mchan_transfer(DMA_copy_current.length_1d_copy, DMA_copy_current.dir, 1, 0, 1, 0, 0, (unsigned int)(DMA_copy_current.ext), (unsigned int)(DMA_copy_current.loc), 0, 0);
+        mchan_transfer(DMA_copy_current.length_1d_copy * DMA_copy_current.number_of_1d_copies * DMA_copy_current.number_of_2d_copies, DMA_copy_current.dir, 1, 0, 1, 0, 0, (unsigned int)(DMA_copy_current.ext), (unsigned int)(DMA_copy_current.loc), 0, 0);
         #elif (MCHAN_VERSION == 7)
-        mchan_transfer(DMA_copy_current.length_1d_copy, DMA_copy_current.dir, 1, 0, 0, 1, 0, 0, (unsigned int)(DMA_copy_current.ext), (unsigned int)(DMA_copy_current.loc), 0, 0, 0, 0);
+        mchan_transfer(DMA_copy_current.length_1d_copy * DMA_copy_current.number_of_1d_copies * DMA_copy_current.number_of_2d_copies, DMA_copy_current.dir, 1, 0, 0, 1, 0, 0, (unsigned int)(DMA_copy_current.ext), (unsigned int)(DMA_copy_current.loc), 0, 0, 0, 0);
         #endif
         break;
 
     case TRANSFER_2D:
       if (pi_core_id() == 0)
-        for (int i = 0; i < DMA_copy_current.number_of_1d_copies; i++)
+        for (int i = 0; i < DMA_copy_current.number_of_2d_copies; i++)
         {
           #if (MCHAN_VERSION < 7)
-          mchan_transfer(DMA_copy_current.length_1d_copy, DMA_copy_current.dir, 1, 0, 1, 0, 0, (unsigned int)(DMA_copy_current.ext), (unsigned int)(DMA_copy_current.loc), 0, 0);
+          mchan_transfer(DMA_copy_current.length_1d_copy * DMA_copy_current.number_of_1d_copies, DMA_copy_current.dir, 1, 0, 1, 0, 0, (unsigned int)(DMA_copy_current.ext), (unsigned int)(DMA_copy_current.loc), 0, 0);
           #elif (MCHAN_VERSION == 7)
-          mchan_transfer(DMA_copy_current.length_1d_copy, DMA_copy_current.dir, 1, 0, 0, 1, 0, 0, (unsigned int)(DMA_copy_current.ext), (unsigned int)(DMA_copy_current.loc), 0, 0, 0, 0);
+          mchan_transfer(DMA_copy_current.length_1d_copy * DMA_copy_current.number_of_1d_copies, DMA_copy_current.dir, 1, 0, 0, 1, 0, 0, (unsigned int)(DMA_copy_current.ext), (unsigned int)(DMA_copy_current.loc), 0, 0, 0, 0);
           #endif
-          DMA_copy_current.loc += DMA_copy_current.length_1d_copy;
-          DMA_copy_current.ext += DMA_copy_current.stride_1d;
+          DMA_copy_current.loc += DMA_copy_current.length_1d_copy * DMA_copy_current.number_of_1d_copies;
+          DMA_copy_current.ext += DMA_copy_current.stride_2d;
         }
       break;
 
@@ -204,30 +204,18 @@ void __attribute__ ((noinline)) dory_dma_memcpy_async(DMA_copy DMA_copy_current)
       DMA_copy_current.loc += DMA_copy_current.length_1d_copy*DMA_copy_current.number_of_1d_copies*start_pixel;
       for ( int j = start_pixel; j < stop_pixel; j++)
       {
-        if (DMA_copy_current.length_1d_copy < DMA_copy_current.stride_1d)
-        {
-          for (int i = 0; i < DMA_copy_current.number_of_1d_copies; i++)
-          {
-            #if (MCHAN_VERSION < 7)
-            mchan_transfer(DMA_copy_current.length_1d_copy, DMA_copy_current.dir, 1, 0, 1, 0, 0, (unsigned int)(DMA_copy_current.ext), (unsigned int)(DMA_copy_current.loc), 0, 0);
-            #elif (MCHAN_VERSION == 7)
-            mchan_transfer(DMA_copy_current.length_1d_copy, DMA_copy_current.dir, 1, 0, 0, 1, 0, 0, (unsigned int)(DMA_copy_current.ext), (unsigned int)(DMA_copy_current.loc), 0, 0, 0, 0);
-            #endif
-            DMA_copy_current.loc += DMA_copy_current.length_1d_copy;
-            DMA_copy_current.ext += DMA_copy_current.stride_1d;
-          }
-          DMA_copy_current.ext = DMA_copy_current.ext - DMA_copy_current.stride_1d * DMA_copy_current.number_of_1d_copies + DMA_copy_current.stride_2d;
-        }
-        else
+        for (int i = 0; i < DMA_copy_current.number_of_1d_copies; i++)
         {
           #if (MCHAN_VERSION < 7)
-          mchan_transfer(DMA_copy_current.length_1d_copy * DMA_copy_current.number_of_1d_copies, DMA_copy_current.dir, 1, 0, 1, 0, 0, (unsigned int)(DMA_copy_current.ext), (unsigned int)(DMA_copy_current.loc), 0, 0);
+          mchan_transfer(DMA_copy_current.length_1d_copy, DMA_copy_current.dir, 1, 0, 1, 0, 0, (unsigned int)(DMA_copy_current.ext), (unsigned int)(DMA_copy_current.loc), 0, 0);
           #elif (MCHAN_VERSION == 7)
-          mchan_transfer(DMA_copy_current.length_1d_copy * DMA_copy_current.number_of_1d_copies, DMA_copy_current.dir, 1, 0, 0, 1, 0, 0, (unsigned int)(DMA_copy_current.ext), (unsigned int)(DMA_copy_current.loc), 0, 0, 0, 0);
+          mchan_transfer(DMA_copy_current.length_1d_copy, DMA_copy_current.dir, 1, 0, 0, 1, 0, 0, (unsigned int)(DMA_copy_current.ext), (unsigned int)(DMA_copy_current.loc), 0, 0, 0, 0);
           #endif
-          DMA_copy_current.loc += DMA_copy_current.length_1d_copy * DMA_copy_current.number_of_1d_copies;
-          DMA_copy_current.ext = DMA_copy_current.ext + DMA_copy_current.stride_2d;
+          DMA_copy_current.loc += DMA_copy_current.length_1d_copy;
+          DMA_copy_current.ext += DMA_copy_current.stride_1d;
         }
+        DMA_copy_current.ext = DMA_copy_current.ext - DMA_copy_current.stride_1d * DMA_copy_current.number_of_1d_copies + DMA_copy_current.stride_2d;
+
       }
       break;
       }
@@ -262,10 +250,9 @@ void __attribute__ ((noinline)) dory_dma_memcpy_async(DMA_copy DMA_copy_current)
 
 void __attribute__ ((noinline)) dory_dma_barrier(DMA_copy DMA_copy_current)
 {
-
-  if ((DMA_copy_current.number_of_1d_copies == 1) && (DMA_copy_current.number_of_2d_copies == 1))
+  if      ( ( DMA_copy_current.number_of_1d_copies * DMA_copy_current.length_1d_copy ) == DMA_copy_current.stride_2d)
     current_transfer = TRANSFER_1D;
-  else if ((DMA_copy_current.number_of_1d_copies != 1) && (DMA_copy_current.number_of_2d_copies == 1))
+  else if ( DMA_copy_current.length_1d_copy == DMA_copy_current.stride_1d )
     current_transfer = TRANSFER_2D;
   else
     current_transfer = TRANSFER_3D;

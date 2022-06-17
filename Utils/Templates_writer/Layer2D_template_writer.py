@@ -226,6 +226,7 @@ def print_template_layer(node, layer_type, tmpl_dir, out_dir):
         tk["outmul"] = node.outmul["value"]
         tk["outadd"] = node.outadd["value"]
         tk["outshift"] = node.outshift["value"]
+    tk['out_shift'] = node.outshift["value"] if 'outshift' in node.constant_names else 0
 
     DW = tk['flag_DW']
     has_bias = tk['has_bias']
@@ -238,7 +239,10 @@ def print_template_layer(node, layer_type, tmpl_dir, out_dir):
     ################################################################################
 
     tk['nof'] = n_out
-    tk['factor'] = node.tiling_dimensions["L3"]["output_dimensions"][0] / n_out
+    if node.HW_description['memory']['levels'] > 2:
+        tk['factor'] = node.tiling_dimensions["L3"]["output_dimensions"][0] / n_out
+    else:
+        tk['factor'] = 1
     # x parameters
     tk['x_h'] = h_in
     tk['x_w'] = w_in
@@ -413,7 +417,6 @@ def print_template_layer(node, layer_type, tmpl_dir, out_dir):
     # only used for avg pool layers
     tk['out_add'] = node.outadd["value"] if 'outadd' in node.constant_names else 0
     tk['out_mul'] = node.outmul["value"] if 'outmul' in node.constant_names else 1
-    tk['out_shift'] = node.outshift["value"] if 'outshift' in node.constant_names else 0
 
     if "Addition" not in node.name and "Pool" not in node.name:
         tmpl = Template(filename=os.path.join(tmpl_dir, "layer_L2_c_conv_template.c"))

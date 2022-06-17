@@ -41,7 +41,6 @@ void ${func_name}(
   unsigned int l1_buffer =(unsigned int)  real_arg[7];
   unsigned int hyperram =(unsigned int)  real_arg[8];
   unsigned int out_mult_in =(unsigned int)  real_arg[9];
-  unsigned int out_shift_in = (unsigned int) real_arg[10];
 
   int last_nof_exec;
   int last_nif_exec;
@@ -132,7 +131,6 @@ void ${func_name}(
   int last_h_load = (${tile_dim_h} == 1) ? 1 : 0;
   int last_w_load = (${tile_dim_w} == 1) ? 1 : 0;
   int iter;
-  uint16_t out_shift = out_shift_in;
   // tile loop nest
   for(iter=0; iter<${tile_dim_nof}*${tile_dim_h}*${tile_dim_w}; iter++) {
     // loop nest is nof,h,w,(nif=0)
