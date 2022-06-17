@@ -16,17 +16,26 @@
  * See the License for the specific language governing permissions and
  * limitations under the License. 
  */
-#include "weights.h"
 #include "mem_controller.h"
-
-void network_free(struct pi_device ram);
-void network_alloc(struct pi_device fs, struct pi_device ram);
-void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_output_to_pass, int begin_end, struct pi_device ram);
+#include "dory.h"
+% for layer in list_h:
+#include "${layer}"
+% endfor
+#include "weights_definition.h"
+void network_free();
+void network_alloc();
+void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_output_to_pass, int begin_end);
 void execute_layer_fork(void *arg);
 void execute_layer(void *arg);
 
+
 #ifdef DEFINE_CONSTANTS
 typedef int (*Operation)();
+Operation functions[${len(DORY_HW_graph)}] = {\
+% for i in range(len(DORY_HW_graph)):
+${DORY_HW_graph[i].name}${'' if loop.last else ', '}\
+% endfor
+};
 static char *Layers_name[${len(DORY_HW_graph)}] = {\
 % for i in range(len(DORY_HW_graph)):
 "${DORY_HW_graph[i].name}"${'' if loop.last else ', '}\

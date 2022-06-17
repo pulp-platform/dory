@@ -34,5 +34,9 @@
 		"float32": null
 	},
 	"core frequency": 100000000,
-	"accelerator frequency": 100000000
+	"accelerator frequency": 100000000,
+	"HW specific parameters":{
+		"accelerator core0 stack": 0,
+		"accelerator core1-7 stack": 0		
+	}
 }
