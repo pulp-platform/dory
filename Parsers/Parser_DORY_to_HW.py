@@ -30,7 +30,7 @@ from Utils.DORY_utils import Printer
 
 class Parser_DORY_to_HW:
     # Used to manage the ONNX files. By now, supported Convolutions (PW and DW), Pooling, Fully Connected and Relu.
-    def __init__(self, graph, rules, Pattern_rewriter, supported_nodes, HW_description, network_directory, config_file, Tiler):
+    def __init__(self, graph, rules, Pattern_rewriter, supported_nodes, HW_description, network_directory, config_file, Tiler, weights_size=None):
         self.supported_nodes = supported_nodes
         self.DORY_Graph = graph
         self.Printer_Frontend = Printer("logs/HW_related")
@@ -40,6 +40,8 @@ class Parser_DORY_to_HW:
         self.network_directory = network_directory
         self.config_file = config_file
         HW_node.Tiler = Tiler
+        if weights_size is not None:
+            HW_node.weights_size = weights_size
 
     def mapping_to_HW_nodes(self):
         print("\nBackend: Matching patterns from generated DORY ONNX to HW Nodes.")
@@ -164,17 +166,17 @@ class Parser_DORY_to_HW:
         ###### SECTION 3: PARSING OF EACH LAYER INDEPENDENT. TILING + LAYER CREATION  ######
         ####################################################################################
         print("\nInsert tiling parameters per layer inside graph nodes")
-        for i, node_to_tile in enumerate(self.DORY_Graph):            
-            ######################## NEED A  FIX ####################################################
-            #### OTHERWISE ONLY WEIGHT < L2/2 GO in L2 --> much more L3 tiling not needed############
-            #########################################################################################
-            New_HW_node = HW_node(node_to_tile, self.HW_description)
-            if i > 0:
-                New_HW_node.create_tiling_dimensions(previous_node, self.config_file)
-            else:
-                New_HW_node.create_tiling_dimensions(New_HW_node, self.config_file)
-            previous_node = New_HW_node
-            self.DORY_Graph[i] = New_HW_node
+        prev_node = None
+        graph = []
+
+        # FIXME: otherwise only weight < L2/2 go in L2 --> much more L3 tiling not needed
+        for node in self.DORY_Graph:
+            curr_node = HW_node(node, self.HW_description)
+            curr_node.create_tiling_dimensions(curr_node if prev_node is None else prev_node, self.config_file)
+            graph.append(curr_node)
+            prev_node = curr_node
+
+        self.DORY_Graph = graph
 
     def renaming_weights(self):
         print("\nDORY Backend: Renaming Weights tensors.")

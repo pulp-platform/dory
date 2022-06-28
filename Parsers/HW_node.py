@@ -19,13 +19,14 @@
 # limitations under the License.
 
 # Libraries
-import numpy as np
-import copy
 import os
+import sys
+import numpy as np
 
 # DORY modules
 from Parsers.DORY_node import DORY_node
 from Parsers.Layer_node import Layer_node
+from Utils.DORY_utils import loadtxt
 
 
 class HW_node(DORY_node):
@@ -33,10 +34,14 @@ class HW_node(DORY_node):
 
     # Class attributes
     Tiler = None
+    weights_size = lambda self, dim: \
+        np.prod(dim) / (self.group if self.group < dim[0] else dim[0]) \
+        * np.prod(self.kernel_shape) * self.weight_bits / 8
 
     def __init__(self, node, HW_description):
         super().__init__()
         self.__dict__ = node.__dict__
+
         self.tiling_dimensions = {}
         for level in range(HW_description["memory"]["levels"]):
             self.tiling_dimensions["L{}".format(level+1)] = {}
@@ -63,41 +68,42 @@ class HW_node(DORY_node):
         self.check_sum_in = None
         self.check_sum_out = None
 
-    def create_tiling_dimensions(self, previous_node, config_file):
+    def create_tiling_dimensions(self, prev_node, config):
         #  ATTENTION MEMORY L3 --> TILE MEMORY DIMENSION --> Decide how to set. Re-init the whole memory?
-        for level in np.arange(self.HW_description["memory"]["levels"],1, -1):
-            (weights_dim, input_dims, output_dims) = self.Tiler(self, previous_node, config_file["code reserved space"]).get_tiling(level)
-            self.tiling_dimensions["L{}".format(level-1)]["input_dimensions"] = input_dims
-            self.tiling_dimensions["L{}".format(level-1)]["output_dimensions"] = output_dims
+        for level in range(self.HW_description["memory"]["levels"], 1, -1):
+            mem = f'L{level-1}'
+            (weights_dim, input_dims, output_dims) = self.Tiler(self, prev_node, config['code reserved space']).get_tiling(level)
+            self.tiling_dimensions[mem]["input_dimensions"] = input_dims
+            self.tiling_dimensions[mem]["output_dimensions"] = output_dims
             if "Convolution" in self.name or "FullyConnected" in self.name:
-                self.tiling_dimensions["L{}".format(level-1)]["weights_dimensions"] = weights_dim
-                groups = self.group if self.group < weights_dim[0] else weights_dim[0]
-                self.tiling_dimensions["L{}".format(level-1)]["weight_memory"] = np.prod(weights_dim)/groups*np.prod(self.kernel_shape)*self.weight_bits/8
+                self.tiling_dimensions[mem]["weights_dimensions"] = weights_dim
+                self.tiling_dimensions[mem]["weight_memory"] = self.weights_size(weights_dim)
             else:
-                self.tiling_dimensions["L{}".format(level-1)]["weight_memory"] = 0
+                self.tiling_dimensions[mem]["weight_memory"] = 0
+
             constants_memory = 0
             bias_memory = 0
             for name in self.constant_names:
-                if name in ["l","k"]:
-                    constants_memory+=weights_dim[0]*self.constant_bits/8
+                if name in ["l", "k"]:
+                    constants_memory += weights_dim[0]*self.constant_bits/8
                 if "bias" in name:
-                    bias_memory+=weights_dim[0]*self.bias_bits/8
-            self.tiling_dimensions["L{}".format(level-1)]["bias_memory"] = int(bias_memory)
-            self.tiling_dimensions["L{}".format(level-1)]["constants_memory"] = int(constants_memory)
-            self.tiling_dimensions["L{}".format(level-1)]["input_activation_memory"] = np.prod(self.tiling_dimensions["L{}".format(level-1)]["input_dimensions"])*self.input_activation_bits/8
-            self.tiling_dimensions["L{}".format(level-1)]["output_activation_memory"] = np.prod(self.tiling_dimensions["L{}".format(level-1)]["output_dimensions"])*self.output_activation_bits/8
+                    bias_memory += weights_dim[0]*self.bias_bits/8
+            self.tiling_dimensions[mem]["bias_memory"] = int(bias_memory)
+            self.tiling_dimensions[mem]["constants_memory"] = int(constants_memory)
+            self.tiling_dimensions[mem]["input_activation_memory"] = np.prod(self.tiling_dimensions[mem]["input_dimensions"])*self.input_activation_bits/8
+            self.tiling_dimensions[mem]["output_activation_memory"] = np.prod(self.tiling_dimensions[mem]["output_dimensions"])*self.output_activation_bits/8
 
     def rename_weights(self):
         weight_name = ""
         if "Convolution" in self.name or "FullyConnected" in self.name:
             for i, name in enumerate(self.constant_names):
-                if name not in ["l","k","outshift","outmul","outadd"]:
+                if name not in ["l", "k", "outshift", "outmul", "outadd"]:
                     if "bias" not in name:
-                        if len(self.__dict__[name]["value"].flatten()) > self.output_channels:
+                        if self.__dict__[name]["value"].size > self.output_channels:
                             self.__dict__["weights"] = self.__dict__.pop(name)
                             self.constant_names[i] = "weights"
 
-    def _compress(self, x, bits):
+    def __compress(self, x, bits):
         compressed = []
         n_elements_in_byte = 8 // bits
         i_element_in_byte = 0
@@ -114,112 +120,79 @@ class HW_node(DORY_node):
 
     def add_checksum_w_integer(self):
         self.check_sum_w = 0
-
-        weight_name = ""
-        if "Convolution" in self.name or "FullyConnected" in self.name:
-            for name in self.constant_names:
-                if name not in ["l","k","outshift","outmul","outadd"]:
-                    if "bias" not in name:
-                        weight_name = name
-        if weight_name in self.__dict__:
-            if self.weight_bits < 8 and self.group > 1:
-                self.__dict__[weight_name]["value"] = np.asarray(self.__dict__[weight_name]["value"])
-                self.__dict__[weight_name]["value"] = self.__dict__[weight_name]["value"].reshape(int(self.__dict__[weight_name]["value"].shape[0]/2),2,self.__dict__[weight_name]["value"].shape[1],self.__dict__[weight_name]["value"].shape[2],self.__dict__[weight_name]["value"].shape[3]).transpose(0,2,3,1,4).flatten().tolist()
-            else:
-                self.__dict__[weight_name]["value"] = self.__dict__[weight_name]["value"].flatten().tolist()
-            # self.__dict__[weight_name+"_raw"] = self.__dict__[weight_name]
-            temp = []
-            z = 0
-            for i_w, _ in enumerate(self.__dict__[weight_name]["value"]):
-                self.__dict__[weight_name]["value"][i_w] = np.uint8(self.__dict__[weight_name]["value"][i_w])
-            for i_x, _ in enumerate(self.__dict__[weight_name]["value"]):
-                if z % int(8 / self.weight_bits) == 0:
-                    temp.append(self.__dict__[weight_name]["value"][i_x] & (2**self.weight_bits-1))
-                else:
-                    temp[-1] += (self.__dict__[weight_name]["value"][i_x]& (2**self.weight_bits-1)) << self.weight_bits * (z % int(8 / self.weight_bits))
-                z+=1
-            self.__dict__[weight_name]["value"] = temp
-            self.check_sum_w += sum(self.__dict__[weight_name]["value"])
-
         bias_name = ""
+        weights_name = ""
+
         if "Convolution" in self.name or "FullyConnected" in self.name:
             for name in self.constant_names:
-                if name not in ["l","k","outshift","outmul","outadd"]:
+                if name not in ["l", "k", "outshift", "outmul", "outadd"]:
                     if "bias" in name:
                         bias_name = name
+                    else:
+                        weights_name = name
+        else:
+            return
+
+        if hasattr(self, weights_name):
+            weights = getattr(self, weights_name)
+            if self.weight_bits < 8 and self.group > 1:
+                ko = weights["value"].shape[0]
+                shape = (ko // 2, 2) + weights["value"].shape[1:]
+                weights["value"] = weights["value"].reshape(shape).transpose(0, 2, 3, 1, 4)
+            weights["value"] = self.__compress(weights["value"].ravel().astype(np.uint8), self.weight_bits)
+            self.check_sum_w += sum(weights["value"])
 
         def to_byte(x, bits):
             x = x.ravel().astype(np.int64 if bits > 32 else np.int32)
             #### TO CHECK ORDER OF BIASES
-            return [np.uint8((el >> shift) & 255) for el in x for shift in range(0, bits, 8)]
+            byte = [(el >> shift) & 255 for el in x for shift in range(0, bits, 8)]
+            return np.asarray(byte, dtype=np.uint8)
 
-        if bias_name in self.__dict__:
-            self.__dict__[bias_name]["value"] = to_byte(self.__dict__[bias_name]['value'], self.bias_bits)
-            self.check_sum_w += sum(self.__dict__[bias_name]["value"])
+        if hasattr(self, bias_name):
+            bias = getattr(self, bias_name)
+            bias["value"] = to_byte(bias["value"], self.bias_bits)
+            self.check_sum_w += sum(bias["value"])
 
-        if 'k' in self.__dict__:
-            self.k["value"] = to_byte(self.k['value'], self.constant_bits)
+        if hasattr(self, 'k'):
+            self.k["value"] = to_byte(self.k["value"], self.constant_bits)
             self.check_sum_w += sum(self.k["value"])
 
-        if 'l' in self.__dict__:
-            self.l["value"] = to_byte(self.l['value'], self.constant_bits)
+        if hasattr(self, 'l'):
+            self.l["value"] = to_byte(self.l["value"], self.constant_bits)
             self.check_sum_w += sum(self.l["value"])
 
-    def add_checksum_activations_integer(self, load_directory, node_number):
+    def add_checksum_activations_integer(self, load_directory, i_node):
         ###########################################################################
         ###### SECTION 4: GENERATE CHECKSUM BY USING OUT_LAYER{i}.TXT FILES  ######
         ###########################################################################
-        if node_number == 0:        
+
+        def file_checksum(filename, bits):
+            filepath = os.path.join(load_directory, filename)
             try:
-                try:
-                    x = np.loadtxt(os.path.join(load_directory, 'input.txt'), delimiter=',', dtype=np.uint8, usecols=[0])
-                except ValueError:
-                    x = np.loadtxt(os.path.join(load_directory, f'out_layer{node_number}.txt'), delimiter=',', dtype=np.float, usecols=[0])
-                x = x.ravel()
-            except FileNotFoundError:
-                print("========= WARNING ==========")
-                print(f"Input file {os.path.join(load_directory, 'input.txt')} not found; generating random inputs!")
-                x = np.random.randint(low=0, high=2**8 - 1,
-                                         size=self.input_channels * self.input_dimensions[0] * self.input_dimensions[1],
-                                         dtype=np.uint8)
-        else:
-            try:
-                x = np.loadtxt(os.path.join(load_directory, f'out_layer{node_number-1}.txt'), delimiter=',', dtype=np.int64, usecols=[0])
+                data = loadtxt(filepath, dtype=np.int64)
             except ValueError:
-                x = np.loadtxt(os.path.join(load_directory, f'out_layer{node_number-1}.txt'), delimiter=',', dtype=np.float, usecols=[0])
-            if self.input_activation_bits <= 8:
-                x = self._compress(x.ravel(), self.input_activation_bits)
+                data = loadtxt(filepath, dtype=np.float)
+            except FileNotFoundError:
+                print(f"File {filename} doesn't exist. Exiting DORY...")
+                sys.exit(-1)
 
-        self.check_sum_in = int(sum(x))
-        try:
-            y = np.loadtxt(os.path.join(load_directory, f'out_layer{node_number}.txt'), delimiter=',', dtype=np.int64, usecols=[0])
-        except ValueError:
-            y = np.loadtxt(os.path.join(load_directory, f'out_layer{node_number}.txt'), delimiter=',', dtype=np.float, usecols=[0])
+            if bits <= 8:
+                data = self.__compress(data.ravel(), bits)
 
-        if self.output_activation_bits <= 8:
-            y = self._compress(y.ravel(), self.output_activation_bits)
+            return data.sum().item()
 
-        self.check_sum_out = int(y.sum())
+        self.check_sum_in = file_checksum('input.txt' if i_node == 0 else f'out_layer{i_node - 1}.txt', self.input_activation_bits)
+        self.check_sum_out = file_checksum(f'out_layer{i_node}.txt', self.output_activation_bits)
 
     def export_to_dict(self):
-        node_dict = {}
-        node_dict["name"] = self.name
-        node_dict["DORY_node_parameters"] = {}
-        node_dict["Layer_node_parameters"] = {}
-        node_dict["Weights"] = {}
+        node_dict = {"name": self.name, "DORY_node_parameters": {}, "Layer_node_parameters": {}, "Weights": {}}
         for key, value in self.__dict__.items():
             if not isinstance(value, dict) and key != "name" and key in DORY_node().__dict__.keys():
                 node_dict["DORY_node_parameters"][key] = value
             elif not isinstance(value, dict) and key != "name" and key in Layer_node().__dict__.keys():
                 node_dict["Layer_node_parameters"][key] = value
             elif key == "tiling_dimensions":
-                node_dict["Tiling_parameters"] = {}
-                for key1, value1 in value.items():
-                    node_dict["Tiling_parameters"][key1] = {}
-                    for key2, value2 in value1.items():
-                        node_dict["Tiling_parameters"][key1][key2] = value2
+                node_dict["Tiling_parameters"] = value
             elif key in self.constant_names:
-                node_dict["Weights"][key] = {}
-                node_dict["Weights"][key]["Present"] = 'Yes'
-                node_dict["Weights"][key]["Layout"] = value["layout"]
+                node_dict["Weights"][key] = {"Present": 'Yes', "Layout": value["layout"]}
         return node_dict

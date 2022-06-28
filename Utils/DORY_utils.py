@@ -21,50 +21,54 @@
 import os
 import onnx
 import json
+import numpy as np
 from google.protobuf.json_format import MessageToJson
 from google.protobuf.json_format import Parse
 
-class Printer():
+
+def loadtxt(filepath, dtype):
+    return np.loadtxt(filepath, delimiter=',', dtype=dtype, usecols=[0])
+
+
+class Printer:
     def __init__(self, folder):
         self.folder = folder
-        os.system('rm -rf {}'.format(self.folder))
-        os.system('mkdir -p {}'.format(os.path.join(self.folder,"json_files")))
-        os.system('mkdir -p {}'.format(os.path.join(self.folder,"onnx_files")))
+        self.jsondir = os.path.join(folder, 'json_files')
+        self.onnxdir = os.path.join(folder, 'onnx_files')
 
-    def print_onnx(self, name_file, graph):
-        onnx.save_model(graph, "{}/{}.onnx".format(os.path.join(self.folder,"onnx_files"),name_file))
-        print("Creating {}.onnx in {}/". format(name_file, os.path.join(self.folder,"onnx_files")))
+        os.system(f'rm -rf {self.folder}')
+        os.system(f'mkdir -p {self.jsondir}')
+        os.system(f'mkdir -p {self.onnxdir}')
 
-    def print_json(self, name_file, graph):
-        s = MessageToJson(graph )
+    def __info(self, file, filedir):
+        print(f'Creating {file} in {filedir}')
+
+    def print_onnx(self, filename, graph):
+        filename += '.onnx'
+        onnx.save_model(graph, os.path.join(self.onnxdir, filename))
+        self.__info(filename, self.onnxdir)
+
+    def print_json(self, filename, graph):
+        filename += '.json'
+        s = MessageToJson(graph)
         onnx_json = json.loads(s)
-        out_file = open("{}/{}.json".format(os.path.join(self.folder,"json_files"),name_file), "w") 
-        json.dump(onnx_json, out_file, indent = 2) 
-        out_file.close() 
-        print("Creating {}.json in {}/". format(name_file, os.path.join(self.folder,"json_files")))
+        with open(os.path.join(self.jsondir, filename), 'w') as outfile:
+            json.dump(onnx_json, outfile, indent=2)
+        self.__info(filename, self.jsondir)
 
-
-    def print_json_from_DORY_graph(self, name_file, graph):
+    def print_json_from_DORY_graph(self, filename, graph):
+        filename += '.json'
         # Logging function to report exported graph of PULP
-        dict_graph = {}
-        dict_graph["graph"] = []
-        for i,nodes in enumerate(graph):
-            dict_graph["graph"].append(nodes.export_to_dict()) 
-        with open("{}/{}.json".format(os.path.join(self.folder,"json_files"),name_file), "w") as outfile:
+        dict_graph = {"graph": [node.export_to_dict() for node in graph]}
+        with open(os.path.join(self.jsondir, filename), 'w') as outfile:
             json.dump(dict_graph, outfile, indent=2)
-        print("Creating {}.json in {}/". format(name_file, os.path.join(self.folder,"json_files")))
+        self.__info(filename, self.jsondir)
 
-    def print_onnx_from_DORY_graph(self, name_file, graph):
-
-        dict_graph = {}
-        dict_graph["producerName"] = "DORY"
-        dict_graph["producerVersion"] = ""
-        dict_graph["graph"] = {}
-        dict_graph["graph"]["node"] = []
-        for i,nodes in enumerate(graph):
-            dict_graph["graph"]["node"].append(nodes.export_to_onnx()) 
+    def print_onnx_from_DORY_graph(self, filename, graph):
+        filename += '.onnx'
+        dict_graph = {"producerName": "DORY", "producerVersion": "",
+                      "graph": {"node": [node.export_to_onnx() for node in graph]}}
         onnx_str = json.dumps(dict_graph)
-
         convert_model = Parse(onnx_str, onnx.ModelProto())
-        onnx.save_model(convert_model,"{}/{}.onnx".format(os.path.join(self.folder,"onnx_files"),name_file))
-        print("Creating {}.onnx in {}/". format(name_file, os.path.join(self.folder,"onnx_files")))
+        onnx.save_model(convert_model, os.path.join(self.onnxdir, filename))
+        self.__info(filename, self.onnxdir)

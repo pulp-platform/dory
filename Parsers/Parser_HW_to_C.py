@@ -19,12 +19,14 @@
 # limitations under the License.
 
 # Libraries
-import numpy as np
 import os
+import sys
+import numpy as np
 
 # DORY modules
 import Utils.Templates_writer.Network_template_writer as Network_writer
 import Utils.Templates_writer.Makefile_template_writer as Makefile_writer
+from Utils.DORY_utils import loadtxt
 
 
 class Parser_HW_to_C:
@@ -78,7 +80,8 @@ class Parser_HW_to_C:
 
     def create_hex_weights_files(self):
         print("\nGenerating .hex weight files.")
-        for i, node in enumerate(self.HWgraph):
+
+        for node in self.HWgraph:
             constants = [0, 0, 0, 0]
             for name in node.constant_names:
                 if "weight" in name:
@@ -89,34 +92,34 @@ class Parser_HW_to_C:
                     constants[2] = name
                 elif "l" == name:
                     constants[3] = name
-            weights = np.asarray([])
-            for i in np.arange(4):
-                if constants[i]!= 0:
-                    weights = np.concatenate((weights,node.__dict__[constants[i]]["value"]))
-            while len(weights) % 4 != 0:
-                weights = np.concatenate((weights, np.asarray([0])))
-            if weights.shape[0] != 0:
-                string_layer = node.name + "_weights.hex"
-                save_s = '{}/DORY_network/'.format(self.app_directory) + string_layer
-                with open(save_s, 'wb') as f:
-                    for l in weights.astype('uint8').flatten():
-                        f.write(bytes((l,)))
+
+            weights = bytearray()
+            for const in constants:
+                if const != 0:
+                    weights += getattr(node, const)['value'].tobytes()
+
+            if len(weights) == 0:
+                continue
+
+            if len(weights) % 4 != 0:
+                weights += bytearray([0] * (4 - len(weights) % 4))
+
+            filepath = os.path.join(self.app_directory, 'DORY_network', node.name + "_weights.hex")
+            with open(filepath, 'wb') as file:
+                file.write(weights)
 
     def create_hex_input(self):    
         print("\nGenerating .hex input file.")
+
+        input_txt = os.path.join(self.network_directory, 'input.txt')
         try:
-            x_in = np.loadtxt(os.path.join(self.network_directory, 'input.txt'), delimiter=',', dtype=np.uint8, usecols=[0])
-            x_in = x_in.flatten()
+            x = loadtxt(input_txt, dtype=np.uint8)
         except FileNotFoundError:
-            print(f"========= WARNING ==========\nInput file {os.path.join(self.network_directory, 'input.txt')} not found; generating random inputs!")
-            x_in = np.random.randint(low=0, high=2*8 - 1,
-                                     size=self.group * self.input_channels * self.input_dimensions[0] * self.input_dimensions[1],
-                                     dtype=np.uint8)
-        string_layer = "inputs.hex"
-        save_s = '{}/DORY_network/'.format(self.app_directory) + string_layer
-        with open(save_s, 'wb') as f:
-            for i in x_in:
-                f.write(bytes((i,)))
+            print(f"File input.txt doesn't exist. Exiting DORY...")
+            sys.exit(-1)
+
+        input_hex = os.path.join(self.app_directory, 'DORY_network', 'inputs.hex')
+        x.tofile(input_hex)
 
     def full_graph_parsing(self):
         print("#####################################################")
