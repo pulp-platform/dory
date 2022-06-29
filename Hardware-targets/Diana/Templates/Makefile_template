@@ -15,15 +15,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-APP = main
+PULP_APP = main
 
-APP_SRCS := $(wildcard DORY_network/src/*.c) 
+PULP_APP_SRCS := $(wildcard DORY_network/src/*.c) 
+PULP_INC_PATHS += -DSDK
 
-APP_CFLAGS += -IDORY_network/inc -O3 -w -fno-tree-loop-distribute-patterns -flto
-APP_LDFLAGS += -lm -flto
+PULP_CFLAGS = -Wall -pedantic -O0 -g -IDORY_network/inc
+## APP_LDFLAGS += -lm -flto
 
-
-READFS_FILES := $(FLASH_FILES)
-PLPBRIDGE_FLAGS += -f
-
-include $(RULES_DIR)/pmsis_rules.mk
+include $(PULP_SDK_HOME)/install/rules/pulp.mk

@@ -17,28 +17,13 @@
  * limitations under the License. 
  */
 
-#include "math.h"
-#include <archi/hwme/hwme_v1.h>
-#include <hal/hwme/hwme_v1.h>
-#include <hal/pulp.h>
-#include <pulp.h>
-#include "utils.h"
+#include "mchan_test.h"
+
+#if (GAP_SDK == 1)
+#include "pulp.h"
+#endif 
 
 #pragma once
-
-#define DMA_PARALLELISM 32
-#define padding( value, base ) ((value + base - 1) / base * base)
-
-typedef struct 
-{
-  unsigned int L2_input;
-  unsigned int L2_input_add;
-  unsigned int L2_output;
-  unsigned int L2_weights;
-  unsigned int out_shift;
-} layer;
-
-
 typedef enum
 {
   TRANSFER_1D,
@@ -106,10 +91,3 @@ uint32_t __attribute__ ((noinline)) dory_dma_allocate();
 void __attribute__ ((noinline)) dory_dma_deallocate(uint32_t dma_channel);
 
 void __attribute__ ((noinline)) dory_cores_barrier();
-
-void memcpy_dig(unsigned int* L2_Addr_Byte,
-                unsigned int L1_Addr,
-                unsigned int Length,
-                unsigned int direction_L1_L2,
-                unsigned int BankNum
-                );

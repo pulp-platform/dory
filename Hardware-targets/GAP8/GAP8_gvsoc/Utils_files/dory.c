@@ -156,7 +156,7 @@ unsigned int  dory_get_tile_3d(
 void __attribute__ ((noinline)) dory_dma_memcpy_async(DMA_copy DMA_copy_current)
 {
 
-  if      ( ( DMA_copy_current.number_of_1d_copies * DMA_copy_current.length_1d_copy ) == DMA_copy_current.stride_2d)
+  if      ( ( DMA_copy_current.number_of_1d_copies * DMA_copy_current.length_1d_copy ) == DMA_copy_current.stride_2d || (DMA_copy_current.number_of_1d_copies == 1 && DMA_copy_current.number_of_2d_copies == 1))
     current_transfer = TRANSFER_1D;
   else if ( DMA_copy_current.length_1d_copy == DMA_copy_current.stride_1d )
     current_transfer = TRANSFER_2D;

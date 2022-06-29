@@ -36,7 +36,7 @@ void ${func_name}(layer* layer_i)
   unsigned int out_shift =    layer_i->out_shift;
 
   unsigned int l1_x       = 0x0;
-  unsigned int l1_y       = l1_x + ${l1_y_offset};
+  unsigned int l1_y       = l1_x + ${int(l1_y_offset/32)*32+32};
   unsigned int l1_weights = 0x0;
 
   /////////////////////
@@ -50,15 +50,15 @@ void ${func_name}(layer* layer_i)
   % else:
   DMA_copy_x.hwc_to_chw = 0;
   % endif  
-  DMA_copy_x.stride_2d = ${x_stride_w_byte};
-  DMA_copy_x.stride_1d = ${x_stride_c_byte};
-  DMA_copy_x.dir = 1;
+  DMA_copy_x.stride_2d = ${int(x_w * x_h * x_data_size_byte / 8.0)};
+  DMA_copy_x.stride_1d = ${int(x_w * x_data_size_byte / 8.0)};
+  DMA_copy_x.dir = 0;
   DMA_copy_x.dma_channel = dory_dma_channel;
   
   DMA_copy_y.hwc_to_chw = 0;
-  DMA_copy_y.stride_2d = ${y_stride_w_byte};
-  DMA_copy_y.stride_1d = ${y_stride_c_byte};
-  DMA_copy_y.dir = 0;
+  DMA_copy_y.stride_2d = ${int(y_w * y_h * y_data_size_byte / 8.0)};
+  DMA_copy_y.stride_1d = ${int(y_w * y_data_size_byte / 8.0)};
+  DMA_copy_y.dir = 1;
   DMA_copy_y.dma_channel = dory_dma_channel;
 
   volatile int p_r, p_l, p_t, p_b;
@@ -77,7 +77,7 @@ void ${func_name}(layer* layer_i)
   volatile int y_tile_size_h;
   volatile int y_tile_size_w;
   volatile int y_tile_size_byte;
-  volatile int  y_length_nof_byte;
+  volatile int y_length_nof_byte;
   // last-tile flags
   int iter, _i_nof=0, _i_nof_pre=0, _i_nif=0, _i_nif_pre=0, _i_h=0, _i_h_pre=0, _i_w=0, _i_w_pre=0;
 
@@ -88,9 +88,42 @@ void ${func_name}(layer* layer_i)
 % endif
   // tile loop nest
   for(iter=0; iter < total_tiles; iter++) {
+
+    // check if last in any dimension
+
+    x_tile_size_nif = (_i_nif+1   == ${tile_dim_nif}) ? ${x_tile_size_nif_last} : ${x_tile_size_nif};
+    x_tile_size_h   = (_i_h+1     == ${tile_dim_h})   ? ${x_tile_size_h_last} : ${x_tile_size_h};
+    x_tile_size_w   = (_i_w+1     == ${tile_dim_w})   ? ${x_tile_size_w_last} : ${x_tile_size_w};
+    x_tile_size_byte = x_tile_size_nif*x_tile_size_h*x_tile_size_w*${x_data_size_byte}/8;
+    x_length_nif_byte = (_i_nif+1 == ${tile_dim_nif})   ? ${x_tile_size_nif_byte_last} : ${x_tile_size_nif_byte};
+    y_tile_size_h   = (_i_h+1     == ${tile_dim_h})   ? ${y_tile_size_h_last} : ${y_tile_size_h};
+    y_tile_size_w   = (_i_w+1     == ${tile_dim_w})   ? ${y_tile_size_w_last} : ${y_tile_size_w};
+    y_length_nof_byte = (_i_nof+1   == ${tile_dim_nof}) ? ${W_tile_size_nof_last} : ${W_tile_size_nof};
+    W_tile_size_nof = (_i_nof+1   == ${tile_dim_nof}) ? ${(W_tile_size_nof_last + 15) // 16 * 16} : ${W_tile_size_nof};
+
+    if ((_i_h != _i_h_pre) || (_i_w != _i_w_pre) || (_i_nif != _i_nif_pre) || (iter == 0))
+    {
+      int pad_offset_h=0, pad_offset_w=0;
+      if(_i_h > 0)
+        pad_offset_h = ${padding_top};
+      if(_i_w > 0)
+        pad_offset_w = ${padding_left};
+      DMA_copy_x.ext = dory_get_tile_3d(l2_x, _i_nif, _i_h, _i_w, ${x_tile_size_nif}, ${x_tile_size_h}, ${x_tile_size_w}, ${x_h}, ${x_w},0, ${conv_overlap1}, ${conv_overlap2}, 0, pad_offset_h, pad_offset_w, ${x_data_size_byte});
+      DMA_copy_x.loc = l1_x;
+      DMA_copy_x.number_of_2d_copies = x_length_nif_byte;
+      DMA_copy_x.number_of_1d_copies = x_tile_size_h;
+      DMA_copy_x.length_1d_copy = x_tile_size_w;
+      dory_dma_memcpy_async(DMA_copy_x);
+      dory_dma_barrier(DMA_copy_x);
+    }
+
+    _i_nof_pre = _i_nof;
+    _i_nif_pre = _i_nif;
+    _i_h_pre   = _i_h;
+    _i_w_pre   = _i_w;
   % if tile_dim_nif != 1 and flag_DW == 0:
     // loop nest is nof,h,w,nif
-    _i_nifù += 1;
+    _i_nif += 1;
     if(_i_nif==${tile_dim_nif}) 
     {
       _i_nif = 0;
@@ -112,34 +145,8 @@ void ${func_name}(layer* layer_i)
   % if tile_dim_nif != 1 and flag_DW == 0:
     }
   % endif
-    // check if last in any dimension
-
-    x_tile_size_nif = (_i_nif+1   == ${tile_dim_nif}) ? ${x_tile_size_nif_last} : ${x_tile_size_nif};
-    x_tile_size_h   = (_i_h+1     == ${tile_dim_h})   ? ${x_tile_size_h_last} : ${x_tile_size_h};
-    x_tile_size_w   = (_i_w+1     == ${tile_dim_w})   ? ${x_tile_size_w_last} : ${x_tile_size_w};
-    x_tile_size_byte = x_tile_size_nif*x_tile_size_h*x_tile_size_w*${x_data_size_byte}/8;
-    x_length_nif_byte = (_i_nif+1 == ${tile_dim_nif})   ? ${x_tile_size_nif_byte_last} : ${x_tile_size_nif_byte};
-    y_tile_size_h   = (_i_h+1     == ${tile_dim_h})   ? ${y_tile_size_h_last} : ${y_tile_size_h};
-    y_tile_size_w   = (_i_w+1     == ${tile_dim_w})   ? ${y_tile_size_w_last} : ${y_tile_size_w};
-    W_tile_size_nof = (_i_nof+1   == ${tile_dim_nof}) ? ${W_tile_size_nof_last} : ${W_tile_size_nof};
-
-    if ((_i_h != _i_h_pre) || (_i_w != _i_w_pre) || (_i_nif != _i_nif_pre))
-    {
-      int pad_offset_h=0, pad_offset_w=0;
-      if(_i_h > 0)
-        pad_offset_h = ${padding_top};
-      if(_i_w > 0)
-        pad_offset_w = ${padding_left};
-      DMA_copy_x.ext = dory_get_tile_3d(l2_x, _i_h, _i_w, _i_nif, ${x_tile_size_h}, ${x_tile_size_w}, ${x_tile_size_nif}, ${x_w}, ${nif*g},  ${conv_overlap1}, ${conv_overlap2},0, pad_offset_h, pad_offset_w, 0, ${x_data_size_byte});
-      DMA_copy_x.loc = l1_x;
-      DMA_copy_x.number_of_2d_copies = x_tile_size_h;
-      DMA_copy_x.number_of_1d_copies = x_tile_size_w;
-      DMA_copy_x.length_1d_copy = x_length_nif_byte;
-      dory_dma_memcpy_async(DMA_copy_x);
-      dory_dma_barrier(DMA_copy_x);
-    }
-
-    Kernel kernel;
+  
+    Layer_parameters kernel;
     kernel.padding = 0x0000;
     if (_i_h == 0)
       kernel.padding  = ${padding_top};
@@ -151,32 +158,28 @@ void ${func_name}(layer* layer_i)
       kernel.padding += ${padding_left}>>12;
     kernel.c = x_tile_size_nif;
     kernel.k = W_tile_size_nof;
-    kernel.cx = x_tile_size_h;
-    kernel.cy = x_tile_size_w;
+    kernel.cx = x_tile_size_w;
+    kernel.cy = x_tile_size_h;
     kernel.fx = ${fs1};
     kernel.fy = ${fs2};
-    kernel.ox = y_tile_size_h;
-    kernel.oy = y_tile_size_w;
+    kernel.ox = y_tile_size_w;
+    kernel.oy = y_tile_size_h;
     kernel.activation_function = 0;
     kernel.output_shift = ${out_shift};
     kernel.dilation = 1;
-    
+
     dory_cores_barrier();
     conv_2d(l1_x, l2_W, l1_weights, l1_y, kernel);
     dory_cores_barrier();
 
     DMA_copy_y.ext = l2_y;
     DMA_copy_y.loc = l1_y;
-    DMA_copy_y.number_of_2d_copies = y_tile_size_h;
-    DMA_copy_y.number_of_1d_copies = y_tile_size_w;
-    DMA_copy_y.length_1d_copy = y_length_nof_byte;
+    DMA_copy_y.number_of_2d_copies = y_length_nof_byte;
+    DMA_copy_y.number_of_1d_copies = y_tile_size_h;
+    DMA_copy_y.length_1d_copy = y_tile_size_w;
     dory_dma_memcpy_async(DMA_copy_y); 
     dory_dma_barrier(DMA_copy_y);
 
-    _i_nof_pre = _i_nof;
-    _i_nif_pre = _i_nif;
-    _i_h_pre   = _i_h;
-    _i_w_pre   = _i_w;
 
   }
   dory_dma_deallocate(dory_dma_channel);

@@ -1,0 +1,102 @@
+{
+	"ConvolutionBNRelu": {
+		"number_of_nodes": 2,
+		"nodes_name": ["Convolution","BNRelu"],
+		"dependencies": {
+			"0": {"inputs": [],
+				"outputs":["1"]},
+			"1": {"inputs": ["0"],
+				"outputs":[]}
+		}
+	},
+	"FullyConnectedBNRelu": {
+		"number_of_nodes": 2,
+		"nodes_name": ["FullyConnected","BNRelu"],
+		"dependencies": {
+			"0": {"inputs": [],
+				"outputs":["1"]},
+			"1": {"inputs": ["0"],
+				"outputs":[]}
+		}
+	},
+	"PoolingRequant": {
+		"number_of_nodes": 2,
+		"nodes_name": ["Pooling","Requant"],
+		"dependencies": {
+			"0": {"inputs": [],
+				"outputs":["1"]},
+			"1": {"inputs": ["0"],
+				"outputs":[]}
+		}
+	},
+	"AdditionBNRelu": {
+		"number_of_nodes": 2,
+		"nodes_name": ["Addition","BNRelu"],
+		"dependencies": {
+			"0": {"inputs": [],
+				"outputs":["1"]},
+			"1": {"inputs": ["0"],
+				"outputs":[]}
+		}
+	},
+	"QAdditionBNRelu": {
+		"number_of_nodes": 2,
+		"nodes_name": ["QAddition","BNRelu"],
+		"dependencies": {
+			"0": {"inputs": [],
+				"outputs":["1"]},
+			"1": {"inputs": ["0"],
+				"outputs":[]}
+		}
+	},
+	"ConvolutionRelu": {
+		"number_of_nodes": 2,
+		"nodes_name": ["Convolution","Relu"],
+		"dependencies": {
+			"0": {"inputs": [],
+				"outputs":["1"]},
+			"1": {"inputs": ["0"],
+				"outputs":[]}
+		}
+	},
+	"FullyConnectedRelu": {
+		"number_of_nodes": 2,
+		"nodes_name": ["FullyConnected","Relu"],
+		"dependencies": {
+			"0": {"inputs": [],
+				"outputs":["1"]},
+			"1": {"inputs": ["0"],
+				"outputs":[]}
+		}
+	},
+	"PoolingRelu": {
+		"number_of_nodes": 2,
+		"nodes_name": ["Pooling","Relu"],
+		"dependencies": {
+			"0": {"inputs": [],
+				"outputs":["1"]},
+			"1": {"inputs": ["0"],
+				"outputs":[]}
+		}
+	},
+	"AdditionRelu": {
+		"number_of_nodes": 2,
+		"nodes_name": ["Addition","Relu"],
+		"dependencies": {
+			"0": {"inputs": [],
+				"outputs":["1"]},
+			"1": {"inputs": ["0"],
+				"outputs":[]}
+		}
+	},
+	"QAdditionRelu": {
+		"number_of_nodes": 2,
+		"nodes_name": ["QAddition","Relu"],
+		"dependencies": {
+			"0": {"inputs": [],
+				"outputs":["1"]},
+			"1": {"inputs": ["0"],
+				"outputs":[]}
+		}
+	}
+}
