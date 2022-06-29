@@ -42,7 +42,7 @@ class Parser_DORY_to_HW:
         HW_node.Tiler = Tiler
 
     def mapping_to_HW_nodes(self):
-        print("\nGAP8 Backend: Matching patterns from generated DORY ONNX to HW Nodes.")
+        print("\nBackend: Matching patterns from generated DORY ONNX to HW Nodes.")
         for i, node in enumerate(self.DORY_Graph):
             string_matching, indexes = self.pattern_matching(node, i)
             if isinstance(string_matching, str):
@@ -201,12 +201,12 @@ class Parser_DORY_to_HW:
         self.update_dimensions_graph()
         self.Printer_Frontend.print_json_from_DORY_graph("03_DORY_HW_graph_fixed_dimensions", self.DORY_Graph)
         self.Printer_Frontend.print_onnx_from_DORY_graph("03_DORY_HW_graph_fixed_dimensions", self.DORY_Graph)
-        self.add_tensors_memory_occupation_and_MACs()
-        self.Printer_Frontend.print_json_from_DORY_graph("04_DORY_HW_graph_added_tensors_dim", self.DORY_Graph)
-        self.Printer_Frontend.print_onnx_from_DORY_graph("04_DORY_HW_graph_added_tensors_dim", self.DORY_Graph)
         self.adjust_data_layout()
         self.Printer_Frontend.print_json_from_DORY_graph("05_DORY_HW_adjusted_data_layout", self.DORY_Graph)
         self.Printer_Frontend.print_onnx_from_DORY_graph("05_DORY_HW_adjusted_data_layout", self.DORY_Graph)
+        self.add_tensors_memory_occupation_and_MACs()
+        self.Printer_Frontend.print_json_from_DORY_graph("04_DORY_HW_graph_added_tensors_dim", self.DORY_Graph)
+        self.Printer_Frontend.print_onnx_from_DORY_graph("04_DORY_HW_graph_added_tensors_dim", self.DORY_Graph)
         self.tiling()
         self.Printer_Frontend.print_json_from_DORY_graph("06_DORY_HW_tiled_graph", self.DORY_Graph)
         self.Printer_Frontend.print_onnx_from_DORY_graph("06_DORY_HW_tiled_graph", self.DORY_Graph)

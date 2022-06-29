@@ -18,6 +18,7 @@
  */
 
 #include "dory.h"
+#include "math.h"
 
 Transfer_Type current_transfer;
 /**
@@ -155,7 +156,7 @@ unsigned int  dory_get_tile_3d(
 void __attribute__ ((noinline)) dory_dma_memcpy_async(DMA_copy DMA_copy_current)
 {
 
-  if      ( ( DMA_copy_current.number_of_1d_copies * DMA_copy_current.length_1d_copy ) == DMA_copy_current.stride_2d)
+  if      ( ( DMA_copy_current.number_of_1d_copies * DMA_copy_current.length_1d_copy ) == DMA_copy_current.stride_2d || (DMA_copy_current.number_of_1d_copies == 1 && DMA_copy_current.number_of_2d_copies == 1))
     current_transfer = TRANSFER_1D;
   else if ( DMA_copy_current.length_1d_copy == DMA_copy_current.stride_1d )
     current_transfer = TRANSFER_2D;
@@ -168,97 +169,107 @@ void __attribute__ ((noinline)) dory_dma_memcpy_async(DMA_copy DMA_copy_current)
   {
 
     case TRANSFER_1D:
-      memcpy_dig((unsigned int *)(DMA_copy_current.ext), (unsigned int)(DMA_copy_current.loc), DMA_copy_current.length_1d_copy * DMA_copy_current.number_of_1d_copies * DMA_copy_current.number_of_2d_copies, DMA_copy_current.dir, 1);
-      global_sync();
-      break;
+      if (pi_core_id() == 0)
+      {
+        #if (MCHAN_VERSION < 7)
+        mchan_transfer(DMA_copy_current.length_1d_copy * DMA_copy_current.number_of_1d_copies * DMA_copy_current.number_of_2d_copies, DMA_copy_current.dir, 1, 0, 1, 0, 0, (unsigned int)(DMA_copy_current.ext), (unsigned int)(DMA_copy_current.loc), 0, 0);
+        #elif (MCHAN_VERSION == 7)
+        mchan_transfer(DMA_copy_current.length_1d_copy * DMA_copy_current.number_of_1d_copies * DMA_copy_current.number_of_2d_copies, DMA_copy_current.dir, 1, 0, 0, 1, 0, 0, (unsigned int)(DMA_copy_current.ext), (unsigned int)(DMA_copy_current.loc), 0, 0, 0, 0);
+        #endif
+        mchan_barrier(DMA_copy_current.dma_channel);
+        break;
+      }
 
     case TRANSFER_2D:
-      for (int i = 0; i < DMA_copy_current.number_of_2d_copies; i++)
-      {
-        memcpy_dig((unsigned int *)(DMA_copy_current.ext), (unsigned int)(DMA_copy_current.loc), DMA_copy_current.length_1d_copy * DMA_copy_current.number_of_1d_copies, DMA_copy_current.dir, 1);
-        global_sync();
-        DMA_copy_current.loc += DMA_copy_current.length_1d_copy * DMA_copy_current.number_of_1d_copies;
-        DMA_copy_current.ext += DMA_copy_current.stride_2d;
-      }
+      if (pi_core_id() == 0)
+        for (int i = 0; i < DMA_copy_current.number_of_2d_copies; i++)
+        {
+          #if (MCHAN_VERSION < 7)
+          mchan_transfer(DMA_copy_current.length_1d_copy * DMA_copy_current.number_of_1d_copies, DMA_copy_current.dir, 1, 0, 1, 0, 0, (unsigned int)(DMA_copy_current.ext), (unsigned int)(DMA_copy_current.loc), 0, 0);
+          #elif (MCHAN_VERSION == 7)
+          mchan_transfer(DMA_copy_current.length_1d_copy * DMA_copy_current.number_of_1d_copies, DMA_copy_current.dir, 1, 0, 0, 1, 0, 0, (unsigned int)(DMA_copy_current.ext), (unsigned int)(DMA_copy_current.loc), 0, 0, 0, 0);
+          #endif
+          mchan_barrier(DMA_copy_current.dma_channel);
+          DMA_copy_current.loc += DMA_copy_current.length_1d_copy * DMA_copy_current.number_of_1d_copies;
+          DMA_copy_current.ext += DMA_copy_current.stride_2d;
+        }
       break;
 
     case TRANSFER_3D:
-      for ( int j = 0; j < DMA_copy_current.number_of_2d_copies; j++)
+      ;
+      {
+      int core_id = pi_core_id();
+      int Log2Core = log2(NUM_CORES);
+      int number_of_2d_copies_per_core = (DMA_copy_current.number_of_2d_copies >> Log2Core) + ((DMA_copy_current.number_of_2d_copies & (NUM_CORES-1))!=0);
+      int start_pixel, stop_pixel;
+      start_pixel = MIN(number_of_2d_copies_per_core * core_id, DMA_copy_current.number_of_2d_copies);
+      stop_pixel = MIN(start_pixel + number_of_2d_copies_per_core, DMA_copy_current.number_of_2d_copies);
+      DMA_copy_current.ext += DMA_copy_current.stride_2d*start_pixel;
+      DMA_copy_current.loc += DMA_copy_current.length_1d_copy*DMA_copy_current.number_of_1d_copies*start_pixel;
+      for ( int j = start_pixel; j < stop_pixel; j++)
       {
         for (int i = 0; i < DMA_copy_current.number_of_1d_copies; i++)
         {
-          memcpy_dig((unsigned int *)(DMA_copy_current.ext), (unsigned int)(DMA_copy_current.loc), DMA_copy_current.length_1d_copy, DMA_copy_current.dir, 1);
-          global_sync();
+          #if (MCHAN_VERSION < 7)
+          mchan_transfer(DMA_copy_current.length_1d_copy, DMA_copy_current.dir, 1, 0, 1, 0, 0, (unsigned int)(DMA_copy_current.ext), (unsigned int)(DMA_copy_current.loc), 0, 0);
+          #elif (MCHAN_VERSION == 7)
+          mchan_transfer(DMA_copy_current.length_1d_copy, DMA_copy_current.dir, 1, 0, 0, 1, 0, 0, (unsigned int)(DMA_copy_current.ext), (unsigned int)(DMA_copy_current.loc), 0, 0, 0, 0);
+          #endif
+          mchan_barrier(DMA_copy_current.dma_channel);
           DMA_copy_current.loc += DMA_copy_current.length_1d_copy;
           DMA_copy_current.ext += DMA_copy_current.stride_1d;
         }
         DMA_copy_current.ext = DMA_copy_current.ext - DMA_copy_current.stride_1d * DMA_copy_current.number_of_1d_copies + DMA_copy_current.stride_2d;
-        
+
       }
       break;
+      }
+
+    case TRANSFER_HWC_TO_CHW:
+      ;
+      {
+      int core_id = pi_core_id();
+      int Log2Core = log2(NUM_CORES);
+      int number_of_copies_per_core = (DMA_copy_current.length_1d_copy >> Log2Core) + ((DMA_copy_current.length_1d_copy & (NUM_CORES-1))!=0);
+      int start_pixel, stop_pixel;
+      start_pixel = MIN(number_of_copies_per_core * core_id, DMA_copy_current.length_1d_copy);
+      stop_pixel = MIN(start_pixel + number_of_copies_per_core, DMA_copy_current.length_1d_copy);
+      DMA_copy_current.ext += start_pixel;
+      DMA_copy_current.loc += DMA_copy_current.number_of_1d_copies*DMA_copy_current.number_of_2d_copies*start_pixel;
+      for ( int i=start_pixel; i<stop_pixel; i++)
+      {
+        #if (MCHAN_VERSION < 7)
+        mchan_transfer(DMA_copy_current.number_of_1d_copies*DMA_copy_current.number_of_2d_copies, DMA_copy_current.dir, 1, 1, 1, 0, 0, (unsigned int)(DMA_copy_current.ext), (unsigned int)(DMA_copy_current.loc), 1, DMA_copy_current.stride_1d);
+        #elif (MCHAN_VERSION == 7)
+        mchan_transfer(DMA_copy_current.number_of_1d_copies*DMA_copy_current.number_of_2d_copies, DMA_copy_current.dir, 1, 1, 0, 1, 0, 0, (unsigned int)(DMA_copy_current.ext), (unsigned int)(DMA_copy_current.loc), 1, DMA_copy_current.stride_1d, 0, 0);
+        #endif
+        mchan_barrier(DMA_copy_current.dma_channel);
+        DMA_copy_current.loc  += DMA_copy_current.number_of_1d_copies*DMA_copy_current.number_of_2d_copies;
+        DMA_copy_current.ext += 1;
+      }
+      break;
+      }
+
   }
 }
 
 void __attribute__ ((noinline)) dory_dma_barrier(DMA_copy DMA_copy_current)
 {
-  global_sync();
+  return 0;
 }
 
 uint32_t __attribute__ ((noinline)) dory_dma_allocate()
 {
-  plp_hwme_enable();
-  return 1;
+  uint32_t dma_channel = mchan_alloc();
+  return dma_channel;
 }
 
 void __attribute__ ((noinline)) dory_dma_deallocate(uint32_t dma_channel)
 {
-  plp_hwme_disable();
+  mchan_free(dma_channel);
 }
 
 void __attribute__ ((noinline)) dory_cores_barrier()
 {
-  global_sync();
+  pi_cl_team_barrier(0);
 }
-
-void memcpy_dig(unsigned int* L2_Addr_Byte,
-                unsigned int L1_Addr,
-                unsigned int Length,
-                unsigned int direction_L1_L2, // 0 to L1 and 1 to L2
-                unsigned int BankNum
-                ){
-    unsigned int L1_Addr_16Byte = (int) (L1_Addr / 16);
-    unsigned int Lenth_4Byte = (int) (padding(Length, DMA_PARALLELISM) / 4);
-    unsigned int row_size = 4*Lenth_4Byte/(BankNum*16);
-    /* memcpy  (DIGITAL)*/
-    switch(direction_L1_L2)
-    {
-        case 0: //L2_to_L1
-            if (BankNum==1)
-                hwme_memcpy_op((unsigned int) 2);
-            else 
-                hwme_memcpy_op((unsigned int) 4);
-            break;
-        case 1: //L1_to_L2
-            if (BankNum == 1)
-                hwme_memcpy_op((unsigned int) 1);
-            else
-                hwme_memcpy_op((unsigned int) 3);
-            break;
-    }
-    if (BankNum==1)
-    {
-        hwme_memcpy_addr_set(L2_Addr_Byte);
-        hwme_l1addr_set(L1_Addr_16Byte); // absolute address of L1 (128b / address)
-        hwme_memcpy_n_set(Lenth_4Byte);
-    }
-    else 
-    {
-        hwme_memcpy_addr_set(L2_Addr_Byte);
-        hwme_l1addr_set(L1_Addr_16Byte); // absolute address of L1 (128b / address)
-        hwme_memcpy_bank_length_set(BankNum); // number of bank
-        hwme_memcpy_row_length_set(row_size);
-    }
-    // start HWME operation
-    hwme_trigger_job();
-}
-

@@ -24,6 +24,7 @@ import os
 import numpy as np
 from mako.template import Template
 from collections import OrderedDict
+import copy 
 
 # DORY modules
 from Parsers.Parser_HW_to_C import Parser_HW_to_C
@@ -66,7 +67,7 @@ class C_Parser(Parser_HW_to_C):
             Layer2D_writer.print_template_layer(node, self.precision_library, tmpl_dir, out_dir)
 
     def create_hex_weights_files(self):
-        print("\nGenerating .hex weight files.")
+        print("\nGenerating .h weight files.")
         weights_vectors = []
         weights_dimensions = []
         for i, node in enumerate(self.HWgraph):
@@ -84,6 +85,22 @@ class C_Parser(Parser_HW_to_C):
             save_vector = 0
             for i in np.arange(4):
                 if constants[i]!= 0:
+                    if i==0:
+                        temp = np.asarray(node.__dict__[constants[i]]["value"])
+                        temp = temp.reshape(int(temp.shape[0]/4), 4)
+                        temp1 = copy.deepcopy(temp)
+                        temp[:,0] = temp1[:,3] 
+                        temp[:,1] = temp1[:,2] 
+                        temp[:,2] = temp1[:,1] 
+                        temp[:,3] = temp1[:,0]
+                        node.__dict__[constants[i]]["value"] = temp.flatten()
+                    if i==1:
+                        new_weights = []
+                        for pos in range(4):
+                            for ch in range(int(np.asarray(node.__dict__[constants[i]]["value"]).shape[0]/16)):
+                                for pos_in in [3,2,1,0]:
+                                    new_weights.append(node.__dict__[constants[i]]["value"][pos+4*(ch*4+pos_in)])
+                        node.__dict__[constants[i]]["value"] = new_weights
                     weights = np.concatenate((weights,node.__dict__[constants[i]]["value"]))
                     save_vector = 1
             while len(weights) % 4 != 0:
@@ -110,4 +127,33 @@ class C_Parser(Parser_HW_to_C):
         with open(save_string, "w") as f:
             f.write(s)
 
-
+    def create_hex_input(self):    
+        print("\nGenerating .h input file.")
+        try:
+            x_in = np.loadtxt(os.path.join(self.network_directory, 'input.txt'), delimiter=',', dtype=np.uint8, usecols=[0])
+            x_in_w = int(x_in.shape[0]/(self.HWgraph[0].input_channels*self.HWgraph[0].input_dimensions[0]))
+            x_in = x_in.reshape(self.HWgraph[0].input_channels, self.HWgraph[0].input_dimensions[0], x_in_w)
+            npad = ((0, 0), (0,0), (0, (16 - (x_in_w % 16)) % 16))
+            temp = np.pad(x_in, pad_width=npad, mode='constant', constant_values=0)
+            x_in = temp.flatten()
+        except FileNotFoundError:
+            print(f"========= WARNING ==========\nInput file {os.path.join(self.network_directory, 'input.txt')} not found; generating random inputs!")
+            x_in = np.random.randint(low=0, high=2*8 - 1,
+                                     size=self.group * self.input_channels * self.input_dimensions[0] * self.input_dimensions[1],
+                                     dtype=np.uint8)
+        temp = x_in.reshape(int(x_in.shape[0]/4), 4)
+        temp1 = copy.deepcopy(temp)
+        temp[:,0] = temp1[:,3] 
+        temp[:,1] = temp1[:,2] 
+        temp[:,2] = temp1[:,1] 
+        temp[:,3] = temp1[:,0] 
+        input_values = utils.print_test_vector(temp.flatten(), 'char')
+        tk = OrderedDict([])
+        tk['input_values'] = input_values
+        tk['dimension'] = len(x_in)
+        root = os.path.dirname(__file__)
+        tmpl = Template(filename=os.path.join(root, "Templates/input_h_template.h"))
+        s = tmpl.render(**tk)
+        save_string = os.path.join(self.app_directory, 'DORY_network/inc/input.h') 
+        with open(save_string, "w") as f:
+            f.write(s)

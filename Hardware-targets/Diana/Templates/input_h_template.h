@@ -1,7 +1,6 @@
 /*
- * add_layer_template.c
+ * network.h
  * Alessio Burrello <alessio.burrello@unibo.it>
- * Thorir Mar Ingolfsson <thoriri@iis.ee.ethz.ch>
  *
  * Copyright (C) 2019-2020 University of Bologna
  * 
@@ -17,19 +16,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License. 
  */
-${verbose_log}
 
-#include "${func_name}.h"
-% if ULTRA_VERBOSE:
-#define VERBOSE_PRINT(...) printf(__VA_ARGS__)
-% endif
-
-
-
-
-void ${func_name}(layer* layer_i)  {
-  unsigned int l2_x =         layer_i->L2_input;
-  unsigned int l2_y =         layer_i->L2_output;
-  unsigned int out_shift =    layer_i->out_shift;
-  return 0;
-}
+L2_DATA uint8_t L2_input_h[${dimension}] = {
+${input_values}};

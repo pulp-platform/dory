@@ -150,6 +150,7 @@ class HW_node(DORY_node):
 
         def to_byte(x, bits):
             x = x.ravel().astype(np.int64 if bits > 32 else np.int32)
+            #### TO CHECK ORDER OF BIASES
             return [np.uint8((el >> shift) & 255) for el in x for shift in range(0, bits, 8)]
 
         if bias_name in self.__dict__:

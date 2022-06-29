@@ -46,19 +46,12 @@ class onnx_manager(Parser_DORY_to_HW):
         super().__init__(graph, rules, Pattern_rewriter, layers_supported_by_HW_Backend_IR, HW_description,
                          os.path.join(config_file_dir, os.path.dirname(config_file["onnx_file"])), config_file, Tiler)
 
-    def adjust_dimensions(self):
-        for i, node in enumerate(self.DORY_Graph):
-            node.input_dimensions[1] = int((node.input_dimensions[1] + 15) / 16) * 16
-            node.output_dimensions[1] = int((node.input_dimensions[1] + 15) / 16) * 16
-            print("\nFind One other solution, It will not work for real networks with multiple strides = 2")
-            
     def adjust_data_layout(self):
-        self.adjust_dimensions()
-        print("\nDiana Backend: Adjusting Data Layout to HWC and CoutKCin.")
+        print("\nGAP8 Backend: Adjusting Data Layout to HWC and CoutKCin.")
         for i, node in enumerate(self.DORY_Graph):
             if "FullyConnected" in node.name:
                 for name in node.constant_names:
-                    if name not in ["l","k","outshift","outmul"]:
+                    if name not in ["l","k","outshift","outmult"]:
                         if "bias" not in name:
                             weights_name = name
                 if node.__dict__[weights_name]["layout"] == "CinCout":
@@ -73,23 +66,12 @@ class onnx_manager(Parser_DORY_to_HW):
                     # needed to compute final checksum for <8b layers
             elif "Convolution" in node.name:
                 for name in node.constant_names:
-                    if name not in ["l","k","outshift","outmul"]:
+                    if name not in ["l","k","outshift","outmult"]:
                         if "bias" not in name:
                             weights_name = name
                 if node.__dict__[weights_name]["layout"] == "CoutCinK":
-                    npad = ((0, (16 - (node.__dict__[weights_name]["value"].shape[0] % 16)) % 16), (0, 0), (0, 0), (0,0))
-                    temp = np.pad(node.__dict__[weights_name]["value"], pad_width=npad, mode='constant', constant_values=0)
-                    temp = np.transpose(temp, (1, 2, 3, 0))
-                    temp = temp.reshape(temp.shape[0],temp.shape[1],temp.shape[2],int(temp.shape[3]/16), 16)
-                    temp = np.transpose(temp, (3, 0, 1, 2, 4))
-                    node.__dict__[weights_name]["value"] = temp
-                    node.__dict__[weights_name]["layout"] = "Cout2CinKCout1"
-                for name in node.constant_names:
-                    if name not in ["l","k","outshift","outmul"]:
-                        if "bias" in name:
-                            weights_name = name
-                            npad = ((0, (16 - (node.__dict__[weights_name]["value"].shape[0] % 16)) % 16))
-                            node.__dict__[weights_name]["value"] = np.pad(node.__dict__[weights_name]["value"], pad_width=npad, mode='constant', constant_values=0)
+                    node.__dict__[weights_name]["value"] = np.transpose(node.__dict__[weights_name]["value"], (0, 2, 3, 1))
+                    node.__dict__[weights_name]["layout"] = "CoutKCin"
 
     def check_parameters(self):
         WARNINGS =0
