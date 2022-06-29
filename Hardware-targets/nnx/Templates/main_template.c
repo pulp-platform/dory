@@ -116,33 +116,29 @@ int main () {
     Allocating space for input and copying it
 */
   L2_memory_buffer = pi_l2_malloc((uint32_t) ${l2_buffer_size});
-  int begin_end = 1;
-  L2_input = L2_memory_buffer + (1 - begin_end) * (${l2_buffer_size} - rdDone);
   L2_output = L2_memory_buffer;
+  L2_input = L2_memory_buffer;
+
+  // First input read - TODO: is this good?
+  pi_ram_read(&ram, activations_input, L2_input, ${int(DORY_HW_graph[0].tiling_dimensions["L2"]["input_activation_memory"])});
+
 #ifdef VERBOSE
   printf("\nL2 Buffer alloc initial\t@ 0x%08x:\t%s\n", (unsigned int)L2_memory_buffer, L2_memory_buffer?"Ok":"Failed");
 #endif
-/*
-    Allocation
-*/
-    network_alloc(fs, ram);  
-/*
-    Running of the network
-*/
-    pi_ram_read(&ram, activations_input, L2_input, ${int(DORY_HW_graph[0].tiling_dimensions["L2"]["input_activation_memory"])});
-  	network_run(L2_memory_buffer, ${l2_buffer_size}, L2_output, begin_end, ram);
+
+  network_initialize(fs, ram);
+  network_run(L2_memory_buffer, ${l2_buffer_size}, L2_output, ram);
+
 #if 0
-    printf("Network Output: ");
-    for(int i = 0; i < ${int(DORY_HW_graph[-1].tiling_dimensions["L2"]["output_activation_memory"] * (1 + int(DORY_HW_graph[-1].tiling_dimensions["L3"]["output_dimensions"] != DORY_HW_graph[-1].tiling_dimensions["L2"]["output_dimensions"]))) }; i+=4)
-    {
-      printf("%d ", *(int32_t *)(L2_output + i));
-    }
-    printf("\n");
+  printf("Network Output: ");
+  for(int i = 0; i < ${int(DORY_HW_graph[-1].tiling_dimensions["L2"]["output_activation_memory"] * (1 + int(DORY_HW_graph[-1].tiling_dimensions["L3"]["output_dimensions"] != DORY_HW_graph[-1].tiling_dimensions["L2"]["output_dimensions"]))) }; i+=4)
+  {
+    printf("%d ", *(int32_t *)(L2_output + i));
+  }
+  printf("\n");
 #endif
-/*
-    Deallocation
-*/
-    pi_ram_free(&ram, activations_input, ${int(DORY_HW_graph[0].tiling_dimensions["L2"]["input_activation_memory"])});
-    network_free(ram);  
-    pi_l2_free(L2_memory_buffer, (uint32_t) ${l2_buffer_size});
+
+  pi_ram_free(&ram, activations_input, ${int(DORY_HW_graph[0].tiling_dimensions["L2"]["input_activation_memory"])});
+  network_terminate(ram);
+  pi_l2_free(L2_memory_buffer, (uint32_t) ${l2_buffer_size});
 }

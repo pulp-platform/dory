@@ -1,6 +1,7 @@
 /*
  * mem_controller.h
  * Alessio Burrello <alessio.burrello@unibo.it>
+ * Luka Macan <luka.macan@unibo.it>
  *
  * Copyright (C) 2019-2020 University of Bologna
  * 
@@ -17,24 +18,11 @@
  * limitations under the License. 
  */
 
-void dory_L2_alloc(unsigned int * L2_pointer_input_begin,
-              unsigned int * L2_pointer_input_end,
-              unsigned int * L2_pointer_output,
-              int memory_to_allocate,
-              int begin_end_n // begin is 1, end is 0
-              );
-void dory_L2_free(unsigned int * L2_pointer_input_begin,
-            unsigned int * L2_pointer_input_end,
-            int memory_to_free,
-            int begin_end_n // begin is 1, end is 0
-            );
+#ifndef __MEM_CONTROLLER_H__
+#define __MEM_CONTROLLER_H__
 
-void dory_L1_alloc(unsigned int * L2_pointer_input_begin,
-              unsigned int * L2_pointer_output,
-              int memory_to_allocate
-              );
+void  dory_L2_mem_init(void *begin, int size);
+void *dory_L2_alloc(int size, int dir);
+void  dory_L2_free(int size, int dir);
 
-
-void dory_L1_free(unsigned int * L2_pointer_input_begin,
-            int memory_to_free
-            );
+#endif  // __MEM_CONTROLLER_H__

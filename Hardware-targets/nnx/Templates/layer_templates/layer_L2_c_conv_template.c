@@ -21,6 +21,7 @@
 
 #include "${func_name}.h"
 #include "pulp_nnx.h"
+#include "network.h"
 
 #ifdef GVSOC_LOGGING
 #define GVSOC_LOG_LEVEL 1
@@ -75,16 +76,16 @@ void ${func_name}(
   //////////////////////////
 
   // Keep the same interface between L2 and L3 memory
-  unsigned int *real_arg = (unsigned int *) args;
-  const unsigned int l2_x = real_arg[3];
-  const unsigned int l2_y = real_arg[5];
-  const unsigned int l2_W = real_arg[6];
+  layer_args_t *layer_args = (layer_args_t *) args;
+  const unsigned int l2_x = layer_args->L2_input;
+  const unsigned int l2_y = layer_args->L2_output;
+  const unsigned int l2_W = layer_args->L2_weights;
 % if FLAG_BATCHNORM == 1:
   const unsigned int l2_scale = l2_W + ${l2_k_offset - l2_W_offset};
   const unsigned int l2_bias  = l2_W + ${l2_lambda_offset - l2_W_offset};
 % endif
-  const unsigned int l1_buffer = real_arg[7];
-  const unsigned int out_shift = real_arg[10];
+  const unsigned int l1_buffer = layer_args->L1_buffer;
+  const unsigned int out_shift = layer_args->out_shift;
 
   /////////////////////
   // DMA declaration //
