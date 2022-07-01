@@ -108,10 +108,12 @@ class HW_node(DORY_node):
         n_elements_in_byte = 8 // bits
         i_element_in_byte = 0
         for el in x:
+            data = el.item() & (2**bits - 1)
+
             if i_element_in_byte == 0:
-                compressed.append(el.item())
+                compressed.append(data)
             else:
-                compressed[-1] += el.item() << i_element_in_byte * bits
+                compressed[-1] += data << i_element_in_byte * bits
 
             i_element_in_byte += 1
             if i_element_in_byte == n_elements_in_byte:
