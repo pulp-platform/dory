@@ -25,6 +25,8 @@ from .tiler_conv2d import Tiler_Conv2D
 
 class Tiler:
     # Class to generate the Tiling of the layer.
+    acc = None
+
     def __init__(self, node, prev_node, code_reserved_space):
         self.node = node
         self.prev_node = prev_node
@@ -34,7 +36,7 @@ class Tiler:
         # This function is used to create the tiling of either a convolutional layer or
         # a fully connected or a pooling layer. The relu is included automatically in conv/FC.
         if 'Conv' in self.node.name or 'FullyConnected' in self.node.name:
-            return Tiler_Conv2D(self.node, self.prev_node, self.code_reserved_space).get_tiling(level)
+            return Tiler_Conv2D(self.node, self.prev_node, self.code_reserved_space, self.acc).get_tiling(level)
         else:
             print("Not supported Layer.")
             return None

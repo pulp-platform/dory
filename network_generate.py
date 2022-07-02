@@ -30,7 +30,7 @@ import importlib
 
 # Directory
 Frontends = ["NEMO", "Quantlab"]
-Hardware_targets = ["GAP8.GAP8_board", "GAP8.GAP8_gvsoc", "nnx", "Occamy", "Diana"]
+Hardware_targets = ["GAP8.GAP8_board", "GAP8.GAP8_gvsoc", "nnx.ne16", "Occamy", "Diana"]
 NoneType = type(None)
 
 

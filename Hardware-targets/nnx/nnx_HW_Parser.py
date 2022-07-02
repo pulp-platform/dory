@@ -1,6 +1,6 @@
-     # should work even without -*-
+# should work even without -*-
 # -*- coding: utf-8 -*-
-#!/bin/bash
+# !/bin/bash
 # ONNX_to_DORY_generic.py
 # Alessio Burrello <alessio.burrello@unibo.it>
 #
@@ -19,9 +19,8 @@
 # limitations under the License.
 
 # Libraries
-import numpy as np
-import json
 import os
+import json
 
 # DORY modules
 from Parsers.HW_node import HW_node
@@ -29,21 +28,25 @@ from Parsers.Layer_node import Layer_node
 from Parsers.Parser_DORY_to_HW import Parser_DORY_to_HW
 from .HW_Pattern_rewriter import Pattern_rewriter
 from .Tiler.tiler import Tiler
-from .ne16 import conv_unroll, weights_size
 
 
-class onnx_manager(Parser_DORY_to_HW):
+class nnx_HW_Parser(Parser_DORY_to_HW):
     # Used to manage the ONNX files. By now, supported Convolutions (PW and DW), Pooling, Fully Connected and Relu.
-    def __init__(self, graph, conf_file, conf_file_dir):
+    def __init__(self, graph, conf, confdir, accelerator):
         supported_layers = ["Convolution", "ReluConvolution", "BNReluConvolution"]
-        mod_dir = os.path.dirname(__file__)
-        with open(os.path.join(mod_dir, "pattern_rules.json")) as f:
+        self.nnxdir = os.path.dirname(__file__)
+        with open(os.path.join(self.nnxdir, "pattern_rules.json")) as f:
             rules = json.load(f)
-        with open(os.path.join(mod_dir, "HW_description.json")) as f:
+        with open(os.path.join(self.nnxdir, "HW_description.json")) as f:
             hw_description = json.load(f)
+        self.acc = accelerator
+        weights_size = self.acc.weights_size
+        Tiler.acc = self.acc
         super().__init__(graph, rules, Pattern_rewriter, supported_layers, hw_description,
-                         os.path.join(conf_file_dir, os.path.dirname(conf_file["onnx_file"])), conf_file, Tiler,
-                         weights_size=lambda self, dim: weights_size(dim[0] if self.group == 1 else 1, dim[1] if self.group == 1 else dim[0], self.kernel_shape, self.weight_bits))
+                         os.path.join(confdir, os.path.dirname(conf["onnx_file"])), conf, Tiler,
+                         weights_size=lambda self, dim:
+                         weights_size(dim[0] if self.group == 1 else 1, dim[1] if self.group == 1 else dim[0],
+                                      self.kernel_shape, self.weight_bits))
 
     def adjust_data_layout(self):
         print("\nNNX Backend: Adjusting Feature Data Layout to HWC and Weights Data Layout to accelerator specific")
@@ -53,30 +56,28 @@ class onnx_manager(Parser_DORY_to_HW):
                     if name not in ["l", "k", "outshift", "outmult"] and "bias" not in name:
                         weights_name = name
                 weights = getattr(node, weights_name)
-                qw = node.weight_bits
-                dw = node.group > 1
-                layout = weights["layout"]
-                w = weights["value"].astype(np.uint8)
-                weights["value"] = conv_unroll(w, qw, layout, dw)
+                weights["value"] = self.acc.conv_unroll(weights["value"], node.weight_bits, weights["layout"],
+                                                        node.group > 1)
             # Todo elif "Fullyconnected"
 
     def check_parameters(self):
         warning_count = 0
 
-        def warning(attr, node, msg):
-            print(f'WARNING: DORY Backend. Attribute {attr} of Node {node} {msg}')
+        def warning(msg):
+            print(f'WARNING: DORY Backend. Attribute {attr} of Node {node.name} is {msg}.')
+            nonlocal warning_count
+            warning_count += 1
+
+        vanilla_attrs = list(Layer_node().__dict__.keys()) + \
+                        list(HW_node(Layer_node(), self.HW_description).__dict__.keys())
 
         for node in self.DORY_Graph:
-            for key, value in node.__dict__.items():
-                if key not in HW_node(Layer_node(), self.HW_description).__dict__.keys() and \
-                        key not in Layer_node().__dict__.keys() and \
-                        key not in node.constant_names:
-                    warning(key, node.name, 'is not inside the predefined parameters for DORY nodes.')
-                    warning_count += 1
+            for attr, value in node.__dict__.items():
+                if attr not in vanilla_attrs and attr not in node.constant_names:
+                    warning('not inside the predefined parameters for DORY nodes')
                 if value is None:
-                    warning_count += 1
-                    warning(key, node.name, 'is still not initialized.')
+                    warning('not initialized')
                 elif isinstance(value, list) and len(value) == 0:
-                    warning_count += 1
-                    warning(key, node.name, 'is an empty list.')
+                    warning('an empty list')
+
         print(f"\nDORY checking of the attribute of the graph: {warning_count} warnings\n")

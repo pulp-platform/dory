@@ -24,15 +24,15 @@ import os
 import sys
 import numpy as np
 from ortools.constraint_solver import pywrapcp
-from ..ne16 import weights_size, heuristic_l1, heuristic_l2
 
 
 class Tiler_Conv2D:
     # Class to generate the Tiling of the layer.
-    def __init__(self, node, prev_node, code_reserved_space):
+    def __init__(self, node, prev_node, code_reserved_space, accelerator):
         self.node = node
         self.prev_node = prev_node
         self.code_reserved_space = code_reserved_space
+        self.acc = accelerator
 
     def get_tiling(self, level):
         # This function generate the layer function to be included in the project for the
@@ -127,7 +127,7 @@ class Tiler_Conv2D:
             # size constraint
             input_tile_dimension = db_x * in_ch * tile_h_in * in_dim[1] * self.node.input_activation_bits // 8
             output_tile_dimension = db_o * out_ch * tile_h_out * out_dim[1] * self.node.output_activation_bits // 8
-            weight_tile_dimension = db_w * weights_size(tile_n_out if not depthwise else 1, tile_n_in, ks, self.node.weight_bits)
+            weight_tile_dimension = db_w * self.acc.weights_size(tile_n_out if not depthwise else 1, tile_n_in, ks, self.node.weight_bits)
 
             constants_tile_dimension = 0
             for name in ["l", "k"]:
@@ -145,7 +145,7 @@ class Tiler_Conv2D:
             # objective
             obj_expr = solver.IntVar(0, 100000000000000, "obj_expr")
 
-            heuristics = heuristic_l2(tile_n_out, tile_n_in, tile_h_out, constraint_all)
+            heuristics = self.acc.heuristic_l2(tile_n_out, tile_n_in, tile_h_out, constraint_all)
 
             solver.Add(obj_expr == heuristics)
 
@@ -286,7 +286,7 @@ class Tiler_Conv2D:
         #      -> To solve this problem, they do multiple rounds of tiling in L3 tiling
         input_tile_dimension = db * tile_n_in * tile_h_in * tile_w_in * self.node.input_activation_bits // 8
         output_tile_dimension = db * tile_n_out * tile_h_out * tile_w_out * self.node.output_activation_bits // 8
-        weight_tile_dimension = db * weights_size(tile_n_out if not depthwise else 1, tile_n_in, ks, self.node.weight_bits)
+        weight_tile_dimension = db * self.acc.weights_size(tile_n_out if not depthwise else 1, tile_n_in, ks, self.node.weight_bits)
 
         constants_tile_dimension = 0
         for name in ["l", "k"]:
@@ -302,9 +302,9 @@ class Tiler_Conv2D:
         ###############################################
         obj_expr = solver.IntVar(0, 1000000000000, "obj_expr")
 
-        heuristics = heuristic_l1(out_ch, in_ch, in_dim[0], in_dim[1],
-                                  tile_n_out, tile_n_in, tile_h_out, tile_w_out,
-                                  constraint_all, zero_variable, modifier=1000000)
+        heuristics = self.acc.heuristic_l1(out_ch, in_ch, in_dim[0], in_dim[1],
+                                           tile_n_out, tile_n_in, tile_h_out, tile_w_out,
+                                           constraint_all, zero_variable, modifier=1000000)
 
         solver.Add(obj_expr == heuristics)
         objective = solver.Maximize(obj_expr, 1)
