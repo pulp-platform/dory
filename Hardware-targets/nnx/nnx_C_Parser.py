@@ -91,18 +91,18 @@ class nnx_C_Parser(Parser_HW_to_C):
 
             setattr(tmpl_writer, attr(name), val)
 
+        flag_depthwise = node.group > 1
+        flag_batchnorm = 'k' in node.constant_names
+        flag_bias = len([1 for name in node.constant_names if 'bias' in name]) > 0
+
         input_tile_shape = node.tiling_dimensions[mem_name]['input_dimensions']
         output_tile_shape = node.tiling_dimensions[mem_name]['output_dimensions']
         weights_tile_shape = node.tiling_dimensions[mem_name]['weights_dimensions']
 
         weights_tile_ko, weights_tile_ki = weights_tile_shape
 
-        weights_tile_size = self.acc.weights_size(weights_tile_ko, weights_tile_ki, node.kernel_shape, node.weight_bits)
+        weights_tile_size = self.acc.weights_size(weights_tile_ko, weights_tile_ki, node.kernel_shape, node.weight_bits, flag_depthwise)
         set_tmpl_var('W_size', weights_tile_size)
-
-        flag_depthwise = node.group > 1
-        flag_batchnorm = 'k' in node.constant_names
-        flag_bias = len([1 for name in node.constant_names if 'bias' in name]) > 0
 
         input_el_size = div_and_ceil(node.input_activation_bits, 8)
         output_el_size = div_and_ceil(node.output_activation_bits, 8)
@@ -110,7 +110,7 @@ class nnx_C_Parser(Parser_HW_to_C):
 
         tile_ko = weights_tile_ki if flag_depthwise else weights_tile_ko
         weights_tile_ko_len = self.acc.weights_ko_len(tile_ko, flag_depthwise)
-        weights_tile_ki_size = self.acc.weights_ki_size(weights_tile_ki, node.kernel_shape, node.weight_bits)
+        weights_tile_ki_size = self.acc.weights_ki_size(weights_tile_ki, node.kernel_shape, node.weight_bits, flag_depthwise)
 
         def feature_len(shape):
             return shape[0] * shape[1] * shape[2]

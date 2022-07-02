@@ -9,15 +9,15 @@ class Accelerator(ABC):
         pass
 
     @abstractmethod
-    def weights_ko_len(self, ko, depthwise):
+    def weights_ko_len(self, ko, dw):
         pass
 
     @abstractmethod
-    def weights_ki_size(self, ki, ks, qw, depthwise=False):
+    def weights_ki_size(self, ki, ks, qw, dw):
         pass
 
     @abstractmethod
-    def weights_size(self, ko, ki, ks, qw):
+    def weights_size(self, ko, ki, ks, qw, dw):
         pass
 
     @abstractmethod

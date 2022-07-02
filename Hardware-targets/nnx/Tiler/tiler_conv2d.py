@@ -127,7 +127,7 @@ class Tiler_Conv2D:
             # size constraint
             input_tile_dimension = db_x * in_ch * tile_h_in * in_dim[1] * self.node.input_activation_bits // 8
             output_tile_dimension = db_o * out_ch * tile_h_out * out_dim[1] * self.node.output_activation_bits // 8
-            weight_tile_dimension = db_w * self.acc.weights_size(tile_n_out if not depthwise else 1, tile_n_in, ks, self.node.weight_bits)
+            weight_tile_dimension = db_w * self.acc.weights_size(tile_n_out, tile_n_in, ks, self.node.weight_bits, depthwise)
 
             constants_tile_dimension = 0
             for name in ["l", "k"]:
@@ -286,7 +286,7 @@ class Tiler_Conv2D:
         #      -> To solve this problem, they do multiple rounds of tiling in L3 tiling
         input_tile_dimension = db * tile_n_in * tile_h_in * tile_w_in * self.node.input_activation_bits // 8
         output_tile_dimension = db * tile_n_out * tile_h_out * tile_w_out * self.node.output_activation_bits // 8
-        weight_tile_dimension = db * self.acc.weights_size(tile_n_out if not depthwise else 1, tile_n_in, ks, self.node.weight_bits)
+        weight_tile_dimension = db * self.acc.weights_size(tile_n_out, tile_n_in, ks, self.node.weight_bits, depthwise)
 
         constants_tile_dimension = 0
         for name in ["l", "k"]:

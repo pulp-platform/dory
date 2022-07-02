@@ -15,17 +15,17 @@ class Ne16(Accelerator):
     def name(self):
         return 'ne16'
 
-    def weights_ko_len(self, ko, depthwise):
-        return div_and_ceil(ko, self.TP_IN) if depthwise else ko
+    def weights_ko_len(self, ko, dw):
+        return div_and_ceil(ko, self.TP_IN) if dw else ko
 
-    def weights_ki_size(self, ki, ks, qw, depthwise=False):
-        if depthwise:
+    def weights_ki_size(self, ki, ks, qw, dw):
+        if dw:
             return qw * ks[0] * ks[1] * (self.TP_IN // 8)
         else:
             return div_and_ceil(ki, self.TP_IN) * qw * ks[0] * ks[1] * (self.TP_IN // 8)
 
-    def weights_size(self, ko, ki, ks, qw):
-        return ko * self.weights_ki_size(ki, ks, qw)
+    def weights_size(self, ko, ki, ks, qw, dw):
+        return self.weights_ko_len(ko, dw) * self.weights_ki_size(ki, ks, qw, dw)
 
     def heuristic_l2(self, tile_n_out, tile_n_in, tile_h_out,
                      constr_total_size, modifier=1000000):

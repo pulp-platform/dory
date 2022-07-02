@@ -45,8 +45,7 @@ class nnx_HW_Parser(Parser_DORY_to_HW):
         super().__init__(graph, rules, Pattern_rewriter, supported_layers, hw_description,
                          os.path.join(confdir, os.path.dirname(conf["onnx_file"])), conf, Tiler,
                          weights_size=lambda self, dim:
-                         weights_size(dim[0] if self.group == 1 else 1, dim[1] if self.group == 1 else dim[0],
-                                      self.kernel_shape, self.weight_bits))
+                         weights_size(dim[0], dim[1], self.kernel_shape, self.weight_bits, self.group > 1))
 
     def adjust_data_layout(self):
         print("\nNNX Backend: Adjusting Feature Data Layout to HWC and Weights Data Layout to accelerator specific")
