@@ -145,7 +145,7 @@ class Tiler_Conv2D:
             # objective
             obj_expr = solver.IntVar(0, 100000000000000, "obj_expr")
 
-            heuristics = self.acc.heuristic_l2(tile_n_out, tile_n_in, tile_h_out, constraint_all)
+            heuristics = self.acc.heuristic_l2(tile_n_out, tile_n_in, tile_h_out, constraint_all, ks)
 
             solver.Add(obj_expr == heuristics)
 
@@ -304,7 +304,7 @@ class Tiler_Conv2D:
 
         heuristics = self.acc.heuristic_l1(out_ch, in_ch, in_dim[0], in_dim[1],
                                            tile_n_out, tile_n_in, tile_h_out, tile_w_out,
-                                           constraint_all, zero_variable, modifier=1000000)
+                                           constraint_all, zero_variable, ks, modifier=1000000)
 
         solver.Add(obj_expr == heuristics)
         objective = solver.Maximize(obj_expr, 1)

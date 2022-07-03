@@ -28,7 +28,7 @@ class Ne16(Accelerator):
         return self.weights_ko_len(ko, dw) * self.weights_ki_size(ki, ks, qw, dw)
 
     def heuristic_l2(self, tile_n_out, tile_n_in, tile_h_out,
-                     constr_total_size, modifier=1000000):
+                     constr_total_size, ks=None, modifier=1000000):
         heuristics_l2 = [
             # Geometrical shape of tiles
             {
@@ -58,7 +58,7 @@ class Ne16(Accelerator):
 
     def heuristic_l1(self, n_out, n_in, h_out, w_out,
                      tile_n_out, tile_n_in, tile_h_out, tile_w_out,
-                     constr_total_size, zero, modifier=1000000):
+                     constr_total_size, zero, ks=None, modifier=1000000):
         heuristics = [
             # Geometrical shape of tiles
             {

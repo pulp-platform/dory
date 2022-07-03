@@ -21,5 +21,16 @@ class Accelerator(ABC):
         pass
 
     @abstractmethod
-    def conv_unroll(self, w, qw, format='CoutCinK', dw=False):
+    def conv_unroll(self, w, qw, layout='CoutCinK', dw=False):
+        pass
+
+    @abstractmethod
+    def heuristic_l1(self, n_out, n_in, h_out, w_out,
+                     tile_n_out, tile_n_in, tile_h_out, tile_w_out,
+                     constr_total_size, zero, ks, modifier):
+        pass
+
+    @abstractmethod
+    def heuristic_l2(self, tile_n_out, tile_n_in, tile_h_out,
+                     constr_total_size, ks, modifier):
         pass
