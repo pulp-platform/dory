@@ -3,11 +3,16 @@ import os
 
 
 class TemplateWriter:
-    def __init__(self, node):
-        pass
+    def __init__(self, node, tmpl_dir, out_dir):
+        self.tmpl_dir = tmpl_dir
+        self.out_dir = out_dir
+
+        self.func_name = node.name
+        self.flag_DW = 1 if node.group > 1 else 0
 
     # Assumes tmpl_files is a list of 2 files where one ends with .h and the other .c
-    def write(self, tmpl_files, out_dir):
+    def write(self, tmpl_files):
+        tmpl_files = [os.path.join(self.tmpl_dir, tmpl_file) for tmpl_file in tmpl_files]
         for tmpl_file in tmpl_files:
             tmpl_file_name = os.path.basename(tmpl_file)
             if tmpl_file_name.endswith('.h'):
@@ -19,7 +24,7 @@ class TemplateWriter:
             else:
                 file_dir = '.'
                 out_file_name = self.func_name
-            out_file = os.path.join(out_dir, file_dir, out_file_name)
+            out_file = os.path.join(self.out_dir, file_dir, out_file_name)
             tmpl = Template(filename=tmpl_file)
             rendered = tmpl.render(**self.__dict__)
             with open(out_file, 'w') as f:

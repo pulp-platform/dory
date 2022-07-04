@@ -16,13 +16,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include "${func_name[0]}.h"
-% if len(func_name)>1:
-#include "${func_name[1]}.h"
-#include "${func_name[2]}.h"
-%endif
-#include "pulp_nn_kernels.h"
 
-void __attribute__ ((noinline)) ${func_name_L3}(
+% for L2_func_name in L2_func_names:
+#include "${L2_func_name}.h"
+% endfor
+
+void __attribute__ ((noinline)) ${func_name}(
   void *args
 );

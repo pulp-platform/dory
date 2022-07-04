@@ -4,8 +4,8 @@ import math
 
 
 class TemplateWriter2D_L3(TemplateWriter):
-    def __init__(self, node):
-        super().__init__(node)
+    def __init__(self, node, tmpl_dir, out_dir):
+        super().__init__(node, tmpl_dir, out_dir)
 
         ks = node.kernel_shape
         s = node.strides
@@ -17,7 +17,6 @@ class TemplateWriter2D_L3(TemplateWriter):
         padding_right = p[3];
         conv_overlap1 = 2 * (ks[0] // 2) + ks[0] % 2 - 1 - (s[0] - 1)
         conv_overlap2 = 2 * (ks[1] // 2) + ks[1] % 2 - 1 - (s[1] - 1)
-        self.flag_DW = 1 if node.group > 1 else 0
 
         ################## NEED A REWRITING IN THIS TEMPLATE PART ######################
         #### VARIABLE CREATION FOR COMPATIBILITY WITH THE SECTION AFTER ################
@@ -76,11 +75,9 @@ class TemplateWriter2D_L3(TemplateWriter):
         self.n_tile_x = factor_h_in
         self.n_tile_y = factor_h_out
         self.verbose = False
+        self.L2_func_names = [node.name + "_L2"]
         if self.padding > 0:
-            self.func_name = [node.name + "_L2", node.name + "_L2_p_t", node.name + "_L2_p_b"]
-        else:
-            self.func_name = [node.name + "_L2"]
-        self.func_name_L3 = node.name
+            self.L2_func_names += [node.name + "_L2_p_t", node.name + "_L2_p_b"]
         self.BitIn = ds_x
         self.y_data_size_byte = ds_y
         self.x_data_size_byte = ds_x
@@ -107,8 +104,8 @@ class TemplateWriter2D_L3(TemplateWriter):
 
 
 class TemplateWriter2D_L2(TemplateWriter):
-    def __init__(self, node):
-        super().__init__(node)
+    def __init__(self, node, tmpl_dir, out_dir):
+        super().__init__(node, tmpl_dir, out_dir)
 
         ks = node.kernel_shape
         inp_dim = node.tiling_dimensions["L2"]["input_dimensions"][1:]
@@ -138,8 +135,6 @@ class TemplateWriter2D_L2(TemplateWriter):
         self.number_of_clusters = node.HW_description[
             "number_of_clusters"] if "number_of_clusters" in node.HW_description.keys() else 1
         #self.optional_type = layer_type
-        self.func_name = node.name
-        self.flag_DW = 1 if node.group > 1 else 0
         self.optional = node.op_type
         self.FLAG_BATCHNORM = 1 if 'k' in node.constant_names else 0
         self.has_bias = int(len([1 for name in node.constant_names if "bias" in name]) > 0)

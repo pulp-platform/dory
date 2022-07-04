@@ -25,7 +25,7 @@ import shutil
 
 # DORY modules
 from Parsers.Parser_HW_to_C import Parser_HW_to_C
-from Utils.Templates_writer.TemplateWriter2D import TemplateWriter2D_L2
+from Utils.Templates_writer.TemplateWriter2D import TemplateWriter2D_L2, TemplateWriter2D_L3
 from .Util import div_and_ceil, rem
 
 
@@ -73,11 +73,24 @@ class nnx_C_Parser(Parser_HW_to_C):
 
         for node in self.HWgraph:
             self.copy_backend_files(node)
-            tmpl_writer = TemplateWriter2D_L2(node)
+            l3_tiling = node.tiling_dimensions["L3"]
+            l2_tiling = node.tiling_dimensions["L2"]
+            is_l3_access = (l3_tiling["input_dimensions"] != l2_tiling["input_dimensions"]) \
+                        or (l3_tiling["output_dimensions"] != l2_tiling["output_dimensions"]) \
+                        or (l3_tiling["weights_dimensions"] != l2_tiling["weights_dimensions"])
+            if is_l3_access:
+                tmpl_writer = TemplateWriter2D_L3(node, tmpl_dir, out_dir)
+                tmpl_files = ['layer_L3_h_template.h', 'layer_L3_c_template.c']
+                tmpl_writer.write(tmpl_files)
+                node.name += '_L2'
+
+            tmpl_writer = TemplateWriter2D_L2(node, tmpl_dir, out_dir)
             tmpl_writer = self.__nnx_vars(tmpl_writer, node)
             tmpl_files = ['layer_L2_h_template.h', 'layer_L2_c_conv_template.c']
-            tmpl_files = [os.path.join(tmpl_dir, tmpl_file) for tmpl_file in tmpl_files]
-            tmpl_writer.write(tmpl_files, out_dir)
+            tmpl_writer.write(tmpl_files)
+
+            if is_l3_access:
+                node.name = node.name[:-3]
 
     def __mem_tmpl_vars(self, tmpl_writer, node, mem_level):
         mem_name = f'L{mem_level}'
