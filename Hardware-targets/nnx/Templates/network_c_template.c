@@ -40,7 +40,6 @@ char* L2_input;
 char* L2_weights;
 char* l1_buffer;
 char* bypass_activations;
-int L3_weights_internal;
 
 % if 'Check_all' in verbose_level:
 #ifdef VERBOSE
@@ -163,7 +162,7 @@ void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_outpu
   int residual_number = 0;
   int perf_cyc = 0;
   int dir = 1;  // direction of the L2 memory allocation: 1 - begin -> end, 0 - end -> begin
-  L3_weights_internal = L3_weights;
+  char *L3_weights_internal = L3_weights;
   struct pi_device cluster_dev = {0};
   struct pi_cluster_conf conf;
   struct pi_cluster_task cluster_task = {0};
@@ -184,11 +183,6 @@ void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_outpu
 /* ---------------------------------- */
 
   dory_L2_mem_init((void *)L2_memory_buffer, L2_memory_dimension);
-
-/*
-  - input allocation and copy
-*/
-  L2_input = dory_L2_alloc(activations_size[0], dir);
 
 /* ---------------------------------- */
 /* --------- SECTION 1 END ---------- */
@@ -222,7 +216,7 @@ void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_outpu
       L2_weights = dory_L2_alloc(weights_size[i], dir);
 
     if (allocate_layer[i] == 1)
-      pi_ram_read(&ram, L3_weights_internal + cumulative_weights_dimension[i], L2_weights, weights_size[i]);
+      pi_ram_read(&ram, L3_weights_internal, L2_weights, weights_size[i]);
 
 % if 'Check_all' in verbose_level:
 #ifdef VERBOSE
@@ -244,7 +238,7 @@ void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_outpu
     layer_args_t args = {
       .L3_input = L3_input,
       .L3_output = L3_output,
-      .L3_after_weights = L3_weights_internal + cumulative_weights_dimension[i],
+      .L3_after_weights = L3_weights_internal,
       .L2_input = L2_input,
       .bypass = bypass_activations,
       .L2_output = L2_output,
@@ -340,39 +334,33 @@ void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_outpu
         pi_ram_free(&ram, layers_pointers[residual_number], activations_out_size[i]);
       }
 
-      if (i > 0) {
-        if (branch_output[i-1]==1 && L3_input_layers[i]==1) {
-          pi_ram_alloc(&ram, &L3_input, (uint32_t) 1500000);
-        }
+      // TODO I feel like this should look ahead instead of back
+      if (i > 0 && branch_output[i-1]==1 && L3_input_layers[i]==1) { // TODO don't understand this condition
+        pi_ram_alloc(&ram, &L3_input, (uint32_t) 1500000);
       }
 
       if (branch_output[i]==1 && L3_output_layers[i]==1) {
-        pi_ram_free(&ram, (uint32_t) L3_input + activations_out_size[i], (uint32_t) 1500000 - activations_out_size[i]);
+        pi_ram_free(&ram, L3_input + activations_out_size[i], 1500000 - activations_out_size[i]);
         layers_pointers[residual_number] = L3_input;
         residual_number++;
       } else if (branch_output[i]==1 || branch_change[i] == 1) {
-        int32_t temp_adress;
-        pi_ram_alloc(&ram, &temp_adress, (uint32_t) activations_out_size[i]);
-        layers_pointers[residual_number] = temp_adress;
-        pi_ram_write(&ram, temp_adress, L2_output, (uint32_t) activations_out_size[i]);
+        pi_ram_alloc(&ram, &layers_pointers[residual_number], activations_out_size[i]);
+        pi_ram_write(&ram, layers_pointers[residual_number], L2_output, activations_out_size[i]);
         residual_number++;
       }
 
       if (branch_change[i]==1) {
         dory_L2_free(activations_out_size[i], !dir);
-        L2_input = dory_L2_alloc(activations_size[i+1], !dir);
-        residual_number--;
-        residual_number--;
-        pi_ram_read(&ram, layers_pointers[residual_number], L2_input, activations_size[i+1]);
-        pi_ram_free(&ram, layers_pointers[residual_number], (uint32_t) activations_out_size[i+1]);
-        residual_number++;
-        residual_number++;
+        L2_input = dory_L2_alloc(activations_size[i + 1], !dir);
+        pi_ram_read(&ram, layers_pointers[residual_number - 2], L2_input, activations_size[i + 1]);
+        pi_ram_free(&ram, layers_pointers[residual_number - 2], activations_out_size[i + 1]);
       }
 
       if (L3_output_layers[i] == 1)
         dory_L2_free(activations_out_size[i], !dir);
     }
 
+    L3_weights_internal += weights_size[i];
     L2_input = L2_output;
     dir = !dir;
   }

@@ -65,13 +65,14 @@ static int L3_output;
 static int layers_pointers[${len(DORY_HW_graph)}];
 
 static char * Layers_name[${len(DORY_HW_graph)}] = {\
-% for i in range(len(DORY_HW_graph)):
-"${DORY_HW_graph[i].name}"${'' if loop.last else ', '}\
+% for node in DORY_HW_graph:
+"${node.name}"${'' if loop.last else ', '}\
 % endfor
 };
 static int L3_input_layers[${len(DORY_HW_graph)}] = {\
-% for i in range(len(DORY_HW_graph)):
-% if DORY_HW_graph[i].tiling_dimensions["L3"]["input_dimensions"] != DORY_HW_graph[i].tiling_dimensions["L2"]["input_dimensions"]:
+1, \
+% for node in DORY_HW_graph[1:]:
+% if node.tiling_dimensions["L3"]["input_dimensions"] != node.tiling_dimensions["L2"]["input_dimensions"]:
 1${'' if loop.last else ', '}\
 % else:
 0${'' if loop.last else ', '}\
@@ -79,8 +80,8 @@ static int L3_input_layers[${len(DORY_HW_graph)}] = {\
 % endfor
 };
 static int L3_output_layers[${len(DORY_HW_graph)}] = {\
-% for i in range(len(DORY_HW_graph)):
-% if DORY_HW_graph[i].tiling_dimensions["L3"]["output_dimensions"] != DORY_HW_graph[i].tiling_dimensions["L2"]["output_dimensions"]:
+% for node in DORY_HW_graph:
+% if node.tiling_dimensions["L3"]["output_dimensions"] != node.tiling_dimensions["L2"]["output_dimensions"]:
 1${'' if loop.last else ', '}\
 % else:
 0${'' if loop.last else ', '}\
@@ -88,8 +89,8 @@ static int L3_output_layers[${len(DORY_HW_graph)}] = {\
 % endfor
 };
 static int allocate_layer[${len(DORY_HW_graph)}] = {\
-% for i in range(len(DORY_HW_graph)):
-% if DORY_HW_graph[i].tiling_dimensions["L3"]["weights_dimensions"] == DORY_HW_graph[i].tiling_dimensions["L2"]["weights_dimensions"] and ('FullyConnected' in DORY_HW_graph[i].name or 'Conv' in DORY_HW_graph[i].name):
+% for node in DORY_HW_graph:
+% if node.tiling_dimensions["L3"]["weights_dimensions"] == node.tiling_dimensions["L2"]["weights_dimensions"] and ('FullyConnected' in node.name or 'Conv' in node.name):
 1${'' if loop.last else ', '}\
 % else:
 0${'' if loop.last else ', '}\
@@ -97,8 +98,8 @@ static int allocate_layer[${len(DORY_HW_graph)}] = {\
 % endfor
 };
 static int branch_input[${len(DORY_HW_graph)}] = {\
-% for i in range(len(DORY_HW_graph)):
-% if DORY_HW_graph[i].branch_in == 1:
+% for node in DORY_HW_graph:
+% if node.branch_in == 1:
 1${'' if loop.last else ', '}\
 % else:
 0${'' if loop.last else ', '}\
@@ -106,8 +107,8 @@ static int branch_input[${len(DORY_HW_graph)}] = {\
 % endfor
 };
 static int branch_output[${len(DORY_HW_graph)}] = {\
-% for i in range(len(DORY_HW_graph)):
-% if DORY_HW_graph[i].branch_out == 1:
+% for node in DORY_HW_graph:
+% if node.branch_out == 1:
 1${'' if loop.last else ', '}\
 % else:
 0${'' if loop.last else ', '}\
@@ -115,8 +116,8 @@ static int branch_output[${len(DORY_HW_graph)}] = {\
 % endfor
 };
 static int branch_change[${len(DORY_HW_graph)}] = {\
-% for i in range(len(DORY_HW_graph)):
-% if DORY_HW_graph[i].branch_change == 1:
+% for node in DORY_HW_graph:
+% if node.branch_change == 1:
 1${'' if loop.last else ', '}\
 % else:
 0${'' if loop.last else ', '}\
@@ -124,65 +125,56 @@ static int branch_change[${len(DORY_HW_graph)}] = {\
 % endfor
 };
 static int weights_checksum[${len(DORY_HW_graph)}] = {\
-% for i in range(len(DORY_HW_graph)):
-${DORY_HW_graph[i].check_sum_w}${'' if loop.last else ', '}\
+% for node in DORY_HW_graph:
+${node.check_sum_w}${'' if loop.last else ', '}\
 % endfor
 };
 static int weights_size[${len(DORY_HW_graph)}] = {\
-% for i in range(len(DORY_HW_graph)):
-${int((DORY_HW_graph[i].tiling_dimensions["L2"]["weight_memory"] + DORY_HW_graph[i].tiling_dimensions["L2"]["constants_memory"] + DORY_HW_graph[i].tiling_dimensions["L2"]["bias_memory"]) * (1 + int(DORY_HW_graph[i].tiling_dimensions["L3"]["weights_dimensions"] != DORY_HW_graph[i].tiling_dimensions["L2"]["weights_dimensions"])))}${'' if loop.last else ', '}\
-% endfor
-};
-static int cumulative_weights_dimension[${len(DORY_HW_graph)}] = {\
-% for i in range(len(DORY_HW_graph)):
-% if i == 0:
-0${'' if loop.last else ', '}\
-% else:
-${int(sum([DORY_HW_graph[j].tiling_dimensions["L3"]["weight_memory"] + DORY_HW_graph[j].tiling_dimensions["L3"]["constants_memory"] + DORY_HW_graph[j].tiling_dimensions["L3"]["bias_memory"] for j in range(i)])) }${'' if loop.last else ', '}\
-% endif
+% for node in DORY_HW_graph:
+${int((node.tiling_dimensions["L2"]["weight_memory"] + node.tiling_dimensions["L2"]["constants_memory"] + node.tiling_dimensions["L2"]["bias_memory"]) * (1 + int(node.tiling_dimensions["L3"]["weights_dimensions"] != node.tiling_dimensions["L2"]["weights_dimensions"])))}${'' if loop.last else ', '}\
 % endfor
 };
 static int activations_checksum[${len(DORY_HW_graph)}] = {\
-% for i in range(len(DORY_HW_graph)):
-${DORY_HW_graph[i].check_sum_in}${'' if loop.last else ', '}\
+% for node in DORY_HW_graph:
+${node.check_sum_in}${'' if loop.last else ', '}\
 % endfor
 };
 static int activations_size[${len(DORY_HW_graph)}] = {\
-% for i in range(len(DORY_HW_graph)):
-${int(DORY_HW_graph[i].tiling_dimensions["L2"]["input_activation_memory"] * (1 + int(DORY_HW_graph[i].tiling_dimensions["L3"]["input_dimensions"] != DORY_HW_graph[i].tiling_dimensions["L2"]["input_dimensions"])))}${'' if loop.last else ', '}\
+% for node in DORY_HW_graph:
+${int(node.tiling_dimensions["L2"]["input_activation_memory"] * (1 + int(node.tiling_dimensions["L3"]["input_dimensions"] != node.tiling_dimensions["L2"]["input_dimensions"])))}${'' if loop.last else ', '}\
 % endfor
 };
 static int out_mult_vector[${len(DORY_HW_graph)}] = {\
-% for i in range(len(DORY_HW_graph)):
-% if "outmul" not in DORY_HW_graph[i].__dict__:
-1${'' if loop.last else ', '}\
+% for node in DORY_HW_graph:
+% if hasattr(node, "outmul"):
+${node.outmul["value"]}${'' if loop.last else ', '}\
 % else:
-${DORY_HW_graph[i].outmul["value"]}${'' if loop.last else ', '}\
+1${'' if loop.last else ', '}\
 % endif
 % endfor
 };
 static int out_shift_vector[${len(DORY_HW_graph)}] = {\
-% for i in range(len(DORY_HW_graph)):
-% if "outshift" not in DORY_HW_graph[i].__dict__:
-0${'' if loop.last else ', '}\
+% for node in DORY_HW_graph:
+% if hasattr(node, "outshift"):
+${node.outshift["value"]}${'' if loop.last else ', '}\
 % else:
-${DORY_HW_graph[i].outshift["value"]}${'' if loop.last else ', '}\
+0${'' if loop.last else ', '}\
 % endif
 % endfor
 };
 static int activations_out_checksum[${len(DORY_HW_graph)}] = {\
-% for i in range(len(DORY_HW_graph)):
-${DORY_HW_graph[i].check_sum_out}${'' if loop.last else ', '}\
+% for node in DORY_HW_graph:
+${node.check_sum_out}${'' if loop.last else ', '}\
 % endfor
 };
 static int activations_out_size[${len(DORY_HW_graph)}] = {\
-% for i in range(len(DORY_HW_graph)):
-${int(DORY_HW_graph[i].tiling_dimensions["L2"]["output_activation_memory"] * (1 + int(DORY_HW_graph[i].tiling_dimensions["L3"]["output_dimensions"] != DORY_HW_graph[i].tiling_dimensions["L2"]["output_dimensions"])))}${'' if loop.last else ', '}\
+% for node in DORY_HW_graph:
+${int(node.tiling_dimensions["L2"]["output_activation_memory"] * (1 + int(node.tiling_dimensions["L3"]["output_dimensions"] != node.tiling_dimensions["L2"]["output_dimensions"])))}${'' if loop.last else ', '}\
 % endfor
 };
 static int layer_with_weights[${len(DORY_HW_graph)}] = {\
-% for i in range(len(DORY_HW_graph)):
-% if 'Conv' in DORY_HW_graph[i].name or 'FullyConnected' in DORY_HW_graph[i].name:
+% for node in DORY_HW_graph:
+% if 'Conv' in node.name or 'FullyConnected' in node.name:
 1${'' if loop.last else ', '}\
 % else:
 0${'' if loop.last else ', '}\
@@ -191,8 +183,8 @@ static int layer_with_weights[${len(DORY_HW_graph)}] = {\
 };
 % if 'Yes' in performance:
 static int NODEs_MACS[${len(DORY_HW_graph)}] = {\
-% for i in range(len(DORY_HW_graph)):
-${DORY_HW_graph[i].MACs}${'' if loop.last else ', '}\
+% for node in DORY_HW_graph:
+${node.MACs}${'' if loop.last else ', '}\
 % endfor
 };
 % endif
