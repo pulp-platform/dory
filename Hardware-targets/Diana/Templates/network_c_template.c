@@ -35,7 +35,7 @@ char* bypass_activations;
 int L3_weights_internal;
 
 // check for input/output acitvation checksum
-static void check_layer(char *output, int check_sum_true, int dim) {
+static int check_layer(char *output, int check_sum_true, int dim) {
   int checksum = 0;
   char *ptr = (char *) output;
   for(int j=0; j<dim; j++) {
@@ -50,6 +50,7 @@ static void check_layer(char *output, int check_sum_true, int dim) {
     printf("Checksum in/out Layer :\tFailed [%u vs. %u]\n", checksum, check_sum_true);
 #endif
 % endif
+  return checksum;
 }
 
 static void check_layer_last(${DORY_HW_graph[-1].output_activation_type}${DORY_HW_graph[-1].output_activation_bits}_t *ptr, int check_sum_true, int dim) {
@@ -248,7 +249,7 @@ void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_outpu
         check_layer_last((${DORY_HW_graph[-1].output_activation_type}${DORY_HW_graph[-1].output_activation_bits}_t *) L2_output, check_activations_out[i], check_activations_out_dimension[i]);
 #endif
 % else:
-    check_layer(L2_output, check_activations_out[i], check_activations_out_dimension[i]);
+    int check = check_layer(L2_output, check_activations_out[i], check_activations_out_dimension[i]);
 #ifdef VERBOSE
     printf("Layer %s %d ended: \n", Layers_name[i], i);
 #endif
