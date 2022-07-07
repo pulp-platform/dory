@@ -101,8 +101,19 @@ class C_Parser(Parser_HW_to_C):
                                 for pos_in in [3,2,1,0]:
                                     new_weights.append(node.__dict__[constants[i]]["value"][pos+4*(ch*4+pos_in)])
                         node.__dict__[constants[i]]["value"] = new_weights
+            for batch in np.arange(0, int(np.floor((getattr(node, 'output_channels')+15)/16))):
+                for i in [0, 1]:
+                    if constants[i]!= 0:
+                        if i==0:  
+                            dim = getattr(node, 'input_channels') * 16 * np.prod(getattr(node, 'kernel_shape'))
+                            weights = np.concatenate((weights,node.__dict__[constants[i]]["value"][(batch*dim):((batch+1)*dim)]))
+                        if i==1:  
+                            weights = np.concatenate((weights,node.__dict__[constants[i]]["value"][(batch*16*4):((batch+1)*16*4)]))
+                        save_vector = 1
+            for i in [2, 3]:
+                if constants[i]!= 0:
                     weights = np.concatenate((weights,node.__dict__[constants[i]]["value"]))
-                    save_vector = 1
+
             while len(weights) % 4 != 0:
                 weights = np.concatenate((weights, np.asarray([0])))
             if save_vector == 1:
