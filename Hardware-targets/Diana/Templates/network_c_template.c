@@ -134,7 +134,7 @@ void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_outpu
   int L2_memory_buffer_end = L2_memory_buffer + L2_memory_dimension;
   int residual_number = 0;
   int perf_cyc = 0;
-
+  int deallocate = 0;
 /* ---------------------------------- */
 /* --------- SECTION 0 END ---------- */
 /* ---------------------------------- */
@@ -258,17 +258,27 @@ void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_outpu
 /* MEMORY DEALLOCATION
 */
     if (i > 0)
+      if  (branch_output[i-1]==0)
+        dory_L2_free(&L2_memory_buffer,
+          &L2_memory_buffer_end,
+          check_activations_dimension[i],
+          begin_end_n // begin is 1, end is 0
+          );
+    if  (branch_output[i]==1)
+      bypass_activations = L2_output;
+    if (branch_input[i]==1 && (bypass_activations==L2_memory_buffer && begin_end_n==1) || (bypass_activations!=L2_memory_buffer && begin_end_n==0))
       dory_L2_free(&L2_memory_buffer,
         &L2_memory_buffer_end,
         check_activations_dimension[i],
         begin_end_n // begin is 1, end is 0
         );
-    if (branch_input[i]==1)
-      dory_L2_free(&L2_memory_buffer,
-        &L2_memory_buffer_end,
-        check_activations_dimension[i],
-        begin_end_n // begin is 1, end is 0
-        );
+    if (i > 0)
+      if (branch_input[i-1]==1 && (bypass_activations==L2_memory_buffer && begin_end_n==1) || (bypass_activations!=L2_memory_buffer && begin_end_n==0))
+        dory_L2_free(&L2_memory_buffer,
+          &L2_memory_buffer_end,
+          check_activations_dimension[i],
+          begin_end_n // begin is 1, end is 0
+          );
     L2_input = L2_output;
     if (i < ${len(DORY_HW_graph) - 1})
     {
