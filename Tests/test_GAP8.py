@@ -68,9 +68,12 @@ def test_network(network):
     network_generate(**args)
 
     cmd = ['make', '-C', 'application', 'clean', 'all', 'run', 'platform=gvsoc']
-    proc = subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=60)
+    try:
+        proc = subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=60)
+    except subprocess.CalledProcessError as e:
+        assert False, f"Building application failed with exit status {e.returncode}\nBuild error:\n{e.stderr}"
 
     network_name = os.path.splitext(os.path.basename(args['conf_file']))[0]
     preamble = f'Network {network_name}'
 
-    assert output_test(proc.stdout, checksum_final), f'{preamble}: test failed.'
+    assert output_test(proc.stdout, checksum_final), f'{preamble} Makefile output:\n {proc.stdout}'
