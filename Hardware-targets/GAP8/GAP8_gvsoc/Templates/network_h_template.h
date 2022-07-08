@@ -111,7 +111,7 @@ ${DORY_HW_graph[i].check_sum_w}${'' if loop.last else ', '}\
 };
 static int check_weights_dimension[${len(DORY_HW_graph)}] = {\
 % for i in range(len(DORY_HW_graph)):
-${int((DORY_HW_graph[i].tiling_dimensions["L2"]["weight_memory"] + DORY_HW_graph[i].tiling_dimensions["L2"]["constants_memory"] + DORY_HW_graph[i].tiling_dimensions["L2"]["bias_memory"]) * (1 + int(DORY_HW_graph[i].tiling_dimensions["L3"]["weights_dimensions"] != DORY_HW_graph[i].tiling_dimensions["L2"]["weights_dimensions"])))}${'' if loop.last else ', '}\
+${(int((DORY_HW_graph[i].tiling_dimensions["L2"]["weight_memory"] + DORY_HW_graph[i].tiling_dimensions["L2"]["constants_memory"] + DORY_HW_graph[i].tiling_dimensions["L2"]["bias_memory"]) * (1 + int(DORY_HW_graph[i].tiling_dimensions["L3"]["weights_dimensions"] != DORY_HW_graph[i].tiling_dimensions["L2"]["weights_dimensions"])))+3)//4*4}${'' if loop.last else ', '}\
 % endfor
 };
 static int cumulative_weights_dimension[${len(DORY_HW_graph)}] = {\
@@ -119,7 +119,7 @@ static int cumulative_weights_dimension[${len(DORY_HW_graph)}] = {\
 % if i == 0:
 0${'' if loop.last else ', '}\
 % else:
-${int(sum([DORY_HW_graph[j].tiling_dimensions["L3"]["weight_memory"] + DORY_HW_graph[j].tiling_dimensions["L3"]["constants_memory"] + DORY_HW_graph[j].tiling_dimensions["L3"]["bias_memory"] for j in range(i)])) }${'' if loop.last else ', '}\
+${int(sum([((DORY_HW_graph[j].tiling_dimensions["L3"]["weight_memory"] + DORY_HW_graph[j].tiling_dimensions["L3"]["constants_memory"] + DORY_HW_graph[j].tiling_dimensions["L3"]["bias_memory"])+3)//4*4 for j in range(i)])) }${'' if loop.last else ', '}\
 % endif
 % endfor
 };
