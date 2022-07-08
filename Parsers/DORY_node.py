@@ -78,6 +78,9 @@ class DORY_node:
             if isinstance(value, type(None)) or (isinstance(value, list) and len(value) == 0):
                 sys.exit("DORY FRONTEND error. Missing some Node initialization. Stopping at argument {}".format(key))
 
+    def has_weights(self):
+        return 'FullyConnected' in self.name or 'Conv' in self.name
+
     def populate_DORY_node(self, node_iterating, graph):
         DORY_parameters = {}
         #### Names: Convolution, Addition, FullyConnected, Pooling

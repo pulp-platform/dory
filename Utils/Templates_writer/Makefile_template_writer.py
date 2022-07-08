@@ -23,21 +23,16 @@ import os
 
 
 def print_template_Makefile(
-    graph,
-    HW_description,
-    save_string,
-    app_directory):
+        graph,
+        HW_description,
+        save_string,
+        app_directory):
     # Generate the Makefile, including all files to upload on the hyperflash
     tk = OrderedDict([])
-    file_list_w = []
-    for i, node in enumerate(graph):
-        if "Conv" in node.name or "FullyConnected" in node.name:
-            file_list_w.append(node.name+"_weights.hex")
-
-    tk['layers_w'] = file_list_w
+    tk['layers_w'] = [node.name + '_weights.hex' for node in graph if node.has_weights()]
     tk['sdk'] = HW_description["software development kit"]["name"]
-    root = os.path.dirname(__file__)
-    tmpl = Template(filename=os.path.join(root, "../../Hardware-targets", HW_description["name"], "Templates/Makefile_template"))
+    root = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir, os.pardir))
+    tmpl = Template(filename=os.path.join(root, "Hardware-targets", HW_description["name"], "Templates", "Makefile_template"))
     s = tmpl.render(**tk)
     save_string = os.path.join(app_directory, save_string)
     with open(save_string, "w") as f:

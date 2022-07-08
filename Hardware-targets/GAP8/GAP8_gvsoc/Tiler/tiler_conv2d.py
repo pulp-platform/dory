@@ -54,7 +54,7 @@ class Tiler_Conv2D():
 
     def get_tiling_conv2d_L3(self):
 
-        L2_memory = self.HW_node.HW_description["memory"]["L2"]["dimension"] - self.code_reserved_space 
+        L2_memory = self.HW_node.hw_desc["memory"]["L2"]["dimension"] - self.code_reserved_space
         # 4 iterations, adding each time a different part to be tiled, either weights, outputs, or both. Input is forced
         
         ## This is not completly the correct check. It is not always the previous node in the graph, but it could also be one other. You have to check its input node.
@@ -174,7 +174,7 @@ class Tiler_Conv2D():
             else:
                 constants_tile_dimension_L1 = 0
             constraint_all_L1 = input_tile_dimension_L1 + output_tile_dimension_L1 + weight_tile_dimension_L1 + constants_tile_dimension_L1 + im2col_dimension_L1 + weight_full_prec_dimension_L1 + 20 
-            L1_memory = self.HW_node.HW_description["memory"]["L1"]["dimension"] - self.HW_node.HW_description["HW specific parameters"]["accelerator core0 stack"] - 7 * self.HW_node.HW_description["HW specific parameters"]["accelerator core1-7 stack"]
+            L1_memory = self.HW_node.hw_desc["memory"]["L1"]["dimension"] - self.HW_node.hw_desc["HW specific parameters"]["accelerator core0 stack"] - 7 * self.HW_node.hw_desc["HW specific parameters"]["accelerator core1-7 stack"]
 
             # objective function: 
             # 1. constraints for pulp-nn perfromance optimization
@@ -223,7 +223,7 @@ class Tiler_Conv2D():
         ###############################################
         ##### PARAMETERS INITIALIZATION ###############
         ###############################################
-        L1_memory = self.HW_node.HW_description["memory"]["L1"]["dimension"] - self.HW_node.HW_description["HW specific parameters"]["accelerator core0 stack"] - 7 * self.HW_node.HW_description["HW specific parameters"]["accelerator core1-7 stack"]
+        L1_memory = self.HW_node.hw_desc["memory"]["L1"]["dimension"] - self.HW_node.hw_desc["HW specific parameters"]["accelerator core0 stack"] - 7 * self.HW_node.hw_desc["HW specific parameters"]["accelerator core1-7 stack"]
         inp_dim = self.HW_node.tiling_dimensions["L2"]["input_dimensions"][1:]
         out_dim = self.HW_node.tiling_dimensions["L2"]["output_dimensions"][1:]
         out_ch = self.HW_node.tiling_dimensions["L2"]["weights_dimensions"][0]

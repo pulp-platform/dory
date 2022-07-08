@@ -21,67 +21,87 @@
 # Libraries
 import os
 import sys
+import shutil
 import numpy as np
 
 # DORY modules
-import Utils.Templates_writer.Network_template_writer as Network_writer
-import Utils.Templates_writer.Makefile_template_writer as Makefile_writer
+from Utils.Templates_writer.MiscTemplateWriter import MiscTemplateWriter
 from Utils.DORY_utils import loadtxt
 
 
 class Parser_HW_to_C:
     # Used to manage the ONNX files. By now, supported Convolutions (PW and DW), Pooling, Fully Connected and Relu.
-    def __init__(self, graph, network_directory, HW_description, verbose_level, perf_layer, save_string, app_directory):
-        self.HWgraph = graph
-        self.HW_description = HW_description
+    def __init__(self, graph, conf, netdir, hw_desc, verbose_level, perf_layer, save_string, appdir):
+        self.graph = graph
+        self.conf = conf
+        self.hw_desc = hw_desc
         self.verbose_level = verbose_level
         self.perf_layer = perf_layer
         self.save_string_for_Makefile = save_string
-        self.network_directory = network_directory
-        self.app_directory = app_directory
+        self.netdir = netdir
+        self.backendfiles = []
+        self.backenddirs = []
+        self.rootdir = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
+        self.targetdir = os.path.join(self.rootdir, 'Hardware-targets', self.hw_desc["name"])
+        self.appdir = appdir
+        self.srcdir = os.path.join(self.appdir, 'src')
+        self.incdir = os.path.join(self.appdir, 'inc')
+        self.hexdir = os.path.join(self.appdir, 'hex')
+        shutil.rmtree(self.appdir, ignore_errors=True)
+        os.makedirs(self.incdir)
+        os.makedirs(self.srcdir)
+        os.makedirs(self.hexdir)
 
     def adding_numbers_to_layers(self):
-        for i, node in enumerate(self.HWgraph):
+        for i, node in enumerate(self.graph):
             node.name = node.name + str(i)
 
-    def mapping_network_to_C_file(self):
-        print("\nGenerating the .c file of the network.")
-        Network_writer.print_template_network(
-            self.HWgraph,
-            self.HW_description,
-            self.config_file,
-            self.verbose_level,
-            self.perf_layer,
-            self.app_directory)
+    def map_misc(self):
+        print("\nGenerating miscellaneous files.")
+        templateWriter = MiscTemplateWriter(self.graph, self.hw_desc, self.conf, self.verbose_level, self.perf_layer)
+        tmplfiles = ['tmpl_network.h', 'tmpl_network.c', 'tmpl_main.c', 'tmpl_Makefile']
+        dest = [self.destdir(file) for file in tmplfiles]
+        templateWriter.write(tmplfiles, dest)
 
-    def mapping_makefile(self):
-        print("\nGenerating the Makefile.")
-        Makefile_writer.print_template_Makefile(
-            self.HWgraph,
-            self.HW_description,
-            self.save_string_for_Makefile,
-            self.app_directory)
-
-    def mapping_layers_to_C_files(self):
+    def map_layers(self):
         print("\nTo be implemented in the target backend")
 
-    def copy_backend_files(self, node):
-        print("\nTo be implemented in the target backend")
+    def destdir(self, file):
+        _, ext = os.path.splitext(file)
+        if ext == '.c':
+            return self.srcdir
+        elif ext == '.h':
+            return self.incdir
+        elif ext == '.hex':
+            return self.hexdir
+        elif ext == '':
+            return self.appdir
+        else:
+            print(f"WARNING: Unsupported extension of file {file}")
+            return None
 
-    def copy_utils_files(self):
+    def copy_files(self, files):
+        for file in files:
+            shutil.copy(file, self.destdir(file))
+
+    def copy_backend(self):
+        print("\nCopying Backend Kernels.")
+        files = self.backendfiles
+        for backenddir in self.backenddirs:
+            for root, _, filenames in os.walk(backenddir):
+                files += [os.path.join(root, filename) for filename in filenames]
+        self.copy_files(files)
+
+    def copy_utils(self):
         print("\nCopying Utils.")
-        utils_files_dir = os.path.join(os.path.dirname(__file__), '../Hardware-targets', self.HW_description["name"], 'Utils_files')
-        for file in os.listdir(utils_files_dir):
-            file_to_copy = os.path.join(utils_files_dir, file)
-            if file_to_copy[-1] == 'c':
-                os.system('cp "{}" {}/DORY_network/src'.format(file_to_copy, self.app_directory))
-            elif file_to_copy[-1] == 'h': 
-                os.system('cp "{}" {}/DORY_network/inc'.format(file_to_copy, self.app_directory))
+        utils_dir = os.path.join(self.targetdir, 'Utils_files')
+        utils_files = [os.path.join(utils_dir, file) for file in os.listdir(utils_dir)]
+        self.copy_files(utils_files)
 
-    def create_hex_weights_files(self):
+    def create_hex_weights(self):
         print("\nGenerating .hex weight files.")
 
-        for node in self.HWgraph:
+        for node in self.graph:
             constants = [0, 0, 0, 0]
             for name in node.constant_names:
                 if "weight" in name:
@@ -104,21 +124,21 @@ class Parser_HW_to_C:
             if len(weights) % 4 != 0:
                 weights += bytearray([0] * (4 - len(weights) % 4))
 
-            filepath = os.path.join(self.app_directory, 'DORY_network', node.name + "_weights.hex")
+            filepath = os.path.join(self.hexdir, node.name + "_weights.hex")
             with open(filepath, 'wb') as file:
                 file.write(weights)
 
     def create_hex_input(self):    
         print("\nGenerating .hex input file.")
 
-        input_txt = os.path.join(self.network_directory, 'input.txt')
+        input_txt = os.path.join(self.netdir, 'input.txt')
         try:
             x = loadtxt(input_txt, dtype=np.uint8)
         except FileNotFoundError:
             print(f"File input.txt doesn't exist. Exiting DORY...")
             sys.exit(-1)
 
-        input_hex = os.path.join(self.app_directory, 'DORY_network', 'inputs.hex')
+        input_hex = os.path.join(self.hexdir, 'inputs.hex')
         x.tofile(input_hex)
 
     def full_graph_parsing(self):
@@ -126,16 +146,11 @@ class Parser_HW_to_C:
         print("## DORY GENERAL PARSING FROM DORY HW IR TO C FILES ##")
         print("## FINAL RAPRESENTATION: COMPILABLE C PROJECT      ##")
         print("#####################################################")
-        os.system('rm -rf {}'.format(self.app_directory))
-        os.system('mkdir {}'.format(self.app_directory))
-        os.system('mkdir {}/DORY_network'.format(self.app_directory))
-        os.system('mkdir {}/DORY_network/inc'.format(self.app_directory))
-        os.system('mkdir {}/DORY_network/src'.format(self.app_directory))
         self.adding_numbers_to_layers()
-        self.mapping_network_to_C_file()
-        self.mapping_makefile()
-        self.mapping_layers_to_C_files()
-        self.copy_utils_files()
-        self.create_hex_weights_files()
+        self.map_misc()
+        self.map_layers()
+        self.copy_backend()
+        self.copy_utils()
+        self.create_hex_weights()
         self.create_hex_input()
 

@@ -49,8 +49,8 @@ class Tiler_Conv2D():
         ###############################################
         ##### PARAMETERS INITIALIZATION ###############
         ###############################################
-        L1_memory_activation = self.HW_node.HW_description["memory"]["L1"]["dimension"]
-        L1_memory_weights = self.HW_node.HW_description["memory"]["L1_Weights"]["dimension"]
+        L1_memory_activation = self.HW_node.hw_desc["memory"]["L1"]["dimension"]
+        L1_memory_weights = self.HW_node.hw_desc["memory"]["L1_Weights"]["dimension"]
         inp_dim = self.HW_node.tiling_dimensions["L2"]["input_dimensions"][1:]
         out_dim = self.HW_node.tiling_dimensions["L2"]["output_dimensions"][1:]
         out_ch = self.HW_node.tiling_dimensions["L2"]["weights_dimensions"][0]

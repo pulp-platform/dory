@@ -57,7 +57,7 @@ class Tiler_Conv2D:
     def get_tiling_conv2d_L3(self):
         # TODO In the current setup, width cannot be tiled. Is this the best solution?
 
-        L2_memory = self.node.HW_description["memory"]["L2"]["dimension"] - self.code_reserved_space
+        L2_memory = self.node.hw_desc["memory"]["L2"]["dimension"] - self.code_reserved_space
         # 4 iterations, adding each time a different part to be tiled, either weights, outputs, or both. Input is forced
 
         if self.prev_node is not None and self.prev_node.tiling_dimensions['L2']['output_dimensions'] is not None:
@@ -183,9 +183,9 @@ class Tiler_Conv2D:
         ###############################################
         ##### PARAMETERS INITIALIZATION ###############
         ###############################################
-        L1_memory = self.node.HW_description["memory"]["L1"]["dimension"]\
-                    - self.node.HW_description["HW specific parameters"]["accelerator core0 stack"]\
-                    - 7 * self.node.HW_description["HW specific parameters"]["accelerator core1-7 stack"]
+        L1_memory = self.node.hw_desc["memory"]["L1"]["dimension"]\
+                    - self.node.hw_desc["HW specific parameters"]["accelerator core0 stack"]\
+                    - 7 * self.node.hw_desc["HW specific parameters"]["accelerator core1-7 stack"]
         in_dim = self.node.tiling_dimensions["L2"]["input_dimensions"][1:]
         out_dim = self.node.tiling_dimensions["L2"]["output_dimensions"][1:]
         out_ch = self.node.tiling_dimensions["L2"]["weights_dimensions"][0]

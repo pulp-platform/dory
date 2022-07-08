@@ -1,31 +1,40 @@
-from mako.template import Template
 import os
+import re
+from mako.template import Template
 
 
 class TemplateWriter:
-    def __init__(self, node, tmpl_dir, out_dir):
-        self.tmpl_dir = tmpl_dir
-        self.out_dir = out_dir
+    def __init__(self, tmpldir):
+        self.tk = {}
+        self.tmpldir = os.path.abspath(tmpldir)
 
-        self.func_name = node.name
-        self.flag_DW = 1 if node.group > 1 else 0
+    def set_var(self, name, val):
+        self.tk[name] = val
 
-    # Assumes tmpl_files is a list of 2 files where one ends with .h and the other .c
-    def write(self, tmpl_files):
-        tmpl_files = [os.path.join(self.tmpl_dir, tmpl_file) for tmpl_file in tmpl_files]
-        for tmpl_file in tmpl_files:
-            tmpl_file_name = os.path.basename(tmpl_file)
-            if tmpl_file_name.endswith('.h'):
-                file_dir = 'inc'
-                out_file_name = self.func_name + '.h'
-            elif tmpl_file_name.endswith('.c'):
-                file_dir = 'src'
-                out_file_name = self.func_name + '.c'
-            else:
-                file_dir = '.'
-                out_file_name = self.func_name
-            out_file = os.path.join(self.out_dir, file_dir, out_file_name)
-            tmpl = Template(filename=tmpl_file)
-            rendered = tmpl.render(**self.__dict__)
-            with open(out_file, 'w') as f:
-                f.write(rendered)
+    # Template file name should be of form tmpl_<filename>.<ext>
+    # If called without outfiles, generates name from template file name
+    def write(self, tmplfiles, dests):
+        if not isinstance(tmplfiles, list):
+            tmplfiles = [tmplfiles]
+
+        if not isinstance(dests, list):
+            dests = [dests]
+
+        assert len(tmplfiles) == len(dests)
+
+        regex = re.compile(r'tmpl_(.*)')
+
+        for tmplfile, dest in zip(tmplfiles, dests):
+            filename, ext = os.path.splitext(tmplfile)
+
+            match = regex.fullmatch(filename)
+            if match is None:
+                print(f'Skipping template file {tmplfile}: not of form tmpl_<filename>[.c|.h]')
+                continue
+
+            template = Template(filename=os.path.join(self.tmpldir, tmplfile))
+            rendered_template = template.render(**self.tk)
+
+            outfile = os.path.join(dest, match.group(1) + ext) if os.path.isdir(dest) else dest
+            with open(outfile, 'w') as file:
+                file.write(rendered_template)

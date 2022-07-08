@@ -155,8 +155,8 @@ def print_template_layer(node, layer_type, tmpl_dir, out_dir, double_buffering =
             tk['first_layer'] = 1
     else:
         tk['first_layer'] = 0
-    tk['sdk'] = node.HW_description["software development kit"]["name"]
-    tk['number_of_clusters'] = node.HW_description["number_of_clusters"] if "number_of_clusters" in node.HW_description.keys() else 1
+    tk['sdk'] = node.hw_desc["software development kit"]["name"]
+    tk['number_of_clusters'] = node.hw_desc["number_of_clusters"] if "number_of_clusters" in node.hw_desc.keys() else 1
     tk['optional_type'] = layer_type
     tk['func_name'] = node.name
     tk['flag_DW'] = 1 if node.group > 1 else 0
@@ -239,7 +239,7 @@ def print_template_layer(node, layer_type, tmpl_dir, out_dir, double_buffering =
     ################################################################################
 
     tk['nof'] = n_out
-    if node.HW_description['memory']['levels'] > 2:
+    if node.hw_desc['memory']['levels'] > 2:
         tk['factor'] = node.tiling_dimensions["L3"]["output_dimensions"][0] / n_out
     else:
         tk['factor'] = 1

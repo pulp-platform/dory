@@ -37,32 +37,32 @@ file_path = "/".join(os.path.realpath(__file__).split("/")[:-1])
 
 class C_Parser(Parser_HW_to_C):
     # Used to manage the ONNX files. By now, supported Convolutions (PW and DW), Pooling, Fully Connected and Relu.
-    def __init__(self, graph, config_file, config_file_dir, verbose_level, perf_layer, precision_library, app_directory):
+    def __init__(self, graph, config_file, config_file_dir, verbose_level, perf_layer, precision_library, appdir):
         f = open(os.path.join(file_path, "HW_description.json"))
         HW_description = json.load(f)
         self.precision_library = precision_library
         self.source_Constant_bits_library = config_file["BNRelu_bits"]
         self.config_file = config_file
-        super().__init__(graph, os.path.join(config_file_dir, os.path.dirname(config_file["onnx_file"])), HW_description, verbose_level, perf_layer, "Makefile", app_directory)
+        super().__init__(graph, os.path.join(config_file_dir, os.path.dirname(config_file["onnx_file"])), HW_description, verbose_level, perf_layer, "Makefile", appdir)
 
     def copy_backend_files(self, node):
         root = os.path.dirname(__file__)
         files = os.path.join(root, "Backend_Kernels/dory-hal/")
-        if os.listdir(os.path.join(files, "include".format(self.source_Constant_bits_library)))[0] not in os.listdir(os.path.join(self.app_directory, "DORY_network/inc")):
+        if os.listdir(os.path.join(files, "include".format(self.source_Constant_bits_library)))[0] not in os.listdir(os.path.join(self.appdir, "DORY_network/inc")):
             for file in os.listdir(os.path.join(files, "include".format(self.source_Constant_bits_library))):
                 file_to_copy = os.path.join(files, "include".format(self.source_Constant_bits_library), file)
-                os.system('cp "{}" {}'.format(file_to_copy, os.path.join(self.app_directory, 'DORY_network/inc')))
-        if os.listdir(os.path.join(files, "src".format(self.source_Constant_bits_library)))[0] not in os.listdir(os.path.join(self.app_directory, "DORY_network/src")):
+                os.system('cp "{}" {}'.format(file_to_copy, os.path.join(self.appdir, 'DORY_network/inc')))
+        if os.listdir(os.path.join(files, "src".format(self.source_Constant_bits_library)))[0] not in os.listdir(os.path.join(self.appdir, "DORY_network/src")):
             for file in os.listdir(os.path.join(files, "src".format(self.source_Constant_bits_library))):
                 file_to_copy = os.path.join(files, "src".format(self.source_Constant_bits_library), file)
-                os.system('cp "{}" {}'.format(file_to_copy, os.path.join(self.app_directory, 'DORY_network/src')))
+                os.system('cp "{}" {}'.format(file_to_copy, os.path.join(self.appdir, 'DORY_network/src')))
         
 
     def mapping_layers_to_C_files(self):
         print("\nMapping the layers files to their templates and copying the kernels associated.")
         tmpl_dir = os.path.join(os.path.dirname(__file__), 'Templates/layer_templates')
-        out_dir = '{}/DORY_network'.format(self.app_directory)
-        for i, node in enumerate(self.HWgraph):
+        out_dir = '{}/DORY_network'.format(self.appdir)
+        for i, node in enumerate(self.graph):
             self.copy_backend_files(node)
             Layer2D_writer.print_template_layer(node, self.precision_library, tmpl_dir, out_dir)
 
@@ -70,7 +70,7 @@ class C_Parser(Parser_HW_to_C):
         print("\nGenerating .h weight files.")
         weights_vectors = []
         weights_dimensions = []
-        for i, node in enumerate(self.HWgraph):
+        for i, node in enumerate(self.graph):
             constants = [0, 0, 0, 0]
             for name in node.constant_names:
                 if "weight" in name:
@@ -114,30 +114,30 @@ class C_Parser(Parser_HW_to_C):
         tk = OrderedDict([])
         tk['weights_vectors'] = weights_vectors
         tk['weights_dimensions'] = weights_dimensions
-        tk['DORY_HW_graph'] = self.HWgraph
+        tk['DORY_HW_graph'] = self.graph
         root = os.path.dirname(__file__)
         tmpl = Template(filename=os.path.join(root, "Templates/weights_h_template.h"))
         s = tmpl.render(**tk)
-        save_string = os.path.join(self.app_directory, 'DORY_network/inc/weights.h') 
+        save_string = os.path.join(self.appdir, 'DORY_network/inc/weights.h')
         with open(save_string, "w") as f:
             f.write(s)
         tmpl = Template(filename=os.path.join(root, "Templates/weights_definition_h_template.h"))
         s = tmpl.render(**tk)
-        save_string = os.path.join(self.app_directory, 'DORY_network/inc/weights_definition.h') 
+        save_string = os.path.join(self.appdir, 'DORY_network/inc/weights_definition.h')
         with open(save_string, "w") as f:
             f.write(s)
 
     def create_hex_input(self):    
         print("\nGenerating .h input file.")
         try:
-            x_in = np.loadtxt(os.path.join(self.network_directory, 'input.txt'), delimiter=',', dtype=np.uint8, usecols=[0])
-            x_in_w = int(x_in.shape[0]/(self.HWgraph[0].input_channels*self.HWgraph[0].input_dimensions[0]))
-            x_in = x_in.reshape(self.HWgraph[0].input_channels, self.HWgraph[0].input_dimensions[0], x_in_w)
+            x_in = np.loadtxt(os.path.join(self.netdir, 'input.txt'), delimiter=',', dtype=np.uint8, usecols=[0])
+            x_in_w = int(x_in.shape[0] / (self.graph[0].input_channels * self.graph[0].input_dimensions[0]))
+            x_in = x_in.reshape(self.graph[0].input_channels, self.graph[0].input_dimensions[0], x_in_w)
             npad = ((0, 0), (0,0), (0, (16 - (x_in_w % 16)) % 16))
             temp = np.pad(x_in, pad_width=npad, mode='constant', constant_values=0)
             x_in = temp.flatten()
         except FileNotFoundError:
-            print(f"========= WARNING ==========\nInput file {os.path.join(self.network_directory, 'input.txt')} not found; generating random inputs!")
+            print(f"========= WARNING ==========\nInput file {os.path.join(self.netdir, 'input.txt')} not found; generating random inputs!")
             x_in = np.random.randint(low=0, high=2*8 - 1,
                                      size=self.group * self.input_channels * self.input_dimensions[0] * self.input_dimensions[1],
                                      dtype=np.uint8)
@@ -154,6 +154,6 @@ class C_Parser(Parser_HW_to_C):
         root = os.path.dirname(__file__)
         tmpl = Template(filename=os.path.join(root, "Templates/input_h_template.h"))
         s = tmpl.render(**tk)
-        save_string = os.path.join(self.app_directory, 'DORY_network/inc/input.h') 
+        save_string = os.path.join(self.appdir, 'DORY_network/inc/input.h')
         with open(save_string, "w") as f:
             f.write(s)

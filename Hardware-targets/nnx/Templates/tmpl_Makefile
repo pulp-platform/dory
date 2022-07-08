@@ -15,22 +15,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
+CORE ?= 1
+
 APP = main
-
-APP_SRCS := $(wildcard DORY_network/src/*.c) 
-
-ifndef CORE
-CORE=1
-else
-CORE= $(CORE)
-endif
+APP_SRCS := $(wildcard src/*.c)
+APP_CFLAGS += -DNUM_CORES=$(CORE) -Iinc -O3 -w -fno-tree-loop-distribute-patterns -flto
+APP_LDFLAGS += -lm -flto
 
 % if sdk == 'gap_sdk':
-APP_CFLAGS += -DNUM_CORES=$(CORE) -DGAP_SDK=1 -IDORY_network/inc -O3 -w -fno-tree-loop-distribute-patterns -flto
-APP_LDFLAGS += -lm -flto
+APP_CFLAGS += -DGAP_SDK=1
 % elif sdk == 'pulp-sdk':
-APP_CFLAGS += -DNUM_CORES=$(CORE) -DPULP_SDK=1 -IDORY_network/inc -O3 -w -fno-tree-loop-distribute-patterns -flto
-APP_LDFLAGS += -lm -flto
+APP_CFLAGS += -DPULP_SDK=1
 % endif
 
 % if sdk == 'pulp-sdk':
@@ -38,14 +34,10 @@ CONFIG_HYPERRAM = 1
 CONFIG_HYPERFLASH = 1
 % endif
 
-% for i,layer in enumerate(layers_w):
-% if i==0:
-FLASH_FILES = DORY_network/${layer}
-% else:
-FLASH_FILES += DORY_network/${layer}
-%endif
+% for layer in layers_w:
+FLASH_FILES += hex/${layer}
 % endfor
-FLASH_FILES += DORY_network/inputs.hex
+FLASH_FILES += hex/inputs.hex
 
 READFS_FILES := $(FLASH_FILES)
 PLPBRIDGE_FLAGS += -f

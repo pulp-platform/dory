@@ -21,7 +21,6 @@
 # Libraries
 import json
 import os
-import shutil
 
 # DORY modules
 from Parsers.Parser_HW_to_C import Parser_HW_to_C
@@ -31,78 +30,52 @@ from .Util import div_and_ceil, rem
 
 class nnx_C_Parser(Parser_HW_to_C):
     # Used to manage the ONNX files. By now, supported Convolutions (PW and DW), Pooling, Fully Connected and Relu.
-    def __init__(self, graph, conf, confdir, verbose_level, perf_layer, precision_library, app_directory, accelerator):
-        self.nnxdir = os.path.dirname(__file__)
-        with open(os.path.join(self.nnxdir, 'HW_description.json'), 'r') as f:
-            hw_description = json.load(f)
-        self.precision_library = precision_library
-        self.source_Constant_bits_library = conf["BNRelu_bits"]
-        self.config_file = conf
+    def __init__(self, graph, conf, confdir, verbose_level, perf_layer, precision_library, appdir, accelerator):
+        with open(os.path.join(os.path.dirname(__file__), 'HW_description.json'), 'r') as f:
+            hw_desc = json.load(f)
+        super().__init__(graph, conf, os.path.join(confdir, os.path.dirname(conf["onnx_file"])),
+                         hw_desc, verbose_level, perf_layer, "Makefile", appdir)
+
         self.acc = accelerator
-        super().__init__(graph, os.path.join(confdir, os.path.dirname(conf["onnx_file"])),
-                         hw_description, verbose_level, perf_layer, "Makefile", app_directory)
+        pulp_nnx_backenddir = os.path.join(self.targetdir, 'Backend_Kernels', 'pulp-nnx')
+        self.backenddirs = [os.path.join(pulp_nnx_backenddir, self.acc.name)]
+        self.backendfiles = [os.path.join(pulp_nnx_backenddir, 'pulp_nnx.h')]
 
-    def copy_backend_files(self, node):
-        out_dir = os.path.join(self.app_directory, 'DORY_network')
-        out_inc_dir = os.path.join(out_dir, 'inc')
-        out_src_dir = os.path.join(out_dir, 'src')
-        backend_dir = os.path.join(self.nnxdir, 'Backend_Kernels', 'pulp-nnx')
-        backend_inc_dir = os.path.join(backend_dir, 'include')
-        backend_src_dir = os.path.join(backend_dir, 'src')
-
-        def cp_files(src_dir, dest_dir, files):
-            for file in files:
-                shutil.copy(os.path.join(src_dir, file), os.path.join(dest_dir, file))
-
-        def cp_dir_files(src_dir, dest_dir):
-            for (dirpath, dirnames, filenames) in os.walk(src_dir):
-                cp_files(dirpath, dest_dir, filenames)
-                if self.acc.name in dirnames:
-                    for (dirpath, dirnames, filenames) in os.walk(os.path.join(dirpath, self.acc.name)):
-                        cp_files(dirpath, dest_dir, filenames)
-                        break
-                break
-
-        cp_dir_files(backend_inc_dir, out_inc_dir)
-        cp_dir_files(backend_src_dir, out_src_dir)
-
-    def mapping_layers_to_C_files(self):
+    def map_layers(self):
         print("\nMapping the layers files to their templates and copying the kernels associated.")
-        tmpl_dir = os.path.join(self.nnxdir, 'Templates', 'layer_templates')
-        out_dir = os.path.join(self.app_directory, 'DORY_network')
+        tmpldir = os.path.join(self.targetdir, 'Templates', 'layer_templates')
 
-        for node in self.HWgraph:
-            self.copy_backend_files(node)
+        for node in self.graph:
             l3_tiling = node.tiling_dimensions["L3"]
             l2_tiling = node.tiling_dimensions["L2"]
             is_l3_access = (l3_tiling["input_dimensions"] != l2_tiling["input_dimensions"]) \
                         or (l3_tiling["output_dimensions"] != l2_tiling["output_dimensions"]) \
                         or (l3_tiling["weights_dimensions"] != l2_tiling["weights_dimensions"])
+
             if is_l3_access:
-                tmpl_writer = TemplateWriter2D_L3(node, tmpl_dir, out_dir)
-                tmpl_files = ['layer_L3_h_template.h', 'layer_L3_c_template.c']
-                tmpl_writer.write(tmpl_files)
+                templateWriter = TemplateWriter2D_L3(node, tmpldir)
+                tmplfiles = ['tmpl_layer_L3.h', 'tmpl_layer_L3.c']
+                outfiles = [f'{node.name}.h', f'{node.name}.c']
+                outfiles = [os.path.join(self.destdir(file), file) for file in outfiles]
+                templateWriter.write(tmplfiles, outfiles)
                 node.name += '_L2'
 
-            tmpl_writer = TemplateWriter2D_L2(node, tmpl_dir, out_dir)
-            tmpl_writer = self.__nnx_vars(tmpl_writer, node)
-            tmpl_files = ['layer_L2_h_template.h', 'layer_L2_c_conv_template.c']
-            tmpl_writer.write(tmpl_files)
+            templateWriter = TemplateWriter2D_L2(node, tmpldir)
+            templateWriter = self.__nnx_vars(templateWriter, node)
+            tmplfiles = ['tmpl_layer_L2.h', 'tmpl_layer_conv_L2.c']
+            outfiles = [f'{node.name}.h', f'{node.name}.c']
+            outfiles = [os.path.join(self.destdir(file), file) for file in outfiles]
+            templateWriter.write(tmplfiles, outfiles)
 
             if is_l3_access:
                 node.name = node.name[:-3]
 
-    def __mem_tmpl_vars(self, tmpl_writer, node, mem_level):
+    def __mem_tmpl_vars(self, templateWriter, node, mem_level):
         mem_name = f'L{mem_level}'
         upper_mem_name = f'L{mem_level + 1}'
 
         def set_tmpl_var(name, val):
-            prefix = f'{mem_name.lower()}_'
-
-            def attr(var_name):
-                return f'{prefix}{var_name}'
-
-            setattr(tmpl_writer, attr(name), val)
+            templateWriter.set_var(f'{mem_name.lower()}_{name}', val)
 
         flag_depthwise = node.group > 1
         flag_batchnorm = 'k' in node.constant_names
@@ -197,7 +170,7 @@ class nnx_C_Parser(Parser_HW_to_C):
             set_tmpl_var('y_dma_stride_1d', y_dma_stride_1d)
             set_tmpl_var('y_dma_stride_2d', y_dma_stride_2d)
 
-    def __nnx_vars(self, tmpl_writer, node):
-        self.__mem_tmpl_vars(tmpl_writer, node, mem_level=1)
-        self.__mem_tmpl_vars(tmpl_writer, node, mem_level=2)
-        return tmpl_writer
+    def __nnx_vars(self, templateWriter, node):
+        self.__mem_tmpl_vars(templateWriter, node, mem_level=1)
+        self.__mem_tmpl_vars(templateWriter, node, mem_level=2)
+        return templateWriter
