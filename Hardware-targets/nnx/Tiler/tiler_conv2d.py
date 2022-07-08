@@ -68,7 +68,8 @@ class Tiler_Conv2D:
 
         # tiling for L3-L2 management
         buffer_total = self.node.input_activation_memory + self.node.output_activation_memory + self.node.weight_memory + self.node.bias_memory + self.node.constants_memory
-        if (buffer_total <= L2_memory) and input_in_l2:
+        # TODO shouldn't this be or?
+        if (buffer_total <= L2_memory) or input_in_l2:
             return ([self.node.output_channels, self.node.input_channels],
                     [self.node.input_channels, self.node.input_dimensions[0], self.node.input_dimensions[1]],
                     [self.node.output_channels, self.node.output_dimensions[0],

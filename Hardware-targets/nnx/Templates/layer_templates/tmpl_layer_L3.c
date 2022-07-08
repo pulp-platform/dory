@@ -119,41 +119,30 @@ void __attribute__ ((noinline)) ${func_name}(void *args)
 
 % if n_tile_y > 1 and n_tile_x > 1:
   // loop over input/output tiles
-  for(int j=0; j<${n_tile_x}; j++) 
-  {
-    if(pi_core_id()==0)
-    {
-      int shift = 0; 
-      if (j==0)
-        shift = ${dim_in-int(conv_overlap1*n_in*w_in*BitIn/8) - int(padding*n_in*w_in*BitIn/8)};
-      else
-        shift = ${dim_in-int(conv_overlap1*n_in*w_in*BitIn/8) - int(padding*n_in*w_in*BitIn/8)} + j*${dim_in-int(conv_overlap1*n_in*w_in*BitIn/8)};
-      // read from L3 of the new input tile. The shift is computed based on the overlap
+  int shift = ${dim_in-int(conv_overlap1*n_in*w_in*BitIn/8) - int(padding*n_in*w_in*BitIn/8)};
+
+  for (int j = 0; j < ${n_tile_x}; j++) {
+    if(pi_core_id()==0) {
       if (j<${n_tile_x-1})
         pi_cl_ram_read(hyperram, l3_x + shift, transfer_input, ${dim_in}, &buff_req_x1);
+      shift += ${dim_in-int(conv_overlap1*n_in*w_in*BitIn/8)};
     }    
     input_t = !input_t;
     transfer_input = input_t ? L2_input_2 : L2_input_1;
 % elif n_tile_y > 1:
   // loop over output tiles
-  for(int j=0; j<${n_tile_y}; j++) 
-  {
+  for (int j = 0; j < ${n_tile_y}; j++) {
 % elif n_tile_x > 1:
   // loop over input tiles
-  for(int j=0; j<${n_tile_x}; j++) 
-  {
-    if(pi_core_id()==0)
-    {
+  int shift = ${dim_in-int(conv_overlap1*n_in*w_in*BitIn/8) - int(padding*n_in*w_in*BitIn/8)};
+
+  for (int j = 0; j < ${n_tile_x}; j++) {
+    if (pi_core_id()==0) {
       pi_cl_ram_read_wait(&buff_req_x1);
-      int shift = 0; 
-      if (j==0)
-        shift = ${dim_in-int(conv_overlap1*n_in*w_in*BitIn/8) - int(padding*n_in*w_in*BitIn/8)};
-      else
-        shift = ${dim_in-int(conv_overlap1*n_in*w_in*BitIn/8) - int(padding*n_in*w_in*BitIn/8)} + j*${dim_in-int(conv_overlap1*n_in*w_in*BitIn/8)};
-      // read from L3 of the new input tile. The shift is computed based on the overlap
       if (j<${n_tile_x-1})
         pi_cl_ram_read(hyperram, l3_x + shift, transfer_input, ${dim_in}, &buff_req_x1);
-    }    
+      shift += ${dim_in-int(conv_overlap1*n_in*w_in*BitIn/8)};
+    }
     input_t = !input_t;
     transfer_input = input_t ? L2_input_2 : L2_input_1;
 % else:
@@ -162,12 +151,9 @@ void __attribute__ ((noinline)) ${func_name}(void *args)
 
 % if n_tile_W > 1:
   // loop over weight tiles
-  for(int k=0; k<${n_tile_W}; k++) 
-  {
-    if (k < ${n_tile_W-1}) 
-    {
-      if(pi_core_id()==0) 
-      {
+  for(int k = 0; k < ${n_tile_W}; k++) {
+    if (k < ${n_tile_W-1}) {
+      if(pi_core_id()==0) {
         pi_cl_ram_read(hyperram, (l3_W+(k+1)*${weight_dim}), transfer_weights, ${weight_dim}, &buff_req_w1);
         % if k_dim != 0:
         pi_cl_ram_read(hyperram, l3_W+${(weight_dim+bias_dim)*n_tile_W}+ (k+1)*${k_dim}, transfer_weights + ${weight_dim} + ${bias_dim}, ${k_dim}, &buff_req_w2);

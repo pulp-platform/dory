@@ -43,7 +43,7 @@ char* bypass_activations;
 
 % if 'Check_all' in verbose_level:
 #ifdef VERBOSE
-static void check_layer_last(${DORY_HW_graph[-1].output_activation_type}${DORY_HW_graph[-1].output_activation_bits}_t *d, int size, int sum_true) {
+static void checksum_last(${DORY_HW_graph[-1].output_activation_type}${DORY_HW_graph[-1].output_activation_bits}_t *d, int size, int sum_true) {
   int sum = 0;
   for (int i = 0; i < size / ${DORY_HW_graph[-1].output_activation_bits // 8}; i++) sum += d[i];
 
@@ -306,12 +306,12 @@ void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_outpu
       }
       printf("\n");
     } else {
-      check_layer_last((${DORY_HW_graph[-1].output_activation_type}${DORY_HW_graph[-1].output_activation_bits}_t *) L2_output, activations_out_size[i], activations_out_checksum[i]);
+      checksum_last((${DORY_HW_graph[-1].output_activation_type}${DORY_HW_graph[-1].output_activation_bits}_t *)L2_output, activations_out_size[i], activations_out_checksum[i]);
     }
 #endif
 % elif 'Last' in verbose_level:
     if (i == ${len(DORY_HW_graph) - 1})
-        check_layer_last((${DORY_HW_graph[-1].output_activation_type}${DORY_HW_graph[-1].output_activation_bits}_t *) L2_output, activations_out_size[i], activations_out_checksum[i]);
+        checksum_last((${DORY_HW_graph[-1].output_activation_type}${DORY_HW_graph[-1].output_activation_bits}_t *)L2_output, activations_out_size[i], activations_out_checksum[i]);
 % else:
 #ifdef VERBOSE
     printf("Layer %s %d ended: \n", Layers_name[i], i);
