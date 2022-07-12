@@ -10,3 +10,6 @@
 [submodule "Hardware-targets/GAP8/Backend_Kernels/pulp-nn-1d"]
 	path = Hardware-targets/GAP8/Backend_Kernels/pulp-nn-1d
 	url = git@github.com:pulp-platform/pulp-nn-1d.git
+[submodule "Hardware-targets/Diana/Backend_Kernels/dory-hal"]
+	path = Hardware-targets/Diana/Backend_Kernels/dory-hal
+	url = git@github.com:ABurrello/dory-hal.git
