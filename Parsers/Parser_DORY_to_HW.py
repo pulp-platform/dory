@@ -192,6 +192,8 @@ class Parser_DORY_to_HW:
         print("## DORY GENERAL PARSING FROM DORY IR TO DORY HW IR ##")
         print("## FINAL RAPRESENTATION: DORY HW IR                ##")
         print("#####################################################")
+        self.Printer_Frontend.print_json_from_DORY_graph("00_DORY_HW_input_graph", self.DORY_Graph)
+        self.Printer_Frontend.print_onnx_from_DORY_graph("00_DORY_HW_input_graph", self.DORY_Graph)
         self.mapping_to_HW_nodes()
         self.Printer_Frontend.print_json_from_DORY_graph("01_DORY_HW_graph_raw", self.DORY_Graph)
         self.Printer_Frontend.print_onnx_from_DORY_graph("01_DORY_HW_graph_raw", self.DORY_Graph)
