@@ -137,6 +137,11 @@ void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_outpu
   int perf_cyc = 0;
   int to_deallocate = 0;
   int bypass_dimension = 0;
+
+  int left_branch_nodes = 0;
+  int right_branch_nodes = 0;
+  int z = 0;
+  int end_left = 0;
 /* ---------------------------------- */
 /* --------- SECTION 0 END ---------- */
 /* ---------------------------------- */
@@ -266,37 +271,55 @@ void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_outpu
           check_activations_dimension[i],
           begin_end_n // begin is 1, end is 0
           );
+
     if (branch_input[i]==1)
-      to_deallocate = 1;
-    if (to_deallocate && ((bypass_activations==L2_memory_buffer_begin && begin_end_n==1) || (bypass_activations!=L2_memory_buffer_begin && begin_end_n==0)))
-    {
       dory_L2_free(&L2_memory_buffer,
         &L2_memory_buffer_end,
         bypass_dimension,
         begin_end_n // begin is 1, end is 0
         );
-      to_deallocate = 0;
-    }
+
     if  (branch_output[i]==1)
     {
       bypass_activations = L2_output;
       bypass_dimension = check_activations_out_dimension[i];
     }
+
     L2_input = L2_output;
+
     if (i < ${len(DORY_HW_graph) - 1})
     {
       if  (branch_output[i]==1)
       {
-        int layers = 0;
-        int z = i;
-        while (branch_input[z+1] == 0)
+        left_branch_nodes = 0;
+        right_branch_nodes = 0;
+        z = i+1;
+        end_left = 0;
+        while (branch_input[z] == 0)
         {
-          layers+=1;
+          if (end_left == 0)
+            left_branch_nodes+=1;
+          else
+            right_branch_nodes+=1;
+          if (branch_change[z] == 1)
+            end_left = 1;
           z+=1;
         }
-        if (layers % 2 == 1)
+        if ((left_branch_nodes % 2 == 1) && (right_branch_nodes == 0))
+          begin_end_n = !begin_end_n;
+        if ((left_branch_nodes % 2 == 0) && (right_branch_nodes > 0))
           begin_end_n = !begin_end_n;
       }
+
+      if  (branch_change[i]==1)
+      {
+        L2_input = bypass_activations;
+        bypass_activations = L2_output;
+        bypass_dimension = check_activations_out_dimension[i];
+        if (right_branch_nodes % 2 == 1)
+          begin_end_n = !begin_end_n;
+      }
+
       dory_L2_alloc(&L2_memory_buffer,
         &L2_memory_buffer_end,
         &L2_output,
@@ -306,6 +329,7 @@ void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_outpu
       //switching output and input in the buffer for allocation.
       begin_end_n = !begin_end_n;
     }
+
   }
   for(int i = 0; i < check_activations_out_dimension[${len(DORY_HW_graph)}]; i++)
   {
