@@ -39,6 +39,10 @@ void ${func_name}(layer* layer_i)
   unsigned int l1_y       = l1_x + ${int(l1_y_offset/32)*32+32};
   unsigned int l1_weights = 0x0;
 
+  // perf measurement begin
+  volatile rt_perf_t *perf;
+  perf = rt_alloc(RT_ALLOC_L2_CL_DATA, sizeof(rt_perf_t));
+
   /////////////////////
   // DMA declaration //
   /////////////////////
@@ -89,8 +93,14 @@ void ${func_name}(layer* layer_i)
   // tile loop nest
   for(iter=0; iter < total_tiles; iter++) {
 
-    // check if last in any dimension
+    int perf_cyc, perf_cyc1, perf_cyc2;
+    rt_perf_init(perf);
+    rt_perf_conf(perf, (1<<RT_PERF_CYCLES));
+    rt_perf_stop(perf);
+    rt_perf_start(perf);
 
+
+    // check if last in any dimension
     x_tile_size_nif = (_i_nif+1   == ${tile_dim_nif}) ? ${x_tile_size_nif_last} : ${x_tile_size_nif};
     x_tile_size_h   = (_i_h+1     == ${tile_dim_h})   ? ${x_tile_size_h_last} : ${x_tile_size_h};
     x_tile_size_w   = (_i_w+1     == ${tile_dim_w})   ? ${x_tile_size_w_last} : ${x_tile_size_w};
@@ -124,6 +134,16 @@ void ${func_name}(layer* layer_i)
     kernel.dilation = 1;
     kernel.stride = ${1 if stride > 1 else 0};
 
+    rt_perf_stop(perf);
+    rt_perf_save(perf);
+    perf_cyc = rt_perf_get(perf, RT_PERF_CYCLES);
+    rt_perf_reset(perf);
+
+    rt_perf_init(perf);
+    rt_perf_conf(perf, (1<<RT_PERF_CYCLES));
+    rt_perf_stop(perf);
+    rt_perf_start(perf);
+
     int pad_offset_h=0, pad_offset_w=0;
     if(_i_h > 0)
       pad_offset_h = ${padding_top};
@@ -133,6 +153,16 @@ void ${func_name}(layer* layer_i)
     dory_cores_barrier();
     conv_2d(l2_x_tile, l1_x, l2_W, l1_weights, l1_y, &kernel);
     dory_cores_barrier();
+
+    rt_perf_stop(perf);
+    rt_perf_save(perf);
+    perf_cyc1 = rt_perf_get(perf, RT_PERF_CYCLES);
+    rt_perf_reset(perf);
+
+    rt_perf_init(perf);
+    rt_perf_conf(perf, (1<<RT_PERF_CYCLES));
+    rt_perf_stop(perf);
+    rt_perf_start(perf);
 
     _i_nof_pre = _i_nof;
     _i_nif_pre = _i_nif;
@@ -170,7 +200,13 @@ void ${func_name}(layer* layer_i)
     DMA_copy_y.length_1d_copy = y_tile_size_w;
     dory_dma_memcpy_async(DMA_copy_y); 
     dory_dma_barrier(DMA_copy_y);
+    
+    rt_perf_stop(perf);
+    rt_perf_save(perf);
+    perf_cyc2 = rt_perf_get(perf, RT_PERF_CYCLES);
+    rt_perf_reset(perf);
   }
+
 
   dory_dma_deallocate(dory_dma_channel);
 }
