@@ -97,17 +97,27 @@ unsigned int dory_get_tile_3d(
   int data_size
 );
 
-void dory_dma_memcpy_async(DMA_copy DMA_copy_current);
+void dory_dma_memcpy_async_digital(DMA_copy DMA_copy_current);
+void dory_dma_memcpy_async_analog(DMA_copy DMA_copy_current);
 
-void __attribute__ ((noinline)) dory_dma_barrier(DMA_copy DMA_copy_current);
+void __attribute__ ((noinline)) dory_dma_barrier_digital(DMA_copy DMA_copy_current);
+void __attribute__ ((noinline)) dory_dma_barrier_analog(DMA_copy DMA_copy_current);
 
 uint32_t __attribute__ ((noinline)) dory_dma_allocate();
 
 void __attribute__ ((noinline)) dory_dma_deallocate(uint32_t dma_channel);
 
-void __attribute__ ((noinline)) dory_cores_barrier();
+void __attribute__ ((noinline)) dory_cores_barrier_digital();
+void __attribute__ ((noinline)) dory_cores_barrier_analog();
 
 void memcpy_dig(unsigned int* L2_Addr_Byte,
+                unsigned int L1_Addr,
+                unsigned int Length,
+                unsigned int direction_L1_L2,
+                unsigned int BankNum
+                );
+
+void memcpy_analog(unsigned int* L2_Addr_Byte,
                 unsigned int L1_Addr,
                 unsigned int Length,
                 unsigned int direction_L1_L2,

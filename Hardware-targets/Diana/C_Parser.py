@@ -56,15 +56,31 @@ class C_Parser(Parser_HW_to_C):
             for file in os.listdir(os.path.join(files, "src".format(self.source_Constant_bits_library))):
                 file_to_copy = os.path.join(files, "src".format(self.source_Constant_bits_library), file)
                 os.system('cp "{}" {}'.format(file_to_copy, os.path.join(self.app_directory, 'DORY_network/src')))
-        
+
+    def adding_numbers_to_layers(self):
+        for i, node in enumerate(self.HWgraph):
+            if node.weight_bits == 8:
+                node.name = node.name + "Digital" + str(i)        
+            elif node.weight_bits == 2:
+                node.name = node.name + "Analog" + str(i)        
+            else:
+                node.name = node.name + str(i) 
+
+
 
     def mapping_layers_to_C_files(self):
         print("\nMapping the layers files to their templates and copying the kernels associated.")
         tmpl_dir = os.path.join(os.path.dirname(__file__), 'Templates/layer_templates')
         out_dir = '{}/DORY_network'.format(self.app_directory)
+        precision_library = self.precision_library
         for i, node in enumerate(self.HWgraph):
+            if self.precision_library == 'auto':
+                precision_library = '8bit'
+                if "Addition" not in node.name:
+                    if node.get_parameter('weight_bits') < 8:
+                        precision_library = 'ternary'
             self.copy_backend_files(node)
-            Layer2D_writer.print_template_layer(node, self.precision_library, tmpl_dir, out_dir)
+            Layer2D_writer.print_template_layer(node, precision_library, tmpl_dir, out_dir)
 
     def create_hex_weights_files(self):
         print("\nGenerating .h weight files.")

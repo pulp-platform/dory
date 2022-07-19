@@ -33,6 +33,9 @@ void ${func_name}(layer* layer_i)
   unsigned int l2_x_2 =       layer_i->L2_input_add;
   unsigned int l2_y =         layer_i->L2_output;
   unsigned int l2_W =         layer_i->L2_weights;
+% if optional_type == "ternary":
+  unsigned int l2_BN =        layer_i->L2_weights + ${int(nif * nof * fs1 * fs2 * W_data_size_byte / 8)};
+% endif
   unsigned int out_shift =    layer_i->out_shift;
 
   unsigned int l1_x       = 0x0;
@@ -112,6 +115,17 @@ void ${func_name}(layer* layer_i)
     W_tile_size_nof = (_i_nof+1   == ${tile_dim_nof}) ? ${(W_tile_size_nof_last + 15) // 16 * 16} : ${W_tile_size_nof};
 
     Layer_parameters kernel;
+% if optional_type == "ternary":
+    kernel.padding = 0x0000;
+    if (_i_h == 0)
+      kernel.padding  = ${padding_top}<<2;
+    if (_i_w == ${tile_dim_w}-1)
+      kernel.padding += ${padding_right}<<4;
+    if (_i_h == ${tile_dim_h}-1)
+      kernel.padding += ${padding_bottom};
+    if (_i_w == 0)
+      kernel.padding += ${padding_left}<<6;
+% elif optional_type == "8bit":
     kernel.padding = 0x0000;
     if (_i_h == 0)
       kernel.padding  = ${padding_top}<<8;
@@ -121,6 +135,7 @@ void ${func_name}(layer* layer_i)
       kernel.padding += ${padding_bottom}<<12;
     if (_i_w == 0)
       kernel.padding += 0<<4; // it should be (the nearer multiple of 32 of W) - W
+% endif
     kernel.c = x_tile_size_nif;
     kernel.k = W_tile_size_nof;
     kernel.cx = x_tile_size_w;
@@ -132,8 +147,11 @@ void ${func_name}(layer* layer_i)
     kernel.activation_function = 0;
     kernel.output_shift = ${out_shift};
     kernel.dilation = 1;
+% if optional_type == "8bit":
     kernel.stride = ${1 if stride > 1 else 0};
-
+% elif optional_type == "ternary":
+    kernel.stride = ${stride};
+% endif
     rt_perf_stop(perf);
     rt_perf_save(perf);
     perf_cyc = rt_perf_get(perf, RT_PERF_CYCLES);
@@ -150,9 +168,15 @@ void ${func_name}(layer* layer_i)
     if(_i_w > 0)
       pad_offset_w = ${padding_left};
     uint32_t l2_x_tile = dory_get_tile_3d(l2_x, _i_nif, _i_h, _i_w, ${x_tile_size_nif}, ${x_tile_size_h}, ${x_tile_size_w}, ${x_h}, ${x_w},0, ${conv_overlap1}, ${conv_overlap2}, 0, pad_offset_h, pad_offset_w, ${x_data_size_byte});
-    dory_cores_barrier();
-    conv_2d(l2_x_tile, l1_x, l2_W, l1_weights, l1_y, &kernel);
-    dory_cores_barrier();
+% if optional_type == "8bit":
+    dory_cores_barrier_digital();
+    digital_conv_2d(l2_x_tile, l1_x, l2_W, l1_weights, l1_y, &kernel);
+    dory_cores_barrier_digital();
+% elif optional_type == "ternary":
+    dory_cores_barrier_analog();
+    analog_conv_2d(l2_x_tile, l1_x, l2_W, l2_BN, l1_weights, l1_y, &kernel);
+    dory_cores_barrier_analog();
+% endif
 
     rt_perf_stop(perf);
     rt_perf_save(perf);
@@ -198,8 +222,13 @@ void ${func_name}(layer* layer_i)
     DMA_copy_y.number_of_2d_copies = y_length_nof_byte;
     DMA_copy_y.number_of_1d_copies = y_tile_size_h;
     DMA_copy_y.length_1d_copy = y_tile_size_w;
-    dory_dma_memcpy_async(DMA_copy_y); 
-    dory_dma_barrier(DMA_copy_y);
+% if optional_type == "8bit":
+    dory_dma_memcpy_async_digital(DMA_copy_y);
+    dory_dma_barrier_digital(DMA_copy_y); 
+% elif optional_type == "ternary":
+    dory_dma_memcpy_async_analog(DMA_copy_y); 
+    dory_dma_barrier_analog(DMA_copy_y);
+% endif
     
     rt_perf_stop(perf);
     rt_perf_save(perf);

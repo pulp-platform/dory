@@ -110,6 +110,7 @@ void network_alloc()
     }
   }
 % endif
+  boot_diana();
   return 1;
 }
 

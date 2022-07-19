@@ -152,7 +152,7 @@ unsigned int  dory_get_tile_3d(
 
 #define MIN(a,b) ((a)<(b)?(a):(b))
 
-void __attribute__ ((noinline)) dory_dma_memcpy_async(DMA_copy DMA_copy_current)
+void __attribute__ ((noinline)) dory_dma_memcpy_async_digital(DMA_copy DMA_copy_current)
 {
 
   if      ( ( DMA_copy_current.number_of_1d_copies * DMA_copy_current.length_1d_copy ) == DMA_copy_current.stride_2d)
@@ -169,14 +169,14 @@ void __attribute__ ((noinline)) dory_dma_memcpy_async(DMA_copy DMA_copy_current)
 
     case TRANSFER_1D:
       memcpy_dig((unsigned int *)(DMA_copy_current.ext), (unsigned int)(DMA_copy_current.loc), DMA_copy_current.length_1d_copy * DMA_copy_current.number_of_1d_copies * DMA_copy_current.number_of_2d_copies, DMA_copy_current.dir, 1);
-      global_sync();
+      global_sync_digital();
       break;
 
     case TRANSFER_2D:
       for (int i = 0; i < DMA_copy_current.number_of_2d_copies; i++)
       {
         memcpy_dig((unsigned int *)(DMA_copy_current.ext), (unsigned int)(DMA_copy_current.loc), DMA_copy_current.length_1d_copy * DMA_copy_current.number_of_1d_copies, DMA_copy_current.dir, 1);
-        global_sync();
+        global_sync_digital();
         DMA_copy_current.loc += DMA_copy_current.length_1d_copy * DMA_copy_current.number_of_1d_copies;
         DMA_copy_current.ext += DMA_copy_current.stride_2d;
       }
@@ -188,7 +188,7 @@ void __attribute__ ((noinline)) dory_dma_memcpy_async(DMA_copy DMA_copy_current)
         for (int i = 0; i < DMA_copy_current.number_of_1d_copies; i++)
         {
           memcpy_dig((unsigned int *)(DMA_copy_current.ext), (unsigned int)(DMA_copy_current.loc), DMA_copy_current.length_1d_copy, DMA_copy_current.dir, 1);
-          global_sync();
+          global_sync_digital();
           DMA_copy_current.loc += DMA_copy_current.length_1d_copy;
           DMA_copy_current.ext += DMA_copy_current.stride_1d;
         }
@@ -199,9 +199,62 @@ void __attribute__ ((noinline)) dory_dma_memcpy_async(DMA_copy DMA_copy_current)
   }
 }
 
-void __attribute__ ((noinline)) dory_dma_barrier(DMA_copy DMA_copy_current)
+
+void __attribute__ ((noinline)) dory_dma_memcpy_async_analog(DMA_copy DMA_copy_current)
 {
-  global_sync();
+
+  if      ( ( DMA_copy_current.number_of_1d_copies * DMA_copy_current.length_1d_copy ) == DMA_copy_current.stride_2d)
+    current_transfer = TRANSFER_1D;
+  else if ( DMA_copy_current.length_1d_copy == DMA_copy_current.stride_1d )
+    current_transfer = TRANSFER_2D;
+  else
+    current_transfer = TRANSFER_3D;
+  if (DMA_copy_current.hwc_to_chw == 1)
+    current_transfer = TRANSFER_HWC_TO_CHW;
+
+  switch (current_transfer)
+  {
+
+    case TRANSFER_1D:
+      memcpy_analog((unsigned int *)(DMA_copy_current.ext), (unsigned int)(DMA_copy_current.loc), DMA_copy_current.length_1d_copy * DMA_copy_current.number_of_1d_copies * DMA_copy_current.number_of_2d_copies, DMA_copy_current.dir, 1);
+      global_sync_analog();
+      break;
+
+    case TRANSFER_2D:
+      for (int i = 0; i < DMA_copy_current.number_of_2d_copies; i++)
+      {
+        memcpy_analog((unsigned int *)(DMA_copy_current.ext), (unsigned int)(DMA_copy_current.loc), DMA_copy_current.length_1d_copy * DMA_copy_current.number_of_1d_copies, DMA_copy_current.dir, 1);
+        global_sync_analog();
+        DMA_copy_current.loc += DMA_copy_current.length_1d_copy * DMA_copy_current.number_of_1d_copies;
+        DMA_copy_current.ext += DMA_copy_current.stride_2d;
+      }
+      break;
+
+    case TRANSFER_3D:
+      for ( int j = 0; j < DMA_copy_current.number_of_2d_copies; j++)
+      {
+        for (int i = 0; i < DMA_copy_current.number_of_1d_copies; i++)
+        {
+          memcpy_analog((unsigned int *)(DMA_copy_current.ext), (unsigned int)(DMA_copy_current.loc), DMA_copy_current.length_1d_copy, DMA_copy_current.dir, 1);
+          global_sync_analog();
+          DMA_copy_current.loc += DMA_copy_current.length_1d_copy;
+          DMA_copy_current.ext += DMA_copy_current.stride_1d;
+        }
+        DMA_copy_current.ext = DMA_copy_current.ext - DMA_copy_current.stride_1d * DMA_copy_current.number_of_1d_copies + DMA_copy_current.stride_2d;
+        
+      }
+      break;
+  }
+}
+
+void __attribute__ ((noinline)) dory_dma_barrier_digital(DMA_copy DMA_copy_current)
+{
+  global_sync_digital();
+}
+
+void __attribute__ ((noinline)) dory_dma_barrier_analog(DMA_copy DMA_copy_current)
+{
+  global_sync_analog();
 }
 
 uint32_t __attribute__ ((noinline)) dory_dma_allocate()
@@ -215,9 +268,14 @@ void __attribute__ ((noinline)) dory_dma_deallocate(uint32_t dma_channel)
   plp_hwme_disable();
 }
 
-void __attribute__ ((noinline)) dory_cores_barrier()
+void __attribute__ ((noinline)) dory_cores_barrier_digital()
 {
-  global_sync();
+  global_sync_digital();
+}
+
+void __attribute__ ((noinline)) dory_cores_barrier_analog()
+{
+  global_sync_analog();
 }
 
 void memcpy_dig(unsigned int* L2_Addr_Byte,
@@ -261,4 +319,48 @@ void memcpy_dig(unsigned int* L2_Addr_Byte,
     // start HWME operation
     hwme_trigger_job();
 }
+
+
+void memcpy_analog(unsigned int* L2_Addr_Byte,
+                  unsigned int L1_Addr,
+                  unsigned int Length,
+                  unsigned int direction_L1_L2, // 0 to L1 and 1 to L2
+                  unsigned int BankNum
+                  ){
+    unsigned int L1_Addr_16Byte = (int) (L1_Addr / 16);
+    unsigned int Lenth_4Byte = (int) (padding(Length, DMA_PARALLELISM) / 4);
+    unsigned int row_size = 4*Lenth_4Byte/(BankNum*16);
+    /* memcpy  (DIGITAL)*/
+    switch(direction_L1_L2)
+    {
+        case 0: //L2_to_L1
+            if (BankNum==1)
+                hwme_ana_memcpy_op((unsigned int) 2);
+            else 
+                hwme_ana_memcpy_op((unsigned int) 4);
+            break;
+        case 1: //L1_to_L2
+            if (BankNum == 1)
+                hwme_ana_memcpy_op((unsigned int) 1);
+            else
+                hwme_ana_memcpy_op((unsigned int) 3);
+            break;
+    }
+    if (BankNum==1)
+    {
+        hwme_ana_memcpy_addr_set(L2_Addr_Byte);
+        hwme_ana_l1addr_set(L1_Addr_16Byte); // absolute address of L1 (128b / address)
+        hwme_ana_memcpy_n_set(Lenth_4Byte);
+    }
+    else 
+    {
+        hwme_ana_memcpy_addr_set(L2_Addr_Byte);
+        hwme_ana_l1addr_set(L1_Addr_16Byte); // absolute address of L1 (128b / address)
+        hwme_ana_memcpy_bank_length_set(BankNum); // number of bank
+        hwme_ana_memcpy_row_length_set(row_size);
+    }
+    // start HWME operation
+    hwme_ana_trigger_job();
+}
+
 
