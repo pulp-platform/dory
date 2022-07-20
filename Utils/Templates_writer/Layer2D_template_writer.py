@@ -105,8 +105,25 @@ def print_template_layer_L3(node, tmpl_dir, out_dir):
     tk['w_in'] = w_in_L2
     tk['h_in'] = h_in_L2
     tk['n_in'] = n_in_L2
-    tk['weight_dim'] = int( node.tiling_dimensions["L2"]["weight_memory"] )
+
     tk['has_bias'] = int(len([1 for name in node.constant_names if "bias" in name])>0)
+
+    offset = 0
+    tk['l3_offset_w'] = offset
+    offset += node.tiling_dimensions["L3"]["weight_memory"]
+
+    if tk['has_bias'] == 1:
+        tk['l3_offset_b'] = offset
+        offset += node.tiling_dimensions["L3"]["bias_memory"]
+
+    if not isinstance(node.tiling_dimensions["L2"]["constants_memory"], type(None)):
+        tk['l3_offset_k'] = offset
+        offset += int(node.tiling_dimensions["L3"]["constants_memory"] / 2)
+
+        tk['l3_offset_l'] = offset
+        offset += int(node.tiling_dimensions["L3"]["constants_memory"] / 2)
+
+    tk['weight_dim'] = int( node.tiling_dimensions["L2"]["weight_memory"] )
     if tk['has_bias'] == 1:
         tk['bias_dim'] = node.tiling_dimensions["L2"]["bias_memory"]
     else:

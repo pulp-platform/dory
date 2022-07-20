@@ -14,8 +14,12 @@
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
- * limitations under the License. 
+ * limitations under the License.
  */
+
+#ifndef __NETWORK_H__
+#define __NETWORK_H__
+
 % if sdk == 'gap_sdk':
 #include "pulp.h"
 % endif
@@ -27,6 +31,21 @@
 #include "bsp/flash/hyperflash.h"
 #include "bsp/ram/hyperram.h"
 #include "mem_controller.h"
+
+typedef struct {
+    unsigned int L3_input;
+    unsigned int L3_output;
+    unsigned int L3_after_weights;
+    unsigned int L2_input;
+    unsigned int bypass;
+    unsigned int L2_output;
+    unsigned int L2_weights;
+    unsigned int L1_buffer;
+    unsigned int ram;
+    unsigned int out_mult;
+    unsigned int out_shift;
+    unsigned int layer_id;
+} layer_args_t;
 
 void network_free(struct pi_device ram);
 void network_alloc(struct pi_device fs, struct pi_device ram);
@@ -178,3 +197,5 @@ ${DORY_HW_graph[i].MACs}${'' if loop.last else ', '}\
 };
 % endif
 #endif
+
+#endif  // __NETWORK_H__
