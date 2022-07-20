@@ -140,17 +140,25 @@ void ${func_name}(layer* layer_i)
     kernel.k = W_tile_size_nof;
     kernel.cx = x_tile_size_w;
     kernel.cy = x_tile_size_h;
-    kernel.fx = ${fs1};
     kernel.fy = ${fs2};
-    kernel.ox = y_tile_size_w;
     kernel.oy = y_tile_size_h;
     kernel.activation_function = 0;
     kernel.output_shift = ${out_shift};
     kernel.dilation = 1;
 % if optional_type == "8bit":
+    kernel.fx = ${fs1};
+    kernel.ox = y_tile_size_w;
     kernel.stride = ${1 if stride > 1 else 0};
 % elif optional_type == "ternary":
-    kernel.stride = ${stride};
+    kernel.ox_unroll = 1;
+    /*for (int i = 0; i < 3; i++)
+    {
+      if ((kernel.ox_unroll * 2 * kernel.k) < 512)
+        kernel.ox_unroll = kernel.ox_unroll * 2;
+    }*/
+    kernel.stride = ${stride} * kernel.ox_unroll; // don't know if unrolling + stride are present what happens
+    kernel.ox = (int) y_tile_size_w / kernel.ox_unroll;
+    kernel.fx = ${fs1} + kernel.ox_unroll - 1;
 % endif
     rt_perf_stop(perf);
     rt_perf_save(perf);
