@@ -24,6 +24,15 @@ networks = [
     {
         "network_args":
             {
+                'frontend': 'NEMO',
+                'target': 'GAP8.GAP8_board',
+                'conf_file': '../dory_examples/config_files/config_NEMO_dronet.json'
+            },
+        "checksum_final": 'Ok'
+    },
+    {
+        "network_args":
+            {
                 'frontend': 'Quantlab',
                 'target': 'GAP8.GAP8_gvsoc',
                 'conf_file': '../dory_examples/config_files/config_Quantlab_MV1_4bits.json',
@@ -60,6 +69,16 @@ networks = [
                 'optional': 'mixed-sw'
             },
         "checksum_final": 'Ok'
+    },
+    {
+        "network_args":
+            {
+                'frontend': 'Quantlab',
+                'target': 'GAP8.GAP8_board',
+                'conf_file': '../dory_examples/config_files/config_Quantlab_MV1_8bits.json',
+                'optional': 'mixed-sw'
+            },
+        "checksum_final": 'Ok'
     }
 ]
 
@@ -81,7 +100,7 @@ def test_network(network, capsys):
 
     cmd = ['make', '-C', 'application', 'clean', 'all', 'run', 'platform=gvsoc', 'CORE=8']
     try:
-        proc = subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=60)
+        proc = subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=120)
     except subprocess.CalledProcessError as e:
         assert False, f"Building application failed with exit status {e.returncode}\nBuild error:\n{e.stderr}"
 

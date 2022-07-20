@@ -150,7 +150,7 @@ void ${func_name}(layer* layer_i)
     kernel.ox = y_tile_size_w;
     kernel.stride = ${1 if stride > 1 else 0};
 % elif optional_type == "ternary":
-    kernel.ox_unroll = 1;
+    kernel.ox_unroll = 4;
     /*for (int i = 0; i < 3; i++)
     {
       if ((kernel.ox_unroll * 2 * kernel.k) < 512)
