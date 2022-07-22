@@ -23,14 +23,6 @@
 % if sdk == 'gap_sdk':
 #include "pulp.h"
 % endif
-#include "pmsis.h"
-#include "bsp/fs.h"
-#include "bsp/fs/readfs.h"
-#include "bsp/flash.h"
-#include "bsp/ram.h"
-#include "bsp/flash/hyperflash.h"
-#include "bsp/ram/hyperram.h"
-#include "mem_controller.h"
 
 typedef struct {
     unsigned int L3_input;
@@ -47,9 +39,9 @@ typedef struct {
     unsigned int layer_id;
 } layer_args_t;
 
-void network_terminate(struct pi_device ram);
-void network_initialize(struct pi_device fs, struct pi_device ram);
-void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_output_to_pass, struct pi_device ram);
+void network_terminate();
+void network_initialize();
+void network_run(l2_buffer, l2_buffer_size, l2_final_output);
 void execute_layer_fork(void *arg);
 void execute_layer(void *arg);
 
@@ -59,9 +51,6 @@ const char * L3_weights_files[] = {
   ${files_list}
 };
 int L3_weights_size[${weights_number}];
-static int L3_weights;
-static int L3_input;
-static int L3_output;
 static int layers_pointers[${len(DORY_HW_graph)}];
 
 static char * Layers_name[${len(DORY_HW_graph)}] = {\
