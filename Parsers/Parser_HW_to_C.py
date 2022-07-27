@@ -130,6 +130,7 @@ class Parser_HW_to_C:
         os.system('mkdir {}/DORY_network/inc'.format(self.app_directory))
         os.system('mkdir {}/DORY_network/src'.format(self.app_directory))
         self.adding_numbers_to_layers()
+        import pdb;pdb.set_trace()
         self.mapping_network_to_C_file()
         self.mapping_makefile()
         self.mapping_layers_to_C_files()

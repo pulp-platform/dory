@@ -449,13 +449,14 @@ def print_template_layer(node, layer_type, tmpl_dir, out_dir, double_buffering =
         else:
             tmpl = Template(filename=os.path.join(tmpl_dir, "layer_L2_c_addition_template.c"))
 
-    s = tmpl.render(verbose_log=l, **tk)
+    s_c = tmpl.render(verbose_log=l, **tk)
     save_string = os.path.join(out_dir, 'src', name_layer.replace("h", "c"))
     with open(save_string, "w") as f:
-        f.write(s)
+        f.write(s_c)
     tmpl = Template(filename=os.path.join(tmpl_dir, "layer_L2_h_template.h"))
     s = tmpl.render(verbose_log=l, **tk)
     save_string = os.path.join(out_dir, 'inc', name_layer)
     with open(save_string, "w") as f:
         f.write(s)
+    return s, s_c
 

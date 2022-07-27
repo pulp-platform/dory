@@ -74,6 +74,7 @@ class C_Parser(Parser_HW_to_C):
         tmpl_dir = os.path.join(os.path.dirname(__file__), 'Templates/layer_templates')
         out_dir = '{}/DORY_network'.format(self.app_directory)
         precision_library = self.precision_library
+        h_files = []; c_files = []
         for i, node in enumerate(self.HWgraph):
             if self.precision_library == 'auto':
                 precision_library = '8bit'
@@ -81,7 +82,10 @@ class C_Parser(Parser_HW_to_C):
                     if node.get_parameter('weight_bits') < 8:
                         precision_library = 'ternary'
             self.copy_backend_files(node)
-            Layer2D_writer.print_template_layer(node, precision_library, tmpl_dir, out_dir)
+            h_layer, c_layer = Layer2D_writer.print_template_layer(node, precision_library, tmpl_dir, out_dir)
+            h_files.append(h_layer)
+            c_files.append(c_layer)
+        return h_files, c_files
 
     def create_hex_weights_files(self):
         print("\nGenerating .h weight files.")
@@ -100,15 +104,16 @@ class C_Parser(Parser_HW_to_C):
         tk['DORY_HW_graph'] = self.HWgraph
         root = os.path.dirname(__file__)
         tmpl = Template(filename=os.path.join(root, "Templates/weights_h_template.h"))
-        s = tmpl.render(**tk)
+        s_h = tmpl.render(**tk)
         save_string = os.path.join(self.app_directory, 'DORY_network/inc/weights.h') 
         with open(save_string, "w") as f:
-            f.write(s)
+            f.write(s_h)
         tmpl = Template(filename=os.path.join(root, "Templates/weights_definition_h_template.h"))
-        s = tmpl.render(**tk)
+        s_def = tmpl.render(**tk)
         save_string = os.path.join(self.app_directory, 'DORY_network/inc/weights_definition.h') 
         with open(save_string, "w") as f:
-            f.write(s)
+            f.write(s_def)
+        return s_h, s_def
 
     def create_hex_input(self):    
         print("\nGenerating .h input file.")
