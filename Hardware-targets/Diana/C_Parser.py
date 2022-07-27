@@ -30,7 +30,8 @@ import copy
 from Parsers.Parser_HW_to_C import Parser_HW_to_C
 import Utils.Templates_writer.Layer2D_template_writer as Layer2D_writer
 import Utils.Templates_writer.writer_utils as utils
-
+import importlib
+ana_enc = importlib.import_module(f'Hardware-targets.Diana.weights_encoder_analog')
 # Directory
 file_path = "/".join(os.path.realpath(__file__).split("/")[:-1])
 
@@ -87,57 +88,12 @@ class C_Parser(Parser_HW_to_C):
         weights_vectors = []
         weights_dimensions = []
         for i, node in enumerate(self.HWgraph):
-            constants = [0, 0, 0, 0]
-            for name in node.constant_names:
-                if "weight" in name:
-                    constants[0] = name
-                elif "bias" in name:
-                    constants[1] = name
-                elif "k" == name:
-                    constants[2] = name
-                elif "l" == name:
-                    constants[3] = name
-            weights = np.asarray([])
-            save_vector = 0
-            for i in np.arange(4):
-                if constants[i]!= 0:
-                    if i==0:
-                        temp = np.asarray(node.__dict__[constants[i]]["value"])
-                        temp = temp.reshape(int(temp.shape[0]/4), 4)
-                        temp1 = copy.deepcopy(temp)
-                        temp[:,0] = temp1[:,3] 
-                        temp[:,1] = temp1[:,2] 
-                        temp[:,2] = temp1[:,1] 
-                        temp[:,3] = temp1[:,0]
-                        node.__dict__[constants[i]]["value"] = temp.flatten()
-                    if i==1:
-                        new_weights = []
-                        for pos in range(4):
-                            for ch in range(int(np.asarray(node.__dict__[constants[i]]["value"]).shape[0]/16)):
-                                for pos_in in [3,2,1,0]:
-                                    new_weights.append(node.__dict__[constants[i]]["value"][pos+4*(ch*4+pos_in)])
-                        node.__dict__[constants[i]]["value"] = new_weights
-            for batch in np.arange(0, int(np.floor((getattr(node, 'output_channels')+15)/16))):
-                for i in [0, 1]:
-                    if constants[i]!= 0:
-                        if i==0:  
-                            dim = getattr(node, 'input_channels') * 16 * np.prod(getattr(node, 'kernel_shape'))
-                            weights = np.concatenate((weights,node.__dict__[constants[i]]["value"][(batch*dim):((batch+1)*dim)]))
-                        if i==1:  
-                            weights = np.concatenate((weights,node.__dict__[constants[i]]["value"][(batch*16*4):((batch+1)*16*4)]))
-                        save_vector = 1
-            for i in [2, 3]:
-                if constants[i]!= 0:
-                    weights = np.concatenate((weights,node.__dict__[constants[i]]["value"]))
-
-            while len(weights) % 4 != 0:
-                weights = np.concatenate((weights, np.asarray([0])))
-            if save_vector == 1:
-                weights_vectors.append(utils.print_test_vector(weights, 'char'))
-                weights_dimensions.append(weights.shape[0])
+            if node.get_parameter('weight_bits') < 8:
+                ww, ww_dim = self.create_analog_weights(node)
             else:
-                weights_vectors.append(['0'])
-                weights_dimensions.append(0)
+                ww, ww_dim = self.create_digital_weights(node)
+            weights_vectors.append(ww)
+            weights_dimensions.append(ww_dim)
         tk = OrderedDict([])
         tk['weights_vectors'] = weights_vectors
         tk['weights_dimensions'] = weights_dimensions
@@ -158,22 +114,26 @@ class C_Parser(Parser_HW_to_C):
         print("\nGenerating .h input file.")
         try:
             x_in = np.loadtxt(os.path.join(self.network_directory, 'input.txt'), delimiter=',', dtype=np.uint8, usecols=[0])
-            x_in_w = int(x_in.shape[0]/(self.HWgraph[0].input_channels*self.HWgraph[0].input_dimensions[0]))
-            x_in = x_in.reshape(self.HWgraph[0].input_channels, self.HWgraph[0].input_dimensions[0], x_in_w)
-            npad = ((0, 0), (0,0), (0, (16 - (x_in_w % 16)) % 16))
-            temp = np.pad(x_in, pad_width=npad, mode='constant', constant_values=0)
-            x_in = temp.flatten()
         except FileNotFoundError:
             print(f"========= WARNING ==========\nInput file {os.path.join(self.network_directory, 'input.txt')} not found; generating random inputs!")
             x_in = np.random.randint(low=0, high=2*8 - 1,
                                      size=self.group * self.input_channels * self.input_dimensions[0] * self.input_dimensions[1],
                                      dtype=np.uint8)
-        temp = x_in.reshape(int(x_in.shape[0]/4), 4)
-        temp1 = copy.deepcopy(temp)
-        temp[:,0] = temp1[:,3] 
-        temp[:,1] = temp1[:,2] 
-        temp[:,2] = temp1[:,1] 
-        temp[:,3] = temp1[:,0] 
+        if self.HWgraph[0].weight_bits == 2:
+            x_in = x_in.flatten() 
+            temp = x_in
+        else:
+            x_in_w = int(x_in.shape[0]/(self.HWgraph[0].input_channels*self.HWgraph[0].input_dimensions[0]))
+            x_in = x_in.reshape(self.HWgraph[0].input_channels, self.HWgraph[0].input_dimensions[0], x_in_w)
+            npad = ((0, 0), (0,0), (0, (16 - (x_in_w % 16)) % 16))
+            temp = np.pad(x_in, pad_width=npad, mode='constant', constant_values=0)
+            x_in = temp.flatten()
+            temp = x_in.reshape(int(x_in.shape[0]/4), 4)
+            temp1 = copy.deepcopy(temp)
+            temp[:,0] = temp1[:,3] 
+            temp[:,1] = temp1[:,2] 
+            temp[:,2] = temp1[:,1] 
+            temp[:,3] = temp1[:,0] 
         input_values = utils.print_test_vector(temp.flatten(), 'char')
         tk = OrderedDict([])
         tk['input_values'] = input_values
@@ -184,3 +144,105 @@ class C_Parser(Parser_HW_to_C):
         save_string = os.path.join(self.app_directory, 'DORY_network/inc/input.h') 
         with open(save_string, "w") as f:
             f.write(s)
+
+    def create_digital_weights(self, node):
+        constants = [0, 0, 0, 0]
+        for name in node.constant_names:
+            if "weight" in name:
+                constants[0] = name
+            elif "bias" in name:
+                constants[1] = name
+            elif "k" == name:
+                constants[2] = name
+            elif "l" == name:
+                constants[3] = name
+        weights = np.asarray([])
+        save_vector = 0
+        for i in np.arange(4):
+            if constants[i]!= 0:
+                if i==0:
+                    temp = np.asarray(node.__dict__[constants[i]]["value"])
+                    temp = temp.reshape(int(temp.shape[0]/4), 4)
+                    temp1 = copy.deepcopy(temp)
+                    temp[:,0] = temp1[:,3] 
+                    temp[:,1] = temp1[:,2] 
+                    temp[:,2] = temp1[:,1] 
+                    temp[:,3] = temp1[:,0]
+                    node.__dict__[constants[i]]["value"] = temp.flatten()
+                if i==1:
+                    new_weights = []
+                    for pos in range(4):
+                        for ch in range(int(np.asarray(node.__dict__[constants[i]]["value"]).shape[0]/16)):
+                            for pos_in in [3,2,1,0]:
+                                new_weights.append(node.__dict__[constants[i]]["value"][pos+4*(ch*4+pos_in)])
+                    node.__dict__[constants[i]]["value"] = new_weights
+        for batch in np.arange(0, int(np.floor((getattr(node, 'output_channels')+15)/16))):
+            for i in [0, 1]:
+                if constants[i]!= 0:
+                    if i==0:  
+                        dim = getattr(node, 'input_channels') * 16 * np.prod(getattr(node, 'kernel_shape'))
+                        weights = np.concatenate((weights,node.__dict__[constants[i]]["value"][(batch*dim):((batch+1)*dim)]))
+                    if i==1:  
+                        weights = np.concatenate((weights,node.__dict__[constants[i]]["value"][(batch*16*4):((batch+1)*16*4)]))
+                    save_vector = 1
+        for i in [2, 3]:
+            if constants[i]!= 0:
+                weights = np.concatenate((weights,node.__dict__[constants[i]]["value"]))
+
+        while len(weights) % 4 != 0:
+            weights = np.concatenate((weights, np.asarray([0])))
+        if save_vector == 1:
+            return utils.print_test_vector(weights, 'char'), weights.shape[0]
+        else:
+            return ["0"], 0
+
+
+    def _compress(self, x, bits):
+        compressed = []
+        n_elements_in_byte = 8 // bits
+        i_element_in_byte = 0
+        for el in x:
+            if i_element_in_byte == 0:
+                compressed.append(el)
+            else:
+                compressed[-1] += el << i_element_in_byte * bits
+
+            i_element_in_byte += 1
+            if i_element_in_byte == n_elements_in_byte:
+                i_element_in_byte = 0
+        return np.asarray(compressed, dtype=np.uint8)
+
+    def create_analog_weights(self, node):
+        constants = [0, 0, 0, 0]
+        for name in node.constant_names:
+            if "weight" in name:
+                constants[0] = name
+            elif "bias" in name:
+                constants[1] = name
+            elif "k" == name:
+                constants[2] = name
+            elif "l" == name:
+                constants[3] = name
+        weights = np.asarray([])
+        save_vector = 0
+        for i in np.arange(4):
+            if constants[i]!= 0:
+                if i==0:
+                    node.__dict__[constants[i]]["value"] = np.asarray(node.__dict__[constants[i]]["value"]).reshape(1,node.input_channels*np.prod(node.kernel_shape),node.output_channels)
+                    w_list = ana_enc.pad(node.__dict__[constants[i]]["value"], True, True)
+                    w_list = ana_enc.mirror_rows(w_list)
+                    w_list = ana_enc.flip_weights(w_list, False)
+                    w_list = ana_enc.map_weights(w_list)
+                    w_list = ana_enc.flatten_list(w_list)
+                    w_list_compressed = self._compress(w_list, 1)
+                    node.__dict__[constants[i]]["value"] = w_list_compressed
+                    weights = np.concatenate((weights,node.__dict__[constants[i]]["value"]))
+                    save_vector = 1
+        for i in [2, 3]:
+            if constants[i]!= 0:
+                weights = np.concatenate((weights,node.__dict__[constants[i]]["value"]))
+
+        if save_vector == 1:
+            return utils.print_test_vector(weights, 'char'), weights.shape[0]
+        else:
+            return ["0"], 0

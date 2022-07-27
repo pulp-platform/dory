@@ -34,7 +34,7 @@ void ${func_name}(layer* layer_i)
   unsigned int l2_y =         layer_i->L2_output;
   unsigned int l2_W =         layer_i->L2_weights;
 % if optional_type == "ternary":
-  unsigned int l2_BN =        layer_i->L2_weights + ${int(nif * nof * fs1 * fs2 * W_data_size_byte / 8)};
+  unsigned int l2_BN =        layer_i->L2_weights + ${int((64 if nif < 64 else nif) * (128 if nof < 128 else nof) * fs1 * fs2 * W_data_size_byte / 8)};
 % endif
   unsigned int out_shift =    layer_i->out_shift;
 
@@ -114,6 +114,31 @@ void ${func_name}(layer* layer_i)
     y_length_nof_byte = (_i_nof+1   == ${tile_dim_nof}) ? ${W_tile_size_nof_last} : ${W_tile_size_nof};
     W_tile_size_nof = (_i_nof+1   == ${tile_dim_nof}) ? ${(W_tile_size_nof_last + 15) // 16 * 16} : ${W_tile_size_nof};
 
+% if optional_type == "ternary":
+    int block_number   = x_length_nif_byte > 64 ? 4 : (int)((x_length_nif_byte+15)/16);
+    int channel_number = (int)((x_length_nif_byte+63)/64);
+    for (int c_index = 0; c_index < block_number; c_index++)
+    {
+      int block_dimension = (int)((x_tile_size_h * x_tile_size_w * channel_number + 511) / 512);
+      for (int blocks_index = 0; blocks_index < block_dimension; blocks_index++)
+      {
+        int byte_transfer = 0; 
+        if (blocks_index == (block_dimension-1))
+          byte_transfer = 16 * (((channel_number * x_tile_size_h * x_tile_size_w) % 512) ? ((channel_number * x_tile_size_h * x_tile_size_w) % 512) : 512);
+        else
+          byte_transfer = 16 * 512;
+        DMA_copy_x.ext = l2_x + blocks_index * 16 * 512 + c_index * 16 * channel_number * x_tile_size_h * x_tile_size_w;
+        DMA_copy_x.loc = l1_x + blocks_index * 4 * 16 * 512 + c_index * 16 * 512;
+        DMA_copy_x.number_of_2d_copies = 1;
+        DMA_copy_x.number_of_1d_copies = 1;
+        DMA_copy_x.length_1d_copy = byte_transfer;
+        dory_dma_memcpy_async_analog(DMA_copy_x); 
+        dory_dma_barrier_analog(DMA_copy_x);
+      }
+    }
+% endif
+    
+
     Layer_parameters kernel;
 % if optional_type == "ternary":
     kernel.padding = 0x0000;
@@ -140,25 +165,25 @@ void ${func_name}(layer* layer_i)
     kernel.k = W_tile_size_nof;
     kernel.cx = x_tile_size_w;
     kernel.cy = x_tile_size_h;
+    kernel.fx = ${fs1};
     kernel.fy = ${fs2};
     kernel.oy = y_tile_size_h;
     kernel.activation_function = 0;
     kernel.output_shift = ${out_shift};
     kernel.dilation = 1;
 % if optional_type == "8bit":
-    kernel.fx = ${fs1};
     kernel.ox = y_tile_size_w;
     kernel.stride = ${1 if stride > 1 else 0};
 % elif optional_type == "ternary":
-    kernel.ox_unroll = 4;
+    kernel.ox_unroll = 1;
     /*for (int i = 0; i < 3; i++)
     {
-      if ((kernel.ox_unroll * 2 * kernel.k) < 512)
+      if (((kernel.ox_unroll * 2 * kernel.k) <= 512) && ((64 * ${fs2} * (${fs1} + kernel.ox_unroll - 1)) <= 1152))
         kernel.ox_unroll = kernel.ox_unroll * 2;
+      }
     }*/
-    kernel.stride = ${stride} * kernel.ox_unroll; // don't know if unrolling + stride are present what happens
+    kernel.stride = ${stride};
     kernel.ox = (int) y_tile_size_w / kernel.ox_unroll;
-    kernel.fx = ${fs1} + kernel.ox_unroll - 1;
 % endif
     rt_perf_stop(perf);
     rt_perf_save(perf);

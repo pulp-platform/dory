@@ -36,12 +36,12 @@ class Tiler_Conv2D():
     def get_tiling(self, level):
         # This function generate the layer function to be included in the project for the conv2d operations (Convolutions and Fully Connected layers).
         if level == 2:
-            # L3 tiling
+            # L2 tiling
             tiling = self.get_tiling_conv2d_L2()
             return tiling
-        print("Error: Either you should be in L3-L2 tiling or L2-L1 tiling")
+        print("Error: It you should be L2-L1 tiling. No L3 present.")
         os._exit(0)
-        
+
     def get_tiling_conv2d_L2(self): 
         '''
         Function To make the tile from L2 to L1
@@ -49,14 +49,7 @@ class Tiler_Conv2D():
         ###############################################
         ##### PARAMETERS INITIALIZATION ###############
         ###############################################
-        L1_memory_activation = self.HW_node.HW_description["memory"]["L1"]["dimension"]
-        if self.HW_node.weight_bits == 2:
-            L1_memory_weights = self.HW_node.HW_description["memory"]["L1_Weights_analog"]["dimension"]
-            weights_mem = self.HW_node.tiling_dimensions["L2"]["weight_memory"]
-        else:
-            L1_memory_weights = self.HW_node.HW_description["memory"]["L1_Weights_digital"]["dimension"]
-            weights_mem = self.HW_node.tiling_dimensions["L2"]["weight_memory"] + self.HW_node.tiling_dimensions["L2"]["constants_memory"] + self.HW_node.tiling_dimensions["L2"]["bias_memory"]
-
+        L1_memory = self.HW_node.HW_description["memory"]["L1"]["dimension"] - self.HW_node.HW_description["HW specific parameters"]["accelerator core0 stack"] - 7 * self.HW_node.HW_description["HW specific parameters"]["accelerator core1-7 stack"]
         inp_dim = self.HW_node.tiling_dimensions["L2"]["input_dimensions"][1:]
         out_dim = self.HW_node.tiling_dimensions["L2"]["output_dimensions"][1:]
         out_ch = self.HW_node.tiling_dimensions["L2"]["weights_dimensions"][0]
@@ -70,15 +63,29 @@ class Tiler_Conv2D():
         ##### L2 DIMENSIONS DEFINITION: EARLY EXIT ####
         ###############################################
 
+        if g == 1:
+            im2col_dim = 2 * 8 * np.prod(ks) * in_ch * self.HW_node.input_activation_bits/8
+            weight_full_prec_dim = 0
+        else:
+            im2col_dim = 8 * (ks[0] * (inp_dim[0] + p[0] + p[2]) + ks[0]) * int( 8 / min(self.HW_node.input_activation_bits, self.HW_node.output_activation_bits, self.HW_node.weight_bits))
+            weight_full_prec_dim = 8 * np.prod(ks) * int( 8 / min(self.HW_node.input_activation_bits, self.HW_node.output_activation_bits, self.HW_node.weight_bits))
+            if self.HW_node.weight_bits == 8:
+                 weight_full_prec_dim = 0
+        if 'FullyConnected' in self.HW_node.name:
+            im2col_dim = 0
+
         in_mem = self.HW_node.tiling_dimensions["L2"]["input_activation_memory"]
         out_mem = self.HW_node.tiling_dimensions["L2"]["output_activation_memory"]
         h_in   = self.HW_node.tiling_dimensions["L2"]["input_dimensions"][1]
         h_out   = self.HW_node.tiling_dimensions["L2"]["output_dimensions"][1]
-        # return immediatly if the memory fits the L1 
-        if (in_mem + out_mem) <= L1_memory_activation and weights_mem <= L1_memory_weights:
+        if "Addition" not in self.HW_node.name and "Pool" not in self.HW_node.name:
+            out_mem = int(self.HW_node.tiling_dimensions["L2"]["output_activation_memory"] / self.HW_node.tiling_dimensions["L2"]["output_dimensions"][0] * self.HW_node.tiling_dimensions["L2"]["weights_dimensions"][0])
+        buffer_total = self.HW_node.tiling_dimensions["L2"]["weight_memory"] + self.HW_node.tiling_dimensions["L2"]["constants_memory"] + self.HW_node.tiling_dimensions["L2"]["bias_memory"] + in_mem + out_mem + im2col_dim + weight_full_prec_dim
+        # return immediatly if the memory fits the L1  
+        if buffer_total <= L1_memory:
             return (self.HW_node.tiling_dimensions["L2"]["weights_dimensions"] , [self.HW_node.tiling_dimensions["L2"]["input_dimensions"][0], h_in, self.HW_node.tiling_dimensions["L2"]["input_dimensions"][2]] , [self.HW_node.tiling_dimensions["L2"]["weights_dimensions"][0], h_out, self.HW_node.tiling_dimensions["L2"]["output_dimensions"][2]] )
         else:
-            db = 1
+            db = self.double_buffering
 
         ###############################################
         ##### TILING OF LAYER USING ORTOOLS ###########
@@ -110,36 +117,90 @@ class Tiler_Conv2D():
         ###############################################
         ##### CONSTRAINTS FOR BACKEND LIMITS ##########
         ###############################################
-        
+        if g > 1:
+            if inp_dim[0] <= 32 and inp_dim[1] <= 32:
+                solver.Add(tile_h_in == inp_dim[0])
+                solver.Add(tile_w_in == inp_dim[1])
+                solver.Add(tile_h_out == out_dim[0])
+                solver.Add(tile_w_out == out_dim[1])
+            elif inp_dim[0] > 32 or inp_dim[1] > 32:
+                solver.Add(tile_h_out * s[0] == (tile_h_in - (ks[0] - 1) + ((tile_h_in % inp_dim[0]) == 0) * (p[0] + p[2]) + (s[0] - 1)))
+                solver.Add(tile_w_in == inp_dim[1])
+                solver.Add(tile_w_out == out_dim[1])
+            solver.Add(tile_n_in % int( 8 / min(self.HW_node.input_activation_bits, self.HW_node.output_activation_bits, self.HW_node.weight_bits))==0)
         if g == 1:
             solver.Add(tile_n_in == int(in_ch))
-        
+        solver.Add(tile_n_out % int( 8 / min(self.HW_node.input_activation_bits, self.HW_node.output_activation_bits, self.HW_node.weight_bits))==0)
+
         ###############################################
         ##### CONSTRAINTS FOR DIMENSION ###############
         ###############################################
 
         input_tile_dimension  = db * tile_n_in * tile_h_in * tile_w_in * self.HW_node.input_activation_bits // 8
         output_tile_dimension = db * tile_n_out * tile_h_out * tile_w_out * self.HW_node.output_activation_bits // 8
-        weight_tile_dimension = db * (tile_n_in * tile_n_out * np.prod(ks) * self.HW_node.weight_bits // 8 + tile_n_out * self.HW_node.bias_bits // 8)
+        if g == 1:
+            weight_tile_dimension = db * tile_n_in * tile_n_out * np.prod(ks) * self.HW_node.weight_bits // 8
+            im2col_dimension = 2 * 8 * np.prod(ks) * tile_n_in
+            weight_full_prec_dimension = 0
+        else:
+            weight_tile_dimension = db * tile_n_in * np.prod(ks) * self.HW_node.weight_bits // 8
+            im2col_dimension = 8 * (ks[0] * (tile_n_in + p[0] + p[2]) + ks[0]) * int( 8 / min(self.HW_node.input_activation_bits, self.HW_node.output_activation_bits, self.HW_node.weight_bits))
+            weight_full_prec_dimension = 0
+            if self.HW_node.weight_bits != 8:
+                weight_full_prec_dimension = db * 8 * 8 * np.prod(ks) * int( 8 / min(self.HW_node.input_activation_bits, self.HW_node.output_activation_bits, self.HW_node.weight_bits))
+        if "FullyConnected" in self.HW_node.name:
+            im2col_dimension = 0
 
-        constraint_all = input_tile_dimension + output_tile_dimension + weight_tile_dimension
+        constants = 0
+        for name in self.HW_node.constant_names:
+            if name in ["l","k"]:
+                constants+=1
+        if constants > 0:
+            constants_tile_dimension = db * tile_n_out * constants  * self.HW_node.constant_bits // 8
+        else:
+            constants_tile_dimension = 0
 
-        solver.Add((input_tile_dimension + output_tile_dimension) <= L1_memory_activation)
-        solver.Add(weight_tile_dimension <= L1_memory_weights)
+        constraint_all = input_tile_dimension + output_tile_dimension + weight_tile_dimension + constants_tile_dimension + im2col_dimension + weight_full_prec_dimension + 20 
+
+        solver.Add(constraint_all <= L1_memory)
 
         ###############################################
         ##### HEURISTICS ADDITION #####################
         ###############################################
         obj_expr = solver.IntVar(0, 1000000000000, "obj_expr")
         heuristics = 0
-        ####### Geometrical Shape of Tiles ############
-        heuristics +=  1000000 * ((tile_w_out - 1) % 16) \
-                     + 1000000 * ((tile_n_out - 1) % 16) \
-                     + 1000000 * (tile_w_out * tile_h_out >= 16)
-        # ####### Total Dimension of Tile ###############
-        heuristics += constraint_all
-        ####### Maximization of Reuse of im2col #######
-        heuristics +=  1000000 * tile_w_out
+
+        if g == 1:
+            ####### Geometrical Shape of Tiles ############
+            heuristics +=  2000000 * ((tile_h_out - 1) % 8) \
+                         + 3000000 * ((tile_w_out - 1) % 2) \
+                         + 1000000 * ((tile_n_out - 1) % 4) \
+                         + 1000000 * (tile_w_out * tile_h_out >= 16)
+            # ####### Total Dimension of Tile ###############
+            heuristics += constraint_all
+            ####### Maximization of Reuse of im2col #######
+            heuristics += 100000 * tile_n_out 
+            ####### Geometrical Shape of Border Tiles #####
+            heuristics += 10000 * ((out_ch-zero_variable-1) % (tile_n_out)) \
+                        + 10000 * (((out_ch-zero_variable-1) % (tile_n_out)) % 4) \
+                        + 20000 * (((out_dim[0]-zero_variable-1) % (tile_h_out)) % 8) \
+                        + 30000 * (((out_dim[1]-zero_variable-1) % (tile_w_out)) % 2)
+        elif g > 1:
+            ####### Geometrical Shape of Tiles ############
+            heuristics += 10000 * ((tile_n_out > 7)) \
+                        + 20000 * ((tile_n_out - 1) % 16) \
+                        + 10000 * ((tile_h_out % 4) == 0)
+            ####### Total Dimension of Tile ###############
+            heuristics += constraint_all
+            ####### Maximization of Reuse of im2col #######
+            heuristics += 1000 * tile_w_out \
+                        + 1000 * tile_h_out \
+                        + 100 * (((out_dim[0]-zero_variable-1) % (tile_h_out))) \
+                        + 100 * (((out_dim[1]-zero_variable-1) % (tile_w_out)))
+            ####### Geometrical Shape of Border Tiles #####
+            heuristics += 100 * (((out_ch-zero_variable-1) % (tile_n_out)) > 7) \
+                        + 100 * (((out_dim[0]-zero_variable-1) % (tile_h_out)) % 4)
+
 
         solver.Add(obj_expr == heuristics)
         objective = solver.Maximize(obj_expr, 1)
