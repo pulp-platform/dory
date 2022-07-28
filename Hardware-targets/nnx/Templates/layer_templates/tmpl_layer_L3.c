@@ -26,287 +26,224 @@
 #include "bsp/ram/hyperram.h"
 #include "network.h"
 
+
 void __attribute__ ((noinline)) ${func_name}(void *args)
 {
   layer_args_t *layer_args = (layer_args_t *)args;
-  const unsigned int l3_x = layer_args->L3_input;
-  const unsigned int l3_y = layer_args->L3_output;
-  const unsigned int l3_W = layer_args->L3_after_weights;
-  const unsigned int l2_x = layer_args->L2_input;
-  const unsigned int l2_x_2 = layer_args->bypass;
-  const unsigned int l2_y = layer_args->L2_output;
-  const unsigned int l2_W = layer_args->L2_weights;
-  const unsigned int l1_buffer = layer_args->L1_buffer;
-  const unsigned int hyperram = layer_args->ram;
-  const unsigned int outmult = layer_args->out_mult;
-  const unsigned int out_shift = layer_args->out_shift;
+  layer_args_t  tile_args = *layer_args;
 
-  char *exec_input = l2_x, *transfer_input;
-  char *exec_weights = l2_W, *transfer_weights;
-  char *exec_output = l2_y, *transfer_output;
+  const void *l3_x = layer_args->L3_input;
+  const void *l3_y = layer_args->L3_output;
+  const void *l3_W = layer_args->L3_after_weights;
+  const void *l2_x = layer_args->L2_input;
+  const void *l2_y = layer_args->L2_output;
+  const void *l2_W = layer_args->L2_weights;
+  const void *ram  = layer_args->ram;
 
-% if n_tile_W > 1:
-  // weight L3 tiling. Parameters
-  char *L2_weights_1 = l2_W;
-  char *L2_weights_2 = l2_W + ${weight_dim} + ${lambda_dim} + ${k_dim} + ${bias_dim};
+  % if n_tile_x > 1:
+  pi_cl_ram_req_t req_x;
+  % endif
+  % if n_tile_y > 1:
+  pi_cl_ram_req_t req_y;
+  % endif
+  % if n_tile_W > 1:
+  pi_cl_ram_req_t req_w, req_bias, req_k, req_l;
+  % endif
+  % if n_tile_x > 1:
 
-  int d_buffering_weights_t = 0;
-  int d_buffering_weights_e = 0;
-  pi_cl_ram_req_t buff_req_w1, buff_req_w2, buff_req_w3, buff_req_w4;
-  transfer_weights = L2_weights_1;
-  exec_weights = L2_weights_1;  
-  // first tile transfer. Weights, k, lambda
-  if(pi_core_id()==0)
-  {
-    pi_cl_ram_read(hyperram, l3_W, transfer_weights, ${weight_dim}, &buff_req_w1);
-    % if k_dim != 0:
-    pi_cl_ram_read(hyperram, l3_W+${(weight_dim+bias_dim)*n_tile_W}, transfer_weights + ${weight_dim} + ${bias_dim}, ${k_dim}, &buff_req_w2);
-    pi_cl_ram_read(hyperram, l3_W+${(weight_dim+bias_dim+k_dim)*n_tile_W}, transfer_weights + ${weight_dim} + ${k_dim} + ${bias_dim}, ${lambda_dim}, &buff_req_w3);
-    % endif 
+  int offset_x = ${dim_in-int(conv_overlap1*n_in*w_in*BitIn/8) - int(padding*n_in*w_in*BitIn/8)};
+  % endif
+  % if n_tile_y > 1:
+  int offset_y = 0;
+  % endif
+  % if n_tile_y > 1 and verbose:
+
+  int checksum = 0;
+  % endif
+
+  const struct {
     % if bias_dim != 0:
-    pi_cl_ram_read(hyperram, l3_W+${weight_dim*n_tile_W}, transfer_weights + ${weight_dim}, ${bias_dim}, &buff_req_w4);
-    % endif 
-    pi_cl_ram_read_wait(&buff_req_w1);
+    void *bias;
+    % endif
     % if k_dim != 0:
-    pi_cl_ram_read_wait(&buff_req_w2);
-    pi_cl_ram_read_wait(&buff_req_w3);
+    void *k;
+    void *l;
+    % endif
+    void *x;
+    void *w;
+    void *y;
+  } db[2] = {
+    {
+      % if bias_dim != 0:
+      .bias = l2_W + ${weight_dim},
+      % endif
+      % if k_dim != 0:
+      .k = l2_W + ${weight_dim + bias_dim},
+      .l = l2_W + ${weight_dim + bias_dim + k_dim},
+      % endif
+      .x = l2_x,
+      .w = l2_W,
+      .y = l2_y
+    },
+    {
+      % if bias_dim != 0:
+      .bias = l2_W + ${weight_dim + bias_dim + k_dim + lambda_dim + weight_dim},
+      % endif
+      % if k_dim != 0:
+      .k = l2_W + ${weight_dim + bias_dim + k_dim + lambda_dim + weight_dim + bias_dim},
+      .l = l2_W + ${weight_dim + bias_dim + k_dim + lambda_dim + weight_dim + bias_dim + k_dim},
+      % endif
+      .x = l2_x + ${dim_in},
+      .w = l2_W + ${weight_dim + bias_dim + k_dim + lambda_dim},
+      .y = l2_y + ${dim_out}
+    }
+  };
+
+  int i_db_x = 0, i_db_w = 0, i_db_y = 0;
+  % if n_tile_x > 1 or input_L3 == 1:
+
+  // first tile transfer. Input activations
+  if (pi_core_id() == 0) {
+    pi_cl_ram_read(ram, l3_x, db[i_db_x].x, ${dim_in}, &req_x);
+    pi_cl_ram_read_wait(&req_x);
+  }
+  % endif
+
+  % if n_tile_W > 1:
+  // first tile transfer. Weights, k, lambda
+  if (pi_core_id() == 0) {
+    pi_cl_ram_read(ram, l3_W + ${l3_offset_w}, db[i_db_w].w, ${weight_dim}, &req_w);
+    % if bias_dim != 0:
+    pi_cl_ram_read(ram, l3_W + ${l3_offset_b}, db[i_db_w].bias, ${bias_dim}, &req_bias);
+    % endif
+    % if k_dim != 0:
+    pi_cl_ram_read(ram, l3_W + ${l3_offset_k}, db[i_db_w].k, ${k_dim}, &req_k);
+    pi_cl_ram_read(ram, l3_W + ${l3_offset_l}, db[i_db_w].l, ${lambda_dim}, &req_l);
+    % endif
+    pi_cl_ram_read_wait(&req_w);
+    % if k_dim != 0:
+    pi_cl_ram_read_wait(&req_k);
+    pi_cl_ram_read_wait(&req_l);
     % endif
     % if bias_dim != 0:
-    pi_cl_ram_read_wait(&buff_req_w4);
-    % endif 
+    pi_cl_ram_read_wait(&req_bias);
+    % endif
   }
   // switching buffers
-  d_buffering_weights_t = !d_buffering_weights_t;
-  transfer_weights = d_buffering_weights_t ? L2_weights_2 : L2_weights_1;
-% endif
+  % endif
 
-% if n_tile_x > 1 or input_L3==1:
-  // input L3 tiling. Parameters
-  char* L2_input_1;
-  char* L2_input_2;
-  int input_t = 0;
-  int input_e = 0;
-  pi_cl_ram_req_t buff_req_x1;
-  L2_input_1 = l2_x;
-  L2_input_2 = l2_x + ${dim_in};
-  transfer_input = input_t ? L2_input_2 : L2_input_1;
-  exec_input = input_e ? L2_input_2 : L2_input_1;
-  // first tile transfer. Input activations
-  if(pi_core_id()==0)
-  {
-    pi_cl_ram_read(hyperram, l3_x, transfer_input, ${dim_in}, &buff_req_x1);
-    pi_cl_ram_read_wait(&buff_req_x1);
-  }
-  input_t = !input_t;
-  transfer_input = input_t ? L2_input_2 : L2_input_1;
-% endif
+  // read from L3 of the new input tile. The offset_x is computed based on the overlap
 
-% if n_tile_y > 1:
-  // output L3 tiling. Parameters
-% if verbose == 1:
-  int checksum = 0;
-% endif
-  char* L2_output_1;
-  char* L2_output_2;
-  int output_t = 0;
-  int output_e = 0;
-  pi_cl_ram_req_t buff_req_y1;
-  L2_output_1 = l2_y;
-  L2_output_2 = l2_y + ${dim_out};
-  transfer_output = output_t ? L2_output_2 : L2_output_1;
-  exec_output = output_e ? L2_output_2 : L2_output_1;
-% endif
-
-% if n_tile_y > 1 and n_tile_x > 1:
+  % if n_tile_x > 1:
   // loop over input/output tiles
-  int shift = ${dim_in-int(conv_overlap1*n_in*w_in*BitIn/8) - int(padding*n_in*w_in*BitIn/8)};
-
   for (int j = 0; j < ${n_tile_x}; j++) {
-    if(pi_core_id()==0) {
-      if (j<${n_tile_x-1})
-        pi_cl_ram_read(hyperram, l3_x + shift, transfer_input, ${dim_in}, &buff_req_x1);
-      shift += ${dim_in-int(conv_overlap1*n_in*w_in*BitIn/8)};
-    }    
-    input_t = !input_t;
-    transfer_input = input_t ? L2_input_2 : L2_input_1;
-% elif n_tile_y > 1:
+    if (pi_core_id() == 0) {
+      // Fetching next input tile
+      if (j > 0) pi_cl_ram_read_wait(&req_x);
+      if (j + 1 < ${n_tile_x}) {
+        pi_cl_ram_read(ram, l3_x + offset_x, db[!i_db_x].x, ${dim_in}, &req_x);
+        offset_x += ${dim_in-int(conv_overlap1*n_in*w_in*BitIn/8)};
+      }
+    }
+  % elif n_tile_y > 1:
   // loop over output tiles
   for (int j = 0; j < ${n_tile_y}; j++) {
-% elif n_tile_x > 1:
-  // loop over input tiles
-  int shift = ${dim_in-int(conv_overlap1*n_in*w_in*BitIn/8) - int(padding*n_in*w_in*BitIn/8)};
-
-  for (int j = 0; j < ${n_tile_x}; j++) {
-    if (pi_core_id()==0) {
-      pi_cl_ram_read_wait(&buff_req_x1);
-      if (j<${n_tile_x-1})
-        pi_cl_ram_read(hyperram, l3_x + shift, transfer_input, ${dim_in}, &buff_req_x1);
-      shift += ${dim_in-int(conv_overlap1*n_in*w_in*BitIn/8)};
-    }
-    input_t = !input_t;
-    transfer_input = input_t ? L2_input_2 : L2_input_1;
-% else:
+  % else:
   int j = 0;
-% endif
+  % endif
 
-% if n_tile_W > 1:
-  // loop over weight tiles
-  for(int k = 0; k < ${n_tile_W}; k++) {
-    if (k < ${n_tile_W-1}) {
-      if(pi_core_id()==0) {
-        pi_cl_ram_read(hyperram, (l3_W+(k+1)*${weight_dim}), transfer_weights, ${weight_dim}, &buff_req_w1);
-        % if k_dim != 0:
-        pi_cl_ram_read(hyperram, l3_W+${(weight_dim+bias_dim)*n_tile_W}+ (k+1)*${k_dim}, transfer_weights + ${weight_dim} + ${bias_dim}, ${k_dim}, &buff_req_w2);
-        pi_cl_ram_read(hyperram, l3_W+${(weight_dim+bias_dim+k_dim)*n_tile_W} + (k+1)*${lambda_dim}, transfer_weights + ${weight_dim}+ ${k_dim} + ${bias_dim}, ${lambda_dim}, &buff_req_w3);
-        % endif
-        % if bias_dim != 0:
-        pi_cl_ram_read(hyperram, l3_W+${weight_dim*n_tile_W}+ (k+1)*${bias_dim}, transfer_weights + ${weight_dim}, ${bias_dim}, &buff_req_w4);
-        % endif 
-      }
-    }  
-% else:
-    int k = 0;
-% endif
+    % if n_tile_W > 1:
+    // loop over weight tiles
+    int offset_w = ${l3_offset_w + weight_dim};
+    % if k_dim != 0:
+    int offset_k = ${l3_offset_k + k_dim};
+    int offset_l = ${l3_offset_l + lambda_dim};
+    % endif
+    % if bias_dim != 0:
+    int offset_b = ${l3_offset_b + bias_dim};
+    % endif
 
-    // execution of L2-L1 layer. Either top, middle or bottom layer.
-    pi_cl_team_barrier(0);
-    if (j==0)
-    {
-      unsigned int args[11] = {l3_x,
-          l3_y,
-          l3_W,
-          exec_input,
-          l2_x_2,
-          dory_get_tile_3d(exec_output, 0, 0, k, ${h_out}, ${w_out}, ${n_out}, ${w_out}, ${n_out * n_tile_W}, 0, 0, 0, 0, 0, 0, ${y_data_size_byte}),
-          exec_weights,
-          l1_buffer,
-          hyperram,
-          outmult,
-          out_shift};
-      % if (n_tile_x > 1 or n_tile_y > 1) and padding > 0:
-      ${L2_func_names[1]}(\
-      % else:
-      ${L2_func_names[0]}(\
-      % endif
-          args);
-    }
-
-% if n_tile_x > 1:
-    else if (j==(${n_tile_x-1}))
-    {
-% else:
-    else if (j==(${n_tile_y-1}))
-    {
-% endif
-
-      unsigned int args[11] = {l3_x,
-          l3_y,
-          l3_W,
-          % if n_tile_x > 1 or n_tile_W > 1:
-          exec_input,
-          % else:
-          dory_get_tile_3d(exec_input, j, 0, 0, ${h_in}, ${w_in}, ${n_in}, ${w_in}, ${n_in}, ${conv_overlap1}, ${conv_overlap2},0, ${padding}, 0, 0, ${x_data_size_byte}),
-          % endif
-          l2_x_2,
-          % if n_tile_y > 1:
-          dory_get_tile_3d(exec_output, 0, 0, k, ${h_out}, ${w_out}, ${n_out}, ${w_out}, ${n_out * n_tile_W}, 0, 0, 0, 0, 0, 0, ${y_data_size_byte}),
-          % else:
-          dory_get_tile_3d(exec_output, j, 0, k, ${h_out}, ${w_out}, ${n_out}, ${w_out}, ${n_out * n_tile_W}, 0, 0, 0, 0, 0, 0, ${y_data_size_byte}),
-          % endif
-          exec_weights,
-          l1_buffer,
-          hyperram,
-          outmult,
-          out_shift};
-
-      % if (n_tile_x > 1 or n_tile_y > 1) and padding > 0:
-      ${L2_func_names[2]}(\
-      % else:
-      ${L2_func_names[0]}(\
-      % endif
-          args);
-    }
-    else
-    {
-      unsigned int args[11] = {l3_x,
-          l3_y,
-          l3_W,
-          % if n_tile_x > 1 or n_tile_W > 1:
-          exec_input,
-          % else:
-          dory_get_tile_3d(exec_input, j, 0, 0, ${h_in}, ${w_in}, ${n_in}, ${w_in}, ${n_in}, ${conv_overlap1}, ${conv_overlap2},0, ${padding}, 0, 0, ${x_data_size_byte}),
-          % endif
-          l2_x_2,
-          % if n_tile_y > 1:
-          dory_get_tile_3d(exec_output, 0, 0, k, ${h_out}, ${w_out}, ${n_out}, ${w_out}, ${n_out * n_tile_W}, 0, 0, 0, 0, 0, 0, ${y_data_size_byte}),
-          % else:
-          dory_get_tile_3d(exec_output, j, 0, k, ${h_out}, ${w_out}, ${n_out}, ${w_out}, ${n_out * n_tile_W}, 0, 0, 0, 0, 0, 0, ${y_data_size_byte}),
-          % endif
-          exec_weights,
-          l1_buffer,
-          hyperram,
-          outmult,
-          out_shift};
-      ${L2_func_names[0]}(args);
-      }    
-      pi_cl_team_barrier(0);
-% if n_tile_W > 1:
-        if(pi_core_id()==0)
-        {
-          // waiting for weights, lambda, and k
-          pi_cl_ram_read_wait(&buff_req_w1);
+    for (int k = 0; k < ${n_tile_W}; k++) {
+      if (k + 1 < ${n_tile_W}) {
+        // Fetch next weights
+        if (pi_core_id() == 0) {
+          pi_cl_ram_read(ram, l3_W + offset_w, db[!i_db_w].w, ${weight_dim}, &req_w);
+          offset_w += ${weight_dim};
           % if k_dim != 0:
-          pi_cl_ram_read_wait(&buff_req_w2);
-          pi_cl_ram_read_wait(&buff_req_w3);
+          pi_cl_ram_read(ram, l3_W + offset_k, db[!i_db_w].k, ${k_dim}, &req_k);
+          offset_k += ${k_dim};
+          pi_cl_ram_read(ram, l3_W + offset_l, db[!i_db_w].l, ${lambda_dim}, &req_l);
+          offset_l += ${lambda_dim};
           % endif
           % if bias_dim != 0:
-          pi_cl_ram_read_wait(&buff_req_w4);
+          pi_cl_ram_read(ram, l3_W + offset_b, db[!i_db_w].bias, ${bias_dim}, &req_bias);
+          offset_b += ${bias_dim};
           % endif
         }
-        d_buffering_weights_e = !d_buffering_weights_e;
-        exec_weights = d_buffering_weights_e ? L2_weights_2 : L2_weights_1;
-        d_buffering_weights_t = !d_buffering_weights_t;
-        transfer_weights = d_buffering_weights_t ? L2_weights_2 : L2_weights_1;
-      }   
-% endif
-
-% if n_tile_x > 1:
-    input_e = !input_e;
-    exec_input = input_e ? L2_input_2 : L2_input_1;
-% endif
-
-% if n_tile_y > 1:
-    if(pi_core_id()==0) 
-    {
-      % if n_tile_x > 1:
-      // waits for input transfer to be ended
-      pi_cl_ram_read_wait(&buff_req_x1);
-      % endif
-      // waits for output transfer to be ended
-      if (j > 0)
-        pi_cl_ram_write_wait(&buff_req_y1);
-      pi_cl_ram_write(hyperram, (l3_y + j*${dim_out}), transfer_output, ${dim_out}, &buff_req_y1);
-    % if verbose == 1:
-    for(int j=0; j<${dim_out}; j++) 
-      checksum += transfer_output[j];
-    printf("checksum = %d\n", checksum);
+      }
+    % else:
+    int k = 0;
     % endif
-    }
-    // switching parameters
-    output_e = !output_e;
-    output_t = !output_t;
-    exec_output = output_e ? L2_output_2 : L2_output_1;
-    transfer_output = output_t ? L2_output_2 : L2_output_1;
-% endif
-% if n_tile_x > 1 or n_tile_y > 1:
-  }
-% endif
 
-% if n_tile_y > 1:
-  // last wait
-  if (pi_core_id()==0) {
-    pi_cl_ram_write_wait(&buff_req_y1);
+      % if n_tile_x > 1 or n_tile_W > 1:
+      tile_args.L2_input = db[i_db_x].x;
+      % else:
+      tile_args.L2_input = j == 0 ? db[i_db_x].x :
+        dory_get_tile_3d(db[i_db_x].x, j, 0, 0, ${h_in}, ${w_in}, ${n_in}, ${w_in}, ${n_in}, ${conv_overlap1}, ${conv_overlap2},0, ${padding}, 0, 0, ${x_data_size_byte});
+      % endif
+      tile_args.L2_output = dory_get_tile_3d(db[i_db_y].y, ${0 if n_tile_y > 1 else 'j'}, 0, k, ${h_out}, ${w_out}, ${n_out}, ${w_out}, ${n_out * n_tile_W}, 0, 0, 0, 0, 0, 0, ${y_data_size_byte});
+      tile_args.L2_weights = db[i_db_w].w;
+
+      // execution of L2-L1 layer. Either top, middle or bottom layer.
+      pi_cl_team_barrier(0);
+      ${L2_func_names[0]}((void *)&tile_args);
+    % if n_tile_W > 1:
+
+      if (pi_core_id() == 0) {
+        // waiting for weights, lambda, and k
+        pi_cl_ram_read_wait(&req_w);
+        % if k_dim != 0:
+        pi_cl_ram_read_wait(&req_k);
+        pi_cl_ram_read_wait(&req_l);
+        % endif
+        % if bias_dim != 0:
+        pi_cl_ram_read_wait(&req_bias);
+        % endif
+      }
+
+      i_db_w = !i_db_w;
+    }
+    % endif
+    % if n_tile_x > 1:
+
+    i_db_x = !i_db_x;
+    % endif
+    % if n_tile_y > 1:
+    if (pi_core_id() == 0) {
+      // waits for output transfer to be ended
+      if (j > 0) pi_cl_ram_write_wait(&req_y);
+      pi_cl_ram_write(ram, l3_y + offset_y, db[i_db_y].y, ${dim_out}, &req_y);
+      offset_y += ${dim_out};
+    }
+    % if verbose:
+    uint8_t *y = db[i_db_y].y;
+    for (int i = 0; i < ${dim_out}; i++) checksum += y[i];
+    % endif
+
+    i_db_y = !i_db_y;
+    % endif
+  % if n_tile_x > 1 or n_tile_y > 1:
   }
-% endif
+  % endif
+
+  % if n_tile_y > 1:
+  // last wait
+  if (pi_core_id() == 0) {
+    pi_cl_ram_write_wait(&req_y);
+  }
+  % if verbose:
+  printf("checksum = %d\n", checksum);
+  % endif
+  % endif
   pi_cl_team_barrier(0);
 }

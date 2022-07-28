@@ -16,8 +16,6 @@ class TemplateWriter2D_L3(TemplateWriter):
         padding_left = p[1]
         padding_bottom = p[2]
         padding_right = p[3]
-        conv_overlap1 = 2 * (ks[0] // 2) + ks[0] % 2 - 1 - (s[0] - 1)
-        conv_overlap2 = 2 * (ks[1] // 2) + ks[1] % 2 - 1 - (s[1] - 1)
 
         ################## NEED A REWRITING IN THIS TEMPLATE PART ######################
         #### VARIABLE CREATION FOR COMPATIBILITY WITH THE SECTION AFTER ################
@@ -56,26 +54,25 @@ class TemplateWriter2D_L3(TemplateWriter):
 
         ################################################################################
 
-        self.tk['conv_overlap1'] = conv_overlap1
-        self.tk['conv_overlap2'] = conv_overlap2
+        self.tk['conv_overlap1'] = 2 * (ks[0] // 2) + ks[0] % 2 - 1 - (s[0] - 1)
+        self.tk['conv_overlap2'] = 2 * (ks[1] // 2) + ks[1] % 2 - 1 - (s[1] - 1)
         self.tk['padding'] = padding_top
         if (node.tiling_dimensions["L3"]["input_dimensions"] != node.tiling_dimensions["L2"]["input_dimensions"]):
             self.tk['input_L3'] = 1
-            factor_h_in = int(h_out / h_out_L2)
+            factor_h_in = h_out / h_out_L2
         else:
             self.tk['input_L3'] = 0
             factor_h_in = 1
-        factor_h_out = int(
-            node.tiling_dimensions["L3"]["output_dimensions"][1] / node.tiling_dimensions["L2"]["output_dimensions"][1])
+        factor_h_out = h_out / node.tiling_dimensions["L2"]["output_dimensions"][1]
         if not isinstance(node.tiling_dimensions["L2"]["weights_dimensions"], type(None)):
-            factor_ch_out = int(node.tiling_dimensions["L3"]["weights_dimensions"][0] /
-                                node.tiling_dimensions["L2"]["weights_dimensions"][0])
+            factor_ch_out = node.tiling_dimensions["L3"]["weights_dimensions"][0] / \
+                            node.tiling_dimensions["L2"]["weights_dimensions"][0]
         else:
             factor_ch_out = 1
-        self.tk['n_tile_W'] = factor_ch_out
-        self.tk['n_tile_x'] = factor_h_in
-        self.tk['n_tile_y'] = factor_h_out
-        self.tk['verbose'] = False
+        self.tk['n_tile_W'] = math.ceil(factor_ch_out)
+        self.tk['n_tile_x'] = math.ceil(factor_h_in)
+        self.tk['n_tile_y'] = math.ceil(factor_h_out)
+        self.tk['verbose'] = True
         self.tk['func_name'] = node.name
         self.tk['L2_func_names'] = [node.name + "_L2"]
         if self.tk['padding'] > 0:
@@ -89,8 +86,25 @@ class TemplateWriter2D_L3(TemplateWriter):
         self.tk['w_in'] = w_in_L2
         self.tk['h_in'] = h_in_L2
         self.tk['n_in'] = n_in_L2
-        self.tk['weight_dim'] = int(node.tiling_dimensions["L2"]["weight_memory"])
+
         self.tk['has_bias'] = int(len([1 for name in node.constant_names if "bias" in name]) > 0)
+
+        offset = 0
+        self.tk['l3_offset_w'] = offset
+        offset += node.tiling_dimensions["L3"]["weight_memory"]
+
+        if self.tk['has_bias'] == 1:
+            self.tk['l3_offset_b'] = offset
+            offset += node.tiling_dimensions["L3"]["bias_memory"]
+
+        if not isinstance(node.tiling_dimensions["L2"]["constants_memory"], type(None)):
+            self.tk['l3_offset_k'] = offset
+            offset += int(node.tiling_dimensions["L3"]["constants_memory"] / 2)
+
+            self.tk['l3_offset_l'] = offset
+            offset += int(node.tiling_dimensions["L3"]["constants_memory"] / 2)
+
+        self.tk['weight_dim'] = int(node.tiling_dimensions["L2"]["weight_memory"])
         if self.tk['has_bias'] == 1:
             self.tk['bias_dim'] = node.tiling_dimensions["L2"]["bias_memory"]
         else:
