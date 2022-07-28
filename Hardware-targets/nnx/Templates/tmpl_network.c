@@ -35,6 +35,17 @@
 #define VERBOSE 1
 % endif
 
+% if 'Yes' in performance or 'Perf_final' in verbose_level:
+static void print_perf(const char *name, const int cycles, const int macs) {
+  float perf = (float) macs / cycles;
+  printf("\n%s performance:\n", name);
+  printf("  - num cycles: %d\n", cycles);
+  printf("  - MACs: %d\n", macs );
+  printf("  - MAC/cycle: %g\n", perf);
+  printf("  - n. of Cores: %d\n\n", NUM_CORES);
+}
+
+% endif
 % if 'Check_all' in verbose_level:
 #ifdef VERBOSE
 static void checksum(const char *name, const uint8_t *d, size_t size, uint32_t sum_true) {
@@ -197,6 +208,7 @@ void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output)
       .L2_weights = L2_weights,
       .L1_buffer = NULL,
       .ram = (unsigned int)get_ram_ptr(),
+      .padding = PAD_TOP | PAD_BOTTOM,
       .out_mult = out_mult_vector[i],
       .out_shift = out_shift_vector[i],
       .layer_id = i
@@ -230,12 +242,7 @@ void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output)
 % endif
     
 % if 'Yes' in performance:
-    int MACs = NODEs_MACS[i];
-    float perf_MAC =  (float)MACs/perf_cyc;
-    printf(" Layer %-3d: num_cycles: %-11d,", i, perf_cyc);
-    printf(" MACs: %-11d,",MACs );
-    printf(" MAC/cycle: %-8f,",perf_MAC );
-    printf(" n. of Cores: %d\n",NUM_CORES);
+    print_perf(Layers_name[i], perf_cyc, NODEs_MACS[i]);
 % endif
 
     // TODO: What error?
@@ -321,12 +328,7 @@ void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output)
 /* ---------------------------------- */
 
 % if 'Perf_final' in verbose_level:
-  int MACs = ${MACs};
-  float perf_MAC =  (float)MACs/cycle_network_execution;
-  printf("\nnum_cycles: %d\n",cycle_network_execution);
-  printf("MACs: %d\n",MACs );
-  printf("MAC/cycle: %f\n",perf_MAC );
-  printf("n. of Cores: %d\n",NUM_CORES);
+  print_perf("Final", cycle_network_execution, ${MACs});
 % endif
 
 /* ---------------------------------- */

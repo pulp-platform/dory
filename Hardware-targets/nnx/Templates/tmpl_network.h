@@ -24,6 +24,12 @@
 #include "pulp.h"
 % endif
 
+#define PAD_TOP    (1 << 3)
+#define PAD_RIGHT  (1 << 2)
+#define PAD_BOTTOM (1 << 1)
+#define PAD_LEFT   (1 << 0)
+#define NO_PAD     (0)
+
 typedef struct {
     unsigned int L3_input;
     unsigned int L3_output;
@@ -34,6 +40,7 @@ typedef struct {
     unsigned int L2_weights;
     unsigned int L1_buffer;
     unsigned int ram;
+    unsigned int padding;
     unsigned int out_mult;
     unsigned int out_shift;
     unsigned int layer_id;

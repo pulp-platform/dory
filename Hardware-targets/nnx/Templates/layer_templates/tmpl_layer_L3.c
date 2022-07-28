@@ -31,6 +31,9 @@ void __attribute__ ((noinline)) ${func_name}(void *args)
 {
   layer_args_t *layer_args = (layer_args_t *)args;
   layer_args_t  tile_args = *layer_args;
+  % if not (n_tile_x > 1 or n_tile_y > 1):
+  tile_args.padding = PAD_TOP & PAD_BOTTOM;
+  % endif
 
   const void *l3_x = layer_args->L3_input;
   const void *l3_y = layer_args->L3_output;
@@ -51,7 +54,7 @@ void __attribute__ ((noinline)) ${func_name}(void *args)
   % endif
   % if n_tile_x > 1:
 
-  int offset_x = ${dim_in-int(conv_overlap1*n_in*w_in*BitIn/8) - int(padding*n_in*w_in*BitIn/8)};
+  int offset_x = ${dim_in-int(conv_overlap1*n_in*w_in*BitIn/8) - int(padding_top*n_in*w_in*BitIn/8)};
   % endif
   % if n_tile_y > 1:
   int offset_y = 0;
@@ -189,10 +192,18 @@ void __attribute__ ((noinline)) ${func_name}(void *args)
       tile_args.L2_input = db[i_db_x].x;
       % else:
       tile_args.L2_input = j == 0 ? db[i_db_x].x :
-        dory_get_tile_3d(db[i_db_x].x, j, 0, 0, ${h_in}, ${w_in}, ${n_in}, ${w_in}, ${n_in}, ${conv_overlap1}, ${conv_overlap2},0, ${padding}, 0, 0, ${x_data_size_byte});
+        dory_get_tile_3d(db[i_db_x].x, j, 0, 0, ${h_in}, ${w_in}, ${n_in}, ${w_in}, ${n_in}, ${conv_overlap1}, ${conv_overlap2}, 0, ${padding_top}, 0, 0, ${x_data_size_byte});
       % endif
       tile_args.L2_output = dory_get_tile_3d(db[i_db_y].y, ${0 if n_tile_y > 1 else 'j'}, 0, k, ${h_out}, ${w_out}, ${n_out}, ${w_out}, ${n_out * n_tile_W}, 0, 0, 0, 0, 0, 0, ${y_data_size_byte});
       tile_args.L2_weights = db[i_db_w].w;
+      % if n_tile_x > 1 or n_tile_y > 1:
+      if (j == 0)
+        tile_args.padding = PAD_TOP;
+      else if (j == ${n_tile_x if n_tile_x > 1 else n_tile_y} - 1)
+        tile_args.padding = PAD_BOTTOM;
+      else
+        tile_args.padding = NO_PAD;
+      % endif
 
       // execution of L2-L1 layer. Either top, middle or bottom layer.
       pi_cl_team_barrier(0);

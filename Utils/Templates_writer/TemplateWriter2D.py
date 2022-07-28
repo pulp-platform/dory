@@ -12,10 +12,6 @@ class TemplateWriter2D_L3(TemplateWriter):
         s = node.strides
         g = node.group
         p = node.pads
-        padding_top = p[0]
-        padding_left = p[1]
-        padding_bottom = p[2]
-        padding_right = p[3]
 
         ################## NEED A REWRITING IN THIS TEMPLATE PART ######################
         #### VARIABLE CREATION FOR COMPATIBILITY WITH THE SECTION AFTER ################
@@ -56,7 +52,10 @@ class TemplateWriter2D_L3(TemplateWriter):
 
         self.tk['conv_overlap1'] = 2 * (ks[0] // 2) + ks[0] % 2 - 1 - (s[0] - 1)
         self.tk['conv_overlap2'] = 2 * (ks[1] // 2) + ks[1] % 2 - 1 - (s[1] - 1)
-        self.tk['padding'] = padding_top
+        self.tk['padding_top'] = p[0]
+        self.tk['padding_left'] = p[1]
+        self.tk['padding_bottom'] = p[2]
+        self.tk['padding_right'] = p[3]
         if (node.tiling_dimensions["L3"]["input_dimensions"] != node.tiling_dimensions["L2"]["input_dimensions"]):
             self.tk['input_L3'] = 1
             factor_h_in = h_out / h_out_L2
@@ -75,8 +74,6 @@ class TemplateWriter2D_L3(TemplateWriter):
         self.tk['verbose'] = True
         self.tk['func_name'] = node.name
         self.tk['L2_func_names'] = [node.name + "_L2"]
-        if self.tk['padding'] > 0:
-            self.tk['L2_func_names'] += [node.name + "_L2_p_t", node.name + "_L2_p_b"]
         self.tk['BitIn'] = ds_x
         self.tk['y_data_size_byte'] = ds_y
         self.tk['x_data_size_byte'] = ds_x
