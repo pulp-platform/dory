@@ -141,8 +141,10 @@ The power profiling on a GAP8 v3 of a 1.0-MobilenetV1-128 is reported in Fig.2.
 
 ### Contributors
 + **Alessio Burrello**, *University of Bologna*, [email](mailto:alessio.burrello@unibo.it)
-+ **Thorir Mar Ingolfsson**, *ETH Zurich*, [email](mailto:thoriri@iis.ee.ethz.ch)
 + **Francesco Conti**, *University of Bologna*, [email](mailto:f.conti@unibo.it)
++ **Luka Macan**, *University of Bologna*, [email](luka.macan@unibo.it)
++ **Georg Ruetishauer**, *ETH Zurich*, [email](georgr@iis.ee.ethz.ch)
++ **Thorir Mar Ingolfsson**, *ETH Zurich*, [email](mailto:thoriri@iis.ee.ethz.ch)
 + **Angelo Garofalo**, *University of Bologna*, [email](mailto:angelo.garofalo@unibo.it)
 + **Nazareno Bruschi**, *University of Bologna*, [email](mailto:nazareno.bruschi@unibo.it)
 + **Giuseppe Tagliavini**, *University of Bologna*, [email](mailto:giuseppe.tagliavini@unibo.it)
