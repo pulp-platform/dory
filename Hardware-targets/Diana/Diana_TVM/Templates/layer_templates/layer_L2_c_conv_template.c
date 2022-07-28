@@ -27,7 +27,7 @@
 L2_DATA uint8_t Weights_${func_name}[${weights_dimensions}] = {
 ${weights_vectors}};
 
-void ${func_name}(unsigned int l2_x, unsigned int l2_y) 
+int32_t ${func_name}(void* l2_x, void* l2_y)
 {
   //////////////////////////////////////////////////////////////////////////
   // arguments assigning: keeping same interface between L2 and L3 memory //
@@ -122,7 +122,7 @@ void ${func_name}(unsigned int l2_x, unsigned int l2_y)
           byte_transfer = 16 * (((channel_number * x_tile_size_h * x_tile_size_w) % 512) ? ((channel_number * x_tile_size_h * x_tile_size_w) % 512) : 512);
         else
           byte_transfer = 16 * 512;
-        DMA_copy_x.ext = l2_x + blocks_index * 16 * 512 + c_index * 16 * channel_number * x_tile_size_h * x_tile_size_w;
+        DMA_copy_x.ext = (unsigned int) l2_x + blocks_index * 16 * 512 + c_index * 16 * channel_number * x_tile_size_h * x_tile_size_w;
         DMA_copy_x.loc = l1_x + blocks_index * 4 * 16 * 512 + c_index * 16 * 512;
         DMA_copy_x.number_of_2d_copies = 1;
         DMA_copy_x.number_of_1d_copies = 1;
@@ -195,7 +195,7 @@ void ${func_name}(unsigned int l2_x, unsigned int l2_y)
       pad_offset_h = ${padding_top};
     if(_i_w > 0)
       pad_offset_w = ${padding_left};
-    uint32_t l2_x_tile = dory_get_tile_3d(l2_x, _i_nif, _i_h, _i_w, ${x_tile_size_nif}, ${x_tile_size_h}, ${x_tile_size_w}, ${x_h}, ${x_w},0, ${conv_overlap1}, ${conv_overlap2}, 0, pad_offset_h, pad_offset_w, ${x_data_size_byte});
+    uint32_t l2_x_tile = dory_get_tile_3d((unsigned int) l2_x, _i_nif, _i_h, _i_w, ${x_tile_size_nif}, ${x_tile_size_h}, ${x_tile_size_w}, ${x_h}, ${x_w},0, ${conv_overlap1}, ${conv_overlap2}, 0, pad_offset_h, pad_offset_w, ${x_data_size_byte});
 % if optional_type == "8bit":
     dory_cores_barrier_digital();
     digital_conv_2d(l2_x_tile, l1_x, Weights_${func_name}, l1_weights, l1_y, &kernel);
@@ -245,7 +245,7 @@ void ${func_name}(unsigned int l2_x, unsigned int l2_y)
     }
   % endif
 
-    DMA_copy_y.ext = l2_y;
+    DMA_copy_y.ext = (unsigned int) l2_y;
     DMA_copy_y.loc = l1_y;
     DMA_copy_y.number_of_2d_copies = y_length_nof_byte;
     DMA_copy_y.number_of_1d_copies = y_tile_size_h;
