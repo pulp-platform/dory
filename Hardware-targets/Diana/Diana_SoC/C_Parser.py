@@ -31,7 +31,7 @@ from Parsers.Parser_HW_to_C import Parser_HW_to_C
 import Utils.Templates_writer.Layer2D_template_writer as Layer2D_writer
 import Utils.Templates_writer.writer_utils as utils
 import importlib
-ana_enc = importlib.import_module(f'Hardware-targets.Diana.weights_encoder_analog')
+ana_enc = importlib.import_module(f'Hardware-targets.Diana.Diana_SoC.weights_encoder_analog')
 # Directory
 file_path = "/".join(os.path.realpath(__file__).split("/")[:-1])
 
@@ -48,7 +48,7 @@ class C_Parser(Parser_HW_to_C):
 
     def copy_backend_files(self, node):
         root = os.path.dirname(__file__)
-        files = os.path.join(root, "Backend_Kernels/dory-hal/")
+        files = os.path.join(root, "../Backend_Kernels/dory-hal/")
         if os.listdir(os.path.join(files, "include".format(self.source_Constant_bits_library)))[0] not in os.listdir(os.path.join(self.app_directory, "DORY_network/inc")):
             for file in os.listdir(os.path.join(files, "include".format(self.source_Constant_bits_library))):
                 file_to_copy = os.path.join(files, "include".format(self.source_Constant_bits_library), file)
