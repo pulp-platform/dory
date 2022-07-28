@@ -28,7 +28,7 @@ class Ne16(Accelerator):
         return self.weights_ko_len(ko, dw) * self.weights_ki_size(ki, ks, qw, dw)
 
     def heuristic_l2(self, tile_n_out, tile_n_in, tile_h_out,
-                     constr_total_size, ks=None, modifier=1000000):
+                     total_size, ks=None, modifier=1000000):
         heuristics_l2 = [
             # Geometrical shape of tiles
             {
@@ -45,7 +45,7 @@ class Ne16(Accelerator):
             },
             # Total dimension of tile
             {
-                "value": constr_total_size,
+                "value": total_size,
                 "prio": 0.000001
             }
         ]
@@ -58,7 +58,7 @@ class Ne16(Accelerator):
 
     def heuristic_l1(self, n_out, n_in, h_out, w_out,
                      tile_n_out, tile_n_in, tile_h_out, tile_w_out,
-                     constr_total_size, zero, ks=None, modifier=1000000):
+                     total_size, ks, modifier=1000000):
         heuristics = [
             # Geometrical shape of tiles
             {
@@ -79,24 +79,24 @@ class Ne16(Accelerator):
             },
             # Geometrical shape of border tiles
             {
-                "value": divisible(n_out - zero, tile_n_out),
+                "value": divisible(n_out, tile_n_out),
                 "prio": 0.01
             },
             {
-                "value": divisible(n_in - zero, tile_n_in) % self.TP_IN,
+                "value": divisible(n_in, tile_n_in) % self.TP_IN,
                 "prio": 0.03
             },
             {
-                "value": divisible(w_out - zero, tile_w_out) % self.KS,
+                "value": divisible(w_out, tile_w_out) % self.KS,
                 "prio": 0.02
             },
             {
-                "value": divisible(h_out - zero, tile_h_out) % self.KS,
+                "value": divisible(h_out, tile_h_out) % self.KS,
                 "prio": 0.01
             },
             # Total dimension of tile
             {
-                "value": constr_total_size,
+                "value": total_size,
                 "prio": 0.000001
             }
         ]

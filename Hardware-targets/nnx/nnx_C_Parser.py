@@ -101,21 +101,14 @@ class nnx_C_Parser(Parser_HW_to_C):
         def feature_len(shape):
             return shape[0] * shape[1] * shape[2]
 
-        if upper_mem_name in node.tiling_dimensions.keys():
-            input_shape = node.tiling_dimensions[upper_mem_name]['input_dimensions']
-            output_shape = node.tiling_dimensions[upper_mem_name]['output_dimensions']
-            weights_shape = node.tiling_dimensions[upper_mem_name]['weights_dimensions']
-
-            n_buffers = {
-                'x': 1 if input_shape == input_tile_shape else 2,
-                'y': 1 if output_shape == output_tile_shape else 2,
-                'W': 1 if weights_shape == weights_tile_shape else 2,
-                'k': 1 if weights_shape == weights_tile_shape else 2,
-                'lambda': 1 if weights_shape == weights_tile_shape else 2,
-                'b': 1 if weights_shape == weights_tile_shape else 2,
-            }
-        else:
-            n_buffers = {'x': 1, 'y': 1, 'W': 1, 'k': 1, 'lambda': 1, 'b': 1}
+        n_buffers = {
+            'x': node.tiling_dimensions[mem_name]['db_x'],
+            'y': node.tiling_dimensions[mem_name]['db_y'],
+            'W': node.tiling_dimensions[mem_name]['db_w'],
+            'k': node.tiling_dimensions[mem_name]['db_w'],
+            'lambda': node.tiling_dimensions[mem_name]['db_w'],
+            'b': node.tiling_dimensions[mem_name]['db_w']
+        }
 
         tile_sizes = {
             'x': feature_len(input_tile_shape) * input_el_size,
@@ -172,5 +165,13 @@ class nnx_C_Parser(Parser_HW_to_C):
 
     def __nnx_vars(self, templateWriter, node):
         self.__mem_tmpl_vars(templateWriter, node, mem_level=1)
-        self.__mem_tmpl_vars(templateWriter, node, mem_level=2)
+        #self.__mem_tmpl_vars(templateWriter, node, mem_level=2) # TODO: make uniform offsets for L1/L2/Lx mems
+
+        flag_depthwise = node.group > 1
+        ko, ki = node.tiling_dimensions['L2']['weights_dimensions']
+        weights_size = self.acc.weights_size(ko, ki, node.kernel_shape, node.weight_bits, flag_depthwise)
+        templateWriter.set_var('l2_k_offset', weights_size)
+        tile_ko = ki if flag_depthwise else ko
+        templateWriter.set_var('l2_lambda_offset', weights_size + tile_ko * (node.constant_bits // 8))
+
         return templateWriter

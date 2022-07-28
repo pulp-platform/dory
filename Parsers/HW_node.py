@@ -55,7 +55,9 @@ class HW_node(DORY_node):
             self.tiling_dimensions["L{}".format(level+1)]["output_activation_memory"] = None
         if not isinstance(self.name, type(None)):
             if "Convolution" in self.name or "FullyConnected" in self.name:
-                self.tiling_dimensions["L{}".format(level+1)]["weights_dimensions"] = [self.output_channels, self.input_channels]
+                weights_dim = [self.output_channels, self.input_channels]
+                self.tiling_dimensions["L{}".format(level+1)]["weights_dimensions"] = weights_dim
+                self.weight_memory = self.weights_size(weights_dim)
         self.tiling_dimensions["L{}".format(level+1)]["input_dimensions"] = [self.input_channels] + self.input_dimensions
         self.tiling_dimensions["L{}".format(level+1)]["output_dimensions"] = [self.output_channels] + self.output_dimensions
         self.tiling_dimensions["L{}".format(level+1)]["weight_memory"] = self.weight_memory

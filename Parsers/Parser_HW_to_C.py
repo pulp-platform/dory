@@ -82,7 +82,11 @@ class Parser_HW_to_C:
 
     def copy_files(self, files):
         for file in files:
-            shutil.copy(file, self.destdir(file))
+            destdir = self.destdir(file)
+            if destdir is not None:
+                shutil.copy(file, self.destdir(file))
+            else:
+                print(f"NOTE: Skipping copying of file {file}")
 
     def copy_backend(self):
         print("\nCopying Backend Kernels.")
