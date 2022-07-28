@@ -29,13 +29,13 @@
 #endif GVSOC_LOGGING
 
 #ifdef DEBUG_DMA_COPY
-#define dory_dma_memcpy_async(dma)                                                                                             \\
-  do                                                                                                                           \\
-  {                                                                                                                            \\
-    printf(                                                                                                                    \\
-        "\n[" #dma "] ext:%p, loc:%p, n_2d:%d, s_2d:%d, n_1d:%d, s_1d:%d, l_1d:%d\n",                                          \\
-        dma.ext, dma.loc, dma.number_of_2d_copies, dma.stride_2d, dma.number_of_1d_copies, dma.stride_1d, dma.length_1d_copy); \\
-    dory_dma_memcpy_async(dma);                                                                                                \\
+#define dory_dma_memcpy_async(dma)                                                                                             ${"\\"}
+  do                                                                                                                           ${"\\"}
+  {                                                                                                                            ${"\\"}
+    printf(                                                                                                                    ${"\\"}
+        "\n[" #dma "] ext:%p, loc:%p, n_2d:%d, s_2d:%d, n_1d:%d, s_1d:%d, l_1d:%d\n",                                          ${"\\"}
+        dma.ext, dma.loc, dma.number_of_2d_copies, dma.stride_2d, dma.number_of_1d_copies, dma.stride_1d, dma.length_1d_copy); ${"\\"}
+    dory_dma_memcpy_async(dma);                                                                                                ${"\\"}
   } while (0)
 #endif
 
@@ -81,8 +81,8 @@ void ${func_name}(
   const unsigned int l2_y = layer_args->L2_output;
   const unsigned int l2_W = layer_args->L2_weights;
 % if FLAG_BATCHNORM == 1:
-  const unsigned int l2_scale = l2_W + ${l2_k_offset - l2_W_offset};
-  const unsigned int l2_bias  = l2_W + ${l2_lambda_offset - l2_W_offset};
+  const unsigned int l2_scale = l2_W + ${l2_k_offset};
+  const unsigned int l2_bias  = l2_W + ${l2_lambda_offset};
 % endif
   const unsigned int l1_buffer = layer_args->L1_buffer;
   const unsigned int out_shift = layer_args->out_shift;
@@ -97,7 +97,6 @@ void ${func_name}(
   DMA_copy DMA_copy_k, DMA_copy_lambda;
 % endif
   DMA_copy DMA_copy_y[DMA_Y_CONTEXT_SIZE];
-  int dma_copy_y_job_ids[DMA_Y_CONTEXT_SIZE];
 
   //////////////////
   // DMA defaults //
@@ -432,7 +431,7 @@ void ${func_name}(
     // jobs commited.
     // This barrier is required before dma_memcpy so that we don't
     // overwrite the data being used by the accelerator.
-    dma_copy_y_job_ids[DMA_Y_INDEX(i_tile)] = nnx_acquire();
+    nnx_acquire();
 
     if (is_load_x) {
       dory_dma_memcpy_async(DMA_copy_x);
@@ -455,10 +454,7 @@ void ${func_name}(
 // |  $$$$$$/   | $$  |  $$$$$$/| $$  | $$| $$$$$$$$
 //  \______/    |__/   \______/ |__/  |__/|________/
 
-    // If the accelerator is running a job with an id greater then
-    // the id of the tile we have to store, it means it has processed
-    // the tile and its output can be stored to l2 memory.
-    const int is_store = nnx_job_id() > dma_copy_y_job_ids[DMA_Y_INDEX(i_store_y)];
+    const is_store = i_tile > i_store_y + 1;
 
     if (is_store) {
       dory_dma_memcpy_async(DMA_copy_y[DMA_Y_INDEX(i_store_y)]);
@@ -487,9 +483,8 @@ void ${func_name}(
       dory_dma_barrier(DMA_copy_lambda);
 % endif
     }
-    // This checks if we are about to start a job that is writting
-    // to the buffer that we are storing at the moment.
-    if (i_tile == i_store_y + 2) {
+    // Wait to write the data so that not to overwrite it by the next job
+    if (is_store) {
       dory_dma_barrier(DMA_copy_y[DMA_Y_INDEX(i_store_y)]);
     }
 
@@ -607,7 +602,7 @@ void ${func_name}(
 
   for (; i_store_y < total_tiles; i_store_y++) {
     if (i_store_y < total_tiles - 1) {
-      nnx_wait_on_id(dma_copy_y_job_ids[DMA_Y_INDEX(i_store_y)]);
+      nnx_wait_not_full();
     } else {
       nnx_wait_empty();
     }
