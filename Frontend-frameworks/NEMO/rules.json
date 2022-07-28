@@ -1,0 +1,98 @@
+{
+	"Relu": {
+		"number_of_nodes": 3,
+		"nodes_name": ["Mul","Div","Clip"],
+		"dependencies": {
+			"0": {"inputs": [],
+				"outputs":["1"]},
+			"1": {"inputs": ["0"],
+				"outputs":["2"]},
+			"2": {"inputs": ["1"],
+				"outputs":[]}
+		}
+	},
+	"Relu1": {
+		"number_of_nodes": 2,
+		"nodes_name": ["Mul","Mul","Div"],
+		"dependencies": {
+			"0": {"inputs": [],
+				"outputs":["1"]},
+			"1": {"inputs": ["0"],
+				"outputs":["2"]},
+			"2": {"inputs": ["1"],
+				"outputs":[]}
+		}
+	},
+	"Relu2": {
+		"number_of_nodes": 3,
+		"nodes_name": ["Mul","Div"],
+		"dependencies": {
+			"0": {"inputs": [],
+				"outputs":["1"]},
+			"1": {"inputs": ["0"],
+				"outputs":[]}
+		}
+	},
+	"BNRelu": {
+		"number_of_nodes": 5,
+		"nodes_name": ["Mul","Add","Mul","Div","Clip"],
+		"dependencies": {
+			"0": {"inputs": [],
+				"outputs":["1"]},
+			"1": {"inputs": ["0"],
+				"outputs":["2"]},
+			"2": {"inputs": ["1"],
+				"outputs":["3"]},
+			"3": {"inputs": ["2"],
+				"outputs":["4"]},
+			"4": {"inputs": ["3"],
+				"outputs":[]}
+		}
+	},
+	"PadConvolution": {
+		"number_of_nodes": 2,
+		"nodes_name": ["Pad","Convolution"],
+		"dependencies": {
+			"0": {"inputs": [],
+				"outputs":["1"]},
+			"1": {"inputs": ["0"],
+				"outputs":[]}
+		}
+	},
+	"PadConvolution1": {
+		"number_of_nodes": 3,
+		"nodes_name": ["Pad","Pad","Convolution"],
+		"dependencies": {
+			"0": {"inputs": [],
+				"outputs":["1"]},
+			"1": {"inputs": ["0"],
+				"outputs":["2"]},
+			"2": {"inputs": ["1"],
+				"outputs":[]}
+		}
+	},
+	"PadPooling": {
+		"number_of_nodes": 2,
+		"nodes_name": ["Pad","Pooling"],
+		"dependencies": {
+			"0": {"inputs": [],
+				"outputs":["1"]},
+			"1": {"inputs": ["0"],
+				"outputs":[]}
+		}
+	},
+	"QAdd": {
+		"number_of_nodes": 4,
+		"nodes_name": ["Mul","Addition", "Mul", "Div"],
+		"dependencies": {
+			"0": {"inputs": [],
+				"outputs":["1"]},
+			"1": {"inputs": ["0", "2"],
+				"outputs":["3"]},
+			"2": {"inputs": [],
+				"outputs":["1"]},
+			"3": {"inputs": ["1"],
+				"outputs":[]}
+		}
+	}
+}

@@ -1,0 +1,48 @@
+{
+	"name": "Diana/Diana_TVM",
+	"memory": {
+		"levels": 2,
+		"L1": {
+			"dimension": 256000,
+			"bandwidth": 32,
+			"latency": 1,
+			"frequency": 100000000
+		},
+		"L1_Weights_digital": {
+			"dimension": 64000,
+			"bandwidth": 32,
+			"latency": 1,
+			"frequency": 100000000
+		},
+		"L1_Weights_analog": {
+			"dimension": 147456,
+			"bandwidth": 32,
+			"latency": 1,
+			"frequency": 100000000
+		},
+		"L2": {
+			"dimension": 512000,
+			"bandwidth": 8,
+			"latency": 10,
+			"frequency": 100000000
+		},
+		"DMA": "yes",
+		"cache": "no"
+	},
+	"architecture": "single-core+accelerator",
+	"software development kit": {
+		"name": "diana-sdk",
+		"directory": null
+	},
+	"peak MAC/cycle":
+	{
+		"8bits": 256,
+		"float32": null
+	},
+	"core frequency": 100000000,
+	"accelerator frequency": 100000000,
+	"HW specific parameters":{
+		"accelerator core0 stack": 0,
+		"accelerator core1-7 stack": 0		
+	}
+}

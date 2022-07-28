@@ -7,3 +7,4 @@ application
 .DS_Store
 *DS_Store
 **/gmon.out
+.idea

@@ -1,15 +1,15 @@
 [submodule "dory_examples"]
 	path = dory_examples
 	url = https://github.com/pulp-platform/dory_examples
-[submodule "Backend_Kernels/pulp-nnx"]
-	path = Backend_Kernels/pulp-nnx
-	url = git@iis-git.ee.ethz.ch:fconti/pulp-nnx.git
-[submodule "Backend_Kernels/pulp-nn"]
-	path = Backend_Kernels/pulp-nn
-	url = https://github.com/pulp-platform/pulp-nn.git
-[submodule "Backend_Kernels/pulp-nn-mixed"]
-	path = Backend_Kernels/pulp-nn-mixed
+[submodule "Hardware-targets/GAP8/Backend_Kernels/pulp-nn-mixed"]
+	path = Hardware-targets/GAP8/Backend_Kernels/pulp-nn-mixed
 	url = git@github.com:pulp-platform/pulp-nn-mixed.git
-[submodule "Backend_Kernels/pulp-nn-1d"]
-	path = Backend_Kernels/pulp-nn-1d
+[submodule "Hardware-targets/GAP8/Backend_Kernels/pulp-nn"]
+	path = Hardware-targets/GAP8/Backend_Kernels/pulp-nn
+	url = git@github.com:pulp-platform/pulp-nn.git
+[submodule "Hardware-targets/GAP8/Backend_Kernels/pulp-nn-1d"]
+	path = Hardware-targets/GAP8/Backend_Kernels/pulp-nn-1d
 	url = git@github.com:pulp-platform/pulp-nn-1d.git
+[submodule "Hardware-targets/Diana/Backend_Kernels/dory-hal"]
+	path = Hardware-targets/Diana/Backend_Kernels/dory-hal
+	url = git@github.com:ABurrello/dory-hal.git

@@ -1,0 +1,48 @@
+{
+	"Relu": {
+		"number_of_nodes": 3,
+		"nodes_name": ["Mul","Div","Clip"],
+		"dependencies": {
+			"0": {"inputs": [],
+				"outputs":["1"]},
+			"1": {"inputs": ["0"],
+				"outputs":["2"]},
+			"2": {"inputs": ["1"],
+				"outputs":[]}
+		}
+	},
+	"BNRelu_requant": {
+		"number_of_nodes": 4,
+		"nodes_name": ["Mul","Add","Div","Clip"],
+		"dependencies": {
+			"0": {"inputs": [],
+				"outputs":["1"]},
+			"1": {"inputs": ["0"],
+				"outputs":["2"]},
+			"2": {"inputs": ["1"],
+				"outputs":["3"]},
+			"3": {"inputs": ["2"],
+				"outputs":[]}
+		}
+	},
+	"PadConvolution": {
+		"number_of_nodes": 2,
+		"nodes_name": ["Pad","Convolution"],
+		"dependencies": {
+			"0": {"inputs": [],
+				"outputs":["1"]},
+			"1": {"inputs": ["0"],
+				"outputs":[]}
+		}
+	},
+	"PadPooling": {
+		"number_of_nodes": 2,
+		"nodes_name": ["Pad","Pooling"],
+		"dependencies": {
+			"0": {"inputs": [],
+				"outputs":["1"]},
+			"1": {"inputs": ["0"],
+				"outputs":[]}
+		}
+	}
+}
