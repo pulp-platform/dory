@@ -17,7 +17,7 @@ networks = [
             {
                 'frontend': 'NEMO',
                 'target': 'GAP8.GAP8_board',
-                'conf_file': '../dory_examples/config_files/config_NEMO_Penguinet_64.json'
+                'conf_file': '../dory/dory_examples/config_files/config_NEMO_Penguinet_64.json'
             },
         "checksum_final": 'Ok'
     },
@@ -26,7 +26,7 @@ networks = [
             {
                 'frontend': 'NEMO',
                 'target': 'GAP8.GAP8_board',
-                'conf_file': '../dory_examples/config_files/config_NEMO_dronet.json'
+                'conf_file': '../dory/dory_examples/config_files/config_NEMO_dronet.json'
             },
         "checksum_final": 'Ok'
     },
@@ -35,7 +35,7 @@ networks = [
             {
                 'frontend': 'Quantlab',
                 'target': 'GAP8.GAP8_gvsoc',
-                'conf_file': '../dory_examples/config_files/config_Quantlab_MV1_4bits.json',
+                'conf_file': '../dory/dory_examples/config_files/config_Quantlab_MV1_4bits.json',
                 'optional': 'mixed-sw'
             },
         "checksum_final": 'Ok'
@@ -45,7 +45,7 @@ networks = [
             {
                 'frontend': 'Quantlab',
                 'target': 'GAP8.GAP8_gvsoc',
-                'conf_file': '../dory_examples/config_files/config_Quantlab_MV1_8bits.json',
+                'conf_file': '../dory/dory_examples/config_files/config_Quantlab_MV1_8bits.json',
                 'optional': 'mixed-sw'
             },
         "checksum_final": 'Ok'
@@ -55,7 +55,7 @@ networks = [
             {
                 'frontend': 'Quantlab',
                 'target': 'GAP8.GAP8_gvsoc',
-                'conf_file': '../dory_examples/config_files/config_Quantlab_MV2_4bits.json',
+                'conf_file': '../dory/dory_examples/config_files/config_Quantlab_MV2_4bits.json',
                 'optional': 'mixed-sw'
             },
         "checksum_final": 'Ok'
@@ -65,7 +65,7 @@ networks = [
             {
                 'frontend': 'Quantlab',
                 'target': 'GAP8.GAP8_gvsoc',
-                'conf_file': '../dory_examples/config_files/config_Quantlab_MV2_8bits.json',
+                'conf_file': '../dory/dory_examples/config_files/config_Quantlab_MV2_8bits.json',
                 'optional': 'mixed-sw'
             },
         "checksum_final": 'Ok'
@@ -75,7 +75,7 @@ networks = [
             {
                 'frontend': 'Quantlab',
                 'target': 'GAP8.GAP8_board',
-                'conf_file': '../dory_examples/config_files/config_Quantlab_MV1_8bits.json',
+                'conf_file': '../dory/dory_examples/config_files/config_Quantlab_MV1_8bits.json',
                 'optional': 'mixed-sw'
             },
         "checksum_final": 'Ok'
