@@ -124,21 +124,22 @@ class HW_node(DORY_node):
         if weight_name in self.__dict__:
             if self.weight_bits < 8 and self.group > 1:
                 self.__dict__[weight_name]["value"] = np.asarray(self.__dict__[weight_name]["value"])
-                self.__dict__[weight_name]["value"] = self.__dict__[weight_name]["value"].reshape(int(self.__dict__[weight_name]["value"].shape[0]/2),2,self.__dict__[weight_name]["value"].shape[1],self.__dict__[weight_name]["value"].shape[2],self.__dict__[weight_name]["value"].shape[3]).transpose(0,2,3,1,4).flatten().tolist()
+                self.__dict__[weight_name]["value"] = self.__dict__[weight_name]["value"].reshape(self.__dict__[weight_name]["value"].shape[0]//2,2,self.__dict__[weight_name]["value"].shape[1],self.__dict__[weight_name]["value"].shape[2],self.__dict__[weight_name]["value"].shape[3]).transpose(0,2,3,1,4).flatten()
             else:
-                self.__dict__[weight_name]["value"] = self.__dict__[weight_name]["value"].flatten().tolist()
+                self.__dict__[weight_name]["value"] = self.__dict__[weight_name]["value"].flatten()
             # self.__dict__[weight_name+"_raw"] = self.__dict__[weight_name]
-            temp = []
-            z = 0
-            for i_w, _ in enumerate(self.__dict__[weight_name]["value"]):
-                self.__dict__[weight_name]["value"][i_w] = np.uint8(self.__dict__[weight_name]["value"][i_w])
-            for i_x, _ in enumerate(self.__dict__[weight_name]["value"]):
-                if z % int(8 / self.weight_bits) == 0:
-                    temp.append(self.__dict__[weight_name]["value"][i_x] & (2**self.weight_bits-1))
-                else:
-                    temp[-1] += (self.__dict__[weight_name]["value"][i_x]& (2**self.weight_bits-1)) << self.weight_bits * (z % int(8 / self.weight_bits))
-                z+=1
-            self.__dict__[weight_name]["value"] = temp
+            self.__dict__[weight_name]["value"] = self.__dict__[weight_name]["value"].astype(np.uint8).tolist()
+            if self.weight_bits != 8:
+                # TODO: rewrite this in a vectorized way without for loop to massively speed up this routine
+                temp = []
+                z = 0
+                for i_x, _ in enumerate(self.__dict__[weight_name]["value"]):
+                    if z % int(8 / self.weight_bits) == 0:
+                        temp.append(self.__dict__[weight_name]["value"][i_x] & (2**self.weight_bits-1))
+                    else:
+                        temp[-1] += (self.__dict__[weight_name]["value"][i_x]& (2**self.weight_bits-1)) << self.weight_bits * (z % int(8 / self.weight_bits))
+                    z+=1
+                self.__dict__[weight_name]["value"] = temp
             self.check_sum_w += sum(self.__dict__[weight_name]["value"])
 
         bias_name = ""

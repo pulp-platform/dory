@@ -1,4 +1,3 @@
-import torch
 import numpy as np
 
 class AiMC():
@@ -33,6 +32,8 @@ def tern_to_bin(w):
         return 0
 
 def gen_weights(n_rows, n_cols, tiles=1):
+    # import torch here locally to not make it a dependency to this library
+    import torch
     return torch.randint(low=-1, high=2, size=(1, n_rows, n_cols)).tolist()
 
 def mirror_rows(w):

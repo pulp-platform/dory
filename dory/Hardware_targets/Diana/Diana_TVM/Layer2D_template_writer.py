@@ -319,8 +319,5 @@ def print_template_layer(tk,node, layer_type, tmpl_dir, out_dir, double_bufferin
         tmpl = Template(filename=os.path.join(tmpl_dir, "layer_L2_c_addition_template.c"))
 
     s_c = tmpl.render(verbose_log=l, **tk)
-    save_string = os.path.join(out_dir, 'src', name_layer.replace("h", "c"))
-    with open(save_string, "w") as f:
-        f.write(s_c)
     return s_c
 
