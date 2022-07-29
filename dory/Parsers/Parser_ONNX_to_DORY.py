@@ -25,9 +25,9 @@ import sys
 import copy
 
 # DORY modules
-from Parsers import Layer_node
-from Parsers import DORY_node
-from Utils.DORY_utils import Printer
+from . import Layer_node
+from . import DORY_node
+from dory.Utils.DORY_utils import Printer
 
 
 class Parser_ONNX_to_DORY:

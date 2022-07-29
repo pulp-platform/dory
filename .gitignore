@@ -8,3 +8,5 @@ application
 *DS_Store
 **/gmon.out
 .idea
+dory.egg-info
+dory.egg-info/

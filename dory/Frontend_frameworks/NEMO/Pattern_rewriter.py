@@ -23,7 +23,7 @@
 import numpy as np
 
 # DORY modules
-from Parsers import DORY_node
+from dory.Parsers import DORY_node
 
 
 class Pattern_rewriter:

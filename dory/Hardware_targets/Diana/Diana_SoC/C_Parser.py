@@ -27,11 +27,11 @@ from collections import OrderedDict
 import copy 
 
 # DORY modules
-from Parsers.Parser_HW_to_C import Parser_HW_to_C
-import Utils.Templates_writer.Layer2D_template_writer as Layer2D_writer
-import Utils.Templates_writer.writer_utils as utils
-import importlib
-ana_enc = importlib.import_module(f'Hardware-targets.Diana.Diana_SoC.weights_encoder_analog')
+from dory.Parsers.Parser_HW_to_C import Parser_HW_to_C
+import dory.Utils.Templates_writer.Layer2D_template_writer as Layer2D_writer
+import dory.Utils.Templates_writer.writer_utils as utils
+import dory.Hardware_targets.Diana.Diana_SoC.weights_encoder_analog as ana_enc
+
 # Directory
 file_path = "/".join(os.path.realpath(__file__).split("/")[:-1])
 

@@ -24,8 +24,8 @@ import copy
 import os
 
 # DORY modules
-from Parsers.DORY_node import DORY_node
-from Parsers.Layer_node import Layer_node
+from .DORY_node import DORY_node
+from .Layer_node import Layer_node
 
 
 class HW_node(DORY_node):

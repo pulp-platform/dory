@@ -23,8 +23,8 @@ import numpy as np
 import os
 
 # DORY modules
-import Utils.Templates_writer.Network_template_writer as Network_writer
-import Utils.Templates_writer.Makefile_template_writer as Makefile_writer
+import dory.Utils.Templates_writer.Network_template_writer as Network_writer
+import dory.Utils.Templates_writer.Makefile_template_writer as Makefile_writer
 
 
 class Parser_HW_to_C:
@@ -68,7 +68,7 @@ class Parser_HW_to_C:
 
     def copy_utils_files(self):
         print("\nCopying Utils.")
-        utils_files_dir = os.path.join(os.path.dirname(__file__), '../Hardware-targets', self.HW_description["name"], 'Utils_files')
+        utils_files_dir = os.path.join(os.path.dirname(__file__), '../Hardware_targets', self.HW_description["name"], 'Utils_files')
         for file in os.listdir(utils_files_dir):
             file_to_copy = os.path.join(utils_files_dir, file)
             if file_to_copy[-1] == 'c':

@@ -24,8 +24,8 @@ import os
 import numpy as np
 
 # DORY modules
-from Parsers.Parser_HW_to_C import Parser_HW_to_C
-import Utils.Templates_writer.Layer2D_template_writer as Layer2D_writer
+from dory.Parsers.Parser_HW_to_C import Parser_HW_to_C
+import dory.Utils.Templates_writer.Layer2D_template_writer as Layer2D_writer
 
 # Directory
 file_path = "/".join(os.path.realpath(__file__).split("/")[:-1])

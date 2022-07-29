@@ -19,7 +19,7 @@
 # limitations under the License.
 
 import numpy as np
-from Parsers.DORY_node import DORY_node
+from .DORY_node import DORY_node
 
 
 class Layer_node(DORY_node):

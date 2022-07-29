@@ -30,12 +30,12 @@ from importlib import import_module
 
 def dory_to_c(graph, target, conf, confdir, verbose_level, perf_layer, optional, appdir):
     # Including and running the transformation from DORY IR to DORY HW IR
-    onnx_manager = import_module(f'Hardware-targets.{target}.HW_Parser')
+    onnx_manager = import_module(f'dory.Hardware_targets.{target}.HW_Parser')
     dory_to_dory_hw = onnx_manager.onnx_manager
     graph = dory_to_dory_hw(graph, conf, confdir).full_graph_parsing()
 
     # Deployment of the model on the target architecture
-    onnx_manager = import_module(f'Hardware-targets.{target}.C_Parser')
+    onnx_manager = import_module(f'dory.Hardware_targets.{target}.C_Parser')
     dory_hw_to_c = onnx_manager.C_Parser
     dory_hw_to_c(graph, conf, confdir, verbose_level, perf_layer, optional, appdir).full_graph_parsing()
 
@@ -54,7 +54,7 @@ def network_generate(frontend, target, conf_file, verbose_level='Check_all+Perf_
     print(f"Using {onnx_file} target input onnx.\n")
 
     # Including and running the transformation from Onnx to a DORY compatible graph
-    onnx_manager = import_module(f'Frontend-frameworks.{frontend}.Parser')
+    onnx_manager = import_module(f'dory.Frontend_frameworks.{frontend}.Parser')
     onnx_to_dory = onnx_manager.onnx_manager
     graph = onnx_to_dory(onnx_file, conf).full_graph_parsing()
 

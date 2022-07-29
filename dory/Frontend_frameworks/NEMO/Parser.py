@@ -24,8 +24,8 @@ import json
 import os
 
 # DORY modules
-from .Pattern_rewriter import Pattern_rewriter
-from Parsers.Parser_ONNX_to_DORY import Parser_ONNX_to_DORY
+from dory.Frontend_frameworks.NEMO.Pattern_rewriter import Pattern_rewriter
+from dory.Parsers.Parser_ONNX_to_DORY import Parser_ONNX_to_DORY
 
 # Directory
 file_path = "/".join(os.path.realpath(__file__).split("/")[:-1])
