@@ -266,4 +266,6 @@ int32_t ${func_name}(void* l2_x, void* l2_y)
 
 
   dory_dma_deallocate(dory_dma_channel);
+
+  return 0;
 }

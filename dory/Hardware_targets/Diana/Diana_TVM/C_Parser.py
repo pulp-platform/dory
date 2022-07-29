@@ -39,8 +39,8 @@ file_path = "/".join(os.path.realpath(__file__).split("/")[:-1])
 class C_Parser(Parser_HW_to_C):
     # Used to manage the ONNX files. By now, supported Convolutions (PW and DW), Pooling, Fully Connected and Relu.
     def __init__(self, graph, config_file, config_file_dir, verbose_level, perf_layer, precision_library, app_directory):
-        f = open(os.path.join(file_path, "HW_description.json"))
-        HW_description = json.load(f)
+        with open(os.path.join(file_path, "HW_description.json")) as f:
+            HW_description = json.load(f)
         self.precision_library = precision_library
         self.source_Constant_bits_library = config_file["BNRelu_bits"]
         self.config_file = config_file
@@ -79,7 +79,6 @@ class C_Parser(Parser_HW_to_C):
                 if "Addition" not in node.name:
                     if node.get_parameter('weight_bits') < 8:
                         precision_library = 'ternary'
-            self.copy_backend_files(node)
             tk = self.create_hex_weights_files(node)
             c_layer = Layer2D_writer.print_template_layer(tk, node, precision_library, tmpl_dir, out_dir)
             c_files.append(c_layer)
