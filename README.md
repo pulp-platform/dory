@@ -133,7 +133,7 @@ Execute the following commands to clone DORY and pulp-nn backend:
 git clone https://github.com/pulp-platform/dory
 cd dory
 git submodule update --init --recursive
-python3 -m pip install .
+python3 -m pip install -e .
 ```
 
 Examples
