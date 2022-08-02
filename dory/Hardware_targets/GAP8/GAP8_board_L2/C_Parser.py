@@ -138,7 +138,7 @@ class C_Parser(Parser_HW_to_C):
         tk['weights_vectors'] = weights_vectors
         tk['weights_dimensions'] = weights_dimensions
         tk['DORY_HW_graph'] = self.HWgraph
-        root = os.path.dirname(__file__)
+        root = os.path.realpath(os.path.dirname(__file__))
         tmpl = Template(filename=os.path.join(root, "Templates/weights_h_template.h"))
         s = tmpl.render(**tk)
         save_string = os.path.join(self.app_directory, 'DORY_network/inc/weights.h') 
@@ -165,7 +165,7 @@ class C_Parser(Parser_HW_to_C):
         tk = OrderedDict([])
         tk['input_values'] = input_values
         tk['dimension'] = len(x_in)
-        root = os.path.dirname(__file__)
+        root = os.path.realpath(os.path.dirname(__file__))
         tmpl = Template(filename=os.path.join(root, "Templates/input_h_template.h"))
         s = tmpl.render(**tk)
         save_string = os.path.join(self.app_directory, 'DORY_network/inc/input.h') 

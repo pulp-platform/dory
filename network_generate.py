@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env python
 # network_generate.py
 # Alessio Burrello <alessio.burrello@unibo.it>
 #
