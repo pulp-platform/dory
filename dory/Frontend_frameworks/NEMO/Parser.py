@@ -41,11 +41,16 @@ class onnx_manager(Parser_ONNX_to_DORY):
         f = open(os.path.join(file_path, "rules.json"))
         rules = json.load(f)
         self.BNRelu_bits = config_file["BNRelu_bits"]
+        try:
+            self.n_test_inputs = config_file["n_inputs"]
+        except KeyError:
+            self.n_test_inputs = 1
         super().__init__(onnx, rules, layers_accepted, layers_neglected, layers_to_node)
 
     def frontend_mapping_to_DORY_nodes(self):
         print("\nNEMO Frontend: Matching patterns from generated ONNX to DORY.")
         for i, node in enumerate(self.DORY_Graph):
+            node.add_existing_parameter('n_test_inputs', self.n_test_inputs)
             string_matching, indexes = self.pattern_matching(node, i)
             if isinstance(string_matching, str):
                 self.DORY_Graph = Pattern_rewriter(self.DORY_Graph).execute(string_matching, indexes)

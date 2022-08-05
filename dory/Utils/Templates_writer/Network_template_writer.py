@@ -66,6 +66,7 @@ def print_template_network(
     list_h = list(set(list_h))
     tk['list_h'] = list_h
     tk['func_name'] = list_name
+    tk['n_inputs'] = graph[0].n_test_inputs
     l = ""
     for k, v in tk.items():
         try:

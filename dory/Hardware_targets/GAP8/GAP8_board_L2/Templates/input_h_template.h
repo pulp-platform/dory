@@ -17,5 +17,5 @@
  * limitations under the License. 
  */
 
-L2_DATA uint8_t L2_input_h[${dimension}] = {
+${"L2_DATA" if sdk == "gap_sdk" else "PI_L2"} uint8_t L2_input_h[${dimension}] = {
 ${input_values}};

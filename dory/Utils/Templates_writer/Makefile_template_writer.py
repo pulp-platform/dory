@@ -34,6 +34,7 @@ def print_template_Makefile(
         if "Conv" in node.name or "FullyConnected" in node.name:
             file_list_w.append(node.name+"_weights.hex")
 
+    tk['n_inputs'] = graph[0].n_test_inputs
     tk['layers_w'] = file_list_w
     tk['sdk'] = HW_description["software development kit"]["name"]
     root = os.path.realpath(os.path.dirname(__file__))

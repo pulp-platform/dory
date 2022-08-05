@@ -50,6 +50,7 @@ class DORY_node:
         self.constant_type = None
         self.output_activation_type = None
         self.input_activation_type = None
+        self.n_test_inputs = None
         self.min = None
         self.max = None
 

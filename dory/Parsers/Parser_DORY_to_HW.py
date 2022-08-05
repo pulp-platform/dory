@@ -30,7 +30,7 @@ from dory.Utils.DORY_utils import Printer
 
 class Parser_DORY_to_HW:
     # Used to manage the ONNX files. By now, supported Convolutions (PW and DW), Pooling, Fully Connected and Relu.
-    def __init__(self, graph, rules, Pattern_rewriter, supported_nodes, HW_description, network_directory, config_file, Tiler):
+    def __init__(self, graph, rules, Pattern_rewriter, supported_nodes, HW_description, network_directory, config_file, Tiler, n_inputs=1):
         self.supported_nodes = supported_nodes
         self.DORY_Graph = graph
         self.Printer_Frontend = Printer("logs/HW_related")
@@ -39,6 +39,7 @@ class Parser_DORY_to_HW:
         self.HW_description = HW_description
         self.network_directory = network_directory
         self.config_file = config_file
+        self.n_inputs = n_inputs
         HW_node.Tiler = Tiler
 
     def mapping_to_HW_nodes(self):
@@ -47,7 +48,7 @@ class Parser_DORY_to_HW:
             string_matching, indexes = self.pattern_matching(node, i)
             if isinstance(string_matching, str):
                 self.DORY_Graph = self.Pattern_rewriter(self.DORY_Graph).execute(string_matching, indexes)
-        
+
     def check_graph(self):
         for node in self.DORY_Graph:
             if node.name not in self.supported_nodes:
@@ -185,7 +186,7 @@ class Parser_DORY_to_HW:
         print("\nDORY Backend: Formatting constants and adding checksums")
         for i, node in enumerate(self.DORY_Graph):            
             node.add_checksum_w_integer()           
-            node.add_checksum_activations_integer(self.network_directory, i)
+            node.add_checksum_activations_integer(self.network_directory, i, self.n_inputs)
 
     def full_graph_parsing(self):
         print("#####################################################")

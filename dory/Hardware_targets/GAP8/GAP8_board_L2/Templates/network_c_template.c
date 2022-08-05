@@ -17,6 +17,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+<%
+n_execs = DORY_HW_graph[-1].n_test_inputs
+%>
 #define DEFINE_CONSTANTS
 #include "weights.h"
 #include "input.h"
@@ -59,9 +63,9 @@ static void check_layer(uint8_t *output, int check_sum_true, int dim) {
     printf("Checksum in/out Layer :\tFailed [%u vs. %u]\n", checksum, check_sum_true);
 }
 
-static void check_layer_last(${DORY_HW_graph[-1].output_activation_type}${DORY_HW_graph[-1].output_activation_bits}_t *ptr, int check_sum_true, int dim) {
+static void check_layer_last(${DORY_HW_graph[-1].output_activation_type}${max(8, DORY_HW_graph[-1].output_activation_bits)}_t *ptr, int check_sum_true, int dim) {
   int checksum = 0;
-  for(int j=0; j<dim/${DORY_HW_graph[-1].output_activation_bits // 8}; j++) {
+  for(int j=0; j<dim/${max(1, DORY_HW_graph[-1].output_activation_bits // 8)}; j++) {
     checksum += ptr[j];
   }
 
@@ -198,7 +202,8 @@ void network_run_cluster(void *arg)
 /*
   - input allocation and copy
 */
-  L2_input = L2_input_h;
+  for (int i_exec=0; i_exec<${n_execs}; i_exec++) {
+    L2_input = L2_input_h + i_exec*${DORY_HW_graph[0].tiling_dimensions["L2"]["input_activation_memory"]};
 /*
   - output of the first layer allocation
 */
@@ -235,12 +240,12 @@ void network_run_cluster(void *arg)
 #ifdef VERBOSE
     if (i==0) {
       printf("Checking input of layer %d...\n", i);
-      check_layer(L2_input, check_activations[i], check_activations_dimension[i]);
+      check_layer(L2_input, check_activations[i][i_exec], check_activations_dimension[i]);
       check_layer_weight(L2_weights, check_weights[i], check_weights_dimension[i]);
     }
     else if (branch_change[i-1]==0) {
       printf("Checking input of layer %d...\n", i);
-      check_layer(L2_input, check_activations[i], check_activations_dimension[i]);
+      check_layer(L2_input, check_activations[i][i_exec], check_activations_dimension[i]);
       check_layer_weight(L2_weights, check_weights[i], check_weights_dimension[i]);
     }
     else
@@ -280,7 +285,7 @@ void network_run_cluster(void *arg)
 % if 'Yes' in performance:
 
     int MACs = NODEs_MACS[i];
-    float perf_MAC =  (float)MACs/perf_cyc;
+    float perf_MAC =  ((float)MACs)/((float)perf_cyc);
     printf(" Layer %-3d: num_cycles: %-11d,", i, perf_cyc);
     printf(" MACs: %-11d,",MACs );
     printf(" MAC/cycle: %-8f,",perf_MAC );
@@ -292,17 +297,17 @@ void network_run_cluster(void *arg)
     printf("Layer %s %d ended: \n", Layers_name[i], i);
     if (i < ${len(DORY_HW_graph) - 1})
     {
-      check_layer(L2_output, check_activations_out[i], check_activations_out_dimension[i]);
+      check_layer(L2_output, check_activations_out[i][i_exec], check_activations_out_dimension[i]);
       printf("\n");
     }
     else
     {
-      check_layer_last((${DORY_HW_graph[-1].output_activation_type}${DORY_HW_graph[-1].output_activation_bits}_t *) L2_output, check_activations_out[i], check_activations_out_dimension[i]);
+      check_layer_last((${DORY_HW_graph[-1].output_activation_type}${max(8, DORY_HW_graph[-1].output_activation_bits)}_t *) L2_output, check_activations_out[i][i_exec], check_activations_out_dimension[i]);
     }
 #endif
 % elif verbose_level == 'Last+Perf_final':
     if (i == ${len(DORY_HW_graph) - 1})
-        check_layer_last((${DORY_HW_graph[-1].output_activation_type}${DORY_HW_graph[-1].output_activation_bits}_t *) L2_output, check_activations_out[i], check_activations_out_dimension[i]);
+      check_layer_last((${DORY_HW_graph[-1].output_activation_type}${max(8, DORY_HW_graph[-1].output_activation_bits)}_t *) L2_output, check_activations_out[i][i_exec], check_activations_out_dimension[i]);
 % else:
 #ifdef VERBOSE
     printf("Layer %s %d ended: \n", Layers_name[i], i);
@@ -376,9 +381,9 @@ void network_run_cluster(void *arg)
       begin_end_n = !begin_end_n;
     }
   }
-  for(int i = 0; i < check_activations_out_dimension[${len(DORY_HW_graph)}]; i++)
+  for(int i = 0; i < check_activations_out_dimension[${len(DORY_HW_graph)-1}]; i++)
   {
-    *(L2_output_to_pass + i) = *(L2_output + i);
+    *(L2_output_to_pass + i_exec * check_activations_out_dimension[${len(DORY_HW_graph)-1}] + i) = *(L2_output + i);
   }
 /* ---------------------------------- */
 /* --------- SECTION 2 END ---------- */
@@ -390,12 +395,14 @@ void network_run_cluster(void *arg)
 
 % if 'Perf_final' in verbose_level:
   int MACs = ${MACs};
-  float perf_MAC =  (float)MACs/cycle_network_execution;
+  float perf_MAC =  ((float)MACs)/((float)cycle_network_execution);
+  printf("\n\nExecution %d:\n", i_exec+1);
   printf("\nnum_cycles: %d\n",cycle_network_execution);
   printf("MACs: %d\n",MACs );
   printf("MAC/cycle: %f\n",perf_MAC );
   printf("n. of Cores: %d\n",NUM_CORES);
 % endif
+}
 
 /* ---------------------------------- */
 /* --------- SECTION 3 END ---------- */

@@ -167,41 +167,49 @@ class HW_node(DORY_node):
             self.l["value"] = to_byte(self.l['value'], self.constant_bits)
             self.check_sum_w += sum(self.l["value"])
 
-    def add_checksum_activations_integer(self, load_directory, node_number):
+    def add_checksum_activations_integer(self, load_directory, node_number, n_inputs=1):
         ###########################################################################
         ###### SECTION 4: GENERATE CHECKSUM BY USING OUT_LAYER{i}.TXT FILES  ######
         ###########################################################################
-        if node_number == 0:        
-            try:
+        self.check_sum_in = []
+        self.check_sum_out = []
+        for in_idx in range(n_inputs):
+            if node_number == 0:
+                infile = 'input.txt' if n_inputs == 1 else f'input_{in_idx}.txt'
                 try:
-                    x = np.loadtxt(os.path.join(load_directory, 'input.txt'), delimiter=',', dtype=np.uint8, usecols=[0])
+                    try:
+                        x = np.loadtxt(os.path.join(load_directory, infile), delimiter=',', dtype=np.uint8, usecols=[0])
+                    except ValueError:
+                        x = np.loadtxt(os.path.join(load_directory, infile), delimiter=',', dtype=np.float, usecols=[0])
+                    x = x.ravel()
+                    if self.input_activation_bits < 8:
+                        x = self._compress(x, self.input_activation_bits)
+                except FileNotFoundError:
+                    print("========= WARNING ==========")
+                    print(f"Input file {os.path.join(load_directory, 'input.txt')} not found; generating random inputs!")
+                    x = np.random.randint(low=0, high=2**8 - 1,
+                                             size=self.input_channels * self.input_dimensions[0] * self.input_dimensions[1],
+                                             dtype=np.uint8)
+            else:
+                infile = f'out_layer{node_number-1}.txt' if n_inputs == 1 else f'out_{in_idx}_layer{node_number-1}.txt'
+                try:
+                    x = np.loadtxt(os.path.join(load_directory, infile), delimiter=',', dtype=np.int64, usecols=[0])
                 except ValueError:
-                    x = np.loadtxt(os.path.join(load_directory, f'out_layer{node_number}.txt'), delimiter=',', dtype=np.float, usecols=[0])
-                x = x.ravel()
-            except FileNotFoundError:
-                print("========= WARNING ==========")
-                print(f"Input file {os.path.join(load_directory, 'input.txt')} not found; generating random inputs!")
-                x = np.random.randint(low=0, high=2**8 - 1,
-                                         size=self.input_channels * self.input_dimensions[0] * self.input_dimensions[1],
-                                         dtype=np.uint8)
-        else:
+                    x = np.loadtxt(os.path.join(load_directory, infile), delimiter=',', dtype=np.float, usecols=[0])
+                if self.input_activation_bits <= 8:
+                    x = self._compress(x.ravel(), self.input_activation_bits)
+
+            self.check_sum_in.append(int(sum(x)))
+            outfile = f'out_layer{node_number}.txt' if n_inputs == 1 else f'out_{in_idx}_layer{node_number}.txt'
             try:
-                x = np.loadtxt(os.path.join(load_directory, f'out_layer{node_number-1}.txt'), delimiter=',', dtype=np.int64, usecols=[0])
+                y = np.loadtxt(os.path.join(load_directory, outfile), delimiter=',', dtype=np.int64, usecols=[0])
             except ValueError:
-                x = np.loadtxt(os.path.join(load_directory, f'out_layer{node_number-1}.txt'), delimiter=',', dtype=np.float, usecols=[0])
-            if self.input_activation_bits <= 8:
-                x = self._compress(x.ravel(), self.input_activation_bits)
+                y = np.loadtxt(os.path.join(load_directory, outfile), delimiter=',', dtype=np.float, usecols=[0])
 
-        self.check_sum_in = int(sum(x))
-        try:
-            y = np.loadtxt(os.path.join(load_directory, f'out_layer{node_number}.txt'), delimiter=',', dtype=np.int64, usecols=[0])
-        except ValueError:
-            y = np.loadtxt(os.path.join(load_directory, f'out_layer{node_number}.txt'), delimiter=',', dtype=np.float, usecols=[0])
+            if self.output_activation_bits <= 8:
+                y = self._compress(y.ravel(), self.output_activation_bits)
 
-        if self.output_activation_bits <= 8:
-            y = self._compress(y.ravel(), self.output_activation_bits)
-
-        self.check_sum_out = int(y.sum())
+            self.check_sum_out.append(int(y.sum()))
 
     def export_to_dict(self):
         node_dict = {}

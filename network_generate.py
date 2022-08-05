@@ -28,16 +28,16 @@ import json
 from importlib import import_module
 
 
-def dory_to_c(graph, target, conf, confdir, verbose_level, perf_layer, optional, appdir):
+def dory_to_c(graph, target, conf, confdir, verbose_level, perf_layer, optional, appdir, n_inputs):
     # Including and running the transformation from DORY IR to DORY HW IR
     onnx_manager = import_module(f'dory.Hardware_targets.{target}.HW_Parser')
     dory_to_dory_hw = onnx_manager.onnx_manager
-    graph = dory_to_dory_hw(graph, conf, confdir).full_graph_parsing()
+    graph = dory_to_dory_hw(graph, conf, confdir, n_inputs).full_graph_parsing()
 
     # Deployment of the model on the target architecture
     onnx_manager = import_module(f'dory.Hardware_targets.{target}.C_Parser')
     dory_hw_to_c = onnx_manager.C_Parser
-    dory_hw_to_c(graph, conf, confdir, verbose_level, perf_layer, optional, appdir).full_graph_parsing()
+    dory_hw_to_c(graph, conf, confdir, verbose_level, perf_layer, optional, appdir, n_inputs).full_graph_parsing()
 
 
 def network_generate(frontend, target, conf_file, verbose_level='Check_all+Perf_final', perf_layer='No', optional='auto',
@@ -47,6 +47,11 @@ def network_generate(frontend, target, conf_file, verbose_level='Check_all+Perf_
     # Reading the json configuration file
     with open(conf_file) as f:
         conf = json.load(f)
+
+    try:
+        n_inputs = conf["n_inputs"]
+    except KeyError:
+        n_inputs = 1
 
     # Reading the onnx file
     confdir = os.path.dirname(conf_file)
@@ -58,7 +63,7 @@ def network_generate(frontend, target, conf_file, verbose_level='Check_all+Perf_
     onnx_to_dory = onnx_manager.onnx_manager
     graph = onnx_to_dory(onnx_file, conf).full_graph_parsing()
 
-    dory_to_c(graph, target, conf, confdir, verbose_level, perf_layer, optional, appdir)
+    dory_to_c(graph, target, conf, confdir, verbose_level, perf_layer, optional, appdir, n_inputs)
 
 
 if __name__ == '__main__':

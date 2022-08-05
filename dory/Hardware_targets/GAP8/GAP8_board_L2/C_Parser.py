@@ -30,6 +30,7 @@ import copy
 from dory.Parsers.Parser_HW_to_C import Parser_HW_to_C
 import dory.Utils.Templates_writer.Layer2D_template_writer as Layer2D_writer
 import dory.Utils.Templates_writer.writer_utils as utils
+from dory.Parsers.HW_node import HW_node
 
 # Directory
 file_path = "/".join(os.path.realpath(__file__).split("/")[:-1])
@@ -37,13 +38,13 @@ file_path = "/".join(os.path.realpath(__file__).split("/")[:-1])
 
 class C_Parser(Parser_HW_to_C):
     # Used to manage the ONNX files. By now, supported Convolutions (PW and DW), Pooling, Fully Connected and Relu.
-    def __init__(self, graph, config_file, config_file_dir, verbose_level, perf_layer, precision_library, app_directory):
+    def __init__(self, graph, config_file, config_file_dir, verbose_level, perf_layer, precision_library, app_directory, n_inputs = 1):
         f = open(os.path.join(file_path, "HW_description.json"))
         HW_description = json.load(f)
         self.precision_library = precision_library
         self.source_Constant_bits_library = config_file["BNRelu_bits"]
         self.config_file = config_file
-        super().__init__(graph, os.path.join(config_file_dir, os.path.dirname(config_file["onnx_file"])), HW_description, verbose_level, perf_layer, "Makefile", app_directory)
+        super().__init__(graph, os.path.join(config_file_dir, os.path.dirname(config_file["onnx_file"])), HW_description, verbose_level, perf_layer, "Makefile", app_directory, n_inputs)
 
     def copy_backend_files(self, node):
         if self.precision_library == 'auto':
@@ -71,36 +72,40 @@ class C_Parser(Parser_HW_to_C):
                 for file in os.listdir(os.path.join(files, "{}bit/src".format(self.source_Constant_bits_library))):
                     file_to_copy = os.path.join(files, "{}bit/src".format(self.source_Constant_bits_library), file)
                     os.system('cp "{}" {}'.format(file_to_copy, os.path.join(self.app_directory, 'DORY_network/src')))
-        elif self.precision_library == "mixed-sw":
+        elif self.precision_library in ["mixed-sw", "mixed-hw"]:
             Input_bits = str(node.get_parameter('input_activation_bits'))
             Output_bits = str(node.get_parameter('output_activation_bits'))
             Input_type = node.get_parameter('input_activation_type')[0]
             Output_type = node.get_parameter('output_activation_type')[0]
-            in_out = "_" + Input_type + Input_bits + "_" + Output_type + Output_bits
+            out = "_" + Output_type + Output_bits
+            in_out = "_" + Input_type + Input_bits + out
+            maybe_x = 'x' if self.precision_library == "mixed-hw" else ''
             if "Addition" in node.name:
                 in1_in2_out = "_" + Input_type + Input_bits + "_" + node.get_parameter('second_input_activation_type')[0] + str(node.get_parameter('second_input_activation_bits')) + "_" + Output_type + Output_bits
-                file = 'Add/pulp_nn_add{}.c'.format(in1_in2_out)
+                file = f'Add/{maybe_x}pulp_nn_add{in1_in2_out}.c'
             elif "Pool" in node.name and "Max" in node.op_type:
-                file = 'Pooling/MaxPool/pulp_nn_maxpool{}.c'.format(in_out)
+                file = f'Pooling/MaxPool/{maybe_x}pulp_nn_maxpool{out}.c'
             elif "Pool" in node.name and ("Avg" in node.op_type or "Average" in node.op_type):
-                file = 'Pooling/AvgPool/pulp_nn_avgpool{}.c'.format(in_out)
+                file = f'Pooling/AvgPool/{maybe_x}pulp_nn_avgpool{in_out}.c'
 
             in_out_weights = "_" + Input_type + Input_bits + "_" + Output_type + Output_bits + "_" + node.get_parameter('weight_type')[0] + str(node.get_parameter('weight_bits'))
             if "Conv" in node.name and node.group > 1:
-                file = 'Depthwise/pulp_nn_depthwise{}.c'.format(in_out_weights)
+                file = f'Depthwise/{maybe_x}pulp_nn_depthwise{in_out_weights}.c'
             elif "Conv" in node.name and node.group == 1:
-                file = 'Convolution/pulp_nn_conv{}.c'.format(in_out_weights)
+                file = f'Convolution/{maybe_x}pulp_nn_conv{in_out_weights}.c'
             elif "FullyConnected" in node.name and node.output_activation_bits == 32: 
-                file = 'LinearNoQuant/pulp_nn_linear{}.c'.format(in_out_weights)
-            elif "FullyConnected" in node.name:     
-                file = 'LinearQuant/pulp_nn_linear{}.c'.format(in_out_weights)
+                file = f'LinearNoQuant/{maybe_x}pulp_nn_linear{in_out_weights}.c'
+            elif "FullyConnected" in node.name:
+                file = f'LinearQuant/{maybe_x}pulp_nn_linear{in_out_weights}.c'
             file_to_copy = os.path.join(files, "{}bit/src".format(self.source_Constant_bits_library), file)
             os.system('cp "{}" {}'.format(file_to_copy, os.path.join(self.app_directory, 'DORY_network/src')))
             if ("Conv" in node.name or "FullyConnected" in node.name) and node.get_parameter('output_activation_bits') != 32:
-                in_out_weights = "_" + Input_type + "8" + "_" + Output_type + Output_bits + "_" + node.get_parameter('weight_type')[0] + str(node.get_parameter('weight_bits'))
-                file = 'MatrixMultiplication/pulp_nn_matmul{}.c'.format(in_out_weights)
+                in_bits_matmul = "8" if self.precision_library == "mixed-sw" else str(Input_bits)
+                in_out_weights = "_" + Input_type + in_bits_matmul + "_" + Output_type + Output_bits + "_" + node.get_parameter('weight_type')[0] + str(node.get_parameter('weight_bits'))
+                file = f'MatrixMultiplication/{maybe_x}pulp_nn_matmul{in_out_weights}.c'
                 file_to_copy = os.path.join(files, "{}bit/src".format(self.source_Constant_bits_library), file)
                 os.system('cp "{}" {}'.format(file_to_copy, os.path.join(self.app_directory, 'DORY_network/src')))
+
 
     def mapping_layers_to_C_files(self):
         print("\nMapping the layers files to their templates and copying the kernels associated.")
@@ -150,16 +155,26 @@ class C_Parser(Parser_HW_to_C):
         with open(save_string, "w") as f:
             f.write(s)
 
-    def create_hex_input(self):    
+    def create_hex_input(self):
         print("\nGenerating .h input file.")
-        try:
-            x_in = np.loadtxt(os.path.join(self.network_directory, 'input.txt'), delimiter=',', dtype=np.uint8, usecols=[0])
-        except FileNotFoundError:
-            print(f"========= WARNING ==========\nInput file {os.path.join(self.network_directory, 'input.txt')} not found; generating random inputs!")
-            x_in = np.random.randint(low=0, high=2*8 - 1,
-                                     size=self.group * self.input_channels * self.input_dimensions[0] * self.input_dimensions[1],
-                                     dtype=np.uint8)
-        x_in = x_in.flatten() 
+        x_in_l = []
+        for in_idx in range(self.n_inputs):
+            infile = 'input.txt' if self.n_inputs == 1 else f'input_{in_idx}.txt'
+            try:
+                x_in = np.loadtxt(os.path.join(self.network_directory, infile), delimiter=',', dtype=np.uint8, usecols=[0])
+            except FileNotFoundError:
+                print(f"========= WARNING ==========\nInput file {os.path.join(self.network_directory, 'input.txt')} not found; generating random inputs!")
+                x_in = np.random.randint(low=0, high=2*8,
+                                         size=self.group * self.input_channels * self.input_dimensions[0] * self.input_dimensions[1],
+                                         dtype=np.uint8)
+            x_in_l.append(x_in.flatten())
+
+        x_in = np.concatenate(x_in_l)
+        in_node = self.HWgraph[0]
+        in_bits = in_node.input_activation_bits
+        if in_bits != 8:
+            x_in = HW_node._compress(x_in, in_bits)
+
         temp = x_in
         input_values = utils.print_test_vector(temp.flatten(), 'char')
         tk = OrderedDict([])
