@@ -301,6 +301,8 @@ void ${func_name}(
   // NNX task init //
   ///////////////////
 
+  const stride = ${stride};
+
   const nnx_padding_t padding_init = {
     .top = ${'DONT_PAD' if tile_dim_h > 1 else 'padding.top'},
     .right = ${'DONT_PAD' if tile_dim_w > 1 else 'padding.right'},
@@ -311,8 +313,7 @@ void ${func_name}(
 
   for (int i = 0; i < MIN(NNX_TASK_COUNT, total_tiles); i++) {
     nnx_task_init(&nnx_tasks[i]);
-    nnx_conv_${fs1}x${fs2}${'_dw' if flag_DW else ''}(&(nnx_tasks[i].cfg), nnx_weights, nnx_input, nnx_output,
-      padding_init.right, padding_init.bottom);
+    int err = nnx_conv_${fs1}x${fs2}${'_dw' if flag_DW else ''}(&(nnx_tasks[i].cfg), nnx_weights, nnx_input, nnx_output, padding_init, stride);
     nnx_norm_quant(&(nnx_tasks[i].cfg), norm, quant);
     nnx_pad_input(&(nnx_tasks[i].cfg), padding_init);
   }
@@ -421,28 +422,33 @@ void ${func_name}(
     nnx_task_to_offload = is_border_tile ? &nnx_tasks[NNX_TASK_REMAINDER] : &nnx_tasks[NNX_TASK_BODY];
 
     nnx_padding_t tile_padding = {
-      .top    = ${ 'i_h == 0 ? padding.top : DONT_PAD' if tile_dim_h > 1 else 'padding.top'},
-      .right  = ${f'i_w == {tile_dim_w} - 1 ? padding.right : DONT_PAD' if tile_dim_w > 1 else 'padding.right'},
-      .bottom = ${f'i_h == {tile_dim_h} - 1 ? padding.bottom : DONT_PAD' if tile_dim_h > 1 else 'padding.bottom'},
-      .left   = ${ 'i_w == 0 ? padding.left : DONT_PAD' if tile_dim_w > 1 else 'padding.left'},
+      .top    = i_h == 0 ? padding.top : DONT_PAD,
+      .right  = i_w == ${tile_dim_w} - 1 ? padding.right : DONT_PAD,
+      .bottom = i_h == ${tile_dim_h} - 1 ? padding.bottom : DONT_PAD,
+      .left   = i_w == 0 ? padding.left : DONT_PAD,
       .value = 0
     };
 
+    % if stride != 2:
     if (is_border_tile) {
       nnx_conv_${fs1}x${fs2}${'_dw' if flag_DW else ''}_update_dims(&(nnx_task_to_offload->cfg),
           y_tile_size_h, y_tile_size_w, x_tile_size_w, W_tile_size_nof, W_tile_size_nif,
-          tile_padding.right, tile_padding.bottom);
+          x_tile_size_w, y_tile_size_w, tile_padding);
     }
 
     nnx_pad_input(&(nnx_task_to_offload->cfg), tile_padding);
 
-    nnx_task_to_offload->infeat_ptr = x_tile_ptr - (tile_padding.top * x_tile_size_w + tile_padding.left) * ${x_tile_size_nif};
+    % endif
+    const x_tile_ptr_w_padding = x_tile_ptr - (tile_padding.top * x_tile_size_w + tile_padding.left) * ${x_tile_size_nif};
+    % if stride != 2:
+    nnx_task_to_offload->infeat_ptr = x_tile_ptr_w_padding;
+    nnx_task_to_offload->outfeat_ptr = y_tile_ptr;
+    % endif
     nnx_task_to_offload->weights_ptr = w_tile_ptr;
-% if FLAG_BATCHNORM == 1:
+    % if FLAG_BATCHNORM == 1:
     nnx_task_to_offload->scale_ptr = scale_tile_ptr;
     nnx_task_to_offload->scale_bias_ptr = bias_tile_ptr;
-% endif
-    nnx_task_to_offload->outfeat_ptr = y_tile_ptr;
+    % endif
 
 
 //  /$$        /$$$$$$   /$$$$$$  /$$$$$$$ 
@@ -459,7 +465,9 @@ void ${func_name}(
     // jobs commited.
     // This barrier is required before dma_memcpy so that we don't
     // overwrite the data being used by the accelerator.
+    % if stride != 2:
     nnx_acquire();
+    % endif
 
     if (is_load_x) {
       dory_dma_memcpy_async(DMA_copy_x);
@@ -498,7 +506,9 @@ void ${func_name}(
 // | $$$$$$$$| $$  \ $$| $$$$$$$$|  $$$$$$/
 // |________/|__/  |__/|________/ \______/ 
 
+    % if stride != 2:
     nnx_offload(nnx_task_to_offload);
+    % endif
 
     // Wait for data to arrive
     if (is_load_x) {
@@ -506,17 +516,72 @@ void ${func_name}(
     }
     if (is_load_w) {
       dory_dma_barrier(DMA_copy_W);
-% if FLAG_BATCHNORM == 1:
+      % if FLAG_BATCHNORM == 1:
       dory_dma_barrier(DMA_copy_k);
       dory_dma_barrier(DMA_copy_lambda);
-% endif
+      % endif
     }
     // Wait to write the data so that not to overwrite it by the next job
     if (is_store) {
       dory_dma_barrier(DMA_copy_y[DMA_Y_INDEX(i_store_y)]);
     }
 
+    % if stride != 2:
     nnx_run_async();
+    % else:
+    const n_h = DIVNCEIL(y_tile_size_h, 2);
+    const n_w = DIVNCEIL(y_tile_size_w, 2);
+    const is_odd_h = y_tile_size_h % 2;
+    const is_odd_w = y_tile_size_w % 2;
+    printf("[%d] is_odd_h:%s, is_odd_w:%s\n", i_tile, is_odd_h ? "True" : "False", is_odd_w ? "True" : "False");
+    printf("[%d] n_h:%d n_w:%d\n", i_tile, n_h, n_w);
+    for (int i = 0; i < n_h; i++) {
+      for (int j = 0; j < n_w; j++) {
+        const y_subtile_size_h = is_odd_h && i == n_h - 1 ? 1 : 3;
+        const y_subtile_size_w = is_odd_w && j == n_w - 1 ? 1 : 3;
+        const x_subtile_size_h = is_odd_h && i == n_h - 1 ? 3 : 5;
+        const x_subtile_size_w = is_odd_w && j == n_w - 1 ? 3 : 5;
+
+        nnx_padding_t subtile_padding = {
+          .top    = i == 0       ? tile_padding.top    : DONT_PAD,
+          .right  = j == n_w - 1 ? tile_padding.right  : DONT_PAD,
+          .bottom = i == n_h - 1 ? tile_padding.bottom : DONT_PAD,
+          .left   = j == 0       ? tile_padding.left   : DONT_PAD,
+          .value = 0
+        };
+
+        nnx_pad_input(&(nnx_task_to_offload->cfg), subtile_padding);
+        nnx_conv_${fs1}x${fs2}${'_dw' if flag_DW else ''}_update_dims(&(nnx_task_to_offload->cfg),
+            y_subtile_size_h, y_subtile_size_w, x_subtile_size_w, W_tile_size_nof, W_tile_size_nif,
+            x_tile_size_w, y_tile_size_w, subtile_padding);
+
+        nnx_task_to_offload->infeat_ptr =
+          dory_get_tile_3d(x_tile_ptr_w_padding,
+                           i, j, 0, /* iterator */
+                           5, 5, ${x_tile_size_nif}, /* size */
+                           x_tile_size_w, ${x_tile_size_nif}, /* stride */
+                           1, 1, 0, /* overlap */
+                           //i == n_h - 1 && is_odd_h ? 2 : 0, j == n_w - 1 && is_odd_w ? 2 : 0, 0, /* offset */
+                           0, 0, 0, /* offset */
+                           ${x_data_size_byte} /* data size */ );
+        nnx_task_to_offload->outfeat_ptr =
+          dory_get_tile_3d(y_tile_ptr,
+                           i, j, 0, /* iterator */
+                           2, 2, ${y_tile_size_nof}, /* size */
+                           y_tile_size_w, ${y_tile_size_nof}, /* stride */
+                           0, 0, 0, /* overlap */
+                           //i == n_h - 1 && is_odd_h ? 1 : 0, j == n_w - 1 && is_odd_w ? 1 : 0, 0, /* offset */
+                           0, 0, 0, /* offset */
+                           ${y_data_size_byte} /* data size */ );
+        asm volatile("": : :"memory");
+        nnx_acquire();
+        //printf("[loop %d, %d] x_ptr:%p, y_ptr:%p\n", i, j,
+        //       nnx_task_to_offload->infeat_ptr, nnx_task_to_offload->outfeat_ptr);
+        nnx_offload(nnx_task_to_offload);
+        nnx_run_async();
+      }
+    }
+    % endif
 
 
 //  /$$   /$$ /$$$$$$$  /$$$$$$$   /$$$$$$  /$$$$$$$$ /$$$$$$$$       /$$$$$$ /$$   /$$ /$$$$$$$  /$$$$$$  /$$$$$$  /$$$$$$$$  /$$$$$$ 
@@ -532,75 +597,75 @@ void ${func_name}(
     // Update tile indices //
     /////////////////////////
 
-% if tile_dim_nif != 1:
+    % if tile_dim_nif != 1:
     const int i_nif_prev = i_nif;
-% endif
-% if tile_dim_w != 1:
+    % endif
+    % if tile_dim_w != 1:
     const int i_w_prev = i_w;
-% endif
-% if tile_dim_h != 1:
+    % endif
+    % if tile_dim_h != 1:
     const int i_h_prev = i_h;
-% endif
-% if tile_dim_nof != 1:
+    % endif
+    % if tile_dim_nof != 1:
     const int i_nof_prev = i_nof;
-% endif
+    % endif
 
-% if tile_dim_nif != 1 and flag_DW == 0:
+    % if tile_dim_nif != 1 and flag_DW == 0:
     // loop nest is nof,h,w,nif
     i_nif += 1;
     if(i_nif==${tile_dim_nif}) {
       i_nif = 0;
-% endif
-% if tile_dim_w != 1:
+    % endif
+      % if tile_dim_w != 1:
       i_w += 1;
       if(i_w==${tile_dim_w}) {
         i_w = 0;
-% endif
-% if tile_dim_h != 1:
+      % endif
+        % if tile_dim_h != 1:
         i_h += 1;
         if(i_h==${tile_dim_h}) {
           i_h = 0;
-% endif
-% if flag_DW == 1:
+        % endif
+          % if flag_DW == 1:
           i_nif += 1;
-% endif
-% if tile_dim_nof != 1:
+          % endif
+          % if tile_dim_nof != 1:
           i_nof += 1;
-% endif
-% if tile_dim_h != 1:
+          % endif
+        % if tile_dim_h != 1:
         }
-% endif
-% if tile_dim_w != 1:
+        % endif
+      % if tile_dim_w != 1:
       }
-% endif
-% if tile_dim_nif != 1 and flag_DW == 0:
+      % endif
+    % if tile_dim_nif != 1 and flag_DW == 0:
     }
-% endif
+    % endif
 
     ///////////////////////
     // Update load flags //
     ///////////////////////
 
-    is_load_w = 0
-  % if tile_dim_nif != 1:
-      || i_nif_prev != i_nif
-  % endif
-  % if tile_dim_nof != 1:
-      || i_nof_prev != i_nof
-  % endif
-    ;
+    is_load_w = 0 \
+% if tile_dim_nif != 1:
+|| i_nif_prev != i_nif \
+% endif
+% if tile_dim_nof != 1:
+|| i_nof_prev != i_nof \
+% endif
+;
 
-    is_load_x = 0
-  % if tile_dim_nif != 1:
-      || i_nif_prev != i_nif
-  % endif
-  % if tile_dim_h != 1:
-      || i_h_prev != i_h
-  % endif
-  % if tile_dim_w != 1:
-      || i_w_prev != i_w
-  % endif
-    ;
+    is_load_x = 0 \
+% if tile_dim_nif != 1:
+|| i_nif_prev != i_nif \
+% endif
+% if tile_dim_h != 1:
+|| i_h_prev != i_h \
+% endif
+% if tile_dim_w != 1:
+|| i_w_prev != i_w \
+% endif
+;
 
     ///////////////////////////
     // Update store iterator //
@@ -637,6 +702,24 @@ void ${func_name}(
 
     dory_dma_memcpy_async(DMA_copy_y[DMA_Y_INDEX(i_store_y)]);
   }
+
+/*
+  uint8_t *d = (uint8_t *)db[0].y;
+  const h = ${y_tile_size_h};
+  const w = ${y_tile_size_w};
+  const c = ${y_tile_size_nof};
+
+  printf("\nOutput:\n");
+  for (int i = 0; i < h; i++) {
+    for (int j = 0; j < w; j++) {
+      for (int k = 0; k < c; k++) {
+        printf(" %3d", d[(i * w + j) * c + k]);
+      }
+      printf(";");
+    }
+    printf("\n");
+  }
+  */
 
 % if not TEST:
   // wait for final write
