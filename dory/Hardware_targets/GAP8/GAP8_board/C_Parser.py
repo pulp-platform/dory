@@ -22,6 +22,7 @@
 import json
 import os
 import numpy as np
+import sys
 
 # DORY modules
 from dory.Parsers.Parser_HW_to_C import Parser_HW_to_C
@@ -57,7 +58,7 @@ class C_Parser(Parser_HW_to_C):
         elif self.precision_library == "mixed-sw":
             files = os.path.join(root, "../Backend_Kernels/pulp-nn-mixed/XpulpV2/")
         elif self.precision_library == "mixed-hw":
-            files = os.path.join(root, "../Backend_Kernels/pulp-nn-mixed/XpulpNN/")
+            sys.exit("\n'--optional mixed-hw' is not compatible with GAP8_board!\n")
         if os.listdir(os.path.join(files, "{}bit/include".format(self.source_Constant_bits_library)))[0] not in os.listdir(os.path.join(self.app_directory, "DORY_network/inc")):
             for file in os.listdir(os.path.join(files, "{}bit/include".format(self.source_Constant_bits_library))):
                 file_to_copy = os.path.join(files, "{}bit/include".format(self.source_Constant_bits_library), file)
