@@ -101,9 +101,7 @@ class Parser_HW_to_C:
             if weights.shape[0] != 0:
                 string_layer = node.name + "_weights.hex"
                 save_s = '{}/DORY_network/'.format(self.app_directory) + string_layer
-                with open(save_s, 'wb') as f:
-                    for l in weights.astype('uint8').flatten():
-                        f.write(bytes((l,)))
+                weights.astype('uint8').tofile(save_s)
 
     def create_hex_input(self):
         print("\nGenerating .hex input file.")
@@ -126,9 +124,7 @@ class Parser_HW_to_C:
 
             string_layer = "inputs.hex" if self.n_inputs == 1 else f"inputs_{in_idx}.hex"
             save_s = '{}/DORY_network/'.format(self.app_directory) + string_layer
-            with open(save_s, 'wb') as f:
-                for i in x_in:
-                    f.write(bytes((i,)))
+            x_in.astype('uint8').tofile(save_s)
 
     def full_graph_parsing(self):
         print("#####################################################")
@@ -147,4 +143,5 @@ class Parser_HW_to_C:
         self.copy_utils_files()
         self.create_hex_weights_files()
         self.create_hex_input()
+        print("Done!")
 
