@@ -102,16 +102,13 @@ class HW_node(DORY_node):
         compressed = []
         n_elements_in_byte = 8 // bits
         i_element_in_byte = 0
-        for el in x:
-            if i_element_in_byte == 0:
-                compressed.append(el.item() & ((2**bits)-1))
-            else:
-                compressed[-1] += (el.item() & ((2**bits)-1)) << (i_element_in_byte * bits)
-
-            i_element_in_byte += 1
-            if i_element_in_byte == n_elements_in_byte:
-                i_element_in_byte = 0
-        return np.asarray(compressed, dtype=np.uint8)
+        x_masked = x & ((2**bits) - 1)
+        x_reshaped_masked = x_masked.reshape((-1, n_elements_in_byte))
+        po2 = 2**(np.arange(n_elements_in_byte) * bits)
+        po2 = np.tile(po2, (x_reshaped_masked.shape[0], 1))
+        x_reshaped_masked_scaled = x_reshaped_masked * po2
+        x_out = np.sum(x_reshaped_masked_scaled, axis=1).flatten().astype(np.uint8)
+        return x_out
 
     def add_checksum_w_integer(self):
         self.check_sum_w = 0
@@ -129,18 +126,9 @@ class HW_node(DORY_node):
             else:
                 self.__dict__[weight_name]["value"] = self.__dict__[weight_name]["value"].flatten()
             # self.__dict__[weight_name+"_raw"] = self.__dict__[weight_name]
-            self.__dict__[weight_name]["value"] = self.__dict__[weight_name]["value"].astype(np.uint8).tolist()
+            self.__dict__[weight_name]["value"] = self.__dict__[weight_name]["value"].astype(np.uint8)
             if self.weight_bits != 8:
-                # TODO: rewrite this in a vectorized way without for loop to massively speed up this routine
-                temp = []
-                z = 0
-                for i_x, _ in enumerate(self.__dict__[weight_name]["value"]):
-                    if z % int(8 / self.weight_bits) == 0:
-                        temp.append(self.__dict__[weight_name]["value"][i_x] & (2**self.weight_bits-1))
-                    else:
-                        temp[-1] += (self.__dict__[weight_name]["value"][i_x]& (2**self.weight_bits-1)) << self.weight_bits * (z % int(8 / self.weight_bits))
-                    z+=1
-                self.__dict__[weight_name]["value"] = temp
+                self.__dict__[weight_name]["value"] = self._compress(self.__dict__[weight_name]["value"], self.weight_bits)
             self.check_sum_w += sum(self.__dict__[weight_name]["value"])
 
         bias_name = ""
