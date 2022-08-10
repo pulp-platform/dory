@@ -25,12 +25,13 @@ else
 CORE= $(CORE)
 endif
 
+
+APP_CFLAGS += -DNUM_CORES=$(CORE) -IDORY_network/inc -O3 -w -fno-tree-loop-distribute-patterns -flto
+APP_LDFLAGS += -lm -flto -Wl,--print-memory-usage
 % if sdk == 'gap_sdk':
-APP_CFLAGS += -DNUM_CORES=$(CORE) -DGAP_SDK=1 -IDORY_network/inc -O3 -w -fno-tree-loop-distribute-patterns -flto
-APP_LDFLAGS += -lm -flto
+APP_CFLAGS += -DGAP_SDK=1 
 % elif sdk == 'pulp-sdk':
-APP_CFLAGS += -DNUM_CORES=$(CORE) -DPULP_SDK=1 -IDORY_network/inc -O3 -w -fno-tree-loop-distribute-patterns -flto
-APP_LDFLAGS += -lm -flto
+APP_CFLAGS += -DPULP_SDK=1
 % endif
 
 % if sdk == 'pulp-sdk':
