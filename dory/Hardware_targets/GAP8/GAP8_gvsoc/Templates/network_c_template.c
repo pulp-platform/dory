@@ -136,6 +136,7 @@ void network_alloc(struct pi_device fs, struct pi_device ram)
     else
       printf("Layer %-3d: Checksum = %-12d, FLASH %-12d, Check FAILED\n", layer_number, check_weights[layer_number], sum_weights);
     layer_number +=1;
+    pi_fs_close(file);
 % endif
   }
   return 1;
