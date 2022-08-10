@@ -46,7 +46,13 @@ FLASH_FILES = DORY_network/${layer}
 FLASH_FILES += DORY_network/${layer}
 %endif
 % endfor
+% if n_inputs == 1:
 FLASH_FILES += DORY_network/inputs.hex
+% else:
+% for in_idx in range(n_inputs):
+FLASH_FILES += DORY_network/${f"inputs_{in_idx}.hex"}
+% endfor
+% endif
 
 READFS_FILES := $(FLASH_FILES)
 PLPBRIDGE_FLAGS += -f

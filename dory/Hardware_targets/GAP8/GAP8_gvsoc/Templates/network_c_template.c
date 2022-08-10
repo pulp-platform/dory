@@ -17,6 +17,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+<%
+n_execs = DORY_HW_graph[-1].n_test_inputs
+%>
 #define DEFINE_CONSTANTS
 #include "network.h"
 #include "dory.h"
@@ -58,7 +62,7 @@ static void check_layer(uint8_t *output, int check_sum_true, int dim) {
     printf("Checksum in/out Layer :\tFailed [%u vs. %u]\n", checksum, check_sum_true);
 }
 
-static void check_layer_last(${DORY_HW_graph[-1].output_activation_type}${DORY_HW_graph[-1].output_activation_bits}_t *ptr, int check_sum_true, int dim) {
+static void check_layer_last(${DORY_HW_graph[-1].output_activation_type}${max(8,DORY_HW_graph[-1].output_activation_bits)}_t *ptr, int check_sum_true, int dim) {
   int checksum = 0;
   for(int j=0; j<dim/${DORY_HW_graph[-1].output_activation_bits // 8}; j++) {
     checksum += ptr[j];
@@ -189,7 +193,11 @@ void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_outpu
   // First open the cluster
   pi_cluster_conf_init(&conf);
   conf.id=0;
+  for (int i_exec=0; i_exec<${n_execs}; i_exec++) {
 
+#ifdef VERBOSE
+    printf("\n\nExecution %d:\n", i_exec+1);
+#endif
 /* ---------------------------------- */
 /* --------- SECTION 0 END ---------- */
 /* ---------------------------------- */
@@ -271,7 +279,7 @@ void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_outpu
       printf("Input in L3\n");
     else if (i==0) {
       printf("Checking input of layer %d...\n", i);
-      check_layer(L2_input, check_activations[i], check_activations_dimension[i]);
+      check_layer(L2_input, check_activations[i][i_exec], check_activations_dimension[i]);
       if (allocate_layer[i] == 1)
       {
         check_layer_weight(L2_weights, check_weights[i], check_weights_dimension[i]);
@@ -283,7 +291,7 @@ void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_outpu
     }
     else if (branch_change[i-1]==0) {
       printf("Checking input of layer %d...\n", i);
-      check_layer(L2_input, check_activations[i], check_activations_dimension[i]);
+      check_layer(L2_input, check_activations[i][i_exec], check_activations_dimension[i]);
       if (allocate_layer[i] == 1)
       {
         check_layer_weight(L2_weights, check_weights[i], check_weights_dimension[i]);
@@ -362,18 +370,18 @@ void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_outpu
       if (L3_output_layers[i]==1)
         printf("Out in L3\n");
       else {
-        check_layer(L2_output, check_activations_out[i], check_activations_out_dimension[i]);
+        check_layer(L2_output, check_activations_out[i][i_exec], check_activations_out_dimension[i]);
       }
       printf("\n");
     }
     else
     {
-      check_layer_last((${DORY_HW_graph[-1].output_activation_type}${DORY_HW_graph[-1].output_activation_bits}_t *) L2_output, check_activations_out[i], check_activations_out_dimension[i]);
+      check_layer_last((${DORY_HW_graph[-1].output_activation_type}${max(8, DORY_HW_graph[-1].output_activation_bits)}_t *) L2_output, check_activations_out[i][i_exec], check_activations_out_dimension[i]);
     }
 #endif
 % elif verbose_level == 'Last+Perf_final':
     if (i == ${len(DORY_HW_graph) - 1})
-        check_layer_last((${DORY_HW_graph[-1].output_activation_type}${DORY_HW_graph[-1].output_activation_bits}_t *) L2_output, check_activations_out[i], check_activations_out_dimension[i]);
+      check_layer_last((${DORY_HW_graph[-1].output_activation_type}${max(8, DORY_HW_graph[-1].output_activation_bits)}_t *) L2_output, check_activations_out[i][i_exec], check_activations_out_dimension[i]);
 % else:
 #ifdef VERBOSE
     printf("Layer %s %d ended: \n", Layers_name[i], i);
@@ -496,7 +504,7 @@ void network_run(char *L2_memory_buffer, int L2_memory_dimension, char *L2_outpu
   printf("MAC/cycle: %f\n",perf_MAC );
   printf("n. of Cores: %d\n",NUM_CORES);
 % endif
-
+    }
 /* ---------------------------------- */
 /* --------- SECTION 3 END ---------- */
 /* ---------------------------------- */

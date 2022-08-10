@@ -9,7 +9,7 @@
 			"frequency": 100000000
 		},
 		"L2": {
-			"dimension": 512000,
+			"dimension": 580000,
 			"bandwidth": 8,
 			"latency": 10,
 			"frequency": 100000000
@@ -25,8 +25,8 @@
 	},
 	"architecture": "single-core+accelerator",
 	"software development kit": {
-		"name": "gap_sdk",
-		"directory": "~/gap_sdk/"
+		"name": "pulp-sdk",
+		"directory": "~/projects/mixed-precision-inference/pulp-sdk"
 	},
 	"peak MAC/cycle":
 	{

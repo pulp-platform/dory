@@ -203,6 +203,9 @@ void network_run_cluster(void *arg)
   - input allocation and copy
 */
   for (int i_exec=0; i_exec<${n_execs}; i_exec++) {
+#ifdef VERBOSE
+    printf("\n\nExecution %d:\n", i_exec+1);
+#endif
     L2_input = L2_input_h + i_exec*${DORY_HW_graph[0].tiling_dimensions["L2"]["input_activation_memory"]};
 /*
   - output of the first layer allocation
@@ -396,7 +399,7 @@ void network_run_cluster(void *arg)
 % if 'Perf_final' in verbose_level:
   int MACs = ${MACs};
   float perf_MAC =  ((float)MACs)/((float)cycle_network_execution);
-  printf("\n\nExecution %d:\n", i_exec+1);
+  
   printf("\nnum_cycles: %d\n",cycle_network_execution);
   printf("MACs: %d\n",MACs );
   printf("MAC/cycle: %f\n",perf_MAC );
