@@ -56,8 +56,9 @@ class onnx_manager(Parser_ONNX_to_DORY):
 
     def frontend_mapping_to_DORY_nodes(self):
         print("\nQuantlab Frontend: Matching patterns from generated ONNX to DORY.")
-        for i, node in enumerate(self.DORY_Graph):
+        for node in self.DORY_Graph:
             node.add_existing_parameter('n_test_inputs', self.n_test_inputs)
+        for i, node in enumerate(self.DORY_Graph):
             string_matching, indexes = self.pattern_matching(node, i)
             if isinstance(string_matching, str):
                 self.DORY_Graph = Pattern_rewriter(self.DORY_Graph).execute(string_matching, indexes)
