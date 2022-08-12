@@ -533,19 +533,24 @@ void ${func_name}(
     const n_w = DIVNCEIL(y_tile_size_w, 2);
     const is_odd_h = y_tile_size_h % 2;
     const is_odd_w = y_tile_size_w % 2;
-    printf("[%d] is_odd_h:%s, is_odd_w:%s\n", i_tile, is_odd_h ? "True" : "False", is_odd_w ? "True" : "False");
-    printf("[%d] n_h:%d n_w:%d\n", i_tile, n_h, n_w);
+    //printf("[%d] is_odd_h:%s, is_odd_w:%s\n", i_tile, is_odd_h ? "True" : "False", is_odd_w ? "True" : "False");
+    //printf("[%d] n_h:%d n_w:%d\n", i_tile, n_h, n_w);
+
+    int x_tile_size_h_to_process = x_tile_size_h + tile_padding.top;
     for (int i = 0; i < n_h; i++) {
+      int x_tile_size_w_to_process = x_tile_size_w + tile_padding.left;
       for (int j = 0; j < n_w; j++) {
-        const y_subtile_size_h = is_odd_h && i == n_h - 1 ? 1 : 3;
-        const y_subtile_size_w = is_odd_w && j == n_w - 1 ? 1 : 3;
-        const x_subtile_size_h = is_odd_h && i == n_h - 1 ? 3 : 5;
-        const x_subtile_size_w = is_odd_w && j == n_w - 1 ? 3 : 5;
+        const y_extra_h = x_tile_size_h_to_process < 5 ? x_tile_size_h_to_process + tile_padding.bottom - 3 : 0;
+        const y_extra_w = x_tile_size_w_to_process < 5 ? x_tile_size_w_to_process + tile_padding.right - 3 : 0;
+        const y_subtile_size_h = is_odd_h && i == n_h - 1 ? 1 + y_extra_h : 3;
+        const y_subtile_size_w = is_odd_w && j == n_w - 1 ? 1 + y_extra_w : 3;
+        const x_subtile_size_h = x_tile_size_h_to_process < 5 ? x_tile_size_h_to_process : 5;
+        const x_subtile_size_w = x_tile_size_w_to_process < 5 ? x_tile_size_w_to_process : 5;
 
         nnx_padding_t subtile_padding = {
           .top    = i == 0       ? tile_padding.top    : DONT_PAD,
-          .right  = j == n_w - 1 ? tile_padding.right  : DONT_PAD,
-          .bottom = i == n_h - 1 ? tile_padding.bottom : DONT_PAD,
+          .right  = j == n_w - 1 && x_tile_size_w_to_process < 5 ? tile_padding.right  : DONT_PAD,
+          .bottom = i == n_h - 1 && x_tile_size_h_to_process < 5 ? tile_padding.bottom : DONT_PAD,
           .left   = j == 0       ? tile_padding.left   : DONT_PAD,
           .value = 0
         };
@@ -561,8 +566,7 @@ void ${func_name}(
                            5, 5, ${x_tile_size_nif}, /* size */
                            x_tile_size_w, ${x_tile_size_nif}, /* stride */
                            1, 1, 0, /* overlap */
-                           //i == n_h - 1 && is_odd_h ? 2 : 0, j == n_w - 1 && is_odd_w ? 2 : 0, 0, /* offset */
-                           0, 0, 0, /* offset */
+                           i > 0 ? subtile_padding.top : 0, j > 0 ? subtile_padding.left : 0, 0, /* offset */
                            ${x_data_size_byte} /* data size */ );
         nnx_task_to_offload->outfeat_ptr =
           dory_get_tile_3d(y_tile_ptr,
@@ -570,16 +574,19 @@ void ${func_name}(
                            2, 2, ${y_tile_size_nof}, /* size */
                            y_tile_size_w, ${y_tile_size_nof}, /* stride */
                            0, 0, 0, /* overlap */
-                           //i == n_h - 1 && is_odd_h ? 1 : 0, j == n_w - 1 && is_odd_w ? 1 : 0, 0, /* offset */
                            0, 0, 0, /* offset */
                            ${y_data_size_byte} /* data size */ );
+
         asm volatile("": : :"memory");
         nnx_acquire();
         //printf("[loop %d, %d] x_ptr:%p, y_ptr:%p\n", i, j,
         //       nnx_task_to_offload->infeat_ptr, nnx_task_to_offload->outfeat_ptr);
         nnx_offload(nnx_task_to_offload);
         nnx_run_async();
+
+        x_tile_size_w_to_process -= 4;
       }
+      x_tile_size_h_to_process -= 4;
     }
     % endif
 
