@@ -62,8 +62,16 @@ class onnx_manager(Parser_ONNX_to_DORY):
             string_matching, indexes = self.pattern_matching(node, i)
             if isinstance(string_matching, str):
                 self.DORY_Graph = Pattern_rewriter(self.DORY_Graph).execute(string_matching, indexes)
-        print("\nQuantlab Frontend: Updating Add nodes with constants.")
+        print("\nQuantlab Frontend: Updating Add nodes with constants, adding 'conv1d' flags and extending 1D parameters to 2D.")
         for i, node in enumerate(self.DORY_Graph):
+            if "Conv" in node.name:
+                if len(node.kernel_shape) == 1:
+                    node.conv1d = 1
+                    node.kernel_shape = [1] + node.kernel_shape
+                    node.dilations = [1] + node.dilations
+                    node.strides = [1] + node.strides
+                else:
+                    node.conv1d = 0
             if "Addition" in node.name:
                 ## output parameters 
                 node.outshift = {}
@@ -131,6 +139,7 @@ class onnx_manager(Parser_ONNX_to_DORY):
                 delattr(node, 'out_rq')
                 delattr(node, 'in1_n_levels')
                 delattr(node, 'in1_rq')
+
         
     def add_nodes_precision(self):
         print("\nQuantlab Frontend: Adding Bit and Types to Nodes.")

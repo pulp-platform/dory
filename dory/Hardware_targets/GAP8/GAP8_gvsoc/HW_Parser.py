@@ -60,12 +60,8 @@ class onnx_manager(Parser_DORY_to_HW):
                 if i != 0 and self.DORY_Graph[i-1].layout == "CHW":
                     temp = node.__dict__[weights_name]["value"]
                     prev_node = self.DORY_Graph[i-1]
-                    if prev_node.conv1d:
-                        temp = temp.reshape(node.output_channels, prev_node.output_channels, prev_node.output_dimensions[0])
-                        temp = np.transpose(temp, (0, 2, 1))
-                    else:
-                        temp = temp.reshape(node.output_channels, prev_node.output_channels, prev_node.output_dimensions[0], prev_node.output_dimensions[1])
-                        temp = np.transpose(temp, (0, 2, 3, 1))
+                    temp = temp.reshape(node.output_channels, prev_node.output_channels, prev_node.output_dimensions[0], prev_node.output_dimensions[1])
+                    temp = np.transpose(temp, (0, 2, 3, 1))
                     temp = temp.flatten()
                     node.__dict__[weights_name]["value"] = temp
                     # needed to compute final checksum for <8b layers
@@ -76,9 +72,8 @@ class onnx_manager(Parser_DORY_to_HW):
                             weights_name = name
                 if node.__dict__[weights_name]["layout"] == "CoutCinK":
                     if node.conv1d:
-                        transp = (0,2,1)
-                    else:
-                        transp = (0,2,3,1)
+                        node.__dict__[weights_name]["value"] = node.__dict__[weights_name]["value"][:,:,None,:]
+                    transp = (0,2,3,1)
                     node.__dict__[weights_name]["value"] = np.transpose(node.__dict__[weights_name]["value"], transp)
                     node.__dict__[weights_name]["layout"] = "CoutKCin"
 

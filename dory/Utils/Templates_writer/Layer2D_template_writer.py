@@ -436,6 +436,9 @@ def print_template_layer(node, layer_type, tmpl_dir, out_dir, double_buffering =
     tk['out_add'] = node.outadd["value"] if 'outadd' in node.constant_names else 0
     tk['out_mul'] = node.outmul["value"] if 'outmul' in node.constant_names else 1
 
+    tk['conv1d'] = node.conv1d
+    tk['dilations'] = node.dilations
+
     if "Addition" not in node.name and "Pool" not in node.name:
         tmpl = Template(filename=os.path.join(tmpl_dir, "layer_L2_c_conv_template.c"))
     elif "Pool" in node.name:

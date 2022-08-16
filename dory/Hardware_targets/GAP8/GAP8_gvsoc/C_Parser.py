@@ -75,7 +75,6 @@ class C_Parser(Parser_HW_to_C):
             Output_type = node.get_parameter('output_activation_type')[0]
             out = "_" + Output_type + Output_bits
             in_out = "_" + Input_type + Input_bits + out
-            
             maybe_x = 'x' if self.precision_library == "mixed-hw" else ''
             if "Addition" in node.name:
                 in1_in2_out = "_" + Input_type + Input_bits + "_" + node.get_parameter('second_input_activation_type')[0] + str(node.get_parameter('second_input_activation_bits')) + "_" + Output_type + Output_bits
@@ -89,7 +88,10 @@ class C_Parser(Parser_HW_to_C):
             if "Conv" in node.name and node.group > 1:
                 file = f'Depthwise/{maybe_x}pulp_nn_depthwise{in_out_weights}.c'
             elif "Conv" in node.name and node.group == 1:
-                file = f'Convolution/{maybe_x}pulp_nn_conv{in_out_weights}.c'
+                if node.conv1d and self.precision_library == 'mixed-hw':
+                    file = f'Convolution/xpulp_nn_conv1d{in_out_weights}.c'
+                else:
+                    file = f'Convolution/{maybe_x}pulp_nn_conv{in_out_weights}.c'
             elif "FullyConnected" in node.name and node.output_activation_bits == 32: 
                 file = f'LinearNoQuant/{maybe_x}pulp_nn_linear{in_out_weights}.c'
             elif "FullyConnected" in node.name:

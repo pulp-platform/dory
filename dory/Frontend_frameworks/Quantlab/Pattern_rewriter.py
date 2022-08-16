@@ -150,9 +150,12 @@ class Pattern_rewriter:
                 DORY_Pad_node.input_dimensions[0] -= (self.graph[i[j]].pads[2] + self.graph[i[j]].pads[6])
                 DORY_Pad_node.input_dimensions[1] -= (self.graph[i[j]].pads[3] + self.graph[i[j]].pads[7])
             else:
-                DORY_Pad_node.pads[0] += self.graph[i[j]].pads[2]
-                DORY_Pad_node.pads[1] += self.graph[i[j]].pads[5]
-                DORY_Pad_node.input_dimensions[0] -= (self.graph[i[j]].pads[2] + self.graph[i[j]].pads[5])
+                assert len(DORY_Pad_node.pads) == 2, f"Quantlab padding pattern rewriter: Expected 'pads' parameter to have length 2 or 4, got {len(DORY_Pad_node.pads)}"
+                newpads = [0, DORY_Pad_node.pads[0], 0, DORY_Pad_node.pads[1]]
+                newpads[1] += self.graph[i[j]].pads[2]
+                newpads[3] += self.graph[i[j]].pads[5]
+                DORY_Pad_node.pads = newpads
+                DORY_Pad_node.input_dimensions[1] -= (self.graph[i[j]].pads[2] + self.graph[i[j]].pads[5])
         for ele in sorted(i, reverse = True):
             del self.graph[ele]
         self.graph.insert(i[0], DORY_Pad_node)
