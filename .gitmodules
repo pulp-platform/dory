@@ -1,15 +1,15 @@
 [submodule "dory_examples"]
 	path = dory/dory_examples
-	url = git@github.com:pulp-platform/dory_examples
+	url = ../../pulp-platform/dory_examples
 [submodule "Hardware-targets/GAP8/Backend_Kernels/pulp-nn-mixed"]
 	path = dory/Hardware_targets/GAP8/Backend_Kernels/pulp-nn-mixed
-	url = git@github.com:pulp-platform/pulp-nn-mixed.git
+	url = ../../pulp-platform/pulp-nn-mixed.git
 [submodule "Hardware-targets/GAP8/Backend_Kernels/pulp-nn"]
 	path = dory/Hardware_targets/GAP8/Backend_Kernels/pulp-nn
-	url = git@github.com:pulp-platform/pulp-nn.git
+	url = ../../pulp-platform/pulp-nn.git
 [submodule "Hardware-targets/GAP8/Backend_Kernels/pulp-nn-1d"]
 	path = dory/Hardware_targets/GAP8/Backend_Kernels/pulp-nn-1d
-	url = git@github.com:pulp-platform/pulp-nn-1d.git
+	url = ../../pulp-platform/pulp-nn-1d.git
 [submodule "Hardware-targets/Diana/Backend_Kernels/dory-hal"]
 	path = dory/Hardware_targets/Diana/Backend_Kernels/dory-hal
-	url = git@github.com:ABurrello/dory-hal.git
+	url = ../../ABurrello/dory-hal.git
