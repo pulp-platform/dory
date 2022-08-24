@@ -51,7 +51,7 @@ class onnx_manager(Parser_DORY_to_HW):
         for i, node in enumerate(self.DORY_Graph):
             if "FullyConnected" in node.name:
                 for name in node.constant_names:
-                    if name not in ["l","k","outshift","outmult"]:
+                    if name not in ["l","k","outshift","outmul"]:
                         if "bias" not in name:
                             weights_name = name
                 if node.__dict__[weights_name]["layout"] == "CinCout":
@@ -66,7 +66,7 @@ class onnx_manager(Parser_DORY_to_HW):
                     # needed to compute final checksum for <8b layers
             elif "Convolution" in node.name:
                 for name in node.constant_names:
-                    if name not in ["l","k","outshift","outmult"]:
+                    if name not in ["l","k","outshift","outmul"]:
                         if "bias" not in name:
                             weights_name = name
                 if node.__dict__[weights_name]["layout"] == "CoutCinK":
