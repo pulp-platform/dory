@@ -33,7 +33,6 @@ def print_template_Makefile(
     for i, node in enumerate(graph):
         if "Conv" in node.name or "FullyConnected" in node.name:
             file_list_w.append(node.name+"_weights.hex")
-
     tk['layers_w'] = file_list_w
     tk['sdk'] = HW_description["software development kit"]["name"]
     root = os.path.dirname(__file__)
