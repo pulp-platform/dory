@@ -29,6 +29,6 @@ jobs:
     steps:
       - name: Run experiments
         run: |
-          source configs/gapuino_v3.sh
+          . configs/gapuino_v3.sh
           cd dory
           python3 -m pytest
