@@ -29,5 +29,8 @@ jobs:
     steps:
       - name: Run experiments
         run: |
+          pwd
+          ls
+          docker exec alessioburrello/aleburrello pwd
           cd dory
           python3 -m pytest
