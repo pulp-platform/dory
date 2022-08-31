@@ -15,17 +15,24 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Build the Docker image
-      run: docker build -t my_docker .
+      run: |
+        docker build -t my_docker .
+        docker run -it my_docker
+        source sourceme.sh
+        10
+        cd dory
+        python3 -m pytest
       
   tests:
 
     runs-on: ubuntu-latest
-    needs: [build]
+    needs: [build] need credentials to push docker before completing the pipeline
 
     steps:
     - uses: actions/checkout@v3
     - name: Run experiments
       run: |
+        docker pull 
         docker run -it my_docker
         source sourceme.sh
         10
