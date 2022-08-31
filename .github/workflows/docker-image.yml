@@ -28,8 +28,7 @@ jobs:
         image: alessioburrello/aleburrello:latest
     steps:
       - name: Run experiments
-        run: |
-          cd /gap_riscv_toolchain_ubuntu_18/gap_sdk
-          . configs/gapuino_v3.sh
-          cd dory
-          python3 -m pytest
+      - run: cd /gap_riscv_toolchain_ubuntu_18/gap_sdk
+      #- run: . configs/gapuino_v3.sh
+      - run: cd dory
+      - run: python3 -m pytest
