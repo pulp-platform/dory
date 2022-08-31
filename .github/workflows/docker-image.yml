@@ -29,9 +29,6 @@ jobs:
     steps:
       - name: Run experiments
         run: |
-          echo ciao
-          pwd
-          source sourceme.sh
-          10
+          source configs/gapuino_v3.sh
           cd dory
           python3 -m pytest
