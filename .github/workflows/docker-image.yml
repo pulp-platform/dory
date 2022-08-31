@@ -25,7 +25,7 @@ jobs:
     runs-on: ubuntu-latest
     #needs: [build] #need credentials to push docker before completing the pipeline
     container:
-        image: ${{secrets.DOCKER_USERNAME}}/aleburrello
+        image: alessioburrello/aleburrello:latest
     steps:
     - name: Run experiments
       run: |
