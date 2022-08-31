@@ -27,9 +27,11 @@ jobs:
     container:
         image: alessioburrello/aleburrello:latest
     steps:
-    - name: Run experiments
-      run: |
-        source sourceme.sh
-        10
-        cd dory
-        python3 -m pytest
+      - name: Run experiments
+        run: |
+          echo ciao
+          pwd
+          source sourceme.sh
+          10
+          cd dory
+          python3 -m pytest
