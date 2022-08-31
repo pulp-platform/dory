@@ -23,14 +23,12 @@ jobs:
   tests:
 
     runs-on: ubuntu-latest
-    needs: [build] #need credentials to push docker before completing the pipeline
-
+    #needs: [build] #need credentials to push docker before completing the pipeline
+    container:
+        image: ${{secrets.DOCKER_USERNAME}}/aleburrello
     steps:
-    - uses: actions/checkout@v3
     - name: Run experiments
       run: |
-        docker pull ${{secrets.DOCKER_USERNAME}}/aleburrello
-        docker run -i ${{secrets.DOCKER_USERNAME}}/aleburrello
         source sourceme.sh
         10
         cd dory
