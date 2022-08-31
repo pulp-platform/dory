@@ -17,11 +17,6 @@ jobs:
     - name: Build the Docker image
       run: |
         docker build -t my_docker .
-        docker run -i my_docker
-        source sourceme.sh
-        10
-        cd dory
-        python3 -m pytest
       
   tests:
 
