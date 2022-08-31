@@ -17,7 +17,7 @@ jobs:
     - name: Build the Docker image
       run: |
         docker build -t my_docker .
-        docker run -it my_docker
+        docker run -i my_docker
         source sourceme.sh
         10
         cd dory
@@ -32,8 +32,7 @@ jobs:
     - uses: actions/checkout@v3
     - name: Run experiments
       run: |
-        docker pull 
-        docker run -it my_docker
+        docker run -i my_docker
         source sourceme.sh
         10
         cd dory
