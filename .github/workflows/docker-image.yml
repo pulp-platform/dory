@@ -20,11 +20,11 @@ jobs:
   tests:
 
     runs-on: ubuntu-latest
+    needs: [build]
 
     steps:
     - uses: actions/checkout@v3
     - name: Run experiments
-      needs: [build]
       run: |
         docker run -it my_docker
         source sourceme.sh
