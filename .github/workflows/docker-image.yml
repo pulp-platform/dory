@@ -29,8 +29,7 @@ jobs:
     steps:
       - name: Run experiments
         run: |
-          pwd
-          ls
-          docker exec alessioburrello/aleburrello pwd
+          cd /gap_riscv_toolchain_ubuntu_18/gap_sdk
+          . configs/gapuino_v3.sh
           cd dory
           python3 -m pytest
