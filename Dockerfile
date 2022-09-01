@@ -52,7 +52,7 @@ RUN     python3 -m pip install future-fstrings
 RUN     python3 -m pip install pandas
 RUN     python3 -m pip install ortools
 RUN     python3 -m pip install mako
-RUN     python3 -m pip install pytest
+RUN     python3 -m pip install pytest -x
 
 WORKDIR /gap_riscv_toolchain_ubuntu_18/gap_sdk/dory/
 RUN     python3 -m pip install -e .
