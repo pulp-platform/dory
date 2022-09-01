@@ -25,10 +25,13 @@ jobs:
     runs-on: ubuntu-bionic
     #needs: [build] #need credentials to push docker before completing the pipeline
     container:
-        image: alessioburrello/aleburrello:latest
+        #image: alessioburrello/aleburrello:latest
+        image: ubuntu:bionic
+        options: "--entrypoint /bin/bash"
     steps:
       - name: Run experiments
         run: |
+          source pippo.sh
           cd /gap_riscv_toolchain_ubuntu_18/gap_sdk
           cd dory
           python3 -m pip install pytest
