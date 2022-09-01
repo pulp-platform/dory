@@ -18,7 +18,7 @@ networks = [
                 'target': 'GAP8.GAP8_board',
                 'conf_file': './dory/dory_examples/config_files/config_NEMO_Penguinet_64.json'
             },
-        "checksum_final": '3'
+        "checksum_final": 'Wrong bla bla bla 0'
     },
     {
         "network_args":
@@ -113,7 +113,7 @@ def test_network(network, capsys):
         with capsys.disabled():
             print(f'{preamble.ljust(40)}, MACs: {MACs.rjust(10)}, Cycles: {cycl.rjust(10)}, MAC/cycles: {(int(MACs)/float(cycl)):.4f}')
     else:
-        import fake_package
+        exit(1)
         with capsys.disabled():
             print(f'{preamble.ljust(40)}, Failed')
         #print(f'{preamble} Makefile output:\n {proc.stdout}')

@@ -37,4 +37,5 @@ jobs:
           python3 -m pip install Pygments
           python3 -m pip install MarkupSafe
           python3 -m pytest -x test_GAP8.py
+          echo $?
         shell: bash
