@@ -25,15 +25,13 @@ jobs:
     runs-on: self-hosted
     #needs: [build] #need credentials to push docker before completing the pipeline
     container:
-        #image: alessioburrello/aleburrello:latest
-        image: ubuntu:bionic
-        options: "--entrypoint /bin/bash"
+        image: alessioburrello/aleburrello:latest
     steps:
+      - uses: actions/checkout@v3
       - name: Run experiments
         run: |
           cd /gap_riscv_toolchain_ubuntu_18/gap_sdk
           source configs/gapuino_v3.sh
           cd dory
-          python3 -m pip install pytest
           python3 -m pytest
         shell: bash
