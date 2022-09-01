@@ -114,6 +114,10 @@ def test_network(network, capsys):
             print(f'{preamble.ljust(40)}, MACs: {MACs.rjust(10)}, Cycles: {cycl.rjust(10)}, MAC/cycles: {(int(MACs)/float(cycl)):.4f}')
     else:
         with capsys.disabled():
+            print(f'Test Failed. Exiting with error for CI')
+            import fake_package
+        
+        with capsys.disabled():
             print(f'{preamble.ljust(40)}, Failed')
         #print(f'{preamble} Makefile output:\n {proc.stdout}')
         
