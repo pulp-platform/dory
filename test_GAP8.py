@@ -18,11 +18,7 @@ networks = [
                 'target': 'GAP8.GAP8_board',
                 'conf_file': './dory/dory_examples/config_files/config_NEMO_Penguinet_64.json'
             },
-<<<<<<< HEAD
         "checksum_final": 'Wrong bla bla bla 0'
-=======
-        "checksum_final": 'Ok'
->>>>>>> 6a0e54a1e8d8931aaf27131b4928e3f864e26c74
     },
     {
         "network_args":
