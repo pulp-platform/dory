@@ -18,7 +18,7 @@ networks = [
                 'target': 'GAP8.GAP8_board',
                 'conf_file': './dory/dory_examples/config_files/config_NEMO_Penguinet_64.json'
             },
-        "checksum_final": '3'
+        "checksum_final": 'provaCI'
     },
     {
         "network_args":
