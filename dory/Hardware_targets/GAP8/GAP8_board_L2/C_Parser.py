@@ -39,8 +39,8 @@ file_path = "/".join(os.path.realpath(__file__).split("/")[:-1])
 class C_Parser(Parser_HW_to_C):
     # Used to manage the ONNX files. By now, supported Convolutions (PW and DW), Pooling, Fully Connected and Relu.
     def __init__(self, graph, config_file, config_file_dir, verbose_level, perf_layer, precision_library, app_directory, n_inputs = 1):
-        f = open(os.path.join(file_path, "HW_description.json"))
-        HW_description = json.load(f)
+        with open(os.path.join(file_path, "HW_description.json")) as f:
+            HW_description = json.load(f)
         self.precision_library = precision_library
         self.source_Constant_bits_library = config_file["BNRelu_bits"]
         self.config_file = config_file
@@ -92,8 +92,11 @@ class C_Parser(Parser_HW_to_C):
             if "Conv" in node.name and node.group > 1:
                 file = f'Depthwise/{maybe_x}pulp_nn_depthwise{in_out_weights}.c'
             elif "Conv" in node.name and node.group == 1:
-                file = f'Convolution/{maybe_x}pulp_nn_conv{in_out_weights}.c'
-            elif "FullyConnected" in node.name and node.output_activation_bits == 32: 
+                if node.conv1d and self.precision_library == 'mixed-hw':
+                    file = f'Convolution/xpulp_nn_conv1d{in_out_weights}.c'
+                else:
+                    file = f'Convolution/{maybe_x}pulp_nn_conv{in_out_weights}.c'
+            elif "FullyConnected" in node.name and node.output_activation_bits == 32:
                 file = f'LinearNoQuant/{maybe_x}pulp_nn_linear{in_out_weights}.c'
             elif "FullyConnected" in node.name:
                 file = f'LinearQuant/{maybe_x}pulp_nn_linear{in_out_weights}.c'

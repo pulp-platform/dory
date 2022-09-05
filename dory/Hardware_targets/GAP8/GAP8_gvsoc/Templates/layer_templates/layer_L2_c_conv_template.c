@@ -443,10 +443,10 @@ void ${func_name}(
       % endif
       out_mult, out_shift,
       x_tile_size_w_exec${", x_tile_size_h_exec" if not conv1d else ""}, x_tile_size_nif_exec,
-  y_tile_size_w${", y_tile_size_h" if not conv1d else ""}, y_tile_size_nof,
+      y_tile_size_w${", y_tile_size_h" if not conv1d else ""}, y_tile_size_nof,
       ${fs2},${f"{ fs1}," if not conv1d else ""}
-  ${f"p_t, p_b, " if not conv1d else ""} p_l, p_r, ${stride}${f", {stride}" if not conv1d else ""},
-  ${f"{dilations[1]}," if conv1d else ""}
+      ${f"p_t, p_b, " if not conv1d else ""} p_l, p_r, ${stride}${f", {stride}" if not conv1d else ""},
+      ${f"{dilations[1]}," if conv1d else ""}
       ${FLAG_RELU}, ${FLAG_BATCHNORM}
       );
   % endif
