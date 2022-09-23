@@ -6,7 +6,7 @@
 # Thorir Mar Ingolfsson <thoriri@iis.ee.ethz.ch>
 #
 # Copyright (C) 2019-2020 University of Bologna
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -22,6 +22,7 @@
 # Libraries
 import json
 import os
+import numpy as np
 
 # DORY modules
 from dory.Frontend_frameworks.Quantlab.Pattern_rewriter import Pattern_rewriter
@@ -73,7 +74,7 @@ class onnx_manager(Parser_ONNX_to_DORY):
                 else:
                     node.conv1d = 0
             if "Addition" in node.name:
-                ## output parameters 
+                ## output parameters
                 node.outshift = {}
                 node.outshift["value"] = node.out_shift
                 node.outshift["layout"] = ""
@@ -135,12 +136,12 @@ class onnx_manager(Parser_ONNX_to_DORY):
                 # removing irrelevant parameters
                 delattr(node, 'in2_n_levels')
                 delattr(node, 'in2_rq')
-                delattr(node, 'out_n_levels')
+                #delattr(node, 'out_n_levels')
                 delattr(node, 'out_rq')
                 delattr(node, 'in1_n_levels')
                 delattr(node, 'in1_rq')
 
-        
+
     def add_nodes_precision(self):
         print("\nQuantlab Frontend: Adding Bit and Types to Nodes.")
         # Right now, the precision is fixed. We can extract it from either the original onnx graph or from a json.
@@ -162,8 +163,9 @@ class onnx_manager(Parser_ONNX_to_DORY):
                             node.second_input_activation_type = previous_nodes.output_activation_type
                             node.second_input_activation_bits = previous_nodes.output_activation_bits
             if node.name in ["Addition"]:
-                node.add_existing_parameter("output_activation_bits", node.add_bits)
+                node.add_existing_parameter("output_activation_bits", int(np.log2(node.out_n_levels)))
                 delattr(node, "add_bits")
+                delattr(node, "out_n_levels")
                 node.add_existing_parameter("output_activation_type", self.DORY_Graph[i].input_activation_type)
             if node.name in ["Convolution", "FullyConnected"]:
                 node.add_existing_parameter("output_activation_bits", 32)
@@ -190,6 +192,3 @@ class onnx_manager(Parser_ONNX_to_DORY):
                 else:
                     node.__dict__[weights_name]["layout"] = "CoutCinK"
             node.layout = "CHW"
-
-
-
