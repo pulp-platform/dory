@@ -105,7 +105,7 @@ void ${func_name}(layer* layer_i)  {
     DMA_copy_x.number_of_1d_copies = x_tile_size_w;
     DMA_copy_x.length_1d_copy = x_length_nif_byte;
     dory_dma_memcpy_async_digital(DMA_copy_x);
-    dory_dma_barrier(DMA_copy_x);
+    dory_dma_barrier_digital(DMA_copy_x);
 
     DMA_copy_x2.ext = l2_x2_tile;
     DMA_copy_x2.loc = l1_x2;
@@ -113,7 +113,7 @@ void ${func_name}(layer* layer_i)  {
     DMA_copy_x2.number_of_1d_copies = x_tile_size_w;
     DMA_copy_x2.length_1d_copy = x_length_nif_byte;
     dory_dma_memcpy_async_digital(DMA_copy_x2);
-    dory_dma_barrier(DMA_copy_x2);
+    dory_dma_barrier_digital(DMA_copy_x2);
 
     Layer_parameters kernel;
     kernel.padding = 0x0000;
@@ -130,9 +130,9 @@ void ${func_name}(layer* layer_i)  {
     kernel.dilation = 1;
     kernel.stride = 0;
 
-    dory_cores_barrier();
+    dory_cores_barrier_digital();
     element_wise_sum(l2_x_tile, l1_x, l2_x2_tile, l1_x2, l1_y, &kernel);
-    dory_cores_barrier();
+    dory_cores_barrier_digital();
 
     _i_nof_pre = _i_nof;
     _i_nif_pre = _i_nif;
@@ -159,7 +159,7 @@ void ${func_name}(layer* layer_i)  {
     DMA_copy_y.number_of_1d_copies = y_tile_size_h;
     DMA_copy_y.length_1d_copy = y_tile_size_w;
     dory_dma_memcpy_async_digital(DMA_copy_y); 
-    dory_dma_barrier(DMA_copy_y);
+    dory_dma_barrier_digital(DMA_copy_y);
   }
 
   dory_dma_deallocate(dory_dma_channel);

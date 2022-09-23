@@ -106,7 +106,7 @@ void network_alloc(struct pi_device fs, struct pi_device ram)
   for (int i=0;i<${weights_number};i++)
   {
 % if 'Check_all' in verbose_level:
-    if (layer_with_weights[layer_number]==0)
+    while (layer_with_weights[layer_number]==0)
       layer_number +=1;
 % endif
     file = pi_fs_open(&fs, L3_weights_files[i], 0);

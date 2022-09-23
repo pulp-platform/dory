@@ -172,6 +172,7 @@ def print_template_layer(node, layer_type, tmpl_dir, out_dir, double_buffering =
             tk['first_layer'] = 1
     else:
         tk['first_layer'] = 0
+    tk['node'] = node
     tk['sdk'] = node.HW_description["software development kit"]["name"]
     tk['number_of_clusters'] = node.HW_description["HW specific parameters"]["clusters"] if "clusters" in node.HW_description["HW specific parameters"].keys() else 1
     tk['optional_type'] = layer_type

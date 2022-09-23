@@ -17,7 +17,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License. 
  */
-
+#define ON
 #include "${func_name}.h"
 % if ULTRA_VERBOSE:
 #define VERBOSE_PRINT(...) printf(__VA_ARGS__)
@@ -37,15 +37,24 @@ void ${func_name}(layer* layer_i)
   unsigned int l2_BN =        layer_i->L2_weights + ${int((64 if nif < 64 else nif) * (128 if nof < 128 else nof) * fs1 * fs2 * W_data_size_byte / 8)};
 % endif
   unsigned int out_shift =    layer_i->out_shift;
-
+  // check for ternary case how the output is written in L1. Check also the dimension of l1_y for cases where dimensions are not multiple of 16
+% if int(func_name[-1]) % 2 == 0:
   unsigned int l1_x       = 0x0;
-  unsigned int l1_y       = l1_x + ${int(l1_y_offset/32)*32+32};
+% if optional_type == "ternary":
+  unsigned int l1_y       = 131072 - ${int((l1_W_offset - l1_y_offset)/32)*32+32}*2;
+% else:
+  // unsigned int l1_y       = 131072 - ${int((l1_W_offset - l1_y_offset)/32)*32+32};
+  unsigned int l1_y       = 0x0 + ${int((l1_y_offset)/32)*32+32};
+% endif
+% else:
+% if optional_type == "ternary":
+  unsigned int l1_x       = 131072 - ${int((l1_y_offset)/32)*32+32}*2;
+% else:
+  unsigned int l1_x       = 131072 - ${int((l1_y_offset)/32)*32+32};
+% endif
+  unsigned int l1_y       = 0x0;
+% endif
   unsigned int l1_weights = 0x0;
-
-  // perf measurement begin
-  volatile rt_perf_t *perf;
-  perf = rt_alloc(RT_ALLOC_L2_CL_DATA, sizeof(rt_perf_t));
-
   /////////////////////
   // DMA declaration //
   /////////////////////
@@ -95,24 +104,16 @@ void ${func_name}(layer* layer_i)
 % endif
   // tile loop nest
   for(iter=0; iter < total_tiles; iter++) {
-
-    int perf_cyc, perf_cyc1, perf_cyc2;
-    rt_perf_init(perf);
-    rt_perf_conf(perf, (1<<RT_PERF_CYCLES));
-    rt_perf_stop(perf);
-    rt_perf_start(perf);
-
-
     // check if last in any dimension
     x_tile_size_nif = (_i_nif+1   == ${tile_dim_nif}) ? ${x_tile_size_nif_last} : ${x_tile_size_nif};
     x_tile_size_h   = (_i_h+1     == ${tile_dim_h})   ? ${x_tile_size_h_last} : ${x_tile_size_h};
-    x_tile_size_w   = (_i_w+1     == ${tile_dim_w})   ? ${x_tile_size_w_last} : ${x_tile_size_w};
+    x_tile_size_w   = (_i_w+1     == ${tile_dim_w})   ? ${(x_tile_size_w_last + 15) // 16 * 16} : ${(x_tile_size_w + 15) // 16 * 16};
     x_tile_size_byte = x_tile_size_nif*x_tile_size_h*x_tile_size_w*${x_data_size_byte}/8;
     x_length_nif_byte = (_i_nif+1 == ${tile_dim_nif})   ? ${x_tile_size_nif_byte_last} : ${x_tile_size_nif_byte};
     y_tile_size_h   = (_i_h+1     == ${tile_dim_h})   ? ${y_tile_size_h_last} : ${y_tile_size_h};
-    y_tile_size_w   = (_i_w+1     == ${tile_dim_w})   ? ${y_tile_size_w_last} : ${y_tile_size_w};
-    y_length_nof_byte = (_i_nof+1   == ${tile_dim_nof}) ? ${W_tile_size_nof_last} : ${W_tile_size_nof};
-    W_tile_size_nof = (_i_nof+1   == ${tile_dim_nof}) ? ${(W_tile_size_nof_last + 15) // 16 * 16} : ${W_tile_size_nof};
+    y_tile_size_w   = (_i_w+1     == ${tile_dim_w})   ? ${(y_tile_size_w_last + 15) // 16 * 16} : ${(y_tile_size_w + 15) // 16 * 16};
+    y_length_nof_byte = (_i_nof+1   == ${tile_dim_nof}) ? ${(W_tile_size_nof_last + 15) // 16 * 16} : ${(W_tile_size_nof + 15) // 16 * 16};
+    W_tile_size_nof = (_i_nof+1   == ${tile_dim_nof}) ? ${(W_tile_size_nof_last + 15) // 16 * 16} : ${(W_tile_size_nof + 15) // 16 * 16};
 
 % if optional_type == "ternary":
     int block_number   = x_length_nif_byte > 64 ? 4 : (int)((x_length_nif_byte+15)/16);
@@ -137,7 +138,29 @@ void ${func_name}(layer* layer_i)
       }
     }
 % endif
-    
+
+    int pad_offset_h=0, pad_offset_w=0;
+    if(_i_h > 0)
+      pad_offset_h = ${padding_top};
+    if(_i_w > 0)
+      pad_offset_w = ${padding_left};
+    uint32_t l2_x_tile = dory_get_tile_3d(l2_x, _i_nif, _i_h, _i_w, ${x_tile_size_nif}, ${x_tile_size_h}, ${x_tile_size_w}, ${x_h}, ${x_w},0, ${conv_overlap1}, ${conv_overlap2}, 0, pad_offset_h, pad_offset_w, ${x_data_size_byte});
+% if node.previous_layer_tiles >1:
+#ifdef ON
+    DMA_copy_x.ext = l2_x_tile;
+    DMA_copy_x.loc = l1_x;
+    DMA_copy_x.number_of_2d_copies = x_length_nif_byte;
+    DMA_copy_x.number_of_1d_copies = x_tile_size_h;
+    DMA_copy_x.length_1d_copy = x_tile_size_w;
+% if optional_type == "8bit":
+    dory_dma_memcpy_async_digital(DMA_copy_x);
+    dory_dma_barrier_digital(DMA_copy_x); 
+% elif optional_type == "ternary":
+    dory_dma_memcpy_async_analog(DMA_copy_x); 
+    dory_dma_barrier_analog(DMA_copy_x);
+% endif
+#endif
+% endif
 
     Layer_parameters kernel;
 % if optional_type == "ternary":
@@ -176,50 +199,24 @@ void ${func_name}(layer* layer_i)
     kernel.stride = ${1 if stride > 1 else 0};
 % elif optional_type == "ternary":
     kernel.ox_unroll = 1;
-    /*for (int i = 0; i < 3; i++)
+    for (int i = 0; i < 2; i++)
     {
-      if (((kernel.ox_unroll * 2 * kernel.k) <= 512) && ((64 * ${fs2} * (${fs1} + kernel.ox_unroll - 1)) <= 1152))
+      if (((kernel.ox_unroll * 2 * kernel.k) <= 512) && ((kernel.c * ${fs2} * (${fs1} + kernel.ox_unroll * 2 - 1)) <= 1152))
         kernel.ox_unroll = kernel.ox_unroll * 2;
-      }
-    }*/
+    }
     kernel.stride = ${stride};
     kernel.ox = (int) y_tile_size_w / kernel.ox_unroll;
 % endif
-    rt_perf_stop(perf);
-    rt_perf_save(perf);
-    perf_cyc = rt_perf_get(perf, RT_PERF_CYCLES);
-    rt_perf_reset(perf);
 
-    rt_perf_init(perf);
-    rt_perf_conf(perf, (1<<RT_PERF_CYCLES));
-    rt_perf_stop(perf);
-    rt_perf_start(perf);
-
-    int pad_offset_h=0, pad_offset_w=0;
-    if(_i_h > 0)
-      pad_offset_h = ${padding_top};
-    if(_i_w > 0)
-      pad_offset_w = ${padding_left};
-    uint32_t l2_x_tile = dory_get_tile_3d(l2_x, _i_nif, _i_h, _i_w, ${x_tile_size_nif}, ${x_tile_size_h}, ${x_tile_size_w}, ${x_h}, ${x_w},0, ${conv_overlap1}, ${conv_overlap2}, 0, pad_offset_h, pad_offset_w, ${x_data_size_byte});
 % if optional_type == "8bit":
     dory_cores_barrier_digital();
-    digital_conv_2d(l2_x_tile, l1_x, l2_W, l1_weights, l1_y, &kernel);
+    digital_conv_2d(l2_x_tile, l1_x, l2_W, l1_weights, l1_y, 0, &kernel);
     dory_cores_barrier_digital();
 % elif optional_type == "ternary":
     dory_cores_barrier_analog();
-    analog_conv_2d(l2_x_tile, l1_x, l2_W, l2_BN, l1_weights, l1_y, &kernel);
+    analog_conv_2d(l2_x_tile, l1_x, l2_W, l2_BN, l1_weights, l1_y, 0, &kernel);
     dory_cores_barrier_analog();
 % endif
-
-    rt_perf_stop(perf);
-    rt_perf_save(perf);
-    perf_cyc1 = rt_perf_get(perf, RT_PERF_CYCLES);
-    rt_perf_reset(perf);
-
-    rt_perf_init(perf);
-    rt_perf_conf(perf, (1<<RT_PERF_CYCLES));
-    rt_perf_stop(perf);
-    rt_perf_start(perf);
 
     _i_nof_pre = _i_nof;
     _i_nif_pre = _i_nif;
@@ -250,6 +247,8 @@ void ${func_name}(layer* layer_i)
     }
   % endif
 
+% if tile_dim_nof * tile_dim_nif * tile_dim_h * tile_dim_w > 1 or node.branch_out == 1:
+#ifdef ON
     DMA_copy_y.ext = l2_y;
     DMA_copy_y.loc = l1_y;
     DMA_copy_y.number_of_2d_copies = y_length_nof_byte;
@@ -262,13 +261,8 @@ void ${func_name}(layer* layer_i)
     dory_dma_memcpy_async_analog(DMA_copy_y); 
     dory_dma_barrier_analog(DMA_copy_y);
 % endif
-    
-    rt_perf_stop(perf);
-    rt_perf_save(perf);
-    perf_cyc2 = rt_perf_get(perf, RT_PERF_CYCLES);
-    rt_perf_reset(perf);
+#endif
+% endif
   }
-
-
   dory_dma_deallocate(dory_dma_channel);
 }

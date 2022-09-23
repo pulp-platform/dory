@@ -58,11 +58,19 @@ class Tiler_Add():
         ##### L2 DIMENSIONS DEFINITION: EARLY EXIT ####
         ###############################################
         buffer_total = self.HW_node.tiling_dimensions["L2"]["constants_memory"] + self.HW_node.tiling_dimensions["L2"]["input_activation_memory"] * 2 + self.HW_node.tiling_dimensions["L2"]["output_activation_memory"]
-        # return immediatly if the memory fits the L1  
+        # return immediatly if the memory fits the L1 
+        previous_layer_tiles = 2
+        if self.previous_HW_node.tiling_dimensions["L2"]["output_activation_memory"] == self.previous_HW_node.tiling_dimensions["L1"]["output_activation_memory"] and \
+            self.previous_HW_node.tiling_dimensions["L2"]["input_activation_memory"] == self.previous_HW_node.tiling_dimensions["L1"]["input_activation_memory"]:
+            previous_layer_tiles = 1
+        self.HW_node.previous_layer_tiles = previous_layer_tiles 
         if buffer_total <= L1_memory:
             return ([], self.HW_node.tiling_dimensions["L2"]["input_dimensions"] , self.HW_node.tiling_dimensions["L2"]["output_dimensions"] )
         else:
             db = 2
+            if previous_layer_tiles == 1:
+                print("Error: Add can not be tiled since previous layer was not tiled")
+                os._exit(0)
 
         parameters = pywrapcp.Solver.DefaultSolverParameters()
         solver = pywrapcp.Solver("simple_CP", parameters)

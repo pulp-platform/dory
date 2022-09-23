@@ -160,7 +160,7 @@ class Tiler_Conv2D():
         else:
             constants_tile_dimension = 0
 
-        constraint_all = input_tile_dimension + output_tile_dimension + weight_tile_dimension + constants_tile_dimension + im2col_dimension + weight_full_prec_dimension + 20 
+        constraint_all = self.HW_node.tiling_dimensions["L2"]["bias_memory"] +  input_tile_dimension + output_tile_dimension + weight_tile_dimension + constants_tile_dimension + im2col_dimension + weight_full_prec_dimension + 20 
 
         solver.Add(constraint_all <= L1_memory)
 

@@ -74,7 +74,13 @@ class Tiler_Conv2D():
         out_mem = self.HW_node.tiling_dimensions["L2"]["output_activation_memory"]
         h_in   = self.HW_node.tiling_dimensions["L2"]["input_dimensions"][1]
         h_out   = self.HW_node.tiling_dimensions["L2"]["output_dimensions"][1]
-        # return immediatly if the memory fits the L1 
+        previous_layer_tiles = 2
+        if self.previous_HW_node.tiling_dimensions["L2"]["output_activation_memory"] == self.previous_HW_node.tiling_dimensions["L1"]["output_activation_memory"] and \
+            self.previous_HW_node.tiling_dimensions["L2"]["input_activation_memory"] == self.previous_HW_node.tiling_dimensions["L1"]["input_activation_memory"] and \
+            self.previous_HW_node.tiling_dimensions["L2"]["weight_memory"] == self.previous_HW_node.tiling_dimensions["L1"]["weight_memory"]:
+            previous_layer_tiles = 1
+        self.HW_node.previous_layer_tiles = previous_layer_tiles
+        # return immediatly if the memory fits the L1
         if (in_mem + out_mem) <= L1_memory_activation and weights_mem <= L1_memory_weights:
             return (self.HW_node.tiling_dimensions["L2"]["weights_dimensions"] , [self.HW_node.tiling_dimensions["L2"]["input_dimensions"][0], h_in, self.HW_node.tiling_dimensions["L2"]["input_dimensions"][2]] , [self.HW_node.tiling_dimensions["L2"]["weights_dimensions"][0], h_out, self.HW_node.tiling_dimensions["L2"]["output_dimensions"][2]] )
         else:
@@ -86,95 +92,110 @@ class Tiler_Conv2D():
         ###############################################
         ##### INITIALIZATION OF THE TILING VARS #######
         ###############################################
-        parameters = pywrapcp.Solver.DefaultSolverParameters()
-        solver = pywrapcp.Solver("simple_CP", parameters)
-        tile_n_in =  solver.IntVar(1, in_ch, 'tile_n_in')
-        tile_n_out = solver.IntVar(1, out_ch, 'tile_n_out')
-        tile_h_in =  solver.IntVar(ks[0], inp_dim[0], 'tile_h_in')
-        tile_w_in =  solver.IntVar(ks[1], inp_dim[1], 'tile_w_in')
-        tile_h_out = solver.IntVar(1, out_dim[0], 'tile_h_out')
-        tile_w_out = solver.IntVar(1, out_dim[1], 'tile_w_out')
-        zero_variable = solver.IntVar(0, 0, 'zero_variable')
+        for tile_iteration in np.arange(3):
+            parameters = pywrapcp.Solver.DefaultSolverParameters()
+            solver = pywrapcp.Solver("simple_CP", parameters)
+            tile_n_in =  solver.IntVar(1, in_ch, 'tile_n_in')
+            tile_n_out = solver.IntVar(1, out_ch, 'tile_n_out')
+            tile_h_in =  solver.IntVar(ks[0], inp_dim[0], 'tile_h_in')
+            tile_w_in =  solver.IntVar(ks[1], inp_dim[1], 'tile_w_in')
+            tile_h_out = solver.IntVar(1, out_dim[0], 'tile_h_out')
+            tile_w_out = solver.IntVar(1, out_dim[1], 'tile_w_out')
+            zero_variable = solver.IntVar(0, 0, 'zero_variable')
+            ###############################################
+            ##### ITERATION CONSTRAINTS #################
+            ###############################################
+            # we do not take into account padding, so we have to take it into account also here to be compliant with row 121
+            if tile_iteration == 0:
+                solver.Add(tile_h_out == out_dim[0] - (ks[0] - 1) + (s[0] - 1))
+                solver.Add(tile_w_out == out_dim[1] - (ks[1] - 1) + (s[1] - 1))
+            if tile_iteration == 1:
+                solver.Add(tile_w_out == out_dim[1] - (ks[1] - 1) + (s[1] - 1))
 
-        ###############################################
-        ##### GEOMETRICAL CONSTRAINTS #################
-        ###############################################
-        if g == 1 or (inp_dim[0] > 32 and inp_dim[1] > 32):
-            solver.Add(0 == (tile_h_in - ks[0]) % s[0])
-        if g > 1:
-            solver.Add(tile_n_in == tile_n_out)
-        if g == 1:
-            solver.Add(tile_h_out * s[0] == (tile_h_in - (ks[0] - 1) + (s[0] - 1)))
-            solver.Add(tile_w_out * s[1] == (tile_w_in - (ks[1] - 1) + (s[1] - 1)))
 
-        ###############################################
-        ##### CONSTRAINTS FOR BACKEND LIMITS ##########
-        ###############################################
-        
-        if g == 1:
-            solver.Add(tile_n_in == int(in_ch))
-        
-        ###############################################
-        ##### CONSTRAINTS FOR DIMENSION ###############
-        ###############################################
+            ###############################################
+            ##### GEOMETRICAL CONSTRAINTS #################
+            ###############################################
+            if g == 1 or (inp_dim[0] > 32 and inp_dim[1] > 32):
+                solver.Add(0 == (tile_h_in - ks[0]) % s[0])
+            if g > 1:
+                solver.Add(tile_n_in == tile_n_out)
+            if g == 1:
+                solver.Add(tile_h_out * s[0] == (tile_h_in - (ks[0] - 1) + (s[0] - 1)))
+                solver.Add(tile_w_out * s[1] == (tile_w_in - (ks[1] - 1) + (s[1] - 1)))
 
-        input_tile_dimension  = db * tile_n_in * tile_h_in * tile_w_in * self.HW_node.input_activation_bits // 8
-        output_tile_dimension = db * tile_n_out * tile_h_out * tile_w_out * self.HW_node.output_activation_bits // 8
-        weight_tile_dimension = db * (tile_n_in * tile_n_out * np.prod(ks) * self.HW_node.weight_bits // 8 + tile_n_out * self.HW_node.bias_bits // 8)
+            if previous_layer_tiles == 1:
+                solver.Add(tile_n_in == int(in_ch))
+                solver.Add(tile_w_in == inp_dim[1])
+                solver.Add(tile_h_in == inp_dim[0])
 
-        constraint_all = input_tile_dimension + output_tile_dimension + weight_tile_dimension
+            ###############################################
+            ##### CONSTRAINTS FOR BACKEND LIMITS ##########
+            ###############################################
+            
+            if g == 1:
+                solver.Add(tile_n_in == int(in_ch))
+            
+            ###############################################
+            ##### CONSTRAINTS FOR DIMENSION ###############
+            ###############################################
 
-        solver.Add((input_tile_dimension + output_tile_dimension) <= L1_memory_activation)
-        solver.Add(weight_tile_dimension <= L1_memory_weights)
+            input_tile_dimension  = db * tile_n_in * tile_h_in * tile_w_in * self.HW_node.input_activation_bits // 8
+            output_tile_dimension = db * tile_n_out * tile_h_out * tile_w_out * self.HW_node.output_activation_bits // 8
+            weight_tile_dimension = db * (tile_n_in * tile_n_out * np.prod(ks) * self.HW_node.weight_bits // 8 + tile_n_out * self.HW_node.bias_bits // 8)
 
-        ###############################################
-        ##### HEURISTICS ADDITION #####################
-        ###############################################
-        obj_expr = solver.IntVar(0, 1000000000000, "obj_expr")
-        heuristics = 0
-        ####### Geometrical Shape of Tiles ############
-        heuristics +=  1000000 * ((tile_w_out - 1) % 16) \
-                     + 1000000 * ((tile_n_out - 1) % 16) \
-                     + 1000000 * (tile_w_out * tile_h_out >= 16)
-        # ####### Total Dimension of Tile ###############
-        heuristics += constraint_all
-        ####### Maximization of Reuse of im2col #######
-        heuristics +=  1000000 * tile_w_out
+            constraint_all = input_tile_dimension + output_tile_dimension + weight_tile_dimension
 
-        solver.Add(obj_expr == heuristics)
-        objective = solver.Maximize(obj_expr, 1)
+            solver.Add((input_tile_dimension + output_tile_dimension) <= L1_memory_activation)
+            solver.Add(weight_tile_dimension <= L1_memory_weights)
 
-        decision_builder = solver.Phase([tile_n_in, tile_n_out, tile_h_in, tile_h_out, tile_w_in, tile_w_out],
-                                        solver.CHOOSE_FIRST_UNBOUND,
-                                        solver.ASSIGN_MIN_VALUE)
-        # Create a solution collector.
-        collector = solver.LastSolutionCollector()
-        # Add the decision variables.
-        collector.Add(tile_n_in)
-        collector.Add(tile_n_out)
-        collector.Add(tile_h_in)
-        collector.Add(tile_h_out)
-        collector.Add(tile_w_in)
-        collector.Add(tile_w_out)
-        # Add the objective.
-        collector.AddObjective(obj_expr)
-        solver.Solve(decision_builder, [objective, collector])
-        if collector.SolutionCount() > 0:
-            best_solution = collector.SolutionCount() - 1
-            tile_n_in = collector.Value(best_solution, tile_n_in)
-            tile_n_out = collector.Value(best_solution, tile_n_out)
-            tile_h_in = collector.Value(best_solution, tile_h_in)
-            tile_h_out = collector.Value(best_solution, tile_h_out)
-            tile_w_in = collector.Value(best_solution, tile_w_in)
-            tile_w_out = collector.Value(best_solution, tile_w_out)
-            if tile_h_in >= inp_dim[0]:
-                tile_h_in = inp_dim[0]
-                tile_h_out = int((tile_h_in -(ks[0] - 1) + (p[0] + p[2]) + (s[0] - 1))/s[0])
-            if tile_w_in >= inp_dim[1]:
-                tile_w_in = inp_dim[1]
-                tile_w_out = int((tile_w_in -(ks[1] - 1) + (p[1] + p[3]) + (s[0] - 1))/s[0])
+            ###############################################
+            ##### HEURISTICS ADDITION #####################
+            ###############################################
+            obj_expr = solver.IntVar(0, 1000000000000, "obj_expr")
+            heuristics = 0
+            ####### Geometrical Shape of Tiles ############
+            heuristics +=  1000000 * ((tile_w_out - 1) % 16) \
+                        + 1000000 * ((tile_n_out - 1) % 16) \
+                        + 1000000 * (tile_w_out * tile_h_out >= 16)
+            ####### Minimization of DMA copies #######
+            heuristics +=  1000000 * tile_w_out
+            heuristics +=  100000 * tile_n_out
+            # ####### Total Dimension of Tile ###############
+            heuristics += constraint_all
+            solver.Add(obj_expr == heuristics)
+            objective = solver.Maximize(obj_expr, 1)
 
-            return ([tile_n_out, tile_n_in], [tile_n_in, tile_h_in, tile_w_in], [tile_n_out, tile_h_out, tile_w_out])
+            decision_builder = solver.Phase([tile_n_in, tile_n_out, tile_h_in, tile_h_out, tile_w_in, tile_w_out],
+                                            solver.CHOOSE_FIRST_UNBOUND,
+                                            solver.ASSIGN_MIN_VALUE)
+            # Create a solution collector.
+            collector = solver.LastSolutionCollector()
+            # Add the decision variables.
+            collector.Add(tile_n_in)
+            collector.Add(tile_n_out)
+            collector.Add(tile_h_in)
+            collector.Add(tile_h_out)
+            collector.Add(tile_w_in)
+            collector.Add(tile_w_out)
+            # Add the objective.
+            collector.AddObjective(obj_expr)
+            solver.Solve(decision_builder, [objective, collector])
+            if collector.SolutionCount() > 0:
+                best_solution = collector.SolutionCount() - 1
+                tile_n_in = collector.Value(best_solution, tile_n_in)
+                tile_n_out = collector.Value(best_solution, tile_n_out)
+                tile_h_in = collector.Value(best_solution, tile_h_in)
+                tile_h_out = collector.Value(best_solution, tile_h_out)
+                tile_w_in = collector.Value(best_solution, tile_w_in)
+                tile_w_out = collector.Value(best_solution, tile_w_out)
+                if tile_h_in >= inp_dim[0]:
+                    tile_h_in = inp_dim[0]
+                    tile_h_out = int((tile_h_in -(ks[0] - 1) + (p[0] + p[2]) + (s[0] - 1))/s[0])
+                if tile_w_in >= inp_dim[1]:
+                    tile_w_in = inp_dim[1]
+                    tile_w_out = int((tile_w_in -(ks[1] - 1) + (p[1] + p[3]) + (s[0] - 1))/s[0]) 
+                return ([tile_n_out, tile_n_in], [tile_n_in, tile_h_in, tile_w_in], [tile_n_out, tile_h_out, tile_w_out])
         print("  Conv2d ERROR: no L2-L1 tiling found of layer {} with dimensions {} / {}, input / output channels {} / {}. Exiting...".format(self.HW_node.__dict__["name"], self.HW_node.__dict__["input_dimensions"], self.HW_node.__dict__["output_dimensions"], self.HW_node.__dict__["input_channels"], self.HW_node.__dict__["output_channels"] ))
         os._exit(0)
         return None

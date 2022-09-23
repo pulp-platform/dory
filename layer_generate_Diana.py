@@ -292,8 +292,8 @@ def create_weight(node):
 def create_bias(node):
     low, high = borders(node.bias_bits, signed=True)
     size = (node.output_channels,1)
-    # return torch.randint(low=low, high=high, size=size).flatten()
-    return torch.randint(low=0, high=1, size=size).flatten()
+    #return torch.randint(low=low, high=high, size=size).flatten()
+    return torch.randint(low=0, high=6, size=size).flatten()
 
 def create_conv(i_layer, layer_node, dory_node, network_dir, input=None, weight=None, batchnorm_params=None):
     x = input if input is not None else create_input(layer_node)

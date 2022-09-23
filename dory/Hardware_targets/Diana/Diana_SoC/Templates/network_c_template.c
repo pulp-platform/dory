@@ -110,7 +110,9 @@ void network_alloc()
     }
   }
 % endif
+% if "Analog" in ".".join([DORY_HW_graph[i].name for i in range(len(DORY_HW_graph))]):
   boot_diana();
+% endif
   return 1;
 }
 

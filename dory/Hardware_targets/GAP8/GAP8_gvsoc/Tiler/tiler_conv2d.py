@@ -317,7 +317,6 @@ class Tiler_Conv2D():
         ###############################################
         ##### CONSTRAINTS FOR DIMENSION ###############
         ###############################################
-
         input_tile_dimension  = db * tile_n_in * tile_h_in * tile_w_in * self.HW_node.input_activation_bits // 8
         output_tile_dimension = db * tile_n_out * tile_h_out * tile_w_out * self.HW_node.output_activation_bits // 8
         if g == 1:
@@ -342,7 +341,7 @@ class Tiler_Conv2D():
         else:
             constants_tile_dimension = 0
 
-        constraint_all = input_tile_dimension + output_tile_dimension + weight_tile_dimension + constants_tile_dimension + im2col_dimension + weight_full_prec_dimension + 20 
+        constraint_all = self.HW_node.tiling_dimensions["L2"]["bias_memory"] + input_tile_dimension + output_tile_dimension + weight_tile_dimension + constants_tile_dimension + im2col_dimension + weight_full_prec_dimension + 20 
 
         solver.Add(constraint_all <= L1_memory)
 
