@@ -127,7 +127,7 @@ class Layer_node(DORY_node):
             if name in ["l","k"]:
                 constants_memory+=self.output_channels*self.constant_bits/8
             if "bias" in name:
-                bias_memory+=self.output_channels*self.weight_bits/8
+                bias_memory+=self.output_channels*self.bias_bits/8
         self.add_existing_parameter("bias_memory", int(bias_memory))
         self.add_existing_parameter("constants_memory", int(constants_memory))
 

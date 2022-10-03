@@ -148,6 +148,7 @@ class onnx_manager(Parser_ONNX_to_DORY):
         for i, node in enumerate(self.DORY_Graph):
             node.add_existing_parameter("weight_type", "int")
             node.add_existing_parameter("constant_type", "int")
+            node.add_existing_parameter("bias_bits", 32)
             if i == 0:
                 ty = "int" if self.input_signed else "uint"
                 node.add_existing_parameter("input_activation_type", ty)
