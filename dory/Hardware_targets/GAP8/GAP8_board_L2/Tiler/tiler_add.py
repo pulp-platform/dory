@@ -83,7 +83,7 @@ class Tiler_Add():
         # type of rounding)
         input_tile_dimension  = (db * in_ch * tile_h_in * inp_dim[1] * self.HW_node.input_activation_bits + 7 ) // 8 # the 7 is to account for bit precision of 1, which still occupy an entire byte
         output_tile_dimension = (db * out_ch * tile_h_out * out_dim[1] * self.HW_node.output_activation_bits + 7 ) // 8 # the 7 is to account for bit precision of 1, which still occupy an entire byte
-        constraint_all = input_tile_dimension * 2 + output_tile_dimension
+        constraint_all = input_tile_dimension * int(1 + self.HW_node.second_input_activation_bits/self.HW_node.input_activation_bits) + output_tile_dimension
         solver.Add(constraint_all <= L1_memory)
         # objective
         obj_expr = solver.IntVar(0, 1000000000000, "obj_expr")

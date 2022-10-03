@@ -63,6 +63,7 @@ class Tiler_Add():
         else:
             input_L3 = 0
         buffer_total = self.HW_node.input_activation_memory + self.HW_node.output_activation_memory + self.HW_node.constants_memory
+        
         if (buffer_total <= L2_memory) and input_L3==0:
             return ([], [self.HW_node.input_channels, self.HW_node.input_dimensions[0], self.HW_node.input_dimensions[1]], [self.HW_node.output_channels, self.HW_node.output_dimensions[0], self.HW_node.output_dimensions[1]])
         print("  Add ERROR: no L3-L2 tiling supported. Exiting...")
@@ -86,7 +87,7 @@ class Tiler_Add():
         ###############################################
         ##### L2 DIMENSIONS DEFINITION: EARLY EXIT ####
         ###############################################
-        buffer_total = self.HW_node.tiling_dimensions["L2"]["constants_memory"] + self.HW_node.tiling_dimensions["L2"]["input_activation_memory"] * 2 + self.HW_node.tiling_dimensions["L2"]["output_activation_memory"]
+        buffer_total = self.HW_node.tiling_dimensions["L2"]["constants_memory"] + self.HW_node.tiling_dimensions["L2"]["input_activation_memory"] * int(1 + self.HW_node.second_input_activation_bits/self.HW_node.input_activation_bits) + self.HW_node.tiling_dimensions["L2"]["output_activation_memory"]
         # return immediatly if the memory fits the L1  
         if buffer_total <= L1_memory:
             return ([], self.HW_node.tiling_dimensions["L2"]["input_dimensions"] , self.HW_node.tiling_dimensions["L2"]["output_dimensions"] )
@@ -112,7 +113,7 @@ class Tiler_Add():
         # type of rounding)
         input_tile_dimension  = (db * in_ch * tile_h_in * inp_dim[1] * self.HW_node.input_activation_bits + 7 ) // 8 # the 7 is to account for bit precision of 1, which still occupy an entire byte
         output_tile_dimension = (db * out_ch * tile_h_out * out_dim[1] * self.HW_node.output_activation_bits + 7 ) // 8 # the 7 is to account for bit precision of 1, which still occupy an entire byte
-        constraint_all = input_tile_dimension * 2 + output_tile_dimension
+        constraint_all = input_tile_dimension * int(1 + self.HW_node.second_input_activation_bits/self.HW_node.input_activation_bits) + output_tile_dimension
         solver.Add(constraint_all <= L1_memory)
         # objective
         obj_expr = solver.IntVar(0, 1000000000000, "obj_expr")
