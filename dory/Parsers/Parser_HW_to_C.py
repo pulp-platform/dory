@@ -26,10 +26,12 @@ import os
 import dory.Utils.Templates_writer.Network_template_writer as Network_writer
 import dory.Utils.Templates_writer.Makefile_template_writer as Makefile_writer
 
+from dory.Parsers.HW_node import HW_node
+
 
 class Parser_HW_to_C:
     # Used to manage the ONNX files. By now, supported Convolutions (PW and DW), Pooling, Fully Connected and Relu.
-    def __init__(self, graph, network_directory, HW_description, verbose_level, perf_layer, save_string, app_directory):
+    def __init__(self, graph, network_directory, HW_description, verbose_level, perf_layer, save_string, app_directory, n_inputs = 1):
         self.HWgraph = graph
         self.HW_description = HW_description
         self.verbose_level = verbose_level
@@ -37,6 +39,7 @@ class Parser_HW_to_C:
         self.save_string_for_Makefile = save_string
         self.network_directory = network_directory
         self.app_directory = app_directory
+        self.n_inputs = n_inputs
 
     def adding_numbers_to_layers(self):
         for i, node in enumerate(self.HWgraph):
@@ -98,26 +101,30 @@ class Parser_HW_to_C:
             if weights.shape[0] != 0:
                 string_layer = node.name + "_weights.hex"
                 save_s = '{}/DORY_network/'.format(self.app_directory) + string_layer
-                with open(save_s, 'wb') as f:
-                    for l in weights.astype('uint8').flatten():
-                        f.write(bytes((l,)))
+                weights.astype('uint8').tofile(save_s)
 
-    def create_hex_input(self):    
+    def create_hex_input(self):
         print("\nGenerating .hex input file.")
-        try:
-            x_in = np.loadtxt(os.path.join(self.network_directory, 'input.txt'), delimiter=',', dtype=np.uint8, usecols=[0])
-            x_in = x_in.flatten()
-        except FileNotFoundError:
-            print(f"========= WARNING ==========\nInput file {os.path.join(self.network_directory, 'input.txt')} not found; generating random inputs!")
-            x_in = np.random.randint(low=0, high=2*8 - 1,
-                                     size=self.group * self.input_channels * self.input_dimensions[0] * self.input_dimensions[1],
-                                     dtype=np.uint8)
+        for in_idx in range(self.n_inputs):
+            infile = 'input.txt' if self.n_inputs == 1 else f'input_{in_idx}.txt'
+            try:
+                x_in = np.loadtxt(os.path.join(self.network_directory, infile), delimiter=',', dtype=np.uint8, usecols=[0])
+                x_in = x_in.flatten()
+            except FileNotFoundError:
+                print(f"========= WARNING ==========\nInput file {os.path.join(self.network_directory, 'input.txt')} not found; generating random inputs!")
 
-        string_layer = "inputs.hex"
-        save_s = '{}/DORY_network/'.format(self.app_directory) + string_layer
-        with open(save_s, 'wb') as f:
-            for i in x_in:
-                f.write(bytes((i,)))
+                x_in = np.random.randint(low=0, high=2*8,
+                                         size=self.group * self.input_channels * self.input_dimensions[0] * self.input_dimensions[1],
+                                         dtype=np.uint8)
+
+            in_node = self.HWgraph[0]
+            in_bits = in_node.input_activation_bits
+            if in_bits != 8:
+                x_in = HW_node._compress(x_in, in_bits)
+
+            string_layer = "inputs.hex" if self.n_inputs == 1 else f"inputs_{in_idx}.hex"
+            save_s = '{}/DORY_network/'.format(self.app_directory) + string_layer
+            x_in.astype('uint8').tofile(save_s)
 
     def full_graph_parsing(self):
         print("#####################################################")
@@ -136,4 +143,5 @@ class Parser_HW_to_C:
         self.copy_utils_files()
         self.create_hex_weights_files()
         self.create_hex_input()
+        print("Done!")
 

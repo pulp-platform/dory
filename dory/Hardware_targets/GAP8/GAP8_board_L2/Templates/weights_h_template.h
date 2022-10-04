@@ -18,11 +18,16 @@
  */
 
 #include <hal/pulp.h>
-#include "pulp.h"
+% if sdk == "gap_sdk":
+#include <pulp.h>
+% else:
+#include <pmsis.h>
+% endif
+
 
 % for i in range(len(weights_vectors)):
 % if weights_dimensions[i] > 0:
-L2_DATA uint8_t Weights_${DORY_HW_graph[i].name}[${weights_dimensions[i]}] = {
+${"L2_DATA" if sdk == "gap_sdk" else "PI_L2"} uint8_t Weights_${DORY_HW_graph[i].name}[${weights_dimensions[i]}] = {
 ${weights_vectors[i]}};
 % endif
 % endfor

@@ -231,8 +231,8 @@ def print_template_layer(node, layer_type, tmpl_dir, out_dir, double_buffering =
     dt_W       = node.weight_type
 
     if "Addition" in node.name:
-        ds_x2  = node.input_activation_bits
-        dt_x2  = node.input_activation_type
+        ds_x2  = node.second_input_activation_bits
+        dt_x2  = node.second_input_activation_type
         tk["data_type_x2"] = dt_x2
         tk['x_data_size_byte2'] = ds_x2
         tk["inmul1"] = node.inmul1["value"]
@@ -436,6 +436,9 @@ def print_template_layer(node, layer_type, tmpl_dir, out_dir, double_buffering =
     # only used for avg pool layers
     tk['out_add'] = node.outadd["value"] if 'outadd' in node.constant_names else 0
     tk['out_mul'] = node.outmul["value"] if 'outmul' in node.constant_names else 1
+
+    tk['conv1d'] = node.conv1d
+    tk['dilations'] = node.dilations
 
     if "Addition" not in node.name and "Pool" not in node.name:
         tmpl = Template(filename=os.path.join(tmpl_dir, "layer_L2_c_conv_template.c"))
