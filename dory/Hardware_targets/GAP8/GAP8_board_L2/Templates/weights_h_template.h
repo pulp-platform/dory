@@ -17,12 +17,18 @@
  * limitations under the License. 
  */
 
-#include <hal/pulp.h>
+% if sdk == 'gap_sdk':
 #include "pulp.h"
+% endif
+#include <hal/pulp.h>
 
 % for i in range(len(weights_vectors)):
 % if weights_dimensions[i] > 0:
+% if sdk == 'gap_sdk':
 L2_DATA uint8_t Weights_${DORY_HW_graph[i].name}[${weights_dimensions[i]}] = {
+% elif sdk == 'pulp-sdk':
+PI_L2 uint8_t Weights_${DORY_HW_graph[i].name}[${weights_dimensions[i]}] = {
+% endif
 ${weights_vectors[i]}};
 % endif
 % endfor
