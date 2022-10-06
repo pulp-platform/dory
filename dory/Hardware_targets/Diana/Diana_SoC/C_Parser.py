@@ -38,7 +38,7 @@ file_path = "/".join(os.path.realpath(__file__).split("/")[:-1])
 
 class C_Parser(Parser_HW_to_C):
     # Used to manage the ONNX files. By now, supported Convolutions (PW and DW), Pooling, Fully Connected and Relu.
-    def __init__(self, graph, config_file, config_file_dir, verbose_level, perf_layer, precision_library, app_directory):
+    def __init__(self, graph, config_file, config_file_dir, verbose_level, perf_layer, precision_library, app_directory, n_inputs=1):
         f = open(os.path.join(file_path, "HW_description.json"))
         HW_description = json.load(f)
         self.precision_library = precision_library

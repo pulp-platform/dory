@@ -231,8 +231,8 @@ def print_template_layer(node, layer_type, tmpl_dir, out_dir, double_buffering =
     dt_W       = node.weight_type
 
     if "Addition" in node.name:
-        ds_x2  = node.second_input_activation_bits
-        dt_x2  = node.second_input_activation_type
+        ds_x2  = node.input_activation_bits
+        dt_x2  = node.input_activation_type
         tk["data_type_x2"] = dt_x2
         tk['x_data_size_byte2'] = ds_x2
         tk["inmul1"] = node.inmul1["value"]

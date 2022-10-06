@@ -27,7 +27,7 @@ RUN     git clone https://github.com/GreenWaves-Technologies/gap8_openocd.git &&
         cd /gap_riscv_toolchain_ubuntu_18/gap_sdk && \
         git checkout a3dedd5cd8a680a88d2dca2ab7a4ae65cebf4c8d && \
         pip install -r requirements.txt && \
-        python3 -m pip install -r requirements.txt && \
+        python3 -m pip install -r requirements.txt
 SHELL   ["/bin/bash", "-c"]
 RUN     source sourceme.sh && \
         make minimal && \

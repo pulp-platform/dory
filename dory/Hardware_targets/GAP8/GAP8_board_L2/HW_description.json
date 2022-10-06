@@ -19,8 +19,8 @@
 	},
 	"architecture": "single-core+accelerator",
 	"software development kit": {
-		"name": "pulp-sdk",
-		 "directory": "~/projects/mixed-precision-inference/pulp-sdk"
+		"name": "gap_sdk",
+		"directory": "~/gap_sdk/"
 	},
 	"peak MAC/cycle":
 	{
