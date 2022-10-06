@@ -49,7 +49,11 @@ class Layer_node(DORY_node):
             dimension = activation_tensor.type.tensor_type.shape.dim
             try:
                 Layer_parameters["input_channels"] = dimension[1].dim_value
-                Layer_parameters["input_dimensions"] = [e.dim_value for e in dimension[2:]]
+                dims = [e.dim_value for e in dimension[2:]]
+                # treat 1D convs as 2D convs with H=1
+                if len(dims) == 1:
+                    dims =  [1] + dims
+                Layer_parameters["input_dimensions"] = dims
             except IndexError:
                 ## Needed for some nodes, as Reshape, which does not contain the dimensions informations
                 Layer_parameters["input_channels"] = None
@@ -65,7 +69,10 @@ class Layer_node(DORY_node):
             ## Batch, C, H, W
             dimension = activation_tensor.type.tensor_type.shape.dim
             Layer_parameters["output_channels"] = dimension[1].dim_value
-            Layer_parameters["output_dimensions"] = [e.dim_value for e in dimension[2:]]
+            dims = [e.dim_value for e in dimension[2:]]
+            if len(dims) == 1:
+                dims = [1] + dims
+            Layer_parameters["output_dimensions"] = dims
             ### For FullyConnected layers
             if len(Layer_parameters["output_dimensions"]) == 0:
                 Layer_parameters["output_dimensions"] =  [1, 1]
@@ -120,7 +127,7 @@ class Layer_node(DORY_node):
             if name in ["l","k"]:
                 constants_memory+=self.output_channels*self.constant_bits/8
             if "bias" in name:
-                bias_memory+=self.output_channels*self.weight_bits/8
+                bias_memory+=self.output_channels*self.bias_bits/8
         self.add_existing_parameter("bias_memory", int(bias_memory))
         self.add_existing_parameter("constants_memory", int(constants_memory))
 

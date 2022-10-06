@@ -6,7 +6,7 @@
 # Thorir Mar Ingolfsson <thoriri@iis.ee.ethz.ch>
 #
 # Copyright (C) 2019-2020 University of Bologna
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -22,6 +22,7 @@
 # Libraries
 import json
 import os
+import numpy as np
 
 # DORY modules
 from dory.Frontend_frameworks.Quantlab.Pattern_rewriter import Pattern_rewriter
@@ -35,24 +36,45 @@ class onnx_manager(Parser_ONNX_to_DORY):
     # Used to manage the ONNX files. By now, supported Convolutions (PW and DW), Pooling, Fully Connected and Relu.
 
     def __init__(self, onnx, config_file):
-        layers_accepted = ['Conv', 'Pad', 'Mul', 'Add', 'Div', 'Constant', 'AveragePool', 'GlobalAveragePool', 'MaxPool', 'Cast', 'Clip', 'Floor', 'Flatten', 'Gemm', 'MatMul', 'Shape', 'Gather', 'Unsqueeze', 'Concat', 'Reshape', 'Sigmoid', 'LogSoftmax']
-        layers_neglected = ['Cast', 'Floor', 'Flatten', 'Shape', 'Gather', 'Unsqueeze', 'Concat', 'Reshape', 'Sigmoid', 'LogSoftmax']
+        layers_accepted = ['Conv', 'Pad', 'Mul', 'Add', 'Div', 'Constant', 'AveragePool', 'GlobalAveragePool', 'MaxPool', 'Cast', 'Clip', 'Floor', 'Flatten', 'Gemm', 'MatMul', 'Shape', 'Gather', 'Unsqueeze', 'Squeeze', 'Concat', 'Reshape', 'Sigmoid', 'LogSoftmax']
+        layers_neglected = ['Cast', 'Floor', 'Flatten', 'Shape', 'Gather', 'Unsqueeze', 'Concat', 'Reshape', 'Sigmoid', 'LogSoftmax', 'Squeeze']
         layers_to_node = ['AveragePool', 'MaxPool', 'Conv', 'Gemm', 'MatMul', 'GlobalAveragePool']
-        f = open(os.path.join(file_path, "rules.json"))
-        rules = json.load(f)
+        with open(os.path.join(file_path, "rules.json"), 'r') as f:
+            rules = json.load(f)
         self.BNRelu_bits = config_file["BNRelu_bits"]
+        try:
+            self.input_signed = config_file["input_signed"]
+            self.input_bits = config_file["input_bits"]
+        except KeyError:
+            print("'input_signed' and/or 'input_bits' not found in network configuration JSON - setting input format to uint8!")
+            self.input_signed = False
+            self.input_bits = 8
+        try:
+            self.n_test_inputs = config_file["n_inputs"]
+        except KeyError:
+            self.n_test_inputs = 1
         super().__init__(onnx, rules, layers_accepted, layers_neglected, layers_to_node)
 
     def frontend_mapping_to_DORY_nodes(self):
         print("\nQuantlab Frontend: Matching patterns from generated ONNX to DORY.")
+        for node in self.DORY_Graph:
+            node.add_existing_parameter('n_test_inputs', self.n_test_inputs)
         for i, node in enumerate(self.DORY_Graph):
             string_matching, indexes = self.pattern_matching(node, i)
             if isinstance(string_matching, str):
                 self.DORY_Graph = Pattern_rewriter(self.DORY_Graph).execute(string_matching, indexes)
-        print("\nQuantlab Frontend: Updating Add nodes with constants.")
+        print("\nQuantlab Frontend: Updating Add nodes with constants, adding 'conv1d' flags and extending 1D parameters to 2D.")
         for i, node in enumerate(self.DORY_Graph):
+            if "Conv" in node.name:
+                if len(node.kernel_shape) == 1:
+                    node.conv1d = 1
+                    node.kernel_shape = [1] + node.kernel_shape
+                    node.dilations = [1] + node.dilations
+                    node.strides = [1] + node.strides
+                else:
+                    node.conv1d = 0
             if "Addition" in node.name:
-                ## output parameters 
+                ## output parameters
                 node.outshift = {}
                 node.outshift["value"] = node.out_shift
                 node.outshift["layout"] = ""
@@ -114,20 +136,23 @@ class onnx_manager(Parser_ONNX_to_DORY):
                 # removing irrelevant parameters
                 delattr(node, 'in2_n_levels')
                 delattr(node, 'in2_rq')
-                delattr(node, 'out_n_levels')
+                #delattr(node, 'out_n_levels')
                 delattr(node, 'out_rq')
                 delattr(node, 'in1_n_levels')
                 delattr(node, 'in1_rq')
-        
+
+
     def add_nodes_precision(self):
         print("\nQuantlab Frontend: Adding Bit and Types to Nodes.")
         # Right now, the precision is fixed. We can extract it from either the original onnx graph or from a json.
         for i, node in enumerate(self.DORY_Graph):
             node.add_existing_parameter("weight_type", "int")
             node.add_existing_parameter("constant_type", "int")
+            node.add_existing_parameter("bias_bits", 32)
             if i == 0:
-                node.add_existing_parameter("input_activation_type", "uint")
-                node.add_existing_parameter("input_activation_bits", 8)
+                ty = "int" if self.input_signed else "uint"
+                node.add_existing_parameter("input_activation_type", ty)
+                node.add_existing_parameter("input_activation_bits", self.input_bits)
             else:
                 for previous_nodes in self.DORY_Graph:
                     if previous_nodes.output_index == self.DORY_Graph[i].input_indexes[0]:
@@ -139,8 +164,9 @@ class onnx_manager(Parser_ONNX_to_DORY):
                             node.second_input_activation_type = previous_nodes.output_activation_type
                             node.second_input_activation_bits = previous_nodes.output_activation_bits
             if node.name in ["Addition"]:
-                node.add_existing_parameter("output_activation_bits", node.add_bits)
+                node.add_existing_parameter("output_activation_bits", int(np.log2(node.out_n_levels)))
                 delattr(node, "add_bits")
+                delattr(node, "out_n_levels")
                 node.add_existing_parameter("output_activation_type", self.DORY_Graph[i].input_activation_type)
             if node.name in ["Convolution", "FullyConnected"]:
                 node.add_existing_parameter("output_activation_bits", 32)
@@ -167,6 +193,3 @@ class onnx_manager(Parser_ONNX_to_DORY):
                 else:
                     node.__dict__[weights_name]["layout"] = "CoutCinK"
             node.layout = "CHW"
-
-
-

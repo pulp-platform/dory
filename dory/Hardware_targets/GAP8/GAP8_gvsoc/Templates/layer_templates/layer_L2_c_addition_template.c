@@ -187,7 +187,7 @@ void ${func_name}(
       DMA_copy_x.length_1d_copy = x_length_nif_byte;
       dory_dma_memcpy_async(DMA_copy_x);
 
-      DMA_copy_x2.ext = dory_get_tile_3d(l2_x2, _i_h_load, _i_w_load, _i_nif_load, ${x_tile_size_h}, ${x_tile_size_w}, ${x_tile_size_nif}, ${x_w}, ${nif},  ${conv_overlap1}, ${conv_overlap2},0, 0, 0, 0, ${x_data_size_byte});
+      DMA_copy_x2.ext = dory_get_tile_3d(l2_x2, _i_h_load, _i_w_load, _i_nif_load, ${x_tile_size_h}, ${x_tile_size_w}, ${x_tile_size_nif}, ${x_w}, ${nif},  ${conv_overlap1}, ${conv_overlap2},0, 0, 0, 0, ${x_data_size_byte2});
       DMA_copy_x2.loc = (l1_buffer + ${l1_x2_offset}) + db_x;
       DMA_copy_x2.number_of_2d_copies = x_tile_size_h;
       DMA_copy_x2.number_of_1d_copies = x_tile_size_w;

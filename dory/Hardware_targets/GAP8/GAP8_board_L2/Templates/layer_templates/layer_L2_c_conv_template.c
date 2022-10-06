@@ -280,7 +280,9 @@ void ${func_name}(
   % elif flag_DW == 0 and optional_type == '8bit' and y_data_size_byte == 32 and ('FullyConnected' in func_name):
     pulp_nn_linear_out_32( 
   % elif flag_DW == 0 and optional_type == '8bit' and ('FullyConnected' in func_name):
-    pulp_nn_linear( 
+    pulp_nn_linear(
+  % elif flag_DW == 0 and optional_type == 'mixed-hw' and conv1d:
+    xpulp_nn_conv1d_${data_type_x[0]}${x_data_size_byte}_${data_type_y[0]}${y_data_size_byte}_${data_type_weights[0]}${W_data_size_byte}(
   % elif flag_DW == 0 and 'mixed' in optional_type  and ('Conv' in func_name):
     ${"x" if 'hw' in optional_type else ""}pulp_nn_conv_${data_type_x[0]}${x_data_size_byte}_${data_type_y[0]}${y_data_size_byte}_${data_type_weights[0]}${W_data_size_byte}(
   % elif flag_DW == 0 and 'mixed' in optional_type  and ('Gemm' in func_name or 'MatMul' in func_name or 'FullyConnected' in func_name) and y_data_size_byte == 32:
@@ -311,8 +313,8 @@ void ${func_name}(
         % if FLAG_RELU == 1:
       out_mult, out_shift,
         % else:
-        1, out_shift,
-        % endif
+      1, out_shift,
+      % endif
       % endif
       x_tile_size_nif, y_tile_size_nof${"," if y_data_size_byte != 32 else ""}
       % if y_data_size_byte != 32:
@@ -336,10 +338,11 @@ void ${func_name}(
       0, 0,
       % endif
       out_mult, out_shift,
-      x_tile_size_w, x_tile_size_h, x_tile_size_nif,
-      y_tile_size_w, y_tile_size_h, y_tile_size_nof,
-      ${fs2}, ${fs1},
-      p_t, p_b, p_l, p_r, ${stride}, ${stride},
+      x_tile_size_w${", x_tile_size_h" if not conv1d else ""}, x_tile_size_nif,
+      y_tile_size_w${", y_tile_size_h" if not conv1d else ""}, y_tile_size_nof,
+      ${fs2},${f"{ fs1}," if not conv1d else ""}
+      ${f"p_t, p_b, " if not conv1d else ""} p_l, p_r, ${stride}${f", {stride}" if not conv1d else ""},
+      ${f"{dilations[1]}," if conv1d else ""}
       ${FLAG_RELU}, ${FLAG_BATCHNORM}
       );
   % endif

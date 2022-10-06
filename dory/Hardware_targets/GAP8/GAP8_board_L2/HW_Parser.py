@@ -35,7 +35,7 @@ file_path = "/".join(os.path.realpath(__file__).split("/")[:-1])
 
 class onnx_manager(Parser_DORY_to_HW):
     # Used to manage the ONNX files. By now, supported Convolutions (PW and DW), Pooling, Fully Connected and Relu.
-    def __init__(self, graph, config_file, config_file_dir):
+    def __init__(self, graph, config_file, config_file_dir, n_inputs=1):
         layers_supported_by_HW_Backend_IR = ["Convolution", "Pooling", "FullyConnected", "Addition", "QAddition"]
         layers_supported_by_HW_Backend_IR+= ["ReluConvolution", "ReluPooling", "ReluFullyConnected", "ReluAddition", "ReluQAddition"]
         layers_supported_by_HW_Backend_IR+= ["BNReluConvolution", "RequantPooling", "BNReluFullyConnected", "BNReluAddition", "BNReluQAddition"]
@@ -44,7 +44,7 @@ class onnx_manager(Parser_DORY_to_HW):
         with open(os.path.join(file_path, "HW_description.json")) as f:
             HW_description = json.load(f)
         super().__init__(graph, rules, Pattern_rewriter, layers_supported_by_HW_Backend_IR, HW_description,
-                         os.path.join(config_file_dir, os.path.dirname(config_file["onnx_file"])), config_file, Tiler)
+                         os.path.join(config_file_dir, os.path.dirname(config_file["onnx_file"])), config_file, Tiler, n_inputs)
 
     def adjust_data_layout(self):
         print("\nGAP8 Backend: Adjusting Data Layout to HWC and CoutKCin.")
@@ -59,7 +59,8 @@ class onnx_manager(Parser_DORY_to_HW):
                     node.__dict__[weights_name]["layout"] = "CoutCin"
                 if i != 0 and self.DORY_Graph[i-1].layout == "CHW":
                     temp = node.__dict__[weights_name]["value"]
-                    temp = temp.reshape(node.output_channels, self.DORY_Graph[i-1].output_channels, self.DORY_Graph[i-1].get_parameter('output_dimensions')[0], self.DORY_Graph[i-1].get_parameter('output_dimensions')[1])
+                    prev_node = self.DORY_Graph[i-1]
+                    temp = temp.reshape(node.output_channels, prev_node.output_channels, prev_node.output_dimensions[0], prev_node.output_dimensions[1])
                     temp = np.transpose(temp, (0, 2, 3, 1))
                     temp = temp.flatten()
                     node.__dict__[weights_name]["value"] = temp
@@ -70,7 +71,10 @@ class onnx_manager(Parser_DORY_to_HW):
                         if "bias" not in name:
                             weights_name = name
                 if node.__dict__[weights_name]["layout"] == "CoutCinK":
-                    node.__dict__[weights_name]["value"] = np.transpose(node.__dict__[weights_name]["value"], (0, 2, 3, 1))
+                    if node.conv1d:
+                        node.__dict__[weights_name]["value"] = node.__dict__[weights_name]["value"][:,:,None,:]
+                    transp = (0,2,3,1)
+                    node.__dict__[weights_name]["value"] = np.transpose(node.__dict__[weights_name]["value"], transp)
                     node.__dict__[weights_name]["layout"] = "CoutKCin"
 
     def check_parameters(self):
