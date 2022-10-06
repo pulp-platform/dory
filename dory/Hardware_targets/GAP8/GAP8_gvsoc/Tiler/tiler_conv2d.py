@@ -208,6 +208,7 @@ class Tiler_Conv2D():
                 tile_h_in = collector.Value(best_solution, tile_h_in)
                 tile_h_out = collector.Value(best_solution, tile_h_out)
                 return ([tile_n_out, in_ch], [in_ch, tile_h_in, inp_dim[1]], [out_ch, tile_h_out, out_dim[1]])
+        import pdb;pdb.set_trace()
         print("  Conv2d ERROR: no L3-L2 tiling found. Exiting...")
         os._exit(0)
         return None
