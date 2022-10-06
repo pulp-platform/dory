@@ -17,5 +17,9 @@
  * limitations under the License. 
  */
 
-${"L2_DATA" if sdk == "gap_sdk" else "PI_L2"} uint8_t L2_input_h[${dimension}] = {
+% if sdk == 'gap_sdk':
+L2_DATA uint8_t L2_input_h[${dimension}] = {
+% elif sdk == 'pulp-sdk':
+PI_L2 uint8_t L2_input_h[${dimension}] = {
+% endif
 ${input_values}};
