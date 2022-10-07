@@ -103,10 +103,14 @@ class onnx_manager(Parser_ONNX_to_DORY):
             elif node.name in ["Addition"]:
                 node.add_existing_parameter("output_activation_bits", 32)
                 node.add_existing_parameter("input_activation_bits", 32)
+                node.add_existing_parameter("second_input_activation_bits", 32)
+                node.add_existing_parameter("second_input_activation_type", "uint")
             elif node.name in ["QAddition"]:
                 node.add_existing_parameter("constant_bits", self.BNRelu_bits)
                 node.add_existing_parameter("output_activation_bits", 8)
                 node.add_existing_parameter("input_activation_bits", 8)
+                node.add_existing_parameter("second_input_activation_bits", 8)
+                node.add_existing_parameter("second_input_activation_type", "uint")
             elif node.name in ["Pooling"]:
                 node.add_existing_parameter("output_activation_bits", 8)
                 node.add_existing_parameter("input_activation_bits", 8)

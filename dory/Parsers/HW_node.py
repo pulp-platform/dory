@@ -168,9 +168,9 @@ class HW_node(DORY_node):
                     try:
                         x = np.loadtxt(os.path.join(load_directory, infile), delimiter=',', dtype=np.uint8, usecols=[0])
                     except ValueError:
-                        x = np.loadtxt(os.path.join(load_directory, infile), delimiter=',', dtype=np.float, usecols=[0])
+                        x = np.loadtxt(os.path.join(load_directory, infile), delimiter=',', dtype=np.float, usecols=[0]).astype(np.int64)
                     x = x.ravel()
-                    if self.input_activation_bits < 8:
+                    if self.input_activation_bits <= 8:
                         x = self._compress(x, self.input_activation_bits)
                 except FileNotFoundError:
                     print("========= WARNING ==========")
@@ -183,7 +183,7 @@ class HW_node(DORY_node):
                 try:
                     x = np.loadtxt(os.path.join(load_directory, infile), delimiter=',', dtype=np.int64, usecols=[0])
                 except ValueError:
-                    x = np.loadtxt(os.path.join(load_directory, infile), delimiter=',', dtype=np.float, usecols=[0])
+                    x = np.loadtxt(os.path.join(load_directory, infile), delimiter=',', dtype=np.float, usecols=[0]).astype(np.int64)
                 if self.input_activation_bits <= 8:
                     x = self._compress(x.ravel(), self.input_activation_bits)
 
@@ -192,7 +192,7 @@ class HW_node(DORY_node):
             try:
                 y = np.loadtxt(os.path.join(load_directory, outfile), delimiter=',', dtype=np.int64, usecols=[0])
             except ValueError:
-                y = np.loadtxt(os.path.join(load_directory, outfile), delimiter=',', dtype=np.float, usecols=[0])
+                y = np.loadtxt(os.path.join(load_directory, outfile), delimiter=',', dtype=np.float, usecols=[0]).astype(np.int64)
 
             if self.output_activation_bits <= 8:
                 y = self._compress(y.ravel(), self.output_activation_bits)

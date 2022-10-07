@@ -44,6 +44,16 @@ networks = [
             {
                 'frontend': 'Quantlab',
                 'target': 'GAP8.GAP8_gvsoc',
+                'conf_file': './dory/dory_examples/config_files/config_Quantlab_MV1_fast_xpnn.json',
+                'optional': 'mixed-hw'
+            },
+        "checksum_final": 'Ok'
+    },
+    {
+        "network_args":
+            {
+                'frontend': 'Quantlab',
+                'target': 'GAP8.GAP8_gvsoc',
                 'conf_file': './dory/dory_examples/config_files/config_Quantlab_MV1_8bits.json',
                 'optional': 'mixed-sw'
             },
