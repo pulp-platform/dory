@@ -180,7 +180,7 @@ static int check_activations_out[${len(DORY_HW_graph)}][${DORY_HW_graph[0].n_tes
   % for j in range(DORY_HW_graph[0].n_test_inputs):
   ${DORY_HW_graph[i].check_sum_out[j]}${", " if j != DORY_HW_graph[0].n_test_inputs-1 else ""} \
     % endfor
-                                        }${"," if i != len(DORY_HW_graph)-1 else ""}
+}${"," if i != len(DORY_HW_graph)-1 else ""}
 % endfor
 };
 static int check_activations_out_dimension[${len(DORY_HW_graph)}] = {\

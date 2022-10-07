@@ -46,10 +46,12 @@ class DORY_node:
         self.bias_bits = None
         self.output_activation_bits = None
         self.input_activation_bits = None
+        self.second_input_activation_bits = None
         self.weight_type = None
         self.constant_type = None
         self.output_activation_type = None
         self.input_activation_type = None
+        self.second_input_activation_type = None
         self.n_test_inputs = None
         self.conv1d = None
         self.min = None
