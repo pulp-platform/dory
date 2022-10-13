@@ -27,13 +27,13 @@ jobs:
     needs: [build]
     container:
         image: alessioburrello/aleburrello:latest
-        options: --user root
         volumes:
           - ${{ github.workspace }}:/dory_checkout
     steps:
       - uses: actions/checkout@v3
       - name: Run experiments
         run: |
+          source /dory_env/bin/activate
           cd /gap_riscv_toolchain_ubuntu_18/gap_sdk
           source configs/gapuino_v3.sh
           cd /dory_checkout
