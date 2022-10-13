@@ -110,6 +110,11 @@ class Layer_node(DORY_node):
         if 'Global' in node_iterating.name:
             Layer_parameters['kernel_shape'] = Layer_parameters['input_dimensions']
             Layer_parameters['strides'] = [1, 1]
+        #### Adding control for layers with g > 1. Only DW (groups = input channels = output channels) and g=1 supported.
+        if Layer_parameters['group'] > 1:
+            if not (Layer_parameters['group'] == Layer_parameters["output_channels"] == Layer_parameters["input_channels"]):
+                print(" Depthwise convolution with input channels != output channels != groups")
+                os._exit(0)
         self.add_existing_dict_parameter(Layer_parameters)
 
     def add_memory_and_MACs(self):

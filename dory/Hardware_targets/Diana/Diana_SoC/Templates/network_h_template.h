@@ -89,7 +89,7 @@ ${int(DORY_HW_graph[i].tiling_dimensions["L2"]["weight_memory"] + DORY_HW_graph[
 };
 static int check_activations[${len(DORY_HW_graph)}] = {\
 % for i in range(len(DORY_HW_graph)):
-${DORY_HW_graph[i].check_sum_in}${'' if loop.last else ', '}\
+${DORY_HW_graph[i].check_sum_in[0]}${'' if loop.last else ', '}\
 % endfor
 };
 static int check_activations_dimension[${len(DORY_HW_graph)}] = {\
@@ -108,7 +108,7 @@ ${DORY_HW_graph[i].outshift["value"]}${'' if loop.last else ', '}\
 };
 static int check_activations_out[${len(DORY_HW_graph)}] = {\
 % for i in range(len(DORY_HW_graph)):
-${DORY_HW_graph[i].check_sum_out}${'' if loop.last else ', '}\
+${DORY_HW_graph[i].check_sum_out[0]}${'' if loop.last else ', '}\
 % endfor
 };
 static int check_activations_out_dimension[${len(DORY_HW_graph)}] = {\

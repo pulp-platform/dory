@@ -121,6 +121,10 @@ def create_layer_conv(params, index, index_out):
     node.output_index = str(index_out)
     # Constants: weights
     node.number_of_input_constants = 1
+    if node.group > 1:
+        if not (node.group == node.output_channels == node.input_channels):
+            print(" Depthwise convolution with input channels != output channels != groups")
+            os._exit(0)
     return node
 
 def create_layer_add(params, index_1, index_2, index_out):
@@ -282,9 +286,16 @@ def create_weight(node):
         low, high = -1, 2
     size = (node.output_channels, node.input_channels // node.group, node.kernel_shape[0], node.kernel_shape[1])
     if node.weight_bits == 2:
-        x = torch.randint(low=0, high=1, size=(int(size[0]/2), size[1], size[2], size[3]))
-        y = torch.randint(low=1, high=2, size=(int(size[0]/2), size[1], size[2], size[3]))
-        return torch.cat((x, y), 0)
+        increasing_factor = (node.input_channels // node.group * node.kernel_shape[0] * node.kernel_shape[1] ) // node.output_channels
+        vec_weights = torch.tensor([])
+        for i in np.arange(node.output_channels):
+            ones = torch.ones((i + 1) * increasing_factor, 1)
+            zeros = torch.zeros((node.input_channels // node.group * node.kernel_shape[0] * node.kernel_shape[1] ) - (i + 1) * increasing_factor, 1)
+            column = torch.cat((ones, zeros), 0)
+            vec_weights = torch.cat((vec_weights, column), 1)
+        vec_weights = vec_weights.transpose(0, 1)
+        vec_weights = vec_weights.reshape(size)
+        return vec_weights
     else:
         return torch.randint(low=low, high=high, size=size)
     # return torch.randint(low=0, high=3, size=size)
@@ -293,7 +304,7 @@ def create_bias(node):
     low, high = borders(node.bias_bits, signed=True)
     size = (node.output_channels,1)
     #return torch.randint(low=low, high=high, size=size).flatten()
-    return torch.randint(low=0, high=6, size=size).flatten()
+    return torch.randint(low=0, high=1, size=size).flatten()
 
 def create_conv(i_layer, layer_node, dory_node, network_dir, input=None, weight=None, batchnorm_params=None):
     x = input if input is not None else create_input(layer_node)
@@ -372,7 +383,7 @@ def create_graph(params, network_dir,number_of_nodes):
     layers = []
     index_layer = 0
     for index in np.arange(number_of_nodes):
-        if params[index]['layer_type'] == "Convolution":
+        if params[index]['layer_type'] in ["Convolution", "FullyConnected"]:
             increment = index_layer + 1
             if index > 0:
                 if params[index-1]['branch_change'] == 1:

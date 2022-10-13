@@ -82,6 +82,7 @@ class C_Parser(Parser_HW_to_C):
                     if node.get_parameter('weight_bits') < 8:
                         precision_library = 'ternary'
             self.copy_backend_files(node)
+            node.skip_L2_L1 = False
             h_layer, c_layer = Layer2D_writer.print_template_layer(node, precision_library, tmpl_dir, out_dir, 1)
             h_files.append(h_layer)
             c_files.append(c_layer)

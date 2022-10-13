@@ -116,13 +116,12 @@ class Tiler_Conv2D():
             ###############################################
             ##### GEOMETRICAL CONSTRAINTS #################
             ###############################################
-            if g == 1 or (inp_dim[0] > 32 and inp_dim[1] > 32):
-                solver.Add(0 == (tile_h_in - ks[0]) % s[0])
+            solver.Add(0 == (tile_h_in - ks[0]) % s[0])
+            solver.Add(tile_h_out * s[0] == (tile_h_in - (ks[0] - 1) + (s[0] - 1)))
+            solver.Add(tile_w_out * s[1] == (tile_w_in - (ks[1] - 1) + (s[1] - 1)))
+
             if g > 1:
                 solver.Add(tile_n_in == tile_n_out)
-            if g == 1:
-                solver.Add(tile_h_out * s[0] == (tile_h_in - (ks[0] - 1) + (s[0] - 1)))
-                solver.Add(tile_w_out * s[1] == (tile_w_in - (ks[1] - 1) + (s[1] - 1)))
 
             if previous_layer_tiles == 1:
                 solver.Add(tile_n_in == int(in_ch))
@@ -139,10 +138,9 @@ class Tiler_Conv2D():
             ###############################################
             ##### CONSTRAINTS FOR DIMENSION ###############
             ###############################################
-
             input_tile_dimension  = db * tile_n_in * tile_h_in * tile_w_in * self.HW_node.input_activation_bits // 8
             output_tile_dimension = db * tile_n_out * tile_h_out * tile_w_out * self.HW_node.output_activation_bits // 8
-            weight_tile_dimension = db * (tile_n_in * tile_n_out * np.prod(ks) * self.HW_node.weight_bits // 8 + tile_n_out * self.HW_node.bias_bits // 8)
+            weight_tile_dimension = db * (tile_n_in * tile_n_out * np.prod(ks) * self.HW_node.weight_bits // 8 // g + (1 if self.HW_node.weight_bits == 8 else 0) * tile_n_out * self.HW_node.bias_bits // 8)
 
             constraint_all = input_tile_dimension + output_tile_dimension + weight_tile_dimension
 
@@ -154,10 +152,20 @@ class Tiler_Conv2D():
             ###############################################
             obj_expr = solver.IntVar(0, 1000000000000, "obj_expr")
             heuristics = 0
-            ####### Geometrical Shape of Tiles ############
-            heuristics +=  1000000 * ((tile_w_out - 1) % 16) \
-                        + 1000000 * ((tile_n_out - 1) % 16) \
-                        + 1000000 * (tile_w_out * tile_h_out >= 16)
+            ### Maximization of Hardware Accelerator #####
+            if g == 1 and self.HW_node.weight_bits == 8:
+                heuristics += 1000000 * ((tile_w_out - 1) % 16) \
+                            + 1000000 * ((tile_n_out - 1) % 16) \
+                            + 1000000 * (tile_w_out * tile_h_out >= 16)
+            elif g > 1 and self.HW_node.weight_bits == 8:
+                heuristics += 1000000 * ((tile_w_out - 1) % 16) \
+                            + 1000000 * (tile_w_out * tile_h_out >= 16)
+            elif g == 1 and self.HW_node.weight_bits == 2:
+                heuristics += 1000000 * ((tile_n_in - 1) % 128) \
+                            + 1000000 * ((tile_n_out - 1) % 512) 
+            elif g > 1 and self.HW_node.weight_bits == 2:
+                ### TO DO: I THINK IT IS USELESS
+                pass
             ####### Minimization of DMA copies #######
             heuristics +=  1000000 * tile_w_out
             heuristics +=  100000 * tile_n_out
