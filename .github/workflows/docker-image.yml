@@ -28,7 +28,7 @@ jobs:
     container:
         image: alessioburrello/aleburrello:latest
         volumes:
-          - $GITHUB_WORKSPACE:/dory_checkout
+          - ${{ github.workspace }}:/dory_checkout
     steps:
       - uses: actions/checkout@v3
       - name: Run experiments
