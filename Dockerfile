@@ -49,6 +49,7 @@ RUN     source /dory_env/bin/activate && \
         unzip riscv-nn-toolchain
 # DORY REPO INIT - CI USES THE ${GITHUB_WORKSPACE} VOLUME AT /dory_checkout!!!!
 WORKDIR /gap_riscv_toolchain_ubuntu_18/gap_sdk/
+SHELL   ["/bin/bash", "-c"]
 RUN     source /dory_env/bin/activate && \
         git clone https://github.com/pulp-platform/dory && \
         cd /gap_riscv_toolchain_ubuntu_18/gap_sdk/dory/ && \
