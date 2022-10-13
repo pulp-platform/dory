@@ -12,6 +12,16 @@ from network_generate import network_generate
 
 networks = [
     {
+            "network_args":
+            {
+                'frontend': 'Quantlab',
+                'target': 'GAP8.GAP8_gvsoc',
+                'conf_file': './dory/dory_examples/config_files/config_Quantlab_MV1_fast_xpnn.json',
+                'optional': 'mixed-hw'
+            },
+            "checksum_final": 'Ok'
+    },
+    {
         "network_args":
             {
                 'frontend': 'NEMO',
@@ -36,16 +46,6 @@ networks = [
                 'target': 'GAP8.GAP8_gvsoc',
                 'conf_file': './dory/dory_examples/config_files/config_Quantlab_MV1_4bits.json',
                 'optional': 'mixed-sw'
-            },
-        "checksum_final": 'Ok'
-    },
-    {
-        "network_args":
-            {
-                'frontend': 'Quantlab',
-                'target': 'GAP8.GAP8_gvsoc',
-                'conf_file': './dory/dory_examples/config_files/config_Quantlab_MV1_fast_xpnn.json',
-                'optional': 'mixed-hw'
             },
         "checksum_final": 'Ok'
     },
@@ -91,6 +91,8 @@ networks = [
     }
 ]
 
+
+
 regex = re.compile(r'Checksum final :\s*(.*)$', re.MULTILINE)
 regex_cycles = re.compile(r'num_cycles:\s*(.*)$', re.MULTILINE)
 regex_MACs = re.compile(r'MACs:\s*(.*)$', re.MULTILINE)
@@ -100,11 +102,29 @@ def output_test(output, checksum_final):
     return match.group(1) == checksum_final
 
 
-@pytest.mark.parametrize('network', networks)
-def test_network(network, capsys):
-    args = network['network_args']
-    checksum_final = network['checksum_final']
+# check if a network is compatible with the specified SDK (must be gap-sdk or
+# pulp-sdk)
+def check_compat(net_args : dict, compat : str):
+    if compat == 'pulp-sdk':
+        # pulp-sdk can handle everything
+        return True
 
+    try:
+        optional = net_args['optional']
+    except KeyError:
+        optional = 'auto'
+
+    return not (optional == 'mixed-hw')
+
+
+@pytest.mark.parametrize('network', networks)
+def test_network(network, capsys, compat):
+    args = network['network_args']
+    if not check_compat(args, compat):
+        with capsys.disabled():
+            print(f"Skipping network with conf_file {args['conf_file']} as it is not compatible with SDK {compat}")
+        return
+    checksum_final = network['checksum_final']
     network_generate(**args)
 
     cmd = ['make', '-C', 'application', 'clean', 'all', 'run', 'platform=gvsoc', 'CORE=8']
@@ -127,4 +147,3 @@ def test_network(network, capsys):
         with capsys.disabled():
             print(f'{preamble.ljust(40)}, Failed')
         #print(f'{preamble} Makefile output:\n {proc.stdout}')
-        

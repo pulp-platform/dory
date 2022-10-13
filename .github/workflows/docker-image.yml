@@ -26,16 +26,19 @@ jobs:
     needs: [build]
     container:
         image: alessioburrello/aleburrello:latest
+        volumes:
+          - ${GITHUB_WORKSPACE}:/dory_checkout
     steps:
       - uses: actions/checkout@v3
       - name: Run experiments
         run: |
           cd /gap_riscv_toolchain_ubuntu_18/gap_sdk
           source configs/gapuino_v3.sh
-          cd dory
-          python3 -m pip install pytest
-          python3 -m pip install Pygments
-          python3 -m pip install MarkupSafe
-          python3 -m pytest -x test_GAP8.py
+          cd /dory_checkout
+          python3 -m pytest -x test_GAP8.py --compat "gap-sdk"
+          echo $?
+          source /pulp-sdk/configs/pulp-open-nn.sh
+          export PULP_RISCV_GCC_TOOLCHAIN=/riscv-nn-toolchain/
+          python3 -m pytest -x test_GAP8.py --compat "pulp-sdk"
           echo $?
         shell: bash
