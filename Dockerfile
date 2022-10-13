@@ -7,7 +7,7 @@ RUN     apt-get update && \
         apt-get install -y python3.8 && \
         update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.8 1 && \
         apt-get install -y python-pip && \
-        apt-get install -y python3-venv && \
+        apt-get install -y python3.8-venv && \
         DEBIAN_FRONTEND="noninteractive" apt-get install -y build-essential git libftdi-dev libftdi1 doxygen python3-pip libsdl2-dev curl cmake libusb-1.0-0-dev scons gtkwave libsndfile1-dev rsync autoconf automake texinfo libtool pkg-config libsdl2-ttf-dev wget unzip graphicsmagick-libmagick-dev-compat sed
 
 #RUN     stat /etc/udev/
