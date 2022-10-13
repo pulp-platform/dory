@@ -1,5 +1,5 @@
 FROM    ubuntu:bionic
-
+SHELL   ["/bin/bash", "-c"]
 RUN     apt-get update && \
         apt-get install -y software-properties-common && \
         apt-add-repository universe && \
@@ -31,7 +31,6 @@ RUN     python3 -m venv /dory_env && \
         cd gap_sdk && \        
         git checkout a3dedd5cd8a680a88d2dca2ab7a4ae65cebf4c8d && \
         python3 -m pip install -r requirements.txt
-SHELL   ["/bin/bash", "-c"]
 RUN     source /dory_env/bin/activate && \
         cd /gap_riscv_toolchain_ubuntu_18/gap_sdk && \
         source sourceme.sh && \
@@ -49,7 +48,6 @@ RUN     source /dory_env/bin/activate && \
         unzip riscv-nn-toolchain
 # DORY REPO INIT - CI USES THE ${GITHUB_WORKSPACE} VOLUME AT /dory_checkout!!!!
 WORKDIR /gap_riscv_toolchain_ubuntu_18/gap_sdk/
-SHELL   ["/bin/bash", "-c"]
 RUN     source /dory_env/bin/activate && \
         git clone https://github.com/pulp-platform/dory && \
         cd /gap_riscv_toolchain_ubuntu_18/gap_sdk/dory/ && \
