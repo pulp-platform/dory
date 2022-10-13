@@ -27,6 +27,7 @@ jobs:
     needs: [build]
     container:
         image: alessioburrello/aleburrello:latest
+        options: --user root
         volumes:
           - ${{ github.workspace }}:/dory_checkout
     steps:
