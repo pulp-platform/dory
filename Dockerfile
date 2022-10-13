@@ -8,7 +8,7 @@ RUN     apt-get update && \
         update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.8 1 && \
         apt-get install -y python-pip && \
         apt-get install -y python3.8-venv && \
-        DEBIAN_FRONTEND="noninteractive" apt-get install -y build-essential git libftdi-dev libftdi1 doxygen python3-pip libsdl2-dev curl cmake libusb-1.0-0-dev scons gtkwave libsndfile1-dev rsync autoconf automake texinfo libtool pkg-config libsdl2-ttf-dev wget unzip graphicsmagick-libmagick-dev-compat sed
+        DEBIAN_FRONTEND="noninteractive" apt-get install -y build-essential git libftdi-dev libftdi1 doxygen python3-pip libsdl2-dev curl cmake libusb-1.0-0-dev gtkwave libsndfile1-dev rsync autoconf automake texinfo libtool pkg-config libsdl2-ttf-dev wget unzip graphicsmagick-libmagick-dev-compat sed
 
 #RUN     stat /etc/udev/
 #RUN     cp /usr/share/gap8-openocd/openocd/contrib/60-openocd.rules /etc/udev/rules.d
@@ -30,6 +30,8 @@ RUN     python3 -m venv /dory_env && \
         git clone https://github.com/GreenWaves-Technologies/gap_sdk/ && \
         cd gap_sdk && \        
         git checkout a3dedd5cd8a680a88d2dca2ab7a4ae65cebf4c8d && \
+        python3 -m pip install wheel && \
+        python3 -m pip install scons && \
         python3 -m pip install -r requirements.txt
 RUN     source /dory_env/bin/activate && \
         cd /gap_riscv_toolchain_ubuntu_18/gap_sdk && \
