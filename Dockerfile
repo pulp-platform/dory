@@ -24,10 +24,10 @@ RUN     git clone https://github.com/GreenWaves-Technologies/gap8_openocd.git &&
         git clone https://github.com/GreenWaves-Technologies/gap_riscv_toolchain_ubuntu_18.git && \
         cd /gap_riscv_toolchain_ubuntu_18 && \
         ./install.sh /usr/lib/gap_riscv_toolchain && \
-        git clone https://github.com/GreenWaves-Technologies/gap_sdk/ &&
+        git clone https://github.com/GreenWaves-Technologies/gap_sdk/ && \
         cd gap_sdk && \        
         git checkout a3dedd5cd8a680a88d2dca2ab7a4ae65cebf4c8d && \
-        pip install -r requirements.txt && \
+        pip install -r requirements.txt
 SHELL   ["/bin/bash", "-c"]
 RUN     cd /gap_riscv_toolchain_ubuntu_18/gap_sdk && \
         source sourceme.sh && \
@@ -42,7 +42,7 @@ RUN     cd /gap_riscv_toolchain_ubuntu_18/gap_sdk && \
 # PULP-NN TOOLCHAIN DOWNLOAD
         cd / && \
         wget https://iis-nextcloud.ee.ethz.ch/s/aYESyR5W9FrHgYa/download/riscv-nn-toolchain.zip && \
-        unzip riscv-nn-toolchain && \
+        unzip riscv-nn-toolchain
 # DORY REPO INIT - CI USES THE ${GITHUB_WORKSPACE} VOLUME AT /dory_checkout!!!!
 WORKDIR /gap_riscv_toolchain_ubuntu_18/gap_sdk/
 RUN     git clone https://github.com/pulp-platform/dory && \
@@ -67,4 +67,4 @@ RUN     git clone https://github.com/pulp-platform/dory && \
         python3 -m pip install -e . && \
         cd /gap_riscv_toolchain_ubuntu_18/gap_sdk/ && \
         python3 -m pip uninstall -y torch torchvision && \
-        python3 -m pip install torch==1.6.0 torchvision==0.7.0 && \
+        python3 -m pip install torch==1.6.0 torchvision==0.7.0
