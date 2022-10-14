@@ -32,6 +32,7 @@ jobs:
           git --version
       - uses: actions/checkout@v3
         with:
+          token: ${{ secrets.CI_TOKEN }}
           submodules: recursive
       - name: Run experiments in docker image
         uses: addnab/docker-run-action@v3
