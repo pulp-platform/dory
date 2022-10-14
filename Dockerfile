@@ -1,4 +1,5 @@
 FROM    ubuntu:bionic
+ARG     CURR_COMMIT="master"
 SHELL   ["/bin/bash", "-c"]
 RUN     apt-get update && \
         apt-get install -y software-properties-common && \
@@ -53,13 +54,14 @@ WORKDIR /gap_riscv_toolchain_ubuntu_18/gap_sdk/
 RUN     source /dory_env/bin/activate && \
         git clone https://github.com/pulp-platform/dory && \
         cd /gap_riscv_toolchain_ubuntu_18/gap_sdk/dory/ && \
+        git checkout $CURR_COMMIT && \
         git submodule update --remote --init dory/Hardware_targets/GAP8/Backend_Kernels/pulp-nn-mixed && \
         git submodule update --remote --init dory/dory_examples && \
         git submodule update --remote --init dory/Hardware_targets/GAP8/Backend_Kernels/pulp-nn && \
         python3 -m pip install Cython && \
         python3 -m pip install --upgrade pip setuptools wheel && \
         python3 -m pip install setuptools_rust && \
-        python3 -m pip install python-dev-tools --user --upgrade && \
+        python3 -m pip install python-dev-tools --upgrade && \
         python3 -m pip install numpy && \
         python3 -m pip install onnx && \
         python3 -m pip install future-fstrings && \
