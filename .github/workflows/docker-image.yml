@@ -27,20 +27,17 @@ jobs:
     needs: []
     container:
         image: alessioburrello/aleburrello:latest
-        volumes:
-          - ${{ github.workspace }}:/dory_checkout
     steps:
       - uses: actions/checkout@v3
       - name: Checkout submodules
         run: |
-          cd /dory_checkout
           git submodule update --init --recursive
       - name: Run experiments
         run: |
           source /dory_env/bin/activate
           cd /gap_riscv_toolchain_ubuntu_18/gap_sdk
           source configs/gapuino_v3.sh
-          cd /dory_checkout
+          cd ${{ github.workspace }}
           python3 -m pytest -x test_GAP8.py --compat "gap-sdk"
           echo $?
           source /pulp-sdk/configs/pulp-open-nn.sh
