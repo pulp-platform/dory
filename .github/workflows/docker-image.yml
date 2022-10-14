@@ -26,10 +26,6 @@ jobs:
     runs-on: ubuntu-22.04
     needs: []
     steps:
-      - name: PRINT THE GIT VERSION WTF YO
-        run: |
-          which git
-          git --version
       - uses: actions/checkout@v3
         with:
           token: ${{ secrets.CI_TOKEN }}
@@ -44,7 +40,7 @@ jobs:
             source /dory_env/bin/activate
             cd /gap_riscv_toolchain_ubuntu_18/gap_sdk
             source configs/gapuino_v3.sh
-            cd ${{ github.workspace }}
+            cd /dory_checkout
             python3 -m pytest -x test_GAP8.py --compat "gap-sdk"
             echo $?
             source /pulp-sdk/configs/pulp-open-nn.sh
