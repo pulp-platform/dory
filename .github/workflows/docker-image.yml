@@ -31,9 +31,10 @@ jobs:
           - ${{ github.workspace }}:/dory_checkout
     steps:
       - uses: actions/checkout@v3
-        with:
-          submodules: recursive
-          token: ${{ secrets.CI_TOKEN }}
+      - name: Checkout submodules
+        run: |
+          cd /dory_checkout
+          git submodule update --init --recursive
       - name: Run experiments
         run: |
           source /dory_env/bin/activate
