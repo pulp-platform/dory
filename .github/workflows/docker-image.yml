@@ -26,6 +26,8 @@ jobs:
     needs: []
     container:
         image: alessioburrello/aleburrello:latest
+        volumes:
+          - ${{ github.workspace }}:/dory_checkout
     steps:
       - name: Run experiments
         uses: actions/checkout@v3
