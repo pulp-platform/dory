@@ -25,10 +25,6 @@ jobs:
 
     runs-on: ubuntu-22.04
     needs: []
-    container:
-        image: alessioburrello/aleburrello:latest
-        volumes:
-          - ${{ github.workspace }}:/dory_checkout
     steps:
       - name: PRINT THE GIT VERSION WTF YO
         run: |
@@ -37,17 +33,21 @@ jobs:
       - uses: actions/checkout@v3
         with:
           submodules: recursive
-      - name: Run experiments
-        run: |
-          source /dory_env/bin/activate
-          cd /gap_riscv_toolchain_ubuntu_18/gap_sdk
-          source configs/gapuino_v3.sh
-          cd ${{ github.workspace }}
-          python3 -m pytest -x test_GAP8.py --compat "gap-sdk"
-          echo $?
-          source /pulp-sdk/configs/pulp-open-nn.sh
-          export PULP_RISCV_GCC_TOOLCHAIN=/riscv-nn-toolchain/
-          find . -path "*GAP8*HW_description.json" -exec sed -E -i 's/("name" *: *)"gap_sdk"/\1"pulp-sdk"/' {} +
-          python3 -m pytest -x test_GAP8.py --compat "pulp-sdk"
-          echo $?
-        shell: bash
+      - name: Run experiments in docker image
+        uses: addnab/docker-run-action@v3
+        with:
+          image: alessioburrello/aleburrello:latest
+          options: ${{ github.workspace }}:/dory_checkout
+          shell: bash
+          run: |
+            source /dory_env/bin/activate
+            cd /gap_riscv_toolchain_ubuntu_18/gap_sdk
+            source configs/gapuino_v3.sh
+            cd ${{ github.workspace }}
+            python3 -m pytest -x test_GAP8.py --compat "gap-sdk"
+            echo $?
+            source /pulp-sdk/configs/pulp-open-nn.sh
+            export PULP_RISCV_GCC_TOOLCHAIN=/riscv-nn-toolchain/
+            find . -path "*GAP8*HW_description.json" -exec sed -E -i 's/("name" *: *)"gap_sdk"/\1"pulp-sdk"/' {} +
+            python3 -m pytest -x test_GAP8.py --compat "pulp-sdk"
+            echo $?
