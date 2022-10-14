@@ -52,12 +52,12 @@ RUN     source /dory_env/bin/activate && \
 # DORY REPO INIT - CI USES THE ${GITHUB_WORKSPACE} VOLUME AT /dory_checkout!!!!
 WORKDIR /gap_riscv_toolchain_ubuntu_18/gap_sdk/
 RUN     source /dory_env/bin/activate && \
-        git clone https://github.com/pulp-platform/dory && \
-        cd /gap_riscv_toolchain_ubuntu_18/gap_sdk/dory/ && \
-        git checkout $CURR_COMMIT && \
-        git submodule update --remote --init dory/Hardware_targets/GAP8/Backend_Kernels/pulp-nn-mixed && \
-        git submodule update --remote --init dory/dory_examples && \
-        git submodule update --remote --init dory/Hardware_targets/GAP8/Backend_Kernels/pulp-nn && \
+        #git clone https://github.com/pulp-platform/dory && \
+        #cd /gap_riscv_toolchain_ubuntu_18/gap_sdk/dory/ && \
+        #git checkout $CURR_COMMIT && \
+        #git submodule update --remote --init dory/Hardware_targets/GAP8/Backend_Kernels/pulp-nn-mixed && \
+        #git submodule update --remote --init dory/dory_examples && \
+        #git submodule update --remote --init dory/Hardware_targets/GAP8/Backend_Kernels/pulp-nn && \
         python3 -m pip install Cython && \
         python3 -m pip install --upgrade pip setuptools wheel && \
         python3 -m pip install setuptools_rust && \
@@ -71,8 +71,8 @@ RUN     source /dory_env/bin/activate && \
         python3 -m pip install pytest && \
         python3 -m pip install Pygments && \
         python3 -m pip install MarkupSafe && \
-        cd /gap_riscv_toolchain_ubuntu_18/gap_sdk/dory/ && \
-        python3 -m pip install -e . && \
+        #cd /gap_riscv_toolchain_ubuntu_18/gap_sdk/dory/ && \
+        #python3 -m pip install -e . && \
         cd /gap_riscv_toolchain_ubuntu_18/gap_sdk/ && \
         python3 -m pip uninstall -y torch torchvision && \
         python3 -m pip install torch==1.6.0 torchvision==0.7.0
