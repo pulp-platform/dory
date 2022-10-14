@@ -14,6 +14,7 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
+    - uses: actions/checkout@v3
     - name: Build the Docker image
       run: |
         docker login -u ${{secrets.DOCKER_USERNAME}} -p ${{secrets.DOCKER_PASSWORD}}
@@ -29,6 +30,10 @@ jobs:
         volumes:
           - ${{ github.workspace }}:/dory_checkout
     steps:
+      - name: PRINT THE GIT VERSION WTF YO
+        run: |
+          which git
+          git --version
       - uses: actions/checkout@v3
         with:
           submodules: recursive
