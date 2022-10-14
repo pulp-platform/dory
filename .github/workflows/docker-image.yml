@@ -29,10 +29,10 @@ jobs:
         volumes:
           - ${{ github.workspace }}:/dory_checkout
     steps:
-      - name: Run experiments
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
         with:
           submodules: recursive
+      - name: Run experiments
         run: |
           source /dory_env/bin/activate
           cd /gap_riscv_toolchain_ubuntu_18/gap_sdk
