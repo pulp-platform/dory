@@ -42,9 +42,13 @@ jobs:
             source configs/gapuino_v3.sh
             cd /dory_checkout
             python3 -m pytest -x test_GAP8.py --compat "gap-sdk"
-            echo $?
+            retcode=$?
+            if [ ! $retcode -eq 0 ]; then exit $retcode; fi
+            echo $retcode
             source /pulp-sdk/configs/pulp-open-nn.sh
             export PULP_RISCV_GCC_TOOLCHAIN=/riscv-nn-toolchain/
             find . -path "*GAP8*HW_description.json" -exec sed -E -i 's/("name" *: *)"gap_sdk"/\1"pulp-sdk"/' {} +
             python3 -m pytest -x test_GAP8.py --compat "pulp-sdk"
-            echo $?
+            retcode=$?
+            if [ ! $retcode -eq 0 ]; then exit $retcode; fi
+            echo $retcode
