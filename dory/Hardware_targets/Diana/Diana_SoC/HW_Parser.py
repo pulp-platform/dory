@@ -48,7 +48,7 @@ class onnx_manager(Parser_DORY_to_HW):
 
     def adjust_dimensions(self):
         for i, node in enumerate(self.DORY_Graph):
-            if "FullyConnected" not in node.name:
+            if "FullyConnected" not in node.name and node.weight_bits == 8:
                 node.input_dimensions[1] = int((node.input_dimensions[1] + 15) / 16) * 16
                 node.output_dimensions[1] = int((node.output_dimensions[1] + 15) / 16) * 16
                 print("\nFind One other solution, It will not work for real networks with multiple strides = 2")

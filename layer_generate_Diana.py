@@ -278,7 +278,7 @@ def create_input(node):
     low, high = borders(node.input_activation_bits, node.input_activation_type == 'int')
     size = (1, node.input_channels, node.input_dimensions[0], node.input_dimensions[1])
     #return torch.randint(low=low, high=high, size=size)
-    return torch.randint(low=100, high=101, size=size)
+    return torch.randint(low=10, high=11, size=size)
 
 def create_weight(node):
     low, high = borders(node.weight_bits, signed=True)
@@ -294,7 +294,7 @@ def create_weight(node):
             column = torch.cat((ones, zeros), 0)
             vec_weights = torch.cat((vec_weights, column), 1)
         vec_weights = vec_weights.transpose(0, 1)
-        vec_weights = vec_weights.reshape(size)
+        vec_weights = vec_weights.reshape(size).long()
         return vec_weights
     else:
         return torch.randint(low=low, high=high, size=size)

@@ -127,7 +127,7 @@ class Tiler_Conv2D():
                 solver.Add(tile_n_in == int(in_ch))
                 solver.Add(tile_w_in == inp_dim[1])
                 solver.Add(tile_h_in == inp_dim[0])
-
+                
             ###############################################
             ##### CONSTRAINTS FOR BACKEND LIMITS ##########
             ###############################################

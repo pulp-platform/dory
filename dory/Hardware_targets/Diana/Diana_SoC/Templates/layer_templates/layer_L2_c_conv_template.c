@@ -221,11 +221,11 @@ void ${func_name}(layer* layer_i)
 % elif W_data_size_byte == 2:
     dory_cores_barrier_analog();
 % if 'FullyConnected' in func_name: 
-    analog_fully_connected(l2_x_tile, l1_x, l2_W, l1_weights, l1_y, &kernel);
+    analog_fully_connected(l2_x, l1_x, l2_W, l1_weights, l1_y, &kernel);
 % elif flag_DW == 1:
-    analog_depthwise_conv_2d(l2_x_tile, l1_x, l2_W, l2_BN, l1_weights, l1_y, &kernel);
+    analog_depthwise_conv_2d(l2_x, l1_x, l2_W, l2_BN, l1_weights, l1_y, &kernel);
 % elif flag_DW == 0: 
-    analog_conv_2d(l2_x_tile, l1_x, l2_W, l2_BN, l1_weights, l1_y, &kernel);
+    analog_conv_2d(l2_x, l1_x, l2_W, l2_BN, l1_weights, l1_y, &kernel);
 % endif 
     dory_cores_barrier_analog();
 % endif

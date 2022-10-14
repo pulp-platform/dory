@@ -79,6 +79,7 @@ class C_Parser(Parser_HW_to_C):
                 if "Addition" not in node.name:
                     if node.get_parameter('weight_bits') < 8:
                         precision_library = 'ternary'
+            node.skip_L2_L1 = False
             tk = self.create_hex_weights_files(node)
             c_layer = Layer2D_writer.print_template_layer(tk, node, precision_library, tmpl_dir, out_dir)
             c_files.append(c_layer)
@@ -125,7 +126,11 @@ class C_Parser(Parser_HW_to_C):
                         for ch in range(int(np.asarray(node.__dict__[constants[i]]["value"]).shape[0]/16)):
                             for pos_in in [3,2,1,0]:
                                 new_weights.append(node.__dict__[constants[i]]["value"][pos+4*(ch*4+pos_in)])
-                    node.__dict__[constants[i]]["value"] = new_weights
+                    final_weights = []
+                    for ch in range(int(node.output_channels/16)):
+                        for byte in range(4):
+                            final_weights.append(new_weights[(node.output_channels*byte + ch*16):(node.output_channels*byte + ch*16 + 16)])
+                    node.__dict__[constants[i]]["value"] = np.asarray(final_weights).flatten().tolist()
         for batch in np.arange(0, int(np.floor((getattr(node, 'output_channels')+15)/16))):
             for i in [0, 1]:
                 if constants[i]!= 0:

@@ -67,8 +67,6 @@ class C_Parser(Parser_HW_to_C):
             else:
                 node.name = node.name + str(i) 
 
-
-
     def mapping_layers_to_C_files(self):
         print("\nMapping the layers files to their templates and copying the kernels associated.")
         tmpl_dir = os.path.join(os.path.dirname(__file__), 'Templates/layer_templates')
@@ -205,7 +203,6 @@ class C_Parser(Parser_HW_to_C):
             return utils.print_test_vector(weights, 'char'), weights.shape[0]
         else:
             return ["0"], 0
-
 
     def _compress(self, x, bits):
         compressed = []
