@@ -31,6 +31,8 @@ jobs:
           - ${{ github.workspace }}:/dory_checkout
     steps:
       - uses: actions/checkout@v3
+        with:
+          submodules: recursive
       - name: Run experiments
         run: |
           source /dory_env/bin/activate
