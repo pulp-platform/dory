@@ -11,10 +11,9 @@ jobs:
 
   build:
 
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
 
     steps:
-    - uses: actions/checkout@v3
     - name: Build the Docker image
       run: |
         docker login -u ${{secrets.DOCKER_USERNAME}} -p ${{secrets.DOCKER_PASSWORD}}
@@ -23,19 +22,17 @@ jobs:
       
   tests:
 
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     needs: []
     container:
         image: alessioburrello/aleburrello:latest
         volumes:
           - ${{ github.workspace }}:/dory_checkout
     steps:
-      - uses: actions/checkout@v3
-      - name: Checkout submodules
-        run: |
-          cd /dory_checkout
-          git submodule update --init --recursive
       - name: Run experiments
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
         run: |
           source /dory_env/bin/activate
           cd /gap_riscv_toolchain_ubuntu_18/gap_sdk
