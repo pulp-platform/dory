@@ -126,16 +126,20 @@ def check_compat(network : dict, compat : str):
 
 
 @pytest.mark.parametrize('network', networks)
-def test_network(network, capsys, compat):
+def test_network(network, capsys, compat, appdir):
     args = network['network_args']
     if not check_compat(network, compat):
         with capsys.disabled():
             print(f"Skipping network with conf_file {args['conf_file']} as it is not compatible with SDK {compat}")
         return
     checksum_final = network['checksum_final']
+
+    if appdir is None:
+        appdir = './application'
+    args['appdir'] = appdir
     network_generate(**args)
 
-    cmd = ['make', '-C', 'application', 'clean', 'all', 'run', 'platform=gvsoc', 'CORE=8']
+    cmd = ['make', '-C', appdir, 'clean', 'all', 'run', 'platform=gvsoc', 'CORE=8']
     try:
         proc = subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=180)
     except subprocess.CalledProcessError as e:
