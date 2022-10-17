@@ -57,7 +57,8 @@ networks = [
                 'conf_file': './dory/dory_examples/config_files/config_Quantlab_MV1_8bits.json',
                 'optional': 'mixed-sw'
             },
-        "checksum_final": 'Ok'
+        "checksum_final": 'Ok',
+        "compat": ["gap-sdk"]
     },
     {
         "network_args":
@@ -104,23 +105,30 @@ def output_test(output, checksum_final):
 
 # check if a network is compatible with the specified SDK (must be gap-sdk or
 # pulp-sdk)
-def check_compat(net_args : dict, compat : str):
+def check_compat(network : dict, compat : str):
+    try:
+        compat_sdks = network["compat"]
+    except KeyError:
+        compat_sdks = ["gap-sdk", "pulp-sdk"]
+
+    net_args = network["network_args"]
+
     if compat == 'pulp-sdk':
         # pulp-sdk can handle everything
-        return True
+        return compat in compat_sdks
 
     try:
         optional = net_args['optional']
     except KeyError:
         optional = 'auto'
 
-    return not (optional == 'mixed-hw')
+    return (not optional == 'mixed-hw') and (compat in compat_sdks)
 
 
 @pytest.mark.parametrize('network', networks)
 def test_network(network, capsys, compat):
     args = network['network_args']
-    if not check_compat(args, compat):
+    if not check_compat(network, compat):
         with capsys.disabled():
             print(f"Skipping network with conf_file {args['conf_file']} as it is not compatible with SDK {compat}")
         return
