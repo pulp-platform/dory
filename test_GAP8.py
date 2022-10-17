@@ -134,9 +134,11 @@ def test_network(network, capsys, compat):
         assert False, f"Building application failed with exit status {e.returncode}\nBuild error:\n{e.stderr}"
     except subprocess.TimeoutExpired as e:
         print(f"Test timed out...\nSTDOUT:")
-        print(e.output.decode())
+        if e.output is not None:
+            print(e.output.decode())
         print(f"STDERR:")
-        print(e.stderr.decode())
+        if e.stderr is not None:
+            print(e.stderr.decode())
 
     network_name = os.path.splitext(os.path.basename(args['conf_file']))[0]
     preamble = f'Network {network_name}'
