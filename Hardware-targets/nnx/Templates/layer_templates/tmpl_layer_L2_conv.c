@@ -22,6 +22,40 @@
 #include "${func_name}.h"
 #include "pulp_nnx.h"
 #include "network.h"
+#include "dory_dma.h"
+#include "dory_get_tile.h"
+
+/* Measurement defines
+ * To enable any of the special measurements modes, just add the define
+ *   - NO_DMA_SYNC - removes the DMA synchronization points
+ *   - NO_DMA      - removes the DMA synchronization points and transactions
+ */
+//#define NO_DMA_SYNC
+//#define NO_DMA
+
+#ifdef MEASURE_LAYER_COMPONENT_PERF
+#define PERF_INIT() pi_perf_conf(1<<PI_PERF_CYCLES)
+
+#define PERF_RESTART()             ${"\\"}
+  do {                             ${"\\"}
+    asm volatile("": : :"memory"); ${"\\"}
+    pi_perf_stop();                ${"\\"}
+    pi_perf_reset();               ${"\\"}
+    pi_perf_start();               ${"\\"}
+    asm volatile("": : :"memory"); ${"\\"}
+  } while (0)
+
+#define PERF_READ(var)                ${"\\"}
+  asm volatile("": : :"memory");      ${"\\"}
+  var = pi_perf_read(PI_PERF_CYCLES); ${"\\"}
+  asm volatile("": : :"memory")
+
+static int cycles_preamble = 0, cycles_first_conf = 0, cycles_first_dma = 0, cycles_nnx = 0, cycles_postamble = 0;
+#else
+#define PERF_INIT()
+#define PERF_RESTART()
+#define PERF_READ(var)
+#endif
 
 #ifdef GVSOC_LOGGING
 #define GVSOC_LOG_LEVEL 1
@@ -50,7 +84,7 @@
 // At least NNX_CONTEXT_SIZE + 1 DMA_copy_y configurations are needed because output
 // is always 2 phases late, so there are 2 configurations for previous stages
 // and 1 for the current. It can be done differently but it sacrifices code
-// readability which was prioritiesed at the moment.
+// readability which was prioritized at the moment.
 // Size of 4 has been assigned to have index calculation done with only masking.
 #define DMA_Y_CONTEXT_SIZE 4
 #define DMA_Y_MASK 0x3
@@ -70,6 +104,9 @@ void ${func_name}(
 #ifdef GVSOC_LOGGING
   nnx_activate_gvsoc_logging(GVSOC_LOG_LEVEL);
 #endif
+
+  PERF_INIT();
+  PERF_RESTART();
 
   //////////////////////////
   // Arguments assignment //
@@ -98,7 +135,6 @@ void ${func_name}(
   // DMA declaration //
   /////////////////////
 
-  uint32_t dory_dma_channel = dory_dma_allocate();
   DMA_copy DMA_copy_W, DMA_copy_x;
 % if FLAG_BATCHNORM == 1:
   DMA_copy DMA_copy_k, DMA_copy_lambda;
@@ -109,53 +145,41 @@ void ${func_name}(
   // DMA defaults //
   //////////////////
 
-  DMA_copy_x.hwc_to_chw = 0;
   DMA_copy_x.stride_2d = ${l1_x_dma_stride_2d};
   DMA_copy_x.stride_1d = ${l1_x_dma_stride_1d};
   DMA_copy_x.dir = 1;
-  DMA_copy_x.dma_channel = dory_dma_channel;
   
-  DMA_copy_W.hwc_to_chw = 0;
   DMA_copy_W.number_of_2d_copies = 1;
   DMA_copy_W.stride_2d = 0;
   DMA_copy_W.number_of_1d_copies = 1;
   DMA_copy_W.stride_1d = 0;
   DMA_copy_W.dir = 1;
-  DMA_copy_W.dma_channel = dory_dma_channel;
 
 % if FLAG_BATCHNORM == 1:
-  DMA_copy_k.hwc_to_chw = 0;
   DMA_copy_k.stride_2d = 0;
   DMA_copy_k.number_of_2d_copies = 1;
   DMA_copy_k.stride_1d = 0;
   DMA_copy_k.number_of_1d_copies = 1;
   DMA_copy_k.dir = 1;
-  DMA_copy_k.dma_channel = dory_dma_channel;
 
-  DMA_copy_lambda.hwc_to_chw = 0;
   DMA_copy_lambda.stride_2d = 0;
   DMA_copy_lambda.number_of_2d_copies = 1;
   DMA_copy_lambda.stride_1d = 0;
   DMA_copy_lambda.number_of_1d_copies = 1;
   DMA_copy_lambda.dir = 1;
-  DMA_copy_lambda.dma_channel = dory_dma_channel;
 % endif
   
   for (int i = 0; i < DMA_Y_CONTEXT_SIZE; i++) {
-    DMA_copy_y[i].hwc_to_chw = 0;
     DMA_copy_y[i].stride_2d = ${l1_y_dma_stride_2d};
     DMA_copy_y[i].stride_1d = ${l1_y_dma_stride_1d};
     DMA_copy_y[i].dir = 0;
-    DMA_copy_y[i].dma_channel = dory_dma_channel;
   }
 
 % if has_bias == 1:
   DMA_copy DMA_copy_bias;
-  DMA_copy_bias.hwc_to_chw = 0;
   DMA_copy_bias.stride_2d = 0;
   DMA_copy_bias.stride_1d = 0;
   DMA_copy_bias.dir = 1;
-  DMA_copy_bias.dma_channel = dory_dma_channel;
 % endif
 
   //////////////////////////
@@ -231,7 +255,7 @@ void ${func_name}(
   // Accelerator init //
   //////////////////////
 
-  nnx_soft_clear();
+  nnx_init();
 
   ///////////////////////
   // NNX task defaults //
@@ -317,6 +341,9 @@ void ${func_name}(
     nnx_norm_quant(&(nnx_tasks[i].cfg), norm, quant);
     nnx_pad_input(&(nnx_tasks[i].cfg), padding_init);
   }
+
+  PERF_READ(cycles_preamble);
+  PERF_RESTART();
 
 
 //  /$$$$$$$$ /$$$$$$ /$$       /$$$$$$$$       /$$        /$$$$$$   /$$$$$$  /$$$$$$$ 
@@ -469,16 +496,23 @@ void ${func_name}(
     nnx_acquire();
     % endif
 
+    if (i_tile == 0) {
+        PERF_READ(cycles_first_conf);
+        PERF_RESTART();
+    }
+
+#ifndef NO_DMA
     if (is_load_x) {
-      dory_dma_memcpy_async(DMA_copy_x);
+      dory_dma_memcpy_async(&DMA_copy_x);
     }
     if (is_load_w) {
-      dory_dma_memcpy_async(DMA_copy_W);
+      dory_dma_memcpy_async(&DMA_copy_W);
 % if FLAG_BATCHNORM == 1:
-      dory_dma_memcpy_async(DMA_copy_k);
-      dory_dma_memcpy_async(DMA_copy_lambda);
+      dory_dma_memcpy_async(&DMA_copy_k);
+      dory_dma_memcpy_async(&DMA_copy_lambda);
 % endif
     }
+#endif  // NO_DMA
 
 
 //   /$$$$$$  /$$$$$$$$ /$$$$$$  /$$$$$$$  /$$$$$$$$
@@ -492,9 +526,11 @@ void ${func_name}(
 
     const is_store = i_tile > i_store_y + 1;
 
+#ifndef NO_DMA
     if (is_store) {
-      dory_dma_memcpy_async(DMA_copy_y[DMA_Y_INDEX(i_store_y)]);
+      dory_dma_memcpy_async(&DMA_copy_y[DMA_Y_INDEX(i_store_y)]);
     }
+#endif  // NO_DMA
 
 
 //  /$$$$$$$$ /$$   /$$ /$$$$$$$$  /$$$$$$ 
@@ -510,20 +546,67 @@ void ${func_name}(
     nnx_offload(nnx_task_to_offload);
     % endif
 
+#ifndef NO_DMA
+
+#ifdef NO_DMA_SYNC_ON_BORDER_TILE
+    if (!is_border_tile) {
+#endif
+
+#ifdef NO_DMA_SYNC
     // Wait for data to arrive
     if (is_load_x) {
-      dory_dma_barrier(DMA_copy_x);
+      dory_dma_free(&DMA_copy_x);
     }
     if (is_load_w) {
-      dory_dma_barrier(DMA_copy_W);
-      % if FLAG_BATCHNORM == 1:
-      dory_dma_barrier(DMA_copy_k);
-      dory_dma_barrier(DMA_copy_lambda);
-      % endif
+      dory_dma_free(&DMA_copy_W);
+      dory_dma_free(&DMA_copy_k);
+      dory_dma_free(&DMA_copy_lambda);
     }
+
     // Wait to write the data so that not to overwrite it by the next job
     if (is_store) {
-      dory_dma_barrier(DMA_copy_y[DMA_Y_INDEX(i_store_y)]);
+      dory_dma_free(&DMA_copy_y[DMA_Y_INDEX(i_store_y)]);
+    }
+#else
+    // Wait for data to arrive
+    if (is_load_x) {
+      dory_dma_barrier(&DMA_copy_x);
+    }
+    if (is_load_w) {
+      dory_dma_barrier(&DMA_copy_W);
+      dory_dma_barrier(&DMA_copy_k);
+      dory_dma_barrier(&DMA_copy_lambda);
+    }
+
+    // Wait to write the data so that not to overwrite it by the next job
+    if (is_store) {
+      dory_dma_barrier(&DMA_copy_y[DMA_Y_INDEX(i_store_y)]);
+    }
+#endif  // NO_DMA_SYNC
+
+#ifdef NO_DMA_SYNC_ON_BORDER_TILE
+    } else {
+      if (is_load_x) {
+        dory_dma_free(&DMA_copy_x);
+      }
+      if (is_load_w) {
+        dory_dma_free(&DMA_copy_W);
+        dory_dma_free(&DMA_copy_k);
+        dory_dma_free(&DMA_copy_lambda);
+      }
+
+      // Wait to write the data so that not to overwrite it by the next job
+      if (is_store) {
+        dory_dma_free(&DMA_copy_y[DMA_Y_INDEX(i_store_y)]);
+      }
+    }
+#endif  // NO_DMA_SYNC_ON_BORDER_TILE
+
+#endif  // NO_DMA
+
+    if (i_tile == 0) {
+        PERF_READ(cycles_first_dma);
+        PERF_RESTART();
     }
 
     % if stride != 2:
@@ -700,15 +783,30 @@ void ${func_name}(
 // |  $$$$$$/   | $$  |  $$$$$$/| $$  | $$| $$$$$$$$      | $$  | $$| $$$$$$$$| $$ \/  | $$
 //  \______/    |__/   \______/ |__/  |__/|________/      |__/  |__/|________/|__/     |__/
 
-  for (; i_store_y < total_tiles; i_store_y++) {
-    if (i_store_y < total_tiles - 1) {
+  for (int i = i_store_y; i < total_tiles; i++) {
+    if (i < total_tiles - 1) {
       nnx_wait_not_full();
     } else {
       nnx_wait_empty();
     }
 
-    dory_dma_memcpy_async(DMA_copy_y[DMA_Y_INDEX(i_store_y)]);
+#ifndef NO_DMA
+    dory_dma_memcpy_async(&DMA_copy_y[DMA_Y_INDEX(i)]);
+#endif  // NO_DMA
   }
+
+  PERF_READ(cycles_nnx);
+  PERF_RESTART();
+
+#ifndef NO_DMA
+  for (int i = i_store_y; i < total_tiles; i++) {
+#ifdef NO_DMA_SYNC
+    dory_dma_free(&DMA_copy_y[DMA_Y_INDEX(i)]);
+#else
+    dory_dma_barrier(&DMA_copy_y[DMA_Y_INDEX(i)]);
+#endif  // NO_DMA_SYNC
+  }
+#endif  // NO_DMA
 
 /*
   uint8_t *d = (uint8_t *)db[0].y;
@@ -727,13 +825,17 @@ void ${func_name}(
     printf("\n");
   }
   */
-
 % if not TEST:
   // wait for final write
-  dory_dma_barrier(DMA_copy_y[DMA_Y_INDEX(total_tiles-1)]);
-  dory_dma_deallocate(dory_dma_channel);
 % endif
 
   // clear NNX for cleanup
-  nnx_soft_clear();
+  nnx_term();
+
+#ifdef MEASURE_LAYER_COMPONENT_PERF
+  PERF_READ(cycles_postamble);
+
+  printf("Measured time - preamble: %d, first conf: %d, first dma: %d, nnx: %d, postamble: %d\n",
+         cycles_preamble, cycles_first_conf, cycles_first_dma, cycles_nnx, cycles_postamble);
+#endif
 }

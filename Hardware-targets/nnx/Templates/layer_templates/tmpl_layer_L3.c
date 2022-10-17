@@ -18,13 +18,9 @@
  */
 #include "${func_name}.h"
 #include "pmsis.h"
-#include "bsp/fs.h"
-#include "bsp/fs/readfs.h"
-#include "bsp/flash.h"
 #include "bsp/ram.h"
-#include "bsp/flash/hyperflash.h"
-#include "bsp/ram/hyperram.h"
 #include "network.h"
+#include "dory_get_tile.h"
 
 
 void __attribute__ ((noinline)) ${func_name}(void *args)
@@ -106,32 +102,28 @@ void __attribute__ ((noinline)) ${func_name}(void *args)
   % if n_tile_x > 1 or input_L3 == 1:
 
   // first tile transfer. Input activations
-  if (pi_core_id() == 0) {
-    pi_cl_ram_read(ram, l3_x, db[i_db_x].x, ${dim_in}, &req_x);
-    pi_cl_ram_read_wait(&req_x);
-  }
+  pi_cl_ram_read(ram, l3_x, db[i_db_x].x, ${dim_in}, &req_x);
+  pi_cl_ram_read_wait(&req_x);
   % endif
 
   % if n_tile_W > 1:
   // first tile transfer. Weights, k, lambda
-  if (pi_core_id() == 0) {
-    pi_cl_ram_read(ram, l3_W + ${l3_offset_w}, db[i_db_w].w, ${weight_dim}, &req_w);
-    % if bias_dim != 0:
-    pi_cl_ram_read(ram, l3_W + ${l3_offset_b}, db[i_db_w].bias, ${bias_dim}, &req_bias);
-    % endif
-    % if k_dim != 0:
-    pi_cl_ram_read(ram, l3_W + ${l3_offset_k}, db[i_db_w].k, ${k_dim}, &req_k);
-    pi_cl_ram_read(ram, l3_W + ${l3_offset_l}, db[i_db_w].l, ${lambda_dim}, &req_l);
-    % endif
-    pi_cl_ram_read_wait(&req_w);
-    % if k_dim != 0:
-    pi_cl_ram_read_wait(&req_k);
-    pi_cl_ram_read_wait(&req_l);
-    % endif
-    % if bias_dim != 0:
-    pi_cl_ram_read_wait(&req_bias);
-    % endif
-  }
+  pi_cl_ram_read(ram, l3_W + ${l3_offset_w}, db[i_db_w].w, ${weight_dim}, &req_w);
+  % if bias_dim != 0:
+  pi_cl_ram_read(ram, l3_W + ${l3_offset_b}, db[i_db_w].bias, ${bias_dim}, &req_bias);
+  % endif
+  % if k_dim != 0:
+  pi_cl_ram_read(ram, l3_W + ${l3_offset_k}, db[i_db_w].k, ${k_dim}, &req_k);
+  pi_cl_ram_read(ram, l3_W + ${l3_offset_l}, db[i_db_w].l, ${lambda_dim}, &req_l);
+  % endif
+  pi_cl_ram_read_wait(&req_w);
+  % if k_dim != 0:
+  pi_cl_ram_read_wait(&req_k);
+  pi_cl_ram_read_wait(&req_l);
+  % endif
+  % if bias_dim != 0:
+  pi_cl_ram_read_wait(&req_bias);
+  % endif
   // switching buffers
   % endif
 
@@ -140,13 +132,11 @@ void __attribute__ ((noinline)) ${func_name}(void *args)
   % if n_tile_x > 1:
   // loop over input/output tiles
   for (int j = 0; j < ${n_tile_x}; j++) {
-    if (pi_core_id() == 0) {
-      // Fetching next input tile
-      if (j > 0) pi_cl_ram_read_wait(&req_x);
-      if (j + 1 < ${n_tile_x}) {
-        pi_cl_ram_read(ram, l3_x + offset_x, db[!i_db_x].x, ${dim_in}, &req_x);
-        offset_x += ${dim_in-int(conv_overlap1*n_in*w_in*BitIn/8)};
-      }
+    // Fetching next input tile
+    if (j > 0) pi_cl_ram_read_wait(&req_x);
+    if (j + 1 < ${n_tile_x}) {
+      pi_cl_ram_read(ram, l3_x + offset_x, db[!i_db_x].x, ${dim_in}, &req_x);
+      offset_x += ${dim_in-int(conv_overlap1*n_in*w_in*BitIn/8)};
     }
   % elif n_tile_y > 1:
   // loop over output tiles
@@ -169,20 +159,18 @@ void __attribute__ ((noinline)) ${func_name}(void *args)
     for (int k = 0; k < ${n_tile_W}; k++) {
       if (k + 1 < ${n_tile_W}) {
         // Fetch next weights
-        if (pi_core_id() == 0) {
-          pi_cl_ram_read(ram, l3_W + offset_w, db[!i_db_w].w, ${weight_dim}, &req_w);
-          offset_w += ${weight_dim};
-          % if k_dim != 0:
-          pi_cl_ram_read(ram, l3_W + offset_k, db[!i_db_w].k, ${k_dim}, &req_k);
-          offset_k += ${k_dim};
-          pi_cl_ram_read(ram, l3_W + offset_l, db[!i_db_w].l, ${lambda_dim}, &req_l);
-          offset_l += ${lambda_dim};
-          % endif
-          % if bias_dim != 0:
-          pi_cl_ram_read(ram, l3_W + offset_b, db[!i_db_w].bias, ${bias_dim}, &req_bias);
-          offset_b += ${bias_dim};
-          % endif
-        }
+        pi_cl_ram_read(ram, l3_W + offset_w, db[!i_db_w].w, ${weight_dim}, &req_w);
+        offset_w += ${weight_dim};
+        % if k_dim != 0:
+        pi_cl_ram_read(ram, l3_W + offset_k, db[!i_db_w].k, ${k_dim}, &req_k);
+        offset_k += ${k_dim};
+        pi_cl_ram_read(ram, l3_W + offset_l, db[!i_db_w].l, ${lambda_dim}, &req_l);
+        offset_l += ${lambda_dim};
+        % endif
+        % if bias_dim != 0:
+        pi_cl_ram_read(ram, l3_W + offset_b, db[!i_db_w].bias, ${bias_dim}, &req_bias);
+        offset_b += ${bias_dim};
+        % endif
       }
     % else:
     int k = 0;
@@ -206,21 +194,18 @@ void __attribute__ ((noinline)) ${func_name}(void *args)
       % endif
 
       // execution of L2-L1 layer. Either top, middle or bottom layer.
-      pi_cl_team_barrier(0);
       ${L2_func_names[0]}((void *)&tile_args);
     % if n_tile_W > 1:
 
-      if (pi_core_id() == 0) {
-        // waiting for weights, lambda, and k
-        pi_cl_ram_read_wait(&req_w);
-        % if k_dim != 0:
-        pi_cl_ram_read_wait(&req_k);
-        pi_cl_ram_read_wait(&req_l);
-        % endif
-        % if bias_dim != 0:
-        pi_cl_ram_read_wait(&req_bias);
-        % endif
-      }
+      // waiting for weights, lambda, and k
+      pi_cl_ram_read_wait(&req_w);
+      % if k_dim != 0:
+      pi_cl_ram_read_wait(&req_k);
+      pi_cl_ram_read_wait(&req_l);
+      % endif
+      % if bias_dim != 0:
+      pi_cl_ram_read_wait(&req_bias);
+      % endif
 
       i_db_w = !i_db_w;
     }
@@ -230,12 +215,10 @@ void __attribute__ ((noinline)) ${func_name}(void *args)
     i_db_x = !i_db_x;
     % endif
     % if n_tile_y > 1:
-    if (pi_core_id() == 0) {
-      // waits for output transfer to be ended
-      if (j > 0) pi_cl_ram_write_wait(&req_y);
-      pi_cl_ram_write(ram, l3_y + offset_y, db[i_db_y].y, ${dim_out}, &req_y);
-      offset_y += ${dim_out};
-    }
+    // waits for output transfer to be ended
+    if (j > 0) pi_cl_ram_write_wait(&req_y);
+    pi_cl_ram_write(ram, l3_y + offset_y, db[i_db_y].y, ${dim_out}, &req_y);
+    offset_y += ${dim_out};
     % if verbose:
     uint8_t *y = db[i_db_y].y;
     for (int i = 0; i < ${dim_out}; i++) checksum += y[i];
@@ -249,12 +232,9 @@ void __attribute__ ((noinline)) ${func_name}(void *args)
 
   % if n_tile_y > 1:
   // last wait
-  if (pi_core_id() == 0) {
-    pi_cl_ram_write_wait(&req_y);
-  }
+  pi_cl_ram_write_wait(&req_y);
   % if verbose:
   printf("checksum = %d\n", checksum);
   % endif
   % endif
-  pi_cl_team_barrier(0);
 }

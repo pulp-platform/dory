@@ -20,18 +20,24 @@
 #include "mem.h"
 #include "pmsis.h"
 
+
 % if verbose:
 #define VERBOSE 1
-% endif
 
+
+% endif
 % if sdk == 'pulp-sdk':
+#define ICACHE_CTRL_UNIT 0x10201400
+#define ICACHE_PREFETCH ICACHE_CTRL_UNIT + 0x1C
+
 unsigned int PMU_set_voltage(unsigned int Voltage, unsigned int CheckFrequencies) {
   return 0;
 }
+
+
 % endif
-
-
-int main () {
+void application(void *arg) {
+% if sdk == 'pulp-sdk':
   PMU_set_voltage(1000, 0);
   pi_time_wait_us(10000);
   pi_freq_set(PI_FREQ_DOMAIN_FC, ${fc_frequency});
@@ -44,8 +50,9 @@ int main () {
   #endif
 % endif
 
+% endif
 /*
-    Opening of Filesystem and Ram
+    Opening Filesystem and Ram
 */
   mem_init();
 
@@ -65,9 +72,22 @@ int main () {
 #endif
 
   network_initialize();
-  network_run(l2_buffer, ${l2_buffer_size}, l2_buffer);
+  int err = network_run(l2_buffer, ${l2_buffer_size}, l2_buffer);
 
   ram_free(ram_input, input_size);
   network_terminate();
   pi_l2_free(l2_buffer, ${l2_buffer_size});
+
+  pmsis_exit(err);
+}
+
+
+int main() {
+  int err = 0;
+  if((err = pmsis_kickoff((void*)application)) == 0) {
+    printf("Application successfully finished.\n");
+  } else {
+    printf("Application failed with error code %d.\n", err);
+  }
+  return err;
 }

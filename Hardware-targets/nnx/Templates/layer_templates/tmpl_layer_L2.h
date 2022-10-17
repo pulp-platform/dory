@@ -17,10 +17,6 @@
  * limitations under the License.
  */
 
-% if sdk == 'gap_sdk':
-#include "pulp.h"
-% endif
-#include "dory.h"
 
 void  ${func_name}(
   void *args

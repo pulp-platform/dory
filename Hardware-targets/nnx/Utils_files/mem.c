@@ -1,26 +1,50 @@
 #include "mem.h"
 #include "pmsis.h"
+#include "bsp/bsp.h"
 #include "bsp/fs.h"
 #include "bsp/fs/readfs.h"
 #include "bsp/flash.h"
 #include "bsp/ram.h"
+
+#ifdef USE_HYPERFLASH
 #include "bsp/flash/hyperflash.h"
+typedef struct pi_hyperflash_conf flash_conf_t;
+#define flash_conf_init(conf) pi_hyperflash_conf_init(conf)
+#elif defined USE_SPIFLASH
+#include "bsp/flash/spiflash.h"
+typedef struct pi_mx25u51245g_conf flash_conf_t;
+#define flash_conf_init(conf) pi_mx25u51245g_conf_init(conf)
+#elif defined USE_MRAM
+typedef struct pi_mram_conf flash_conf_t;
+#define flash_conf_init(conf) pi_mram_conf_init(conf)
+#else
+typedef struct pi_default_flash_conf flash_conf_t;
+#define flash_conf_init(conf) pi_default_flash_conf_init(conf)
+#endif
+
+#ifdef USE_HYPERRAM
 #include "bsp/ram/hyperram.h"
+typedef struct pi_hyper_conf ram_conf_t;
+#define ram_conf_init(conf) pi_hyperram_conf_init(conf)
+#else
+typedef struct pi_default_ram_conf ram_conf_t;
+#define ram_conf_init(conf) pi_default_ram_conf_init(conf)
+#endif
 
 #define BUFFER_SIZE 128
 static uint8_t buffer[BUFFER_SIZE];
 
 static struct pi_device flash;
-static struct pi_hyperflash_conf flash_conf;
+static flash_conf_t flash_conf;
 
 static struct pi_device fs;
 static struct pi_readfs_conf fs_conf;
 
 static struct pi_device ram;
-static struct pi_hyper_conf ram_conf;
+static ram_conf_t ram_conf;
 
 void mem_init() {
-  pi_hyperflash_conf_init(&flash_conf);
+  flash_conf_init(&flash_conf);
   pi_open_from_conf(&flash, &flash_conf);
   if (pi_flash_open(&flash)) {
     printf("ERROR: Cannot open flash! Exiting...\n");
@@ -36,7 +60,7 @@ void mem_init() {
     pmsis_exit(-2);
   }
 
-  pi_hyperram_conf_init(&ram_conf);
+  ram_conf_init(&ram_conf);
   pi_open_from_conf(&ram, &ram_conf);
   if (pi_ram_open(&ram)) {
     printf("ERROR: Cannot open ram! Exiting...\n");
@@ -73,12 +97,14 @@ size_t load_file_to_ram(const void *dest, const char *filename) {
     pmsis_exit(-4);
   }
 
-  size_t size = fd->size;
+  const size_t size = fd->size;
+
   size_t offset = 0;
   do {
-    size_t read_bytes = pi_fs_read(fd, buffer, BUFFER_SIZE);
-    pi_ram_write(&ram, dest + offset, buffer, read_bytes);
+    const size_t read_bytes = pi_fs_read(fd, buffer, BUFFER_SIZE);
+    ram_write(dest + offset, buffer, read_bytes);
     offset += read_bytes;
   } while (offset < size);
+
   return offset;
 }

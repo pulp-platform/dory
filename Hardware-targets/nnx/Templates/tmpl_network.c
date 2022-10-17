@@ -19,17 +19,12 @@
  */
 #define DEFINE_CONSTANTS
 #include "network.h"
-#include "dory.h"
+#include "pmsis.h"
 #include "directional_allocator.h"
 #include "mem.h"
 % for layer in list_h:
 #include "${layer}"
 % endfor
-
-% if sdk == 'pulp-sdk':
-#define ICACHE_CTRL_UNIT 0x10201400
-#define ICACHE_PREFETCH ICACHE_CTRL_UNIT + 0x1C
-% endif
 
 % if verbose:
 #define VERBOSE 1
@@ -38,11 +33,8 @@
 % if 'Yes' in performance or 'Perf_final' in verbose_level:
 static void print_perf(const char *name, const int cycles, const int macs) {
   float perf = (float) macs / cycles;
-  printf("\n%s performance:\n", name);
-  printf("  - num cycles: %d\n", cycles);
-  printf("  - MACs: %d\n", macs );
-  printf("  - MAC/cycle: %g\n", perf);
-  printf("  - n. of Cores: %d\n\n", NUM_CORES);
+  printf("\n%s performance - MACs: %d, Cycles: %d, MAC/cycle: %g, N. of cores: %d\n\n",
+         name, macs, cycles, perf, NUM_CORES);
 }
 
 % endif
@@ -95,23 +87,23 @@ void network_terminate() {
   ram_free(L3_output, L3_OUTPUT_SIZE);
 }
 
-void execute_layer_fork(void *args) {
+void layer(void *args) {
   layer_args_t *layer_args = (layer_args_t *)args;
-  if (pi_core_id() == 0) layer_args->L1_buffer = pmsis_l1_malloc(${l1_buffer});
+  layer_args->L1_buffer = pi_cl_l1_malloc(NULL, ${l1_buffer});
 
   switch (layer_args->layer_id)
   {
 % for i in range(len(DORY_HW_graph)):
     case ${i}:
-      pi_cl_team_fork(NUM_CORES, (void *)${func_name[i]}, args);
+      ${func_name[i]}(args);
       break;
 % endfor
   }
 
-  if (pi_core_id() == 0) pmsis_l1_malloc_free(layer_args->L1_buffer, ${l1_buffer});
+  pi_cl_l1_free(NULL, layer_args->L1_buffer, ${l1_buffer});
 }
 
-void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output)
+int network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output)
 {
 /*
   - initial buffer allocation L2 and L1
@@ -128,9 +120,9 @@ void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output)
   int dir = 1;
   int residual_number = 0;
   int perf_cyc = 0;
-  struct pi_device cluster_dev = {0};
+  struct pi_device cl_dev = {0};
   struct pi_cluster_conf conf;
-  struct pi_cluster_task cluster_task = {0};
+  struct pi_cluster_task task = {0};
   // First open the cluster
   pi_cluster_conf_init(&conf);
   conf.id=0;
@@ -224,16 +216,20 @@ void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output)
     pi_perf_stop();
     pi_perf_start();
 % endif
-    pi_cluster_task(&cluster_task, execute_layer_fork, &args);
-    pi_open_from_conf(&cluster_dev, &conf);
-    if (pi_cluster_open(&cluster_dev))
+
+    pi_open_from_conf(&cl_dev, &conf);
+    if (pi_cluster_open(&cl_dev))
       return -1;
-    // Then offload an entry point, this will get executed on the cluster controller
-    cluster_task.stack_size = ${master_stack};
-    cluster_task.slave_stack_size = ${slave_stack};
-    pi_cluster_send_task_to_cl(&cluster_dev, &cluster_task);
-    // closing of the cluster
-    pi_cluster_close(&cluster_dev);
+    
+    pi_cluster_task(&task, layer, &args);
+    % if sdk == 'pulp-sdk':
+    task.stack_size = ${master_stack};
+    task.slave_stack_size = ${slave_stack};
+    % endif
+
+    pi_cluster_send_task_to_cl(&cl_dev, &task);
+    pi_cluster_close(&cl_dev);
+
 % if 'Yes' in performance or 'Perf_final' in verbose_level:
     // performance measurements: end
     pi_perf_stop();
@@ -334,5 +330,7 @@ void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output)
 /* ---------------------------------- */
 /* --------- SECTION 3 END ---------- */
 /* ---------------------------------- */
+
+  return 0;
 }
 
