@@ -139,6 +139,7 @@ def test_network(network, capsys, compat):
         print(f"STDERR:")
         if e.stderr is not None:
             print(e.stderr.decode())
+        assert False, "Test Timeout!"
 
     network_name = os.path.splitext(os.path.basename(args['conf_file']))[0]
     preamble = f'Network {network_name}'
