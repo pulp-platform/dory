@@ -1,4 +1,3 @@
-import torch
 import numpy as np
 
 class AiMC():
@@ -33,6 +32,8 @@ def tern_to_bin(w):
         return 0
 
 def gen_weights(n_rows, n_cols, tiles=1):
+    # import torch here locally to not make it a dependency to this library
+    import torch
     return torch.randint(low=-1, high=2, size=(1, n_rows, n_cols)).tolist()
 
 def mirror_rows(w):
@@ -94,13 +95,13 @@ def _padd_C(w):
     C  = int(len(w[0])/9)
     FX = 3
     FY = 3
-    #padding along C in case less than 64 in channels
+    #padding along C in case less than 1152 rows are copied. We want always 1152 rows copied inside the analog accelerator
     wt = []
-    if (C<64):
+    if (C<128):
         wg=[]
         print("Need for padding along C detected...")
         for i in range(FX*FY):
-            for c in range(64):
+            for c in range(128):
                 wk = []
                 for k in range(K):
                     if (c<C):
@@ -124,7 +125,7 @@ def _padd_K(w):
         print("Need for padding along K detected...")
         for c in range(C*FX*FY):    #total amount of lines
             wk = []
-            for i in range(128):     #single line
+            for i in range(128):     #single line parallelism on 16 * 16 bits. Multiple of 128 weights are copied. The rest is automatically padded by the accelerator
                 if (i<K):
                     wk.append(w[0][c][i])
                 else:
@@ -149,6 +150,5 @@ if __name__ == '__main__':
     w_list = pad(w, True, True)
     w_list = mirror_rows(w_list)
     w_list = flip_weights(w_list, False)
-    import pdb;pdb.set_trace()
     w_list = map_weights(w_list)
     w_list = flatten_list(w_list)

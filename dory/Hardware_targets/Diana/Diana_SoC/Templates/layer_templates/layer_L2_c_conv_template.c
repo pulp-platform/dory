@@ -17,7 +17,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License. 
  */
-#define ON
+
 #include "${func_name}.h"
 % if ULTRA_VERBOSE:
 #define VERBOSE_PRINT(...) printf(__VA_ARGS__)
@@ -199,11 +199,11 @@ void ${func_name}(layer* layer_i)
     kernel.stride = ${1 if stride > 1 else 0};
 % elif W_data_size_byte == 2:
     kernel.ox_unroll = 1;
-    for (int i = 0; i < 2; i++)
+    /*for (int i = 0; i < 2; i++)
     {
       if (((kernel.ox_unroll * 2 * kernel.k) <= 512) && ((kernel.c * ${fs2} * (${fs1} + kernel.ox_unroll * 2 - 1)) <= 1152))
         kernel.ox_unroll = kernel.ox_unroll * 2;
-    }
+    }*/
     kernel.stride = ${stride};
     kernel.ox = (int) y_tile_size_w / kernel.ox_unroll;
 % endif

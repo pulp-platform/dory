@@ -431,6 +431,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('hardware_target', type=str, choices=["Diana.Diana_SoC", "Diana.Diana_TVM"],
                         help='Hardware platform for which the code is optimized')
+    parser.add_argument('layer_type', type=str, choices=["analog", "digital_conv", "digital_FC"],
+                        help='Layer to be deployed. Used to choose the config file')
     parser.add_argument('--config_file', default='dory/dory_examples/config_files/config_single_layer.json', type=str,
                         help='Path to the JSON file that specifies the ONNX file of the network and other information. Default: config_files/config_single_layer.json')
     parser.add_argument('--app_dir', default='./application',
@@ -445,10 +447,24 @@ if __name__ == '__main__':
 
     number_of_nodes = 1
     json_configuration_file = []
-    for i in np.arange(number_of_nodes):
-        json_configuration_file_root = os.path.dirname((str(i)+'.').join((args.config_file).split('.')))
-        with open((str(i)+'.').join((args.config_file).split('.')), 'r') as f:
-            json_configuration_file.append(json.load(f)) 
+    if number_of_nodes > 1:
+        for i in np.arange(number_of_nodes):
+            json_configuration_file_root = os.path.dirname((str(i)+'.').join((args.config_file).split('.')))
+            with open((str(i)+'.').join((args.config_file).split('.')), 'r') as f:
+                json_configuration_file.append(json.load(f)) 
+    elif number_of_nodes == 1:
+        if args.layer_type == "analog":
+            json_configuration_file_root = os.path.dirname(('_analog.').join((args.config_file).split('.')))
+            with open(('_analog.').join((args.config_file).split('.')), 'r') as f:
+                json_configuration_file.append(json.load(f)) 
+        elif args.layer_type == "digital_conv":
+            json_configuration_file_root = os.path.dirname(('_digital_conv.').join((args.config_file).split('.')))
+            with open(('_digital_conv.').join((args.config_file).split('.')), 'r') as f:
+                json_configuration_file.append(json.load(f)) 
+        elif args.layer_type == "digital_FC":
+            json_configuration_file_root = os.path.dirname(('_digital_FC.').join((args.config_file).split('.')))
+            with open(('_digital_FC.').join((args.config_file).split('.')), 'r') as f:
+                json_configuration_file.append(json.load(f)) 
 
     network_dir = os.path.join(json_configuration_file_root, os.path.dirname(json_configuration_file[0]['onnx_file']))
     os.makedirs(network_dir, exist_ok=True)
