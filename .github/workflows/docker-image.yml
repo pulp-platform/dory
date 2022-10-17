@@ -49,7 +49,7 @@ jobs:
             cd /gap_riscv_toolchain_ubuntu_18/gap_sdk
             source configs/gapuino_v3.sh
             cd /dory_checkout
-            find . -path "*GAP8*HW_description.json" -exec sed -E -i 's/("name" *: *)"gap-sdk"/\1"pulp_sdk"/' {} +
+            find . -path "*GAP8*HW_description.json" -exec sed -E -i 's/("name" *: *)"pulp-sdk"/\gap_sdk"/' {} +
             python3 -m pytest -x test_GAP8.py --compat "gap-sdk"
             retcode=$?
             if [ ! $retcode -eq 0 ]; then exit $retcode; fi
