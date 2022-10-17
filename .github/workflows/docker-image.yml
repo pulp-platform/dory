@@ -38,17 +38,19 @@ jobs:
           shell: bash
           run: |
             source /dory_env/bin/activate
-            cd /gap_riscv_toolchain_ubuntu_18/gap_sdk
-            source configs/gapuino_v3.sh
+            source /pulp-sdk/configs/pulp-open-nn.sh
+            export PULP_RISCV_GCC_TOOLCHAIN=/riscv-nn-toolchain/
             cd /dory_checkout
-            python3 -m pytest -x test_GAP8.py --compat "gap-sdk"
+            find . -path "*GAP8*HW_description.json" -exec sed -E -i 's/("name" *: *)"gap_sdk"/\1"pulp-sdk"/' {} +
+            python3 -m pytest -x test_GAP8.py --compat "pulp-sdk"
             retcode=$?
             if [ ! $retcode -eq 0 ]; then exit $retcode; fi
             echo $retcode
-            source /pulp-sdk/configs/pulp-open-nn.sh
-            export PULP_RISCV_GCC_TOOLCHAIN=/riscv-nn-toolchain/
-            find . -path "*GAP8*HW_description.json" -exec sed -E -i 's/("name" *: *)"gap_sdk"/\1"pulp-sdk"/' {} +
-            python3 -m pytest -x test_GAP8.py --compat "pulp-sdk"
+            cd /gap_riscv_toolchain_ubuntu_18/gap_sdk
+            source configs/gapuino_v3.sh
+            cd /dory_checkout
+            find . -path "*GAP8*HW_description.json" -exec sed -E -i 's/("name" *: *)"gap-sdk"/\1"pulp_sdk"/' {} +
+            python3 -m pytest -x test_GAP8.py --compat "gap-sdk"
             retcode=$?
             if [ ! $retcode -eq 0 ]; then exit $retcode; fi
             echo $retcode
