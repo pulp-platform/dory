@@ -58,7 +58,7 @@ networks = [
                 'optional': 'mixed-sw'
             },
         "checksum_final": 'Ok',
-        "compat": ["gap-sdk"]
+        #"compat": ["gap-sdk"]
     },
     {
         "network_args":
