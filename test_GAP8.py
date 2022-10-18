@@ -67,7 +67,8 @@ networks = [
                 'conf_file': './dory/dory_examples/config_files/config_Quantlab_MV2_4bits.json',
                 'optional': 'mixed-sw'
             },
-        "checksum_final": 'Ok'
+        "checksum_final": 'Ok',
+        "compat": ['gap-sdk'] # this gui is too big for pulp-sdk...
     },
     {
         "network_args":
