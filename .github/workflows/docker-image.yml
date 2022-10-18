@@ -11,32 +11,46 @@ jobs:
 
   build:
 
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
 
     steps:
     - uses: actions/checkout@v3
     - name: Build the Docker image
       run: |
         docker login -u ${{secrets.DOCKER_USERNAME}} -p ${{secrets.DOCKER_PASSWORD}}
-        docker build -t ${{secrets.DOCKER_USERNAME}}/aleburrello .
+        docker build -t ${{secrets.DOCKER_USERNAME}}/aleburrello --build-arg CURR_COMMIT=$GITHUB_SHA .
         docker push ${{secrets.DOCKER_USERNAME}}/aleburrello
       
   tests:
 
-    runs-on: ubuntu-latest
-    needs: [build]
-    container:
-        image: alessioburrello/aleburrello:latest
+    runs-on: ubuntu-22.04
+    needs: []
     steps:
       - uses: actions/checkout@v3
-      - name: Run experiments
-        run: |
-          cd /gap_riscv_toolchain_ubuntu_18/gap_sdk
-          source configs/gapuino_v3.sh
-          cd dory
-          python3 -m pip install pytest
-          python3 -m pip install Pygments
-          python3 -m pip install MarkupSafe
-          python3 -m pytest -x test_GAP8.py
-          echo $?
-        shell: bash
+        with:
+          token: ${{ secrets.CI_TOKEN }}
+          submodules: recursive
+      - name: Run experiments in docker image
+        uses: addnab/docker-run-action@v3
+        with:
+          image: alessioburrello/aleburrello:latest
+          options: -v ${{ github.workspace }}:/dory_checkout
+          shell: bash
+          run: |
+            source /dory_env/bin/activate
+            source /pulp-sdk/configs/pulp-open-nn.sh
+            export PULP_RISCV_GCC_TOOLCHAIN=/riscv-nn-toolchain/
+            cd /dory_checkout
+            find . -path "*GAP8*HW_description.json" -exec sed -E -i 's/("name" *: *)"gap_sdk"/\1"pulp-sdk"/' {} +
+            python3 -m pytest --durations=0 -x test_GAP8.py --compat "pulp-sdk" --appdir "/dory_app"
+            retcode=$?
+            if [ ! $retcode -eq 0 ]; then exit $retcode; fi
+            echo $retcode
+            cd /gap_riscv_toolchain_ubuntu_18/gap_sdk
+            source configs/gapuino_v3.sh
+            cd /dory_checkout
+            find . -path "*GAP8*HW_description.json" -exec sed -E -i 's/("name" *: *)"pulp-sdk"/\1"gap_sdk"/' {} +
+            python3 -m pytest --durations=0 -x test_GAP8.py --compat "gap-sdk" --appdir "/dory_app"
+            retcode=$?
+            if [ ! $retcode -eq 0 ]; then exit $retcode; fi
+            echo $retcode

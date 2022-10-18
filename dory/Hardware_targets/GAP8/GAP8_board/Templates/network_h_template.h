@@ -71,7 +71,7 @@ static char * Layers_name[${len(DORY_HW_graph)}] = {\
 };
 static int L3_input_layers[${len(DORY_HW_graph)}] = {\
 % for i in range(len(DORY_HW_graph)):
-% if DORY_HW_graph[i].tiling_dimensions["L3"]["input_dimensions"] != DORY_HW_graph[i].tiling_dimensions["L2"]["input_dimensions"]:
+% if DORY_HW_graph[i].L3_input != 0:
 1${'' if loop.last else ', '}\
 % else:
 0${'' if loop.last else ', '}\
