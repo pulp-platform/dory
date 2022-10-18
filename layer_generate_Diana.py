@@ -277,8 +277,8 @@ def calculate_batchnorm_params(x, output_bits, constant_bits, signed):
 def create_input(node):
     low, high = borders(node.input_activation_bits, node.input_activation_type == 'int')
     size = (1, node.input_channels, node.input_dimensions[0], node.input_dimensions[1])
-    #return torch.randint(low=low, high=high, size=size)
-    return torch.randint(low=1, high=2, size=size)
+    return torch.randint(low=low, high=high, size=size)
+    # return torch.randint(low=1, high=2, size=size)
 
 def create_weight(node):
     low, high = borders(node.weight_bits, signed=True)
@@ -297,8 +297,8 @@ def create_weight(node):
         vec_weights = vec_weights.reshape(size).long()
         return vec_weights
     else:
-        # return torch.randint(low=low, high=high, size=size)
-        return torch.randint(low=2, high=3, size=size)
+        return torch.randint(low=low, high=high, size=size)
+        # return torch.randint(low=2, high=3, size=size)
 
 def create_bias(node):
     low, high = borders(node.bias_bits, signed=True)
@@ -338,7 +338,7 @@ def create_conv(i_layer, layer_node, dory_node, network_dir, input=None, weight=
 
     dory_node.constant_names.append('outshift')
     dory_node.outshift = {
-        'value': 5,#calculate_shift(y, dory_node.output_activation_bits, y_signed),
+        'value': calculate_shift(y, dory_node.output_activation_bits, y_signed),
         'layout': ''
     }
     y = y >> dory_node.outshift['value']

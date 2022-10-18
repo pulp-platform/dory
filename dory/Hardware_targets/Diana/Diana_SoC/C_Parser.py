@@ -126,15 +126,16 @@ class C_Parser(Parser_HW_to_C):
             x_in = np.random.randint(low=0, high=2*8 - 1,
                                      size=self.group * self.input_channels * self.input_dimensions[0] * self.input_dimensions[1],
                                      dtype=np.uint8)
-        if self.HWgraph[0].weight_bits == 2 or "FullyConnected" in self.HWgraph[0].name:
+        if self.HWgraph[0].weight_bits == 2:
             x_in = x_in.flatten() 
             temp = x_in
         else:
-            x_in_w = int(x_in.shape[0]/(self.HWgraph[0].input_channels*self.HWgraph[0].input_dimensions[0]))
-            x_in = x_in.reshape(self.HWgraph[0].input_channels, self.HWgraph[0].input_dimensions[0], x_in_w)
-            npad = ((0, 0), (0,0), (0, (16 - (x_in_w % 16)) % 16))
-            temp = np.pad(x_in, pad_width=npad, mode='constant', constant_values=0)
-            x_in = temp.flatten()
+            if "FullyConnected" not in self.HWgraph[0].name:
+                x_in_w = int(x_in.shape[0]/(self.HWgraph[0].input_channels*self.HWgraph[0].input_dimensions[0]))
+                x_in = x_in.reshape(self.HWgraph[0].input_channels, self.HWgraph[0].input_dimensions[0], x_in_w)
+                npad = ((0, 0), (0,0), (0, (16 - (x_in_w % 16)) % 16))
+                temp = np.pad(x_in, pad_width=npad, mode='constant', constant_values=0)
+                x_in = temp.flatten()
             temp = x_in.reshape(int(x_in.shape[0]/4), 4)
             temp1 = copy.deepcopy(temp)
             temp[:,0] = temp1[:,3] 
@@ -187,7 +188,6 @@ class C_Parser(Parser_HW_to_C):
                         for byte in range(4):
                             final_weights.append(new_weights[(node.output_channels*byte + ch*16):(node.output_channels*byte + ch*16 + 16)])
                     node.__dict__[constants[i]]["value"] = np.asarray(final_weights).flatten().tolist()
-
         for batch in np.arange(0, int(np.floor((getattr(node, 'output_channels')+15)/16))):
             for i in [0, 1]:
                 if constants[i]!= 0:
@@ -195,7 +195,7 @@ class C_Parser(Parser_HW_to_C):
                         dim = getattr(node, 'input_channels') * 16 * np.prod(getattr(node, 'kernel_shape'))
                         weights = np.concatenate((weights,node.__dict__[constants[i]]["value"][(batch*dim):((batch+1)*dim)]))
                     if i==1:  
-                        weights = np.concatenate((weights,node.__dict__[constants[i]]["value"][(batch*16*4):((batch+1)*16*4)]))
+                        weights = np.concatenate((weights,node.__dict__[constants[i]]["value"][(batch*16*int(node.bias_bits/8)):((batch+1)*16*int(node.bias_bits/8))]))
                     save_vector = 1
         for i in [2, 3]:
             if constants[i]!= 0:
@@ -242,7 +242,7 @@ class C_Parser(Parser_HW_to_C):
                         dim = int((getattr(node, 'output_channels')+15)/16) * 16 * getattr(node, 'input_channels') * np.prod(getattr(node, 'kernel_shape'))
                         weights = np.concatenate((weights,node.__dict__[constants[i]]["value"][(batch*dim):((batch+1)*dim)]))
                     if i==1:  
-                        weights = np.concatenate((weights,node.__dict__[constants[i]]["value"][(batch*16*4):((batch+1)*16*4)]))
+                        weights = np.concatenate((weights,node.__dict__[constants[i]]["value"][(batch*16*int(node.bias_bits/8)):((batch+1)*16*int(node.bias_bits/8))]))
                     save_vector = 1
         for i in [2, 3]:
             if constants[i]!= 0:

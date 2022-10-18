@@ -184,7 +184,7 @@ class Parser_DORY_to_HW:
 
     def formatting_constant_parameters_tensors_and_activations(self):
         print("\nDORY Backend: Formatting constants and adding checksums")
-        for i, node in enumerate(self.DORY_Graph):            
+        for i, node in enumerate(self.DORY_Graph):   
             node.add_checksum_w_integer()           
             node.add_checksum_activations_integer(self.network_directory, i, self.n_inputs)
 

@@ -122,7 +122,7 @@ class onnx_manager(Parser_DORY_to_HW):
     def formatting_constant_parameters_tensors_and_activations(self):
         print("\nDiana Backend: Formatting constants and adding checksums")
         for i, node in enumerate(self.DORY_Graph):         
-            if node.get_parameter('weight_bits') >= 8:   
+            if node.get_parameter('weight_bits') >= 8:  
                 node.add_checksum_w_integer()           
                 node.add_checksum_activations_integer(self.network_directory, i)
             else:
