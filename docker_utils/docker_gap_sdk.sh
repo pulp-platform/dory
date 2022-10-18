@@ -1,6 +1,6 @@
 #! /usr/bin/env bash
 
-if [ ! $# -eq 0]; then
+if [ ! $# -eq 0 ]; then
     CONTAINER_NAME=$1
 else
     CONTAINER_NAME=dory_docker
