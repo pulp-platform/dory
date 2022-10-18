@@ -140,7 +140,7 @@ def test_network(network, capsys, compat, appdir):
 
     cmd = ['make', '-C', appdir, 'clean', 'all', 'run', 'platform=gvsoc', 'CORE=8']
     try:
-        proc = subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=180)
+        proc = subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=240)
     except subprocess.CalledProcessError as e:
         assert False, f"Building application failed with exit status {e.returncode}\nBuild error:\n{e.stderr}"
     except subprocess.TimeoutExpired as e:
