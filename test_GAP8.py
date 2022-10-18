@@ -12,6 +12,16 @@ from network_generate import network_generate
 
 networks = [
     {
+            "network_args":
+            {
+                'frontend': 'Quantlab',
+                'target': 'GAP8.GAP8_gvsoc',
+                'conf_file': './dory/dory_examples/config_files/config_Quantlab_MV1_fast_xpnn.json',
+                'optional': 'mixed-hw'
+            },
+            "checksum_final": 'Ok'
+    },
+    {
         "network_args":
             {
                 'frontend': 'NEMO',
@@ -44,16 +54,6 @@ networks = [
             {
                 'frontend': 'Quantlab',
                 'target': 'GAP8.GAP8_gvsoc',
-                'conf_file': './dory/dory_examples/config_files/config_Quantlab_MV1_fast_xpnn.json',
-                'optional': 'mixed-hw'
-            },
-        "checksum_final": 'Ok'
-    },
-    {
-        "network_args":
-            {
-                'frontend': 'Quantlab',
-                'target': 'GAP8.GAP8_gvsoc',
                 'conf_file': './dory/dory_examples/config_files/config_Quantlab_MV1_8bits.json',
                 'optional': 'mixed-sw'
             },
@@ -67,7 +67,8 @@ networks = [
                 'conf_file': './dory/dory_examples/config_files/config_Quantlab_MV2_4bits.json',
                 'optional': 'mixed-sw'
             },
-        "checksum_final": 'Ok'
+        "checksum_final": 'Ok',
+        "compat": ['gap-sdk'] # this gui is too big for pulp-sdk...
     },
     {
         "network_args":
@@ -91,6 +92,8 @@ networks = [
     }
 ]
 
+
+
 regex = re.compile(r'Checksum final :\s*(.*)$', re.MULTILINE)
 regex_cycles = re.compile(r'num_cycles:\s*(.*)$', re.MULTILINE)
 regex_MACs = re.compile(r'MACs:\s*(.*)$', re.MULTILINE)
@@ -100,18 +103,55 @@ def output_test(output, checksum_final):
     return match.group(1) == checksum_final
 
 
+# check if a network is compatible with the specified SDK (must be gap-sdk or
+# pulp-sdk)
+def check_compat(network : dict, compat : str):
+    try:
+        compat_sdks = network["compat"]
+    except KeyError:
+        compat_sdks = ["gap-sdk", "pulp-sdk"]
+
+    net_args = network["network_args"]
+
+    if compat == 'pulp-sdk':
+        # pulp-sdk can handle everything
+        return compat in compat_sdks
+
+    try:
+        optional = net_args['optional']
+    except KeyError:
+        optional = 'auto'
+
+    return (not optional == 'mixed-hw') and (compat in compat_sdks)
+
+
 @pytest.mark.parametrize('network', networks)
-def test_network(network, capsys):
+def test_network(network, capsys, compat, appdir):
     args = network['network_args']
+    if not check_compat(network, compat):
+        with capsys.disabled():
+            print(f"Skipping network with conf_file {args['conf_file']} as it is not compatible with SDK {compat}")
+        return
     checksum_final = network['checksum_final']
 
+    if appdir is None:
+        appdir = './application'
+    args['appdir'] = appdir
     network_generate(**args)
 
-    cmd = ['make', '-C', 'application', 'clean', 'all', 'run', 'platform=gvsoc', 'CORE=8']
+    cmd = ['make', '-C', appdir, 'clean', 'all', 'run', 'platform=gvsoc', 'CORE=8']
     try:
-        proc = subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=120)
+        proc = subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=360)
     except subprocess.CalledProcessError as e:
         assert False, f"Building application failed with exit status {e.returncode}\nBuild error:\n{e.stderr}"
+    except subprocess.TimeoutExpired as e:
+        print(f"Test timed out...\nSTDOUT:")
+        if e.output is not None:
+            print(e.output.decode())
+        print(f"STDERR:")
+        if e.stderr is not None:
+            print(e.stderr.decode())
+        exit(1)
 
     network_name = os.path.splitext(os.path.basename(args['conf_file']))[0]
     preamble = f'Network {network_name}'
@@ -127,4 +167,3 @@ def test_network(network, capsys):
         with capsys.disabled():
             print(f'{preamble.ljust(40)}, Failed')
         #print(f'{preamble} Makefile output:\n {proc.stdout}')
-        

@@ -76,7 +76,7 @@ def print_template_layer_L3(node, tmpl_dir, out_dir):
     tk['conv_overlap1'] = conv_overlap1
     tk['conv_overlap2'] = conv_overlap2
     tk['padding'] = padding_top
-    if (node.tiling_dimensions["L3"]["input_dimensions"] != node.tiling_dimensions["L2"]["input_dimensions"]):
+    if (node.L3_input):
         tk['input_L3'] = 1
         factor_h_in = int(h_out / h_out_L2) 
     else:

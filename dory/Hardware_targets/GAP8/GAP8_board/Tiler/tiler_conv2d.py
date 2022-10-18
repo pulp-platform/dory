@@ -60,6 +60,7 @@ class Tiler_Conv2D():
         ## This is not completly the correct check. It is not always the previous node in the graph, but it could also be one other. You have to check its input node.
         if (self.previous_HW_node.tiling_dimensions["L3"]["output_dimensions"] != self.previous_HW_node.tiling_dimensions["L2"]["output_dimensions"]) and not isinstance(self.previous_HW_node.tiling_dimensions["L2"]["output_dimensions"], type(None)):
             input_L3 = 1
+            self.HW_node.L3_input = 1
         else:
             input_L3 = 0
         # tiling for L3-L2 management
