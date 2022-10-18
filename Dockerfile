@@ -1,5 +1,4 @@
 FROM    ubuntu:bionic
-ARG     CURR_COMMIT="master"
 SHELL   ["/bin/bash", "-c"]
 RUN     apt-get update && \
         apt-get install -y software-properties-common && \
@@ -50,7 +49,7 @@ RUN     source /dory_env/bin/activate && \
         cd / && \
         wget https://iis-nextcloud.ee.ethz.ch/s/aYESyR5W9FrHgYa/download/riscv-nn-toolchain.zip && \
         unzip riscv-nn-toolchain
-# DORY REPO INIT - CI USES THE ${GITHUB_WORKSPACE} VOLUME AT /dory_checkout!!!!
+# FINALIZE PYTHON VENV
 WORKDIR /gap_riscv_toolchain_ubuntu_18/gap_sdk/
 RUN     source /dory_env/bin/activate && \
         python3 -m pip install Cython && \
