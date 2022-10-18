@@ -98,7 +98,7 @@ int32_t ${func_name}(void* l2_x, void* l2_y)
     // check if last in any dimension
     x_tile_size_nif = (_i_nif+1   == ${tile_dim_nif}) ? ${x_tile_size_nif_last} : ${x_tile_size_nif};
     x_tile_size_h   = (_i_h+1     == ${tile_dim_h})   ? ${x_tile_size_h_last} : ${x_tile_size_h};
-% if W_data_size_byte == 8 and 'FullyConnected' not in func_name:
+% if W_data_size_byte == 8 and 'Gemm' not in optional:
     x_tile_size_w   = (_i_w+1     == ${tile_dim_w})   ? ${(x_tile_size_w_last + 15) // 16 * 16} : ${(x_tile_size_w + 15) // 16 * 16};
     y_tile_size_w   = (_i_w+1     == ${tile_dim_w})   ? ${(y_tile_size_w_last + 15) // 16 * 16} : ${(y_tile_size_w + 15) // 16 * 16};
 % else:
@@ -205,7 +205,7 @@ int32_t ${func_name}(void* l2_x, void* l2_y)
 
 % if W_data_size_byte == 8:
     dory_cores_barrier_digital();
-% if 'FullyConnected' in func_name: 
+% if 'Gemm' in optional: 
     digital_fully_connected(l2_x_tile, l1_x, Weights_${func_name}, l1_weights, l1_y, &kernel);
 % elif flag_DW == 1:
     digital_depthwise_conv_2d(l2_x_tile, l1_x, Weights_${func_name}, l1_weights, l1_y, &kernel);
@@ -215,7 +215,7 @@ int32_t ${func_name}(void* l2_x, void* l2_y)
     dory_cores_barrier_digital();
 % elif W_data_size_byte == 2:
     dory_cores_barrier_analog();
-% if 'FullyConnected' in func_name: 
+% if 'Gemm' in optional: 
     analog_fully_connected(l2_x, l1_x, Weights_${func_name}, l1_weights, l1_y, &kernel);
 % elif flag_DW == 1:
     analog_depthwise_conv_2d(l2_x, l1_x, Weights_${func_name}, l2_BN, l1_weights, l1_y, &kernel);
