@@ -155,6 +155,32 @@ The power profiling on a GAP8 v3 of a 1.0-MobilenetV1-128 is reported in Fig.2.
   <em> Fig.2 In the left part, the 1.0-MobileNet-128 power profile when running on GAP-8 @ fc cluster = 100 MHz and VDD = 1V. On the right, number of MAC operations, average power, and time for each layer of the network. Power was sampled at 64 KHz and then filtered with a moving average of 300 micro seconds. </em>
 </p>
 
+Building and Using the Dockerfile
+-------------------------------------
+To build the docker image (mostly used to debug the CI), run the script in the `docker_utils` folder:
+```
+./docker_utils/build_docker.sh $IMAGE_NAME
+```
+`$IMAGE_NAME` is an optional argument specifying the target image name. If none is provided, the resulting image will be called "dory_docker".
+
+Likewise, to run a docker container from the built image, run:
+```
+./docker_utils/run_docker.sh $IMAGE_NAME
+```
+Once you are in the docker container shell, you can use the setup scripts to set up your environment for `pulp-sdk` or `gap-sdk`:
+```
+source ./docker_utils/docker_pulp_sdk.sh
+```
+or
+```
+source ./docker_utils/docker_gap_sdk.sh
+```
+
+Now you can use DORY in the docker image as you wish, e.g., to run the tests:
+```
+python3 -m pytest test_GAP8.py --compat pulp-sdk
+```
+To mount additional folders, edit the `run_docker.sh` script and add more `-v` options.
 
 ### Contributors
 + **Alessio Burrello**, *University of Bologna*, [email](mailto:alessio.burrello@unibo.it)
