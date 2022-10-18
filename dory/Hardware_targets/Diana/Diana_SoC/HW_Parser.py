@@ -65,13 +65,19 @@ class onnx_manager(Parser_DORY_to_HW):
                 if node.__dict__[weights_name]["layout"] == "CinCout":
                     node.__dict__[weights_name]["value"] = node.__dict__[weights_name]["value"].T
                     node.__dict__[weights_name]["layout"] = "CoutCin"
-                if i != 0 and self.DORY_Graph[i-1].layout == "CHW":
-                    temp = node.__dict__[weights_name]["value"]
-                    temp = temp.reshape(node.output_channels, self.DORY_Graph[i-1].output_channels, self.DORY_Graph[i-1].get_parameter('output_dimensions')[0], self.DORY_Graph[i-1].get_parameter('output_dimensions')[1])
-                    temp = np.transpose(temp, (0, 2, 3, 1))
-                    temp = temp.flatten()
-                    node.__dict__[weights_name]["value"] = temp
-                    # needed to compute final checksum for <8b layers
+                npad = ((0, (16 - (node.__dict__[weights_name]["value"].shape[0] % 16)) % 16), (0, 0), (0, 0), (0,0))
+                temp = np.pad(node.__dict__[weights_name]["value"], pad_width=npad, mode='constant', constant_values=0)
+                temp = np.transpose(temp, (0, 2, 3, 1))
+                temp = temp.reshape(temp.shape[0],temp.shape[1],temp.shape[2],int(temp.shape[3]/16), 16)
+                temp = np.transpose(temp, (3, 0, 1, 2, 4))
+                node.__dict__[weights_name]["value"] = temp
+                node.__dict__[weights_name]["layout"] = "Cout2CinKCout1"
+                for name in node.constant_names:
+                    if name not in ["l","k","outshift","outmul"]:
+                        if "bias" in name:
+                            weights_name = name
+                            npad = ((0, (16 - (node.__dict__[weights_name]["value"].shape[0] % 16)) % 16))
+                            node.__dict__[weights_name]["value"] = np.pad(node.__dict__[weights_name]["value"], pad_width=npad, mode='constant', constant_values=0)
             elif "Convolution" in node.name:
                 for name in node.constant_names:
                     if name not in ["l","k","outshift","outmul"]:

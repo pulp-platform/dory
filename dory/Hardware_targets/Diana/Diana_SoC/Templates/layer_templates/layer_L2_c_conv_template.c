@@ -105,18 +105,18 @@ void ${func_name}(layer* layer_i)
     x_tile_size_h   = (_i_h+1     == ${tile_dim_h})   ? ${x_tile_size_h_last} : ${x_tile_size_h};
 % if W_data_size_byte == 8 and 'FullyConnected' not in func_name:
     x_tile_size_w   = (_i_w+1     == ${tile_dim_w})   ? ${(x_tile_size_w_last + 15) // 16 * 16} : ${(x_tile_size_w + 15) // 16 * 16};
+    y_tile_size_w   = (_i_w+1     == ${tile_dim_w})   ? ${(y_tile_size_w_last + 15) // 16 * 16} : ${(y_tile_size_w + 15) // 16 * 16};
 % else:
     x_tile_size_w   = (_i_w+1     == ${tile_dim_w})   ? ${x_tile_size_w_last} : ${x_tile_size_w };
+    y_tile_size_w   = (_i_w+1     == ${tile_dim_w})   ? ${(y_tile_size_w_last)} : ${(y_tile_size_w)};
 % endif
     x_tile_size_byte = x_tile_size_nif*x_tile_size_h*x_tile_size_w*${x_data_size_byte}/8;
     x_length_nif_byte = (_i_nif+1 == ${tile_dim_nif})   ? ${x_tile_size_nif_byte_last} : ${x_tile_size_nif_byte};
     y_tile_size_h   = (_i_h+1     == ${tile_dim_h})   ? ${y_tile_size_h_last} : ${y_tile_size_h};
-% if W_data_size_byte == 8 and 'FullyConnected' not in func_name:
-    y_tile_size_w   = (_i_w+1     == ${tile_dim_w})   ? ${(y_tile_size_w_last + 15) // 16 * 16} : ${(y_tile_size_w + 15) // 16 * 16};
+% if W_data_size_byte == 8:
     y_length_nof_byte = (_i_nof+1   == ${tile_dim_nof}) ? ${(W_tile_size_nof_last + 15) // 16 * 16} : ${(W_tile_size_nof + 15) // 16 * 16};
     W_tile_size_nof = (_i_nof+1   == ${tile_dim_nof}) ? ${(W_tile_size_nof_last + 15) // 16 * 16} : ${(W_tile_size_nof + 15) // 16 * 16};
 % else:
-    y_tile_size_w   = (_i_w+1     == ${tile_dim_w})   ? ${(y_tile_size_w_last)} : ${(y_tile_size_w)};
     y_length_nof_byte = (_i_nof+1   == ${tile_dim_nof}) ? ${(W_tile_size_nof_last)} : ${(W_tile_size_nof)};
     W_tile_size_nof = (_i_nof+1   == ${tile_dim_nof}) ? ${(W_tile_size_nof_last)} : ${(W_tile_size_nof)};
 % endif

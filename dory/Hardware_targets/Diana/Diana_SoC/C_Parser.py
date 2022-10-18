@@ -94,7 +94,10 @@ class C_Parser(Parser_HW_to_C):
             if node.get_parameter('weight_bits') < 8:
                 ww, ww_dim = self.create_analog_weights(node)
             else:
-                ww, ww_dim = self.create_digital_weights(node)
+                if 'FullyConnected' in node.name:
+                    ww, ww_dim = self.create_digital_FC_weights(node)
+                else:
+                    ww, ww_dim = self.create_digital_weights(node)
             weights_vectors.append(ww)
             weights_dimensions.append(ww_dim)
         tk = OrderedDict([])
@@ -123,7 +126,7 @@ class C_Parser(Parser_HW_to_C):
             x_in = np.random.randint(low=0, high=2*8 - 1,
                                      size=self.group * self.input_channels * self.input_dimensions[0] * self.input_dimensions[1],
                                      dtype=np.uint8)
-        if self.HWgraph[0].weight_bits == 2:
+        if self.HWgraph[0].weight_bits == 2 or "FullyConnected" in self.HWgraph[0].name:
             x_in = x_in.flatten() 
             temp = x_in
         else:
@@ -180,15 +183,63 @@ class C_Parser(Parser_HW_to_C):
                             for pos_in in [3,2,1,0]:
                                 new_weights.append(node.__dict__[constants[i]]["value"][pos+4*(ch*4+pos_in)])
                     final_weights = []
-                    for ch in range(int(node.output_channels/16)):
+                    for ch in range(int((node.output_channels+15)/16)):
                         for byte in range(4):
                             final_weights.append(new_weights[(node.output_channels*byte + ch*16):(node.output_channels*byte + ch*16 + 16)])
                     node.__dict__[constants[i]]["value"] = np.asarray(final_weights).flatten().tolist()
+
         for batch in np.arange(0, int(np.floor((getattr(node, 'output_channels')+15)/16))):
             for i in [0, 1]:
                 if constants[i]!= 0:
                     if i==0:  
                         dim = getattr(node, 'input_channels') * 16 * np.prod(getattr(node, 'kernel_shape'))
+                        weights = np.concatenate((weights,node.__dict__[constants[i]]["value"][(batch*dim):((batch+1)*dim)]))
+                    if i==1:  
+                        weights = np.concatenate((weights,node.__dict__[constants[i]]["value"][(batch*16*4):((batch+1)*16*4)]))
+                    save_vector = 1
+        for i in [2, 3]:
+            if constants[i]!= 0:
+                weights = np.concatenate((weights,node.__dict__[constants[i]]["value"]))
+
+        while len(weights) % 4 != 0:
+            weights = np.concatenate((weights, np.asarray([0])))
+        if save_vector == 1:
+            return utils.print_test_vector(weights, 'char'), weights.shape[0]
+        else:
+            return ["0"], 0
+
+    def create_digital_FC_weights(self, node):
+        constants = [0, 0, 0, 0]
+        for name in node.constant_names:
+            if "weight" in name:
+                constants[0] = name
+            elif "bias" in name:
+                constants[1] = name
+            elif "k" == name:
+                constants[2] = name
+            elif "l" == name:
+                constants[3] = name
+        weights = np.asarray([])
+        save_vector = 0
+        for i in np.arange(4):
+            if constants[i]!= 0:
+                if i==0:
+                    temp = np.asarray(node.__dict__[constants[i]]["value"])
+                    temp = temp.reshape(int(temp.shape[0]/4), 4)
+                    temp1 = copy.deepcopy(temp)
+                    temp[:,0] = temp1[:,3] 
+                    temp[:,1] = temp1[:,2] 
+                    temp[:,2] = temp1[:,1] 
+                    temp[:,3] = temp1[:,0]
+                    node.__dict__[constants[i]]["value"] = temp.flatten()
+                if i==1:
+                    pass
+
+        for batch in np.arange(0, int(np.floor((getattr(node, 'output_channels')+15)/16))):
+            for i in [0, 1]:
+                if constants[i]!= 0:
+                    if i==0:  
+                        dim = int((getattr(node, 'output_channels')+15)/16) * 16 * getattr(node, 'input_channels') * np.prod(getattr(node, 'kernel_shape'))
                         weights = np.concatenate((weights,node.__dict__[constants[i]]["value"][(batch*dim):((batch+1)*dim)]))
                     if i==1:  
                         weights = np.concatenate((weights,node.__dict__[constants[i]]["value"][(batch*16*4):((batch+1)*16*4)]))

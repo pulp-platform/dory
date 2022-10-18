@@ -120,12 +120,12 @@ def _padd_K(w):
     FX = 3
     FY = 3
     wt = []
-    if (K<128):
+    if (K<512):
         wg=[]
         print("Need for padding along K detected...")
         for c in range(C*FX*FY):    #total amount of lines
             wk = []
-            for i in range(128):     #single line parallelism on 16 * 16 bits. Multiple of 128 weights are copied. The rest is automatically padded by the accelerator
+            for i in range(512):     #single line parallelism on 16 * 16 bits. Multiple of 512 weights are copied. 
                 if (i<K):
                     wk.append(w[0][c][i])
                 else:
