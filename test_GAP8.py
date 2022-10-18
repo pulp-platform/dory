@@ -57,8 +57,7 @@ networks = [
                 'conf_file': './dory/dory_examples/config_files/config_Quantlab_MV1_8bits.json',
                 'optional': 'mixed-sw'
             },
-        "checksum_final": 'Ok',
-        #"compat": ["gap-sdk"]
+        "checksum_final": 'Ok'
     },
     {
         "network_args":
