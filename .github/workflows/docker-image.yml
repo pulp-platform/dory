@@ -34,7 +34,7 @@ jobs:
         uses: addnab/docker-run-action@v3
         with:
           image: alessioburrello/aleburrello:latest
-          options: -v ${{ github.workspace }}:/dory_checkout
+          options: -v ${{ github.workspace }}:/dory_checkout --workdir /dory_checkout
           shell: bash
           run: |
             source docker_utils/docker_pulp_sdk.sh
