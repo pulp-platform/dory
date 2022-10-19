@@ -20,7 +20,9 @@
 % if sdk == 'gap_sdk':
 #include "pulp.h"
 % endif
-#include "dory.h"
+#include "pmsis.h"
+#include "dory_get_tile.h"
+#include "dory_dma.h"
 #include "pulp_nn_kernels.h"
 
 void  ${func_name}(
