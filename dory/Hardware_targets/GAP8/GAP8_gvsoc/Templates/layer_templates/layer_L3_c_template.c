@@ -36,7 +36,7 @@ void __attribute__ ((noinline)) ${func_name_L3}(void *args)
   const unsigned int l2_x = layer_args->L2_input;
   const unsigned int l2_y = layer_args->L2_output;
   const unsigned int l2_W = layer_args->L2_weights;
-  const unsigned int ram = layer_args->ram;
+  const pi_device_t * ram = (pi_device_t *)layer_args->ram;
 
   layer_args_t tile_args = *layer_args;
 

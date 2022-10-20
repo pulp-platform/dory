@@ -20,12 +20,13 @@ CORE ?= 1
 
 APP = main
 APP_SRCS := $(wildcard src/*.c)
-APP_CFLAGS += -DNUM_CORES=$(CORE) -Iinc -O3 -w
+APP_CFLAGS += -DNUM_CORES=$(CORE) -Iinc -O2 -fno-indirect-inlining
+APP_LDFLAGS += -lm -Wl,--print-memory-usage
 
 % if sdk == 'pulp-sdk':
 APP_CFLAGS += -DPULP_SDK=1
-APP_CFLAGS += -fno-tree-loop-distribute-patterns -flto
-APP_LDFLAGS += -lm -flto -Wl,--print-memory-usage
+APP_CFLAGS += -flto
+APP_LDFLAGS += -flto
 FLASH_TYPE ?= HYPERFLASH
 RAM_TYPE ?= HYPERRAM
 CONFIG_HYPERRAM = 1
