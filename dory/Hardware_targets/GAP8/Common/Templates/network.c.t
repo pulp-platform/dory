@@ -202,17 +202,17 @@ void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output)
 % endif
 
     layer_args_t args = {
-      .L3_input = L3_input,
-      .L3_output = L3_output,
-      .L3_after_weights = L3_weights,
-      .L2_input = L2_input,
-      .bypass = bypass_activations,
-      .L2_output = L2_output,
-      .L2_weights = L2_weights,
-      .L1_buffer = NULL,
-      .ram = (unsigned int)get_ram_ptr(),
-      .out_mult = out_mult_vector[i],
-      .out_shift = out_shift_vector[i],
+      .L3_input = (unsigned int) L3_input,
+      .L3_output = (unsigned int) L3_output,
+      .L3_after_weights = (unsigned int) L3_weights,
+      .L2_input = (unsigned int) L2_input,
+      .bypass = (unsigned int) bypass_activations,
+      .L2_output = (unsigned int) L2_output,
+      .L2_weights = (unsigned int) L2_weights,
+      .L1_buffer = 0,
+      .ram = (unsigned int) get_ram_ptr(),
+      .out_mult = (unsigned int) out_mult_vector[i],
+      .out_shift = (unsigned int) out_shift_vector[i],
       .layer_id = i
     };
 
@@ -242,7 +242,7 @@ void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output)
     perf_cyc =  pi_perf_read(PI_PERF_CYCLES);
     cycle_network_execution += perf_cyc;
 % endif
-    
+
 % if 'Yes' in performance:
     print_perf(Layers_name[i], perf_cyc, NODEs_MACS[i]);
 % endif
@@ -337,4 +337,3 @@ void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output)
 /* --------- SECTION 3 END ---------- */
 /* ---------------------------------- */
 }
-

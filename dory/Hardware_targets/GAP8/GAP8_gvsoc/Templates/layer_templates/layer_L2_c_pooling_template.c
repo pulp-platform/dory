@@ -19,6 +19,13 @@
 ${verbose_log}
 
 #include "${func_name}.h"
+% if sdk == 'gap_sdk':
+#include "pulp.h"
+  % endif
+#include "pmsis.h"
+#include "dory_get_tile.h"
+#include "dory_dma.h"
+#include "pulp_nn_kernels.h"
 % if ULTRA_VERBOSE:
 #define VERBOSE_PRINT(...) printf(__VA_ARGS__)
 % endif
@@ -67,7 +74,6 @@ void ${func_name}(
   int exec_db_W;
  ${type} *im2col;
   im2col = l1_buffer + ${buffer_l1_all};
-  uint32_t dory_dma_channel = dory_dma_allocate();
   volatile DMA_copy DMA_copy_x, DMA_copy_y;
   // copy first tiles
   //l2_x has input activations
@@ -76,21 +82,18 @@ void ${func_name}(
   DMA_copy_x.stride_2d = ${x_stride_w_byte};
   DMA_copy_x.stride_1d = ${x_stride_c_byte};
   DMA_copy_x.dir = 1;
-  DMA_copy_x.dma_channel = dory_dma_channel;
 
   DMA_copy_y.hwc_to_chw = 0;
   DMA_copy_y.stride_2d = ${y_stride_w_byte};
   DMA_copy_y.stride_1d = ${y_stride_c_byte};
   DMA_copy_y.dir = 0;
-  DMA_copy_y.dma_channel = dory_dma_channel;
 
   DMA_copy_x.ext = l2_x;
   DMA_copy_x.loc = (l1_buffer + ${l1_x_offset}) + 0;
   DMA_copy_x.number_of_2d_copies = ${x_tile_size_h};
   DMA_copy_x.number_of_1d_copies = ${x_tile_size_w};
   DMA_copy_x.length_1d_copy = ${x_tile_size_nif_byte};
-  dory_dma_memcpy_async(DMA_copy_x);
-  dory_dma_barrier(DMA_copy_x);
+  dory_dma_memcpy_async(&DMA_copy_x);
   // tile loop indeces
   int _i_nof_load=0, _i_nif_load=0, _i_h_load=0, _i_w_load=0;
   int _i_nof_exec=0, _i_nif_exec=0, _i_h_exec=0, _i_w_exec=0;
@@ -170,7 +173,7 @@ void ${func_name}(
       DMA_copy_x.number_of_2d_copies = x_tile_size_h;
       DMA_copy_x.number_of_1d_copies = x_tile_size_w;
       DMA_copy_x.length_1d_copy = x_length_nif_byte;
-      dory_dma_memcpy_async(DMA_copy_x);
+      dory_dma_memcpy_async(&DMA_copy_x);
 % endif
       y_tile_size_h   = (last_h_load)   ? ${y_tile_size_h_last} : ${y_tile_size_h};
       y_tile_size_w   = (last_w_load)   ? ${y_tile_size_w_last} : ${y_tile_size_w};
@@ -199,7 +202,7 @@ void ${func_name}(
       p_b = ${padding_bottom};
     if (_i_w_exec == ${tile_dim_w}-1)
       p_r = ${padding_right};
-    dory_cores_barrier();
+    pi_cl_team_barrier(0);
 
 // aggiungere padding su tutti i lati, acc_out, and filter asymettric
   % if 'Max' in optional:
@@ -240,26 +243,20 @@ void ${func_name}(
     ${FLAG_RELU}
 % endif
     );
-    dory_cores_barrier();
-    dory_dma_barrier(DMA_copy_x);
-    dory_dma_barrier(DMA_copy_y);
+    pi_cl_team_barrier(0);
+
     // transfering of output to L2
     DMA_copy_y.ext = dory_get_tile_3d(l2_y, _i_h_exec, _i_w_exec, _i_nof_exec, ${y_tile_size_h}, ${y_tile_size_w}, ${y_tile_size_nof}, ${y_w}, ${nof}, 0, 0, 0, 0, 0, 0, ${y_data_size_byte});
     DMA_copy_y.loc = (l1_buffer + ${l1_y_offset}) + db_y;
     DMA_copy_y.number_of_2d_copies = y_tile_size_h;
     DMA_copy_y.number_of_1d_copies = y_tile_size_w;
     DMA_copy_y.length_1d_copy = y_length_nof_byte;
-    dory_dma_memcpy_async(DMA_copy_y);
+    dory_dma_memcpy_async(&DMA_copy_y);
     // update prev iterators
     _i_nof_exec = _i_nof_load;
     _i_nif_exec = _i_nif_load;
     _i_h_exec = _i_h_load;
     _i_w_exec = _i_w_load;
-    dory_cores_barrier();
+    pi_cl_team_barrier(0);
   }
-% if not TEST:
-  // wait for final write
-  dory_dma_barrier(DMA_copy_y);
-  dory_dma_deallocate(dory_dma_channel);
-% endif
 }

@@ -17,6 +17,12 @@
  * limitations under the License. 
  */
 #include "${func_name_L3}.h"
+#include "${func_name[0]}.h"
+% if len(func_name)>1:
+#include "${func_name[1]}.h"
+#include "${func_name[2]}.h"
+%endif
+#include "dory_get_tile.h"
 #include "pmsis.h"
 #include "bsp/fs.h"
 #include "bsp/fs/readfs.h"
@@ -25,6 +31,7 @@
 #include "bsp/flash/hyperflash.h"
 #include "bsp/ram/hyperram.h"
 #include "network.h"
+
 
 
 void __attribute__ ((noinline)) ${func_name_L3}(void *args)

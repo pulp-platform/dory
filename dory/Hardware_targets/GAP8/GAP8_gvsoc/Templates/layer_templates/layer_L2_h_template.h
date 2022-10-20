@@ -16,15 +16,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-% if sdk == 'gap_sdk':
-#include "pulp.h"
-% endif
-#include "pmsis.h"
-#include "dory_get_tile.h"
-#include "dory_dma.h"
-#include "pulp_nn_kernels.h"
+#ifndef __${func_name.upper()}_H__
+#define __${func_name.upper()}_H__
 
 void  ${func_name}(
   void *args
 );
+
+#endif
