@@ -179,6 +179,12 @@ class C_Parser(Parser_HW_to_C):
                     temp[:,3] = temp1[:,0]
                     node.__dict__[constants[i]]["value"] = temp.flatten()
                 if i==1:
+                    '''
+                    Bias e' su 32bit:
+                    Si impacchettano i 32bit in 8 valori hex, che noi chiameremo BH[0:7], con MSB alla posizione 0
+                    I valori vengono poi riordinati come: BH[6] BH[7] BH[4] BH[5] BH[2] BH[3] BH[0] BH[1]
+                    Il modo che sono scritti nell'header file segue BH[6] BH[7] BH[4] BH[5] BH[2] BH[3] BH[0] BH[1]
+                    '''
                     pass
 
         for batch in np.arange(0, int(np.floor((getattr(node, 'output_channels')+15)/16))):
@@ -201,20 +207,20 @@ class C_Parser(Parser_HW_to_C):
         else:
             return ["0"], 0
 
-    def _compress(self, x, bits):
+    def _compress_analog(self, x, bits):
         compressed = []
-        n_elements_in_byte = 8 // bits
+        n_elements_in_byte = 32 // bits
         i_element_in_byte = 0
         for el in x:
             if i_element_in_byte == 0:
-                compressed.append(el)
+                compressed.append(el << (n_elements_in_byte - i_element_in_byte - 1) * bits)
             else:
-                compressed[-1] += el << i_element_in_byte * bits
+                compressed[-1] += el << (n_elements_in_byte - i_element_in_byte - 1) * bits
 
             i_element_in_byte += 1
             if i_element_in_byte == n_elements_in_byte:
                 i_element_in_byte = 0
-        return np.asarray(compressed, dtype=np.uint8)
+        return np.asarray(compressed, dtype=np.uint32)
 
     def create_analog_weights(self, node):
         constants = [0, 0, 0, 0]
@@ -238,7 +244,7 @@ class C_Parser(Parser_HW_to_C):
                     w_list = ana_enc.flip_weights(w_list, False)
                     w_list = ana_enc.map_weights(w_list)
                     w_list = ana_enc.flatten_list(w_list)
-                    w_list_compressed = self._compress(w_list, 1)
+                    w_list_compressed = self._compress_analog(w_list, 1)
                     node.__dict__[constants[i]]["value"] = w_list_compressed
                     weights = np.concatenate((weights,node.__dict__[constants[i]]["value"]))
                     save_vector = 1
@@ -247,7 +253,7 @@ class C_Parser(Parser_HW_to_C):
                 weights = np.concatenate((weights,node.__dict__[constants[i]]["value"]))
 
         if save_vector == 1:
-            return utils.print_test_vector(weights, 'char'), weights.shape[0]
+            return utils.print_test_vector(weights, 'uint32_t'), weights.shape[0]
         else:
             return ["0"], 0
 

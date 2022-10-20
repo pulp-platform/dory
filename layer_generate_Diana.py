@@ -277,8 +277,8 @@ def calculate_batchnorm_params(x, output_bits, constant_bits, signed):
 def create_input(node):
     low, high = borders(node.input_activation_bits, node.input_activation_type == 'int')
     size = (1, node.input_channels, node.input_dimensions[0], node.input_dimensions[1])
-    return torch.randint(low=low, high=high, size=size)
-    # return torch.randint(low=1, high=2, size=size)
+    # return torch.randint(low=low, high=high, size=size)
+    return torch.randint(low=10, high=11, size=size)
 
 def create_weight(node):
     low, high = borders(node.weight_bits, signed=True)
@@ -286,16 +286,17 @@ def create_weight(node):
         low, high = -1, 2
     size = (node.output_channels, node.input_channels // node.group, node.kernel_shape[0], node.kernel_shape[1])
     if node.weight_bits == 2:
-        increasing_factor = (node.input_channels // node.group * node.kernel_shape[0] * node.kernel_shape[1] ) // node.output_channels
+        increasing_factor = 2
         vec_weights = torch.tensor([])
-        for i in np.arange(node.output_channels):
-            ones = torch.ones((i + 1) * increasing_factor, 1)
-            zeros = torch.zeros((node.input_channels // node.group * node.kernel_shape[0] * node.kernel_shape[1] ) - (i + 1) * increasing_factor, 1)
+        for i in np.arange(node.output_channels-1,-1,-1):
+            ones = torch.ones(i * increasing_factor + 1, 1)
+            zeros = torch.zeros((node.input_channels // node.group * node.kernel_shape[0] * node.kernel_shape[1] ) - (i * increasing_factor + 1), 1)
             column = torch.cat((ones, zeros), 0)
             vec_weights = torch.cat((vec_weights, column), 1)
         vec_weights = vec_weights.transpose(0, 1)
         vec_weights = vec_weights.reshape(size).long()
         return vec_weights
+        # return torch.randint(low=0, high=1, size=size)
     else:
         return torch.randint(low=low, high=high, size=size)
         # return torch.randint(low=2, high=3, size=size)

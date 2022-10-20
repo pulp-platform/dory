@@ -65,7 +65,7 @@ class onnx_manager(Parser_DORY_to_HW):
                 if node.__dict__[weights_name]["layout"] == "CinCout":
                     node.__dict__[weights_name]["value"] = node.__dict__[weights_name]["value"].T
                     node.__dict__[weights_name]["layout"] = "CoutCin"
-                npad = ((0, (16 - (node.__dict__[weights_name]["value"].shape[0] % 16)) % 16), (0, 0), (0, 0), (0,0))
+                npad = ((0, (16 - (node.__dict__[weights_name]["value"].shape[0] % 16)) % 16), (0, (16 - (node.__dict__[weights_name]["value"].shape[1] % 16)) % 16), (0, 0), (0,0))
                 temp = np.pad(node.__dict__[weights_name]["value"], pad_width=npad, mode='constant', constant_values=0)
                 temp = np.transpose(temp, (0, 2, 3, 1))
                 temp = temp.reshape(temp.shape[0],temp.shape[1],temp.shape[2],int(temp.shape[3]/16), 16)
@@ -85,8 +85,8 @@ class onnx_manager(Parser_DORY_to_HW):
                             weights_name = name
                 if node.__dict__[weights_name]["layout"] == "CoutCinK":
                     if node.get_parameter('weight_bits') < 8:
-                        node.__dict__[weights_name]["value"] = np.transpose(node.__dict__[weights_name]["value"], (2, 3, 1, 0))
-                        node.__dict__[weights_name]["layout"] = "KCinCout"
+                        node.__dict__[weights_name]["value"] = np.transpose(node.__dict__[weights_name]["value"], (1, 2, 3, 0))
+                        node.__dict__[weights_name]["layout"] = "CinKCout"
                     else:
                         npad = ((0, (16 - (node.__dict__[weights_name]["value"].shape[0] % 16)) % 16), (0, 0), (0, 0), (0,0))
                         temp = np.pad(node.__dict__[weights_name]["value"], pad_width=npad, mode='constant', constant_values=0)

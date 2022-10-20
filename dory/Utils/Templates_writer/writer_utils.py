@@ -33,16 +33,19 @@ def print_file_list(x):
 
 def print_test_vector(x, type_data):
     # Print the test vector in the c file.
-    if type_data == 'char':
+    if type_data == 'uint32_t':
         try:
-            np.set_printoptions(
-                threshold=sys.maxsize,
-                formatter={'int': lambda x: hex(np.uint8(x)) if (
-                    x < 0) else hex(np.uint8(x)), }
-            )
+            np.set_printoptions(threshold=sys.maxsize,formatter={'int': lambda x: hex(np.uint8(x)) if (x < 0) else hex(np.uint8(x)), } )
         except TypeError:
             np.set_printoptions(threshold=sys.maxsize)
-        s = repr(x.flatten()).replace("array([", "").replace("]", "").replace("[", "").replace(")", "").replace(",\n      dtype=int8)", "").replace(", dtype=uint8", "").replace(",\n      dtype=uint8)", "").replace(",\n      dtype=uint8", "").replace(",\n      dtype=int8", "").replace(", dtype=int8", "").replace(", dtype=int8)", "").replace(", dtype=int8)", "").replace(", dtype=uint8)", "")
+        s = repr([hex(a) for a in x.astype(np.uint32)]).replace("'", "").replace("array([", "").replace("]", "").replace("[", "").replace(")", "").replace(",\n      dtype=int8)", "").replace(", dtype=uint8", "").replace(",\n      dtype=uint8)", "").replace(",\n      dtype=uint8", "").replace(",\n      dtype=int8", "").replace(", dtype=int8", "").replace(", dtype=int8)", "").replace(", dtype=int8)", "").replace(", dtype=uint8)", "")
+
+    elif type_data == 'char':
+        try:
+            np.set_printoptions(threshold=sys.maxsize,formatter={'int': lambda x: hex(np.uint8(x)) if (x < 0) else hex(np.uint8(x)), } )
+        except TypeError:
+            np.set_printoptions(threshold=sys.maxsize)
+        s = repr(x.flatten()).replace("'", "").replace("array([", "").replace("]", "").replace("[", "").replace(")", "").replace(",\n      dtype=int8)", "").replace(", dtype=uint8", "").replace(",\n      dtype=uint8)", "").replace(",\n      dtype=uint8", "").replace(",\n      dtype=int8", "").replace(", dtype=int8", "").replace(", dtype=int8)", "").replace(", dtype=int8)", "").replace(", dtype=uint8)", "")
 
     elif type_data == 'int16_t':
         try:

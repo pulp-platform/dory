@@ -42,10 +42,12 @@ void ${func_name}(layer* layer_i)
   unsigned int l1_x       = 0x0;
 % if W_data_size_byte == 2:
   // unsigned int l1_y       = 131072 - ${int((l1_W_offset - l1_y_offset)/32)*32+32}*2;
+  // NOW IT IS FIXED: TO ADJUST!!!
+  unsigned int l1_y       = 0x0 + 16*512*4; 
 % else:
   // unsigned int l1_y       = 131072 - ${int((l1_W_offset - l1_y_offset)/32)*32+32};
+  unsigned int l1_y       = l1_x + ${int((l1_y_offset)/32)*32+32}; 
 % endif
-  unsigned int l1_y       = 0x0 + ${int((l1_y_offset)/32)*32+32};
 % else:
 % if W_data_size_byte == 2:
   unsigned int l1_x       = 131072 - ${int((l1_y_offset)/32)*32+32}*2;
@@ -123,25 +125,17 @@ void ${func_name}(layer* layer_i)
 
 % if node.previous_layer_tiles > 1 or node.skip_L2_L1 == False:
 % if W_data_size_byte == 2:
-// Tiling for analog: TO FIX CORRECT INPUT
-    int block_number   = x_length_nif_byte >= 64 ? 4 : (int)((x_length_nif_byte+15)/16);
-    int channel_number = (int)((x_length_nif_byte+63)/64);
-    for (int c_index = 0; c_index < block_number; c_index++)
     {
-      int block_dimension = (int)((x_tile_size_h * x_tile_size_w * channel_number + 511) / 512);
-      for (int blocks_index = 0; blocks_index < block_dimension; blocks_index++)
+      int channel_number = (int)((x_length_nif_byte+63)/64);
+      int block_number = (int)((x_tile_size_h * x_tile_size_w * channel_number + 511) / 512);
+      for (int blocks_index = 0; blocks_index < block_number; blocks_index++)
       {
         int byte_transfer = 0; 
-        if (blocks_index == (block_dimension-1))
-          byte_transfer = 16 * (((channel_number * x_tile_size_h * x_tile_size_w) % 512) ? ((channel_number * x_tile_size_h * x_tile_size_w) % 512) : 512);
+        if (blocks_index == (block_number-1))
+          byte_transfer = 16 * (((x_tile_size_h * x_tile_size_w * channel_number) % 512) ? ((x_tile_size_h * x_tile_size_w * channel_number) % 512) : 512);
         else
           byte_transfer = 16 * 512;
-        DMA_copy_x.ext = l2_x + blocks_index * 16 * 512 + c_index * 16 * channel_number * x_tile_size_h * x_tile_size_w;
-        DMA_copy_x.loc = l1_x + blocks_index * 4 * 16 * 512 + c_index * 16 * 512;
-        DMA_copy_x.number_of_2d_copies = 1;
-        DMA_copy_x.number_of_1d_copies = 1;
-        DMA_copy_x.length_1d_copy = byte_transfer;
-        dory_dma_memcpy_async_analog(DMA_copy_x); 
+        memcpy_analog(l2_x + blocks_index*byte_transfer, l1_x+blocks_index*16*512, byte_transfer * 4, DMA_copy_x.dir, 4 );
         dory_dma_barrier_analog(DMA_copy_x);
       }
     }
@@ -260,17 +254,29 @@ void ${func_name}(layer* layer_i)
   % endif
 
 % if tile_dim_nof * tile_dim_nif * tile_dim_h * tile_dim_w > 1 or node.branch_out == 1 or node.skip_L2_L1 == False:
+% if W_data_size_byte == 2:
+    {
+      int channel_number = (int)((y_length_nof_byte+63)/64);
+      int block_number = (int)((y_tile_size_h * y_tile_size_w * channel_number + 511) / 512);
+      for (int blocks_index = 0; blocks_index < block_number; blocks_index++)
+      {
+        int byte_transfer = 0; 
+        if (blocks_index == (block_number-1))
+          byte_transfer = 16 * (((y_tile_size_h * y_tile_size_w * channel_number) % 512) ? ((y_tile_size_h * y_tile_size_w * channel_number) % 512) : 512);
+        else
+          byte_transfer = 16 * 512;
+        memcpy_analog(l2_y + blocks_index*byte_transfer, l1_y+blocks_index*16*512, byte_transfer * 4, DMA_copy_y.dir, 4 );
+        dory_dma_barrier_analog(DMA_copy_y);
+      }
+    }
+% elif W_data_size_byte == 8:
     DMA_copy_y.ext = l2_y;
     DMA_copy_y.loc = l1_y;
     DMA_copy_y.number_of_2d_copies = y_length_nof_byte;
     DMA_copy_y.number_of_1d_copies = y_tile_size_h;
     DMA_copy_y.length_1d_copy = y_tile_size_w;
-% if W_data_size_byte == 8:
     dory_dma_memcpy_async_digital(DMA_copy_y);
     dory_dma_barrier_digital(DMA_copy_y); 
-% elif W_data_size_byte == 2:
-    dory_dma_memcpy_async_analog(DMA_copy_y); 
-    dory_dma_barrier_analog(DMA_copy_y);
 % endif
 % endif
   }
