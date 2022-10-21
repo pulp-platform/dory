@@ -44,6 +44,7 @@ class Parser_HW_to_C:
         self.hex_dir_rel = "hex"
         self.n_inputs = n_inputs
 
+
     def adding_numbers_to_layers(self):
         for i, node in enumerate(self.HWgraph):
             node.name = node.name + str(i)

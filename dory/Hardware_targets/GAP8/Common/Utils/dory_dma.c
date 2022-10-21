@@ -1,7 +1,6 @@
 #include "dory_dma.h"
 
 void dory_dma_memcpy_hwc_to_chw(DMA_copy *copy){
-  copy->tid = mchan_transfer_get_id();
   int core_id = pi_core_id();
   int Log2Core = log2(NUM_CORES);
   int number_of_copies_per_core = (copy->length_1d_copy >> Log2Core) + ((copy->length_1d_copy & (NUM_CORES-1))!=0);
@@ -26,12 +25,10 @@ void dory_dma_memcpy_hwc_to_chw(DMA_copy *copy){
     ext += 1; // next channel
     loc += copy->number_of_1d_copies * copy->number_of_2d_copies;
   }
-  mchan_transfer_wait(copy->tid);
 }
 
 void dory_dma_memcpy_1d_async(DMA_copy *copy) {
   if (pi_core_id() == 0) {
-    copy->tid = mchan_transfer_get_id();
     mchan_transfer_t trans = {
       .cmd = copy->length_1d_copy * copy->number_of_1d_copies * copy->number_of_2d_copies | (copy->dir << MCHAN_CMD_SHIFT_DIRECTION) | MCHAN_FLAGS_1D,
       .size = copy->length_1d_copy * copy->number_of_1d_copies * copy->number_of_2d_copies,
@@ -39,7 +36,6 @@ void dory_dma_memcpy_1d_async(DMA_copy *copy) {
       .loc = copy->loc
     };
     mchan_transfer_push_1d(trans);
-    mchan_transfer_wait(copy->tid);
   }
 }
 
@@ -48,7 +44,6 @@ void dory_dma_memcpy_2d_async(DMA_copy *copy) {
     const int size_2d = copy->number_of_1d_copies * copy->length_1d_copy * copy->number_of_2d_copies;
     const int stride = (copy->number_of_2d_copies == 1) ? copy->stride_1d : copy->stride_2d;
     const int size_1d = (copy->number_of_2d_copies == 1) ? copy->length_1d_copy : copy->length_1d_copy * copy->number_of_1d_copies;
-    copy->tid = mchan_transfer_get_id();
 
     mchan_transfer_t trans = {
       .cmd = size_2d | copy->dir << MCHAN_CMD_SHIFT_DIRECTION | MCHAN_FLAGS_2D,
@@ -59,7 +54,6 @@ void dory_dma_memcpy_2d_async(DMA_copy *copy) {
       .ext_stride_1d = stride
     };
     mchan_transfer_push_2d(trans);
-    mchan_transfer_wait(copy->tid);
   }
 }
 
@@ -73,8 +67,6 @@ void dory_dma_memcpy_3d_async(DMA_copy *copy) {
   void *ext = copy->ext + copy->stride_2d*start_pixel;
   void *loc = copy->loc + copy->length_1d_copy*copy->number_of_1d_copies*start_pixel;
   const int size_2d = copy->number_of_1d_copies * copy->length_1d_copy;
-
-  copy->tid = mchan_transfer_get_id();
 
   for (int i = start_pixel; i < stop_pixel; i++) {
     mchan_transfer_t trans = {
@@ -90,7 +82,6 @@ void dory_dma_memcpy_3d_async(DMA_copy *copy) {
     loc += size_2d;
     ext += copy->stride_2d;
   }
-  mchan_transfer_wait(copy->tid);
 }
 
 void dory_dma_memcpy_async(DMA_copy *copy) {
@@ -112,4 +103,8 @@ void dory_dma_free(DMA_copy *copy) {
 
 void dory_dma_barrier(DMA_copy *copy) {
   mchan_transfer_wait(copy->tid);
+}
+
+int dory_dma_allocate() {
+  return mchan_transfer_get_id();
 }

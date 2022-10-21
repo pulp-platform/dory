@@ -117,7 +117,6 @@ static void mchan_transfer_wait(int tid)
   #elif defined(MCHAN_POLLED)
   while(mchan_transfer_busy(tid)) ;
   #endif
-  mchan_transfer_free(tid);
 }
 
 #endif

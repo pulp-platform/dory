@@ -80,4 +80,5 @@ void dory_dma_free(DMA_copy *copy);
 
 void dory_dma_barrier(DMA_copy *copy);
 
+int dory_dma_allocate();
 #endif

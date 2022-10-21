@@ -55,23 +55,27 @@ void ${func_name}(
   /////////////////////
   volatile DMA_copy DMA_copy_k, DMA_copy_lambda;
   volatile DMA_copy DMA_copy_W, DMA_copy_x, DMA_copy_y;
+  int dma_id = dory_dma_allocate();
 % if has_bias == 1:
   volatile DMA_copy DMA_copy_bias;
   DMA_copy_bias.hwc_to_chw = 0;
   DMA_copy_bias.stride_2d = 0;
   DMA_copy_bias.stride_1d = 0;
   DMA_copy_bias.dir = 1;
+  DMA_copy_bias.tid = dma_id;
 
 % endif
   DMA_copy_k.hwc_to_chw = 0;
   DMA_copy_k.stride_2d = 0;
   DMA_copy_k.stride_1d = 0;
   DMA_copy_k.dir = 1;
+  DMA_copy_k.tid = dma_id;
 
   DMA_copy_lambda.hwc_to_chw = 0;
   DMA_copy_lambda.stride_2d = 0;
   DMA_copy_lambda.stride_1d = 0;
   DMA_copy_lambda.dir = 1;
+  DMA_copy_lambda.tid = dma_id;
 
   % if flag_DW == 1:
   DMA_copy_x.hwc_to_chw = 1;
@@ -81,16 +85,19 @@ void ${func_name}(
   DMA_copy_x.stride_2d = ${x_stride_w_byte};
   DMA_copy_x.stride_1d = ${x_stride_c_byte};
   DMA_copy_x.dir = 1;
+  DMA_copy_x.tid = dma_id;
 
   DMA_copy_W.hwc_to_chw = 0;
   DMA_copy_W.stride_2d = ${W_stride_nof_byte};
   DMA_copy_W.stride_1d = ${W_stride_hw_byte};
   DMA_copy_W.dir = 1;
+  DMA_copy_W.tid = dma_id;
 
   DMA_copy_y.hwc_to_chw = 0;
   DMA_copy_y.stride_2d = ${y_stride_w_byte};
   DMA_copy_y.stride_1d = ${y_stride_c_byte};
   DMA_copy_y.dir = 0;
+  DMA_copy_y.tid = dma_id;
 
   volatile int p_r, p_l, p_t, p_b;
 % if tile_dim_nif*tile_dim_h*tile_dim_w != 1:
@@ -163,6 +170,7 @@ void ${func_name}(
   DMA_copy_bias.number_of_1d_copies = 1;
   DMA_copy_bias.length_1d_copy = (uint16_t) ${b_size_byte};
   dory_dma_memcpy_async(&DMA_copy_bias);
+  dory_dma_barrier(&DMA_copy_bias);
 
 
 % endif
@@ -173,6 +181,7 @@ void ${func_name}(
   DMA_copy_k.number_of_1d_copies = 1;
   DMA_copy_k.length_1d_copy = (uint16_t) ${k_tile_size_byte_transfer};
   dory_dma_memcpy_async(&DMA_copy_k);
+  dory_dma_barrier(&DMA_copy_k);
 
 
   DMA_copy_lambda.ext = (uint32_t) l2_W+${l2_off_lambda};
@@ -181,6 +190,7 @@ void ${func_name}(
   DMA_copy_lambda.number_of_1d_copies = 1;
   DMA_copy_lambda.length_1d_copy = (uint16_t) ${lambda_tile_size_byte_transfer};
   dory_dma_memcpy_async(&DMA_copy_lambda);
+  dory_dma_barrier(&DMA_copy_lambda);
 
 
 % endif
@@ -191,7 +201,7 @@ void ${func_name}(
   DMA_copy_x.number_of_1d_copies = ${x_tile_size_w};
   DMA_copy_x.length_1d_copy = ${x_tile_size_nif_byte};
   dory_dma_memcpy_async(&DMA_copy_x);
-
+  dory_dma_barrier(&DMA_copy_x);
 
   DMA_copy_W.ext = l2_W;
   DMA_copy_W.loc = (l1_buffer + ${l1_W_offset}) + 0;
@@ -205,6 +215,7 @@ void ${func_name}(
   DMA_copy_W.length_1d_copy = ${int(W_tile_size_nif * W_tile_size_nof * fs1 * fs2 * W_data_size_byte / 8)};
 % endif
   dory_dma_memcpy_async(&DMA_copy_W);
+  dory_dma_barrier(&DMA_copy_W);
 
 
   pi_cl_team_barrier(0);
@@ -456,12 +467,26 @@ void ${func_name}(
     if(_i_nif_load == 0)
     {
     % endif
+   // wait for DMA write/read
+     dory_dma_barrier(&DMA_copy_y);
+     dory_dma_barrier(&DMA_copy_x);
+     dory_dma_barrier(&DMA_copy_W);
 
+   % if FLAG_BATCHNORM == 1:
+   if(iter < (total_tiles-1) && (_i_nif_load!=_i_nif_exec || _i_nof_load!=_i_nof_exec))
+   {
+       dory_dma_barrier(&DMA_copy_k);
+       dory_dma_barrier(&DMA_copy_lambda);
+     }
+   % endif
       DMA_copy_y.ext = dory_get_tile_3d(l2_y, _i_h_exec, _i_w_exec, _i_nof_exec, ${y_tile_size_h}, ${y_tile_size_w}, ${y_tile_size_nof}, ${y_w}, ${int(nof*factor)}, 0, 0, 0, 0, 0, 0, ${y_data_size_byte});
       DMA_copy_y.loc = (l1_buffer + ${l1_y_offset}) + db_y;
       DMA_copy_y.number_of_2d_copies = y_tile_size_h;
       DMA_copy_y.number_of_1d_copies = y_tile_size_w;
       DMA_copy_y.length_1d_copy = y_length_nof_byte;
+   % if tile_dim_nif != 1 and flag_DW == 0:
+       }
+   % endif
       dory_dma_memcpy_async(&DMA_copy_y);
     // update prev iterators
     db_state_y = ! db_state_y;
@@ -472,8 +497,10 @@ void ${func_name}(
     pi_cl_team_barrier(0);
   }
 
-% if not TEST:
-  // wait for final write
 
-% endif
+  % if not TEST:
+  // wait for final write
+  dory_dma_barrier(&DMA_copy_y);
+  dory_dma_free(&DMA_copy_y);
+  % endif
 }

@@ -75,6 +75,7 @@ void ${func_name}(
  ${type} *im2col;
   im2col = l1_buffer + ${buffer_l1_all};
   volatile DMA_copy DMA_copy_x, DMA_copy_y;
+  int dma_id = dory_dma_allocate();
   // copy first tiles
   //l2_x has input activations
 
@@ -82,11 +83,13 @@ void ${func_name}(
   DMA_copy_x.stride_2d = ${x_stride_w_byte};
   DMA_copy_x.stride_1d = ${x_stride_c_byte};
   DMA_copy_x.dir = 1;
+  DMA_copy_x.tid = dma_id;
 
   DMA_copy_y.hwc_to_chw = 0;
   DMA_copy_y.stride_2d = ${y_stride_w_byte};
   DMA_copy_y.stride_1d = ${y_stride_c_byte};
   DMA_copy_y.dir = 0;
+  DMA_copy_y.tid = dma_id;
 
   DMA_copy_x.ext = l2_x;
   DMA_copy_x.loc = (l1_buffer + ${l1_x_offset}) + 0;
@@ -94,6 +97,7 @@ void ${func_name}(
   DMA_copy_x.number_of_1d_copies = ${x_tile_size_w};
   DMA_copy_x.length_1d_copy = ${x_tile_size_nif_byte};
   dory_dma_memcpy_async(&DMA_copy_x);
+  dory_dma_barrier(&DMA_copy_x);
   // tile loop indeces
   int _i_nof_load=0, _i_nif_load=0, _i_h_load=0, _i_w_load=0;
   int _i_nof_exec=0, _i_nif_exec=0, _i_h_exec=0, _i_w_exec=0;
@@ -243,7 +247,10 @@ void ${func_name}(
     ${FLAG_RELU}
 % endif
     );
+    dory_dma_barrier(&DMA_copy_x);
+    dory_dma_barrier(&DMA_copy_y);
     pi_cl_team_barrier(0);
+
 
     // transfering of output to L2
     DMA_copy_y.ext = dory_get_tile_3d(l2_y, _i_h_exec, _i_w_exec, _i_nof_exec, ${y_tile_size_h}, ${y_tile_size_w}, ${y_tile_size_nof}, ${y_w}, ${nof}, 0, 0, 0, 0, 0, 0, ${y_data_size_byte});
@@ -259,4 +266,8 @@ void ${func_name}(
     _i_w_exec = _i_w_load;
     pi_cl_team_barrier(0);
   }
+% if not TEST:
+  // wait for final write
+  dory_dma_barrier(&DMA_copy_y);
+% endif
 }
