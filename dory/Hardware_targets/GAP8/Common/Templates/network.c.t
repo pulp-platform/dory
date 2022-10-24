@@ -17,7 +17,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+<%
+l3_supported = DORY_HW_graph[0].HW_description['memory']['levels'] > 2
+%>\
 #define DEFINE_CONSTANTS
+%if not l3_supported:
+#include "weights.h"
+%endif
 #include "pmsis.h"
 #include "network.h"
 #include "directional_allocator.h"
@@ -62,16 +68,19 @@ static void checksum(const char *name, const uint8_t *d, size_t size, uint32_t s
 #endif
 % endif
 
+% if l3_supported:
 #define L3_WEIGHTS_SIZE 4000000
 #define L3_INPUT_SIZE 1500000
 #define L3_OUTPUT_SIZE 1500000
-
+% endif
 static void *L3_weights = NULL;
 static void *L3_input = NULL;
 static void *L3_output = NULL;
 
+% if l3_supported:
 /* Moves the weights and the biases from hyperflash to hyperram */
 void network_initialize() {
+
   L3_weights = ram_malloc(L3_WEIGHTS_SIZE);
   L3_input = ram_malloc(L3_INPUT_SIZE);
   L3_output = ram_malloc(L3_OUTPUT_SIZE);
@@ -89,13 +98,18 @@ void network_initialize() {
     w_ptr += size;
   }
 }
+% endif
 
+% if l3_supported:
 /* Remove RAM memory */
 void network_terminate() {
+  % if l3_supported:
   ram_free(L3_weights, L3_WEIGHTS_SIZE);
   ram_free(L3_input, L3_INPUT_SIZE);
   ram_free(L3_output, L3_OUTPUT_SIZE);
+  % endif
 }
+% endif
 
 void execute_layer_fork(void *args) {
   layer_args_t *layer_args = (layer_args_t *)args;
@@ -113,7 +127,7 @@ void execute_layer_fork(void *args) {
   if (pi_core_id() == 0) pmsis_l1_malloc_free(layer_args->L1_buffer, ${l1_buffer});
 }
 
-void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output)
+void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output${", void *L2_input_h" if not l3_supported else ""})
 {
 /*
   - initial buffer allocation L2 and L1
@@ -129,6 +143,12 @@ void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output)
 
   int dir = 1;
   int residual_number = 0;
+  % if not l3_supported:
+  int bypass_dimension = 0;
+  int left_branch_nodes = 0, right_branch_nodes = 0;
+  int z = 0;
+  int end_left = 0;
+  % endif
   int perf_cyc = 0;
   struct pi_device cluster_dev = {0};
   struct pi_cluster_conf conf;
@@ -148,7 +168,9 @@ void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output)
 /* ---------------------------------- */
 /* -------- SECTION 1 BEGIN --------- */
 /* ---------------------------------- */
-
+  % if not l3_supported:
+  L2_input = L2_input_h;
+% endif
   directional_allocator_init(l2_buffer, l2_buffer_size);
 
 /* ---------------------------------- */
@@ -175,7 +197,7 @@ void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output)
   - read weights
 */
     L2_output = dmalloc(activations_out_size[i], !dir);
-
+    % if l3_supported:
     if (L3_input_layers[i] == 1)
       L2_input = dmalloc(activations_size[i], dir);
 
@@ -184,14 +206,24 @@ void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output)
 
     if (allocate_layer[i] == 1)
       ram_read(L2_weights, L3_weights, weights_size[i]);
+    % else:
+    L2_weights = Weights_name[i];
+% endif
 
 % if 'Check_all' in verbose_level:
 #ifdef VERBOSE
+        % if l3_supported:
     if (L3_input_layers[i] == 1)
       printf("Input in L3\n");
-    else if (i == 0 || branch_change[i-1] == 0) {
+    else
+% endif
+    if (i == 0 || branch_change[i-1] == 0) {
       checksum("L2 input", L2_input, activations_size[i], activations_checksum[i][0]);
+% if l3_supported:
       if (allocate_layer[i] == 1)
+% else:
+      if (layer_with_weights[i])
+% endif
         checksum("L2 weights", L2_weights, weights_size[i], weights_checksum[i]);
       else
         printf("Weights in L3\n");
@@ -259,12 +291,16 @@ void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output)
 #ifdef VERBOSE
     printf("Layer %s %d ended: \n", Layers_name[i], i);
 % if 'Check_all' in verbose_level:
+    % if l3_supported:
     if (L3_output_layers[i]==1) {
       printf("Output in L3. Expected checksum: %d\n", activations_out_checksum[i][0]);
     } else {
+% endif
       checksum(i + 1 < ${len(DORY_HW_graph)} ? "L2 output" : "final output",
                L2_output, activations_out_size[i], activations_out_checksum[i][0]);
+      % if l3_supported:
     }
+% endif
     printf("\n");
 % elif 'Last' in verbose_level:
     if (i == ${len(DORY_HW_graph) - 1})
@@ -279,8 +315,20 @@ void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output)
     if (branch_input[i] == 1)
       dfree(activations_size[i], dir);
 
+    L2_input = L2_output;
+% if not l3_supported:
+    if  (branch_output[i]==1)
+      {
+        bypass_activations = L2_output;
+        bypass_dimension = activations_out_size[i];
+      }
+
+    if (i > 0 && branch_output[i-1]==0)
+      dfree(activations_size[i], dir);
+% endif
     // Residual connections
     if (i < ${len(DORY_HW_graph) - 1}) {
+ % if l3_supported:
       if (branch_input[i+1] == 1) {
         bypass_activations = dmalloc(activations_out_size[i], !dir);
         residual_number--;
@@ -292,16 +340,16 @@ void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output)
       if (i > 0 && branch_output[i-1]==1 && L3_input_layers[i]==1) { // TODO don't understand this condition
         L3_input = ram_malloc(1500000);
       }
-
       if (branch_output[i]==1 && L3_output_layers[i]==1) {
         ram_free(L3_input + activations_out_size[i], 1500000 - activations_out_size[i]);
         layers_pointers[residual_number] = L3_input;
         residual_number++;
-      } else if (branch_output[i]==1 || branch_change[i] == 1) {
+      } else
+    if (branch_output[i]==1 || branch_change[i] == 1) {
         layers_pointers[residual_number] = ram_malloc(activations_out_size[i]);
         ram_write(layers_pointers[residual_number], L2_output, activations_out_size[i]);
         residual_number++;
-      }
+    }
 
       if (branch_change[i]==1) {
         dfree(activations_out_size[i], !dir);
@@ -309,13 +357,46 @@ void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output)
         ram_read(L2_input, layers_pointers[residual_number - 2], activations_size[i + 1]);
         ram_free(layers_pointers[residual_number - 2], activations_out_size[i + 1]);
       }
-
       if (L3_output_layers[i] == 1)
         dfree(activations_out_size[i], !dir);
+ % else:
+
+      if  (branch_output[i]==1)
+      {
+        left_branch_nodes = 0;
+        right_branch_nodes = 0;
+        z = i+1;
+        end_left = 0;
+        while (branch_input[z] == 0)
+        {
+          if (end_left == 0)
+            left_branch_nodes+=1;
+          else
+            right_branch_nodes+=1;
+          if (branch_change[z] == 1)
+            end_left = 1;
+          z+=1;
+        }
+        if ((left_branch_nodes % 2 == 1) && (right_branch_nodes == 0))
+          dir = !dir;
+        if ((left_branch_nodes % 2 == 0) && (right_branch_nodes > 0))
+          dir = !dir;
+      }
+
+      if  (branch_change[i]==1)
+      {
+        L2_input = bypass_activations;
+        bypass_activations = L2_output;
+        bypass_dimension = activations_out_size[i];
+        if (right_branch_nodes % 2 == 1)
+          dir = !dir;
+      }
+% endif
     }
+% if l3_supported:
     if (layer_with_weights[i])
        L3_weights += L3_weights_size[weight_l_cnt++];
-    L2_input = L2_output;
+% endif
     dir = !dir;
   }
 

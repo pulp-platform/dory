@@ -23,6 +23,12 @@
 % if sdk == 'gap_sdk':
 #include "pulp.h"
 % endif
+<%
+   l3_supported = DORY_HW_graph[0].HW_description['memory']['levels'] > 2
+%>\
+% if not l3_supported:
+#include "weights_definition.h"
+% endif
 #include <stddef.h>
 
 #define PAD_TOP    (1 << 3)
@@ -46,25 +52,29 @@ typedef struct {
     unsigned int layer_id;
 } layer_args_t;
 
+% if l3_supported:
 void network_terminate();
 void network_initialize();
-void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output);
+% endif
+void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output${", void *L2_input_h" if not l3_supported else ""});
 void execute_layer_fork(void *arg);
 void execute_layer(void *arg);
 
 #ifdef DEFINE_CONSTANTS
+% if l3_supported:
 // allocation of buffers with parameters needed by the network execution
 const char * L3_weights_files[] = {
   ${files_list}
 };
 int L3_weights_size[${weights_number}];
 static int layers_pointers[${len(DORY_HW_graph)}];
-
+% endif
 static char * Layers_name[${len(DORY_HW_graph)}] = {\
 % for node in DORY_HW_graph:
 "${node.name}"${'' if loop.last else ', '}\
 % endfor
 };
+% if l3_supported:
 static int L3_input_layers[${len(DORY_HW_graph)}] = {\
 1,
 % for node in DORY_HW_graph[1:]:
@@ -93,6 +103,17 @@ static int allocate_layer[${len(DORY_HW_graph)}] = {\
 % endif
 % endfor
 };
+% else:
+static char *Weights_name[${len(DORY_HW_graph)}] = {\
+% for i in range(len(DORY_HW_graph)):
+% if 'Conv' in DORY_HW_graph[i].name or 'FullyConnected' in DORY_HW_graph[i].name:
+Weights_${DORY_HW_graph[i].name}${'' if loop.last else ', '}\
+% else:
+"None"${'' if loop.last else ', '}\
+% endif
+% endfor
+};
+% endif
 static int branch_input[${len(DORY_HW_graph)}] = {\
 % for node in DORY_HW_graph:
 % if node.branch_in == 1:
@@ -127,7 +148,11 @@ ${node.check_sum_w}${'' if loop.last else ', '}\
 };
 static int weights_size[${len(DORY_HW_graph)}] = {\
 % for node in DORY_HW_graph:
+% if l3_supported:
 ${int((node.tiling_dimensions["L2"]["weight_memory"] + node.tiling_dimensions["L2"]["constants_memory"] + node.tiling_dimensions["L2"]["bias_memory"]) * (1 + int(node.tiling_dimensions["L3"]["weights_dimensions"] != node.tiling_dimensions["L2"]["weights_dimensions"])))}${'' if loop.last else ', '}\
+% else:
+${int(node.tiling_dimensions["L2"]["weight_memory"] + node.tiling_dimensions["L2"]["constants_memory"] + node.tiling_dimensions["L2"]["bias_memory"])}${'' if loop.last else ', '}\
+% endif
 % endfor
 };
 static int activations_checksum[${len(DORY_HW_graph)}][${DORY_HW_graph[0].n_test_inputs}] = {\
@@ -141,7 +166,11 @@ static int activations_checksum[${len(DORY_HW_graph)}][${DORY_HW_graph[0].n_test
 };
 static int activations_size[${len(DORY_HW_graph)}] = {\
 % for node in DORY_HW_graph:
+% if l3_supported:
 ${int(node.tiling_dimensions["L2"]["input_activation_memory"] * (1 + int(node.tiling_dimensions["L3"]["input_dimensions"] != node.tiling_dimensions["L2"]["input_dimensions"])))}${'' if loop.last else ', '}\
+% else:
+${int(node.tiling_dimensions["L2"]["input_activation_memory"])}${'' if loop.last else ', '}\
+% endif
 % endfor
 };
 static int out_mult_vector[${len(DORY_HW_graph)}] = {\
@@ -173,7 +202,11 @@ static int activations_out_checksum[${len(DORY_HW_graph)}][${DORY_HW_graph[0].n_
 };
 static int activations_out_size[${len(DORY_HW_graph)}] = {\
 % for node in DORY_HW_graph:
+% if l3_supported:
 ${int(node.tiling_dimensions["L2"]["output_activation_memory"] * (1 + int(node.tiling_dimensions["L3"]["output_dimensions"] != node.tiling_dimensions["L2"]["output_dimensions"])))}${'' if loop.last else ', '}\
+% else:
+${int(node.tiling_dimensions["L2"]["output_activation_memory"])}${'' if loop.last else ', '}\
+% endif
 % endfor
 };
 static int layer_with_weights[${len(DORY_HW_graph)}] = {\

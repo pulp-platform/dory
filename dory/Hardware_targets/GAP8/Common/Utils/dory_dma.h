@@ -31,9 +31,9 @@
 #define MCHAN_EVENT
 //#define MCHAN_POLLED
 #ifdef MCHAN_EVENT
-#ifdef PULP_SDK
+//#ifdef PULP_SDK
 #define CL_IRQ_DMA0 (8)
-#endif
+//#endif
 #define MCHAN_EVENT_BIT (CL_IRQ_DMA0)  // 8
 #endif
 #include "mchan.h"

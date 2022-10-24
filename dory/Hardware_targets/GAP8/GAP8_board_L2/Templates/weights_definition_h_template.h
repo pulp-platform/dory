@@ -17,9 +17,11 @@
  * limitations under the License. 
  */
 
-
+#ifndef __WEIGHTS_DEFINITION_H__
+#define __WEIGHTS_DEFINITION_H__
 % for i in range(len(weights_vectors)):
 % if weights_dimensions[i] > 0:
 extern uint8_t Weights_${DORY_HW_graph[i].name}[${weights_dimensions[i]}];
 % endif
 % endfor
+#endif

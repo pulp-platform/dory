@@ -16,10 +16,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License. 
  */
-
+#ifndef __INPUT_H__
+#define __INPUT_H__
+#include "pmsis.h"
 % if sdk == 'gap_sdk':
 L2_DATA uint8_t L2_input_h[${dimension}] = {
 % elif sdk == 'pulp-sdk':
 PI_L2 uint8_t L2_input_h[${dimension}] = {
 % endif
 ${input_values}};
+#endif

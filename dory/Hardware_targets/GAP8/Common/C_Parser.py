@@ -114,9 +114,11 @@ class C_Parser_GAP8(Parser_HW_to_C):
         print("\nMapping the layers files to their templates and copying the kernels associated.")
         tmpl_dir = os.path.realpath(os.path.join(self.get_file_path(), 'Templates/layer_templates'))
         out_dir = self.app_directory
+        n_memory_levels = self.HW_description['memory']['levels']
         for i, node in enumerate(self.HWgraph):
             self.copy_backend_files(node)
-            if node.L3_input != 0 or (node.tiling_dimensions["L3"]["output_dimensions"] != node.tiling_dimensions["L2"]["output_dimensions"]) or (node.tiling_dimensions["L3"]["weights_dimensions"] != node.tiling_dimensions["L2"]["weights_dimensions"]):
+            
+            if n_memory_levels > 2 and (node.L3_input != 0 or (node.tiling_dimensions["L3"]["output_dimensions"] != node.tiling_dimensions["L2"]["output_dimensions"]) or (node.tiling_dimensions["L3"]["weights_dimensions"] != node.tiling_dimensions["L2"]["weights_dimensions"])):
                 Layer2D_writer.print_template_layer_L3(node, tmpl_dir, out_dir)
                 if node.tiling_dimensions["L3"]["input_dimensions"][1] > node.tiling_dimensions["L2"]["input_dimensions"][1]:
                     node.tiling_dimensions["L2"]["output_dimensions"][1]  = int(np.floor((node.tiling_dimensions["L2"]["input_dimensions"][1] - node.kernel_shape[0] + node.strides[0]) / node.strides[0]))

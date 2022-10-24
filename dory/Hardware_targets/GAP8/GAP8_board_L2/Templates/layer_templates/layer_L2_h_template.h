@@ -17,12 +17,11 @@
  * limitations under the License.
  */
 
-% if sdk == 'gap_sdk':
-#include "pulp.h"
-% endif
-#include "dory.h"
-#include "pulp_nn_kernels.h"
+#ifndef __${func_name.upper()}_H__
+#define __${func_name.upper()}_H__
 
 void  ${func_name}(
-  void *args
-);
+                   void *args
+                   );
+
+#endif

@@ -22,13 +22,14 @@ APP = main
 APP_SRCS := $(wildcard src/*.c)
 # -O2 with -fno-indirect-inlining is just as fast as -O3 and reduces code size considerably
 # by not inlining of small functions in the management code
-APP_CFLAGS += -DNUM_CORES=$(CORE) -Iinc -O2 -fno-indirect-inlining
+APP_CFLAGS += -DNUM_CORES=$(CORE) -Iinc -O2 -fno-indirect-inlining -w
 APP_LDFLAGS += -lm -Wl,--print-memory-usage
 
 % if sdk == 'pulp-sdk':
 APP_CFLAGS += -DPULP_SDK=1
 APP_CFLAGS += -flto
 APP_LDFLAGS += -flto
+
 FLASH_TYPE ?= HYPERFLASH
 RAM_TYPE ?= HYPERRAM
 CONFIG_HYPERRAM = 1
@@ -45,14 +46,16 @@ ifeq '$(FLASH_TYPE)' 'MRAM'
 READFS_FLASH = target/chip/soc/mram
 endif
 
-APP_CFLAGS += -DFLASH_TYPE=$(FLASH_TYPE) -DUSE_$(FLASH_TYPE) -DUSE_$(RAM_TYPE)
 
+APP_CFLAGS += -DFLASH_TYPE=$(FLASH_TYPE) -DUSE_$(FLASH_TYPE) -DUSE_$(RAM_TYPE)
+% if do_flash:
 % for layer in layers_w:
 FLASH_FILES += hex/${layer}
 % endfor
 FLASH_FILES += hex/inputs.hex
 
 READFS_FILES := $(FLASH_FILES)
+% endif
 % if sdk == 'gap_sdk':
 APP_CFLAGS += -DFS_READ_FS
 % endif

@@ -17,6 +17,8 @@
  * limitations under the License. 
  */
 
+#ifndef __WEIGHTS_H__
+#define __WEIGHTS_H__
 % if sdk == 'gap_sdk':
 #include "pulp.h"
 % endif
@@ -32,3 +34,4 @@ PI_L2 uint8_t Weights_${DORY_HW_graph[i].name}[${weights_dimensions[i]}] = {
 ${weights_vectors[i]}};
 % endif
 % endfor
+#endif
