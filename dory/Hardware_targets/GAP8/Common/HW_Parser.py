@@ -26,6 +26,7 @@ import os
 # DORY modules
 from dory.Parsers import HW_node, Layer_node
 from dory.Parsers.Parser_DORY_to_HW import Parser_DORY_to_HW
+from functools import partial
 
 
 
@@ -37,11 +38,27 @@ class onnx_manager_GAP8(Parser_DORY_to_HW):
         layers_supported_by_HW_Backend_IR+= ["BNReluConvolution", "RequantPooling", "BNReluFullyConnected", "BNReluAddition", "BNReluQAddition"]
         file_path = self.get_file_path()
         pattern_rewriter = self.get_pattern_rewriter()
-        tiler = self.get_tiler()
         with open(os.path.join(file_path, "pattern_rules.json")) as f:
             rules = json.load(f)
         with open(os.path.join(file_path, "HW_description.json")) as f:
             HW_description = json.load(f)
+
+        
+        try:
+            db = HW_description['double_buffering']
+        except KeyError:
+            print("onnx_manager_GAP8: Key 'double_buffering' not found in HW_description.json - setting to 2")
+            db = 2
+
+        self.double_buffering = db
+        
+            
+        tiler = self.get_tiler()
+        #HACK GEORGR:
+        # keep the unified Tiler interface but pass the double_buffering
+        # parameter correctly by pre-supplying the argument
+        tiler = partial(tiler, double_buffering=self.double_buffering)
+        
         super().__init__(graph, rules, pattern_rewriter, layers_supported_by_HW_Backend_IR, HW_description,
                          os.path.join(config_file_dir, os.path.dirname(config_file["onnx_file"])), config_file, tiler, n_inputs)
 

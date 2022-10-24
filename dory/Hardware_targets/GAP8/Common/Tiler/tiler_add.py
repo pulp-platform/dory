@@ -26,7 +26,7 @@ import sys
 from ortools.constraint_solver import pywrapcp
 from ortools.constraint_solver import solver_parameters_pb2
 
-class Tiler_Add():
+class Tiler_Add_GAP8():
     # Class to generate the Tiling of the layer.
     def __init__(self,tiler):
         self.__dict__ = tiler.__dict__
@@ -63,6 +63,7 @@ class Tiler_Add():
         else:
             input_L3 = 0
         buffer_total = self.HW_node.input_activation_memory + self.HW_node.output_activation_memory + self.HW_node.constants_memory
+
         if (buffer_total <= L2_memory) and input_L3==0:
             return ([], [self.HW_node.input_channels, self.HW_node.input_dimensions[0], self.HW_node.input_dimensions[1]], [self.HW_node.output_channels, self.HW_node.output_dimensions[0], self.HW_node.output_dimensions[1]])
         print("  Add ERROR: no L3-L2 tiling supported. Exiting...")
@@ -91,7 +92,7 @@ class Tiler_Add():
         if buffer_total <= L1_memory:
             return ([], self.HW_node.tiling_dimensions["L2"]["input_dimensions"] , self.HW_node.tiling_dimensions["L2"]["output_dimensions"] )
         else:
-            db = 2
+            db = self.double_buffering
 
         parameters = pywrapcp.Solver.DefaultSolverParameters()
         solver = pywrapcp.Solver("simple_CP", parameters)

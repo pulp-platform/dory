@@ -28,7 +28,7 @@ import sys
 from ortools.constraint_solver import pywrapcp
 from ortools.constraint_solver import solver_parameters_pb2
 
-class Tiler_Pool2D():
+class Tiler_Pool2D_GAP8():
     # Class to generate the Tiling of the layer.
     def __init__(self,tiler):
         self.__dict__ = tiler.__dict__
@@ -171,7 +171,7 @@ class Tiler_Pool2D():
         if buffer_total <= L1_memory:
             return ([], self.HW_node.tiling_dimensions["L2"]["input_dimensions"] , self.HW_node.tiling_dimensions["L2"]["output_dimensions"] )
         else:
-            db = 2
+            db = self.double_buffering
 
         ###############################################
         ##### TILING OF LAYER USING ORTOOLS ###########
@@ -210,9 +210,9 @@ class Tiler_Pool2D():
         # objective
         obj_expr = solver.IntVar(0, 1000000000000, "obj_expr")
         solver.Add(obj_expr == 10000 * constraint_all
-                   + 10 * tile_w_in
+                   + 100 * tile_w_in
                    + 1 * tile_h_in
-                   + 10000 * tile_n)
+                   + 1000000 * tile_n)
         objective = solver.Maximize(obj_expr, 1)
         decision_builder = solver.Phase([tile_n, tile_h_in, tile_w_in, tile_h_out, tile_w_out],
                                         solver.CHOOSE_FIRST_UNBOUND,

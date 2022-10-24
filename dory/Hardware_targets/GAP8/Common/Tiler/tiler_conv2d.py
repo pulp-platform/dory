@@ -28,7 +28,7 @@ import sys
 from ortools.constraint_solver import pywrapcp
 from ortools.constraint_solver import solver_parameters_pb2
 
-class Tiler_Conv2D():
+class Tiler_Conv2D_GAP8():
     # Class to generate the Tiling of the layer.
     def __init__(self,tiler):
         self.__dict__ = tiler.__dict__
@@ -209,7 +209,6 @@ class Tiler_Conv2D():
                 tile_h_in = collector.Value(best_solution, tile_h_in)
                 tile_h_out = collector.Value(best_solution, tile_h_out)
                 return ([tile_n_out, in_ch], [in_ch, tile_h_in, inp_dim[1]], [out_ch, tile_h_out, out_dim[1]])
-        import pdb;pdb.set_trace()
         print("  Conv2d ERROR: no L3-L2 tiling found. Exiting...")
         os._exit(0)
         return None
@@ -254,11 +253,11 @@ class Tiler_Conv2D():
         out_mem = self.HW_node.tiling_dimensions["L2"]["output_activation_memory"]
         h_in   = self.HW_node.tiling_dimensions["L2"]["input_dimensions"][1]
         h_out   = self.HW_node.tiling_dimensions["L2"]["output_dimensions"][1]
-        if self.HW_node.tiling_dimensions["L3"]["output_dimensions"][1] > self.HW_node.tiling_dimensions["L2"]["output_dimensions"][1]:
+        if self.n_memory_levels > 2 and self.HW_node.tiling_dimensions["L3"]["output_dimensions"][1] > self.HW_node.tiling_dimensions["L2"]["output_dimensions"][1]:
             h_in   = self.HW_node.tiling_dimensions["L2"]["output_dimensions"][1] * s[0] + (ks[0] - 1) - (s[0] - 1)
             inp_dim[0] = h_in
             in_mem = int(self.HW_node.tiling_dimensions["L2"]["input_activation_memory"] / self.HW_node.tiling_dimensions["L2"]["input_dimensions"][1] * h_in)
-        if self.HW_node.tiling_dimensions["L3"]["input_dimensions"][1] > self.HW_node.tiling_dimensions["L2"]["input_dimensions"][1]:
+        if self.n_memory_levels > 2 and  self.HW_node.tiling_dimensions["L3"]["input_dimensions"][1] > self.HW_node.tiling_dimensions["L2"]["input_dimensions"][1]:
             h_out  = int(np.floor((self.HW_node.tiling_dimensions["L2"]["input_dimensions"][1] - (ks[0] - 1) + (s[0] - 1)) / s[0]))
             out_dim[0] = h_out
             out_mem = int(self.HW_node.tiling_dimensions["L2"]["output_activation_memory"] / self.HW_node.tiling_dimensions["L2"]["output_dimensions"][1] * h_out)
@@ -269,7 +268,7 @@ class Tiler_Conv2D():
         if buffer_total <= L1_memory:
             return (self.HW_node.tiling_dimensions["L2"]["weights_dimensions"] , [self.HW_node.tiling_dimensions["L2"]["input_dimensions"][0], h_in, self.HW_node.tiling_dimensions["L2"]["input_dimensions"][2]] , [self.HW_node.tiling_dimensions["L2"]["weights_dimensions"][0], h_out, self.HW_node.tiling_dimensions["L2"]["output_dimensions"][2]] )
         else:
-            db = 2
+            db = self.double_buffering
 
         ###############################################
         ##### TILING OF LAYER USING ORTOOLS ###########
@@ -319,6 +318,7 @@ class Tiler_Conv2D():
         ###############################################
         ##### CONSTRAINTS FOR DIMENSION ###############
         ###############################################
+
         input_tile_dimension  = db * tile_n_in * tile_h_in * tile_w_in * self.HW_node.input_activation_bits // 8
         output_tile_dimension = db * tile_n_out * tile_h_out * tile_w_out * self.HW_node.output_activation_bits // 8
         if g == 1:
@@ -362,8 +362,7 @@ class Tiler_Conv2D():
             # ####### Total Dimension of Tile ###############
             heuristics += constraint_all
             ####### Maximization of Reuse of im2col #######
-            heuristics += 10000 * tile_n_out \
-                        + 10000 * ((out_ch-zero_variable-1) % (tile_n_out))
+            heuristics += 100000 * tile_n_out 
             ####### Geometrical Shape of Border Tiles #####
             heuristics += 10000 * ((out_ch-zero_variable-1) % (tile_n_out)) \
                         + 10000 * (((out_ch-zero_variable-1) % (tile_n_out)) % 4) \
