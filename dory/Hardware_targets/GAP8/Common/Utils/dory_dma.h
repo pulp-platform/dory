@@ -22,19 +22,16 @@
 
 #include "pmsis.h"
 
-#ifndef ARCHI_MCHAN_DEMUX_ADDRR
-#define ARCHI_MCHAN_DEMUX_ADDR (0x00201800)
-#endif
 #ifndef MCHAN_BASE_ADDR
+// FIXME: For GAP9, this must point to ARCHI_MCHAN_EXT_ADDR!!!
+// In PULP-SDK for Kraken, this is fixed.
+// GAP8 hardware to be tested...
 #define MCHAN_BASE_ADDR (ARCHI_MCHAN_DEMUX_ADDR)  // CLUSTER_MCHAN_ADDR
 #endif
 #define MCHAN_EVENT
 //#define MCHAN_POLLED
 #ifdef MCHAN_EVENT
-#ifndef CL_IRQ_DMA0
-#define CL_IRQ_DMA0 (8)
-#endif
-#define MCHAN_EVENT_BIT (CL_IRQ_DMA0)  // 8
+#define MCHAN_EVENT_BIT (ARCHI_CL_EVT_DMA0)  // 8
 #endif
 #include "mchan.h"
 
