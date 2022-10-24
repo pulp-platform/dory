@@ -32,6 +32,9 @@ RUN     python3 -m venv /dory_env && \
         git checkout a3dedd5cd8a680a88d2dca2ab7a4ae65cebf4c8d && \
         python3 -m pip install wheel && \
         python3 -m pip install scons && \
+        python3 -m pip install Cython && \
+        python3 -m pip install --upgrade pip setuptools wheel && \
+        python3 -m pip install setuptools_rust && \
         python3 -m pip install -r requirements.txt
 RUN     source /dory_env/bin/activate && \
         cd /gap_riscv_toolchain_ubuntu_18/gap_sdk && \
@@ -52,9 +55,6 @@ RUN     source /dory_env/bin/activate && \
 # FINALIZE PYTHON VENV
 WORKDIR /gap_riscv_toolchain_ubuntu_18/gap_sdk/
 RUN     source /dory_env/bin/activate && \
-        python3 -m pip install Cython && \
-        python3 -m pip install --upgrade pip setuptools wheel && \
-        python3 -m pip install setuptools_rust && \
         python3 -m pip install python-dev-tools --upgrade && \
         python3 -m pip install numpy && \
         python3 -m pip install onnx && \
