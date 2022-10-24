@@ -22,7 +22,7 @@
 
 #include "pmsis.h"
 
-#ifdef GAP_SDK
+#ifndef ARCHI_MCHAN_DEMUX_ADDRR
 #define ARCHI_MCHAN_DEMUX_ADDR (0x00201800)
 #endif
 #ifndef MCHAN_BASE_ADDR
@@ -31,9 +31,9 @@
 #define MCHAN_EVENT
 //#define MCHAN_POLLED
 #ifdef MCHAN_EVENT
-//#ifdef PULP_SDK
+#ifndef CL_IRQ_DMA0
 #define CL_IRQ_DMA0 (8)
-//#endif
+#endif
 #define MCHAN_EVENT_BIT (CL_IRQ_DMA0)  // 8
 #endif
 #include "mchan.h"
