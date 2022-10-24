@@ -19,7 +19,7 @@ networks = [
                 'conf_file': './dory/dory_examples/config_files/config_Quantlab_MV1_fast_xpnn.json',
                 'optional': 'mixed-hw'
             },
-            "checksum_final": 'Ok'
+            "checksum_final": 'OK'
     },
     {
         "network_args":
@@ -28,7 +28,7 @@ networks = [
                 'target': 'GAP8.GAP8_board',
                 'conf_file': './dory/dory_examples/config_files/config_NEMO_Penguinet_64.json'
             },
-        "checksum_final": 'Ok'
+        "checksum_final": 'OK'
     },
     {
         "network_args":
@@ -37,7 +37,7 @@ networks = [
                 'target': 'GAP8.GAP8_board',
                 'conf_file': './dory/dory_examples/config_files/config_NEMO_dronet.json'
             },
-        "checksum_final": 'Ok'
+        "checksum_final": 'OK'
     },
     {
         "network_args":
@@ -47,7 +47,7 @@ networks = [
                 'conf_file': './dory/dory_examples/config_files/config_Quantlab_MV1_4bits.json',
                 'optional': 'mixed-sw'
             },
-        "checksum_final": 'Ok'
+        "checksum_final": 'OK'
     },
     {
         "network_args":
@@ -57,7 +57,7 @@ networks = [
                 'conf_file': './dory/dory_examples/config_files/config_Quantlab_MV1_8bits.json',
                 'optional': 'mixed-sw'
             },
-        "checksum_final": 'Ok'
+        "checksum_final": 'OK'
     },
     {
         "network_args":
@@ -67,7 +67,7 @@ networks = [
                 'conf_file': './dory/dory_examples/config_files/config_Quantlab_MV2_4bits.json',
                 'optional': 'mixed-sw'
             },
-        "checksum_final": 'Ok',
+        "checksum_final": 'OK',
         "compat": ['gap-sdk'] # this gui is too big for pulp-sdk...
     },
     {
@@ -78,7 +78,7 @@ networks = [
                 'conf_file': './dory/dory_examples/config_files/config_Quantlab_MV2_8bits.json',
                 'optional': 'mixed-sw'
             },
-        "checksum_final": 'Ok'
+        "checksum_final": 'OK'
     },
     {
         "network_args":
@@ -88,14 +88,14 @@ networks = [
                 'conf_file': './dory/dory_examples/config_files/config_Quantlab_MV1_8bits.json',
                 'optional': 'mixed-sw'
             },
-        "checksum_final": 'Ok'
+        "checksum_final": 'OK'
     }
 ]
 
 
 
-regex = re.compile(r'Checksum final :\s*(.*)$', re.MULTILINE)
-regex_cycles = re.compile(r'num_cycles:\s*(.*)$', re.MULTILINE)
+regex = re.compile(r'Checking final output:\s*Checksum\s*(.*)$', re.MULTILINE)
+regex_cycles = re.compile(r'num cycles:\s*(.*)$', re.MULTILINE)
 regex_MACs = re.compile(r'MACs:\s*(.*)$', re.MULTILINE)
 
 def output_test(output, checksum_final):
