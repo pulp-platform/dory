@@ -12,8 +12,8 @@ typedef struct pi_hyperflash_conf flash_conf_t;
 #define flash_conf_init(conf) pi_hyperflash_conf_init(conf)
 #elif defined USE_SPIFLASH
 #include "bsp/flash/spiflash.h"
-typedef struct pi_mx25u51245g_conf flash_conf_t;
-#define flash_conf_init(conf) pi_mx25u51245g_conf_init(conf)
+typedef struct pi_spiflash_conf flash_conf_t;
+#define flash_conf_init(conf) pi_spiflash_conf_init(conf)
 #elif defined USE_MRAM
 typedef struct pi_mram_conf flash_conf_t;
 #define flash_conf_init(conf) pi_mram_conf_init(conf)
