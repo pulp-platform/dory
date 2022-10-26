@@ -31,6 +31,8 @@
 #define MCHAN_READ_STATUS() READ_REG(MCHAN_STATUS_ADDR)
 #define MCHAN_WRITE_STATUS(value) WRITE_REG(MCHAN_STATUS_ADDR, value)
 
+// MCHAN version 7 has 1 more bit for the transfer length, so all the flag offsets are shifted by 1. Also, LOC (TCDM) striding is not supported in v6.
+#if MCHAN_VERSION==7
 #define MCHAN_CMD_FLAG_DIRECTION_LOC2EXT    (0 << 17)
 #define MCHAN_CMD_FLAG_DIRECTION_EXT2LOC    (1 << 17)
 #define MCHAN_CMD_FLAG_INCREMENTAL          (1 << 18)
@@ -39,8 +41,17 @@
 #define MCHAN_CMD_FLAG_INTERRUPT_ENABLE     (1 << 21)
 #define MCHAN_CMD_FLAG_BROADCAST_FINISH     (1 << 22)
 #define MCHAN_CMD_FLAG_2D_TRANSFER_LOCAL    (1 << 23)
-
 #define MCHAN_CMD_SHIFT_DIRECTION (17)
+#else
+#define MCHAN_CMD_FLAG_DIRECTION_LOC2EXT    (0 << 16)
+#define MCHAN_CMD_FLAG_DIRECTION_EXT2LOC    (1 << 16)
+#define MCHAN_CMD_FLAG_INCREMENTAL          (1 << 17)
+#define MCHAN_CMD_FLAG_2D_TRANSFER_EXTERNAL (1 << 18)
+#define MCHAN_CMD_FLAG_EVENT_ENABLE         (1 << 19)
+#define MCHAN_CMD_FLAG_INTERRUPT_ENABLE     (1 << 20)
+#define MCHAN_CMD_FLAG_BROADCAST_FINISH     (1 << 21)
+#define MCHAN_CMD_SHIFT_DIRECTION (16)
+#endif
 
 #define MCHAN_CMD(len, dir, inc, loc_2d, ext_2d, int_en, event_en, broadcast) \
   (len | dir | inc | loc_2d | ext_2d | broadcast | int_en | event_en)
@@ -79,8 +90,14 @@ static void mchan_transfer_push_2d(mchan_transfer_t trans)
   MCHAN_WRITE_CMD(trans.cmd);
   MCHAN_WRITE_CMD(trans.loc);
   MCHAN_WRITE_CMD(trans.ext);
+// MCHAN version 7 takes 2D "count" (length of 1D transfers) and stride in 2 steps,
+// v7 takes it in 1 step with the stride shifted to the upper 16 bits.
+#if MCHAN_VERSION==7
   MCHAN_WRITE_CMD(trans.ext_size_1d);
   MCHAN_WRITE_CMD(trans.ext_stride_1d);
+#else
+  MCHAN_WRITE_CMD(trans.ext_size_1d | (trans.ext_stride_1d << 16));
+#endif
 }
 
 static void mchan_transfer_push(mchan_transfer_t trans)
