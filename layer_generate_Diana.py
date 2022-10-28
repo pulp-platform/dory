@@ -285,7 +285,7 @@ def create_weight(node):
     if node.weight_bits == 2:
         low, high = -1, 2
     size = (node.output_channels, node.input_channels // node.group, node.kernel_shape[0], node.kernel_shape[1])
-    if node.weight_bits == 2:
+    if False:#node.weight_bits == 2:
         increasing_factor = 2
         vec_weights = torch.tensor([])
         for i in np.arange(node.output_channels-1,-1,-1):
@@ -296,7 +296,6 @@ def create_weight(node):
         vec_weights = vec_weights.transpose(0, 1)
         vec_weights = vec_weights.reshape(size).long()
         return vec_weights
-        # return torch.randint(low=0, high=1, size=size)
     else:
         return torch.randint(low=low, high=high, size=size)
         # return torch.randint(low=2, high=3, size=size)
