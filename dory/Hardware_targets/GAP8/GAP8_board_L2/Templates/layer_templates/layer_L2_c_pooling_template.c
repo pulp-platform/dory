@@ -184,7 +184,7 @@ void ${func_name}(
     DMA_copy_y.number_of_1d_copies = y_tile_size_w;
     DMA_copy_y.length_1d_copy = y_length_nof_byte;
     dory_dma_memcpy_async(&DMA_copy_y);
-    dory_dma_barrier(DMA_copy_y);
+    dory_dma_barrier(&DMA_copy_y);
 
     // loop nest is nof,h,w,(nif=0)
     _i_w_load += 1;
