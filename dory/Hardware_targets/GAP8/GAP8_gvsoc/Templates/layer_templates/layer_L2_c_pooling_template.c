@@ -268,6 +268,7 @@ void ${func_name}(
   }
 % if not TEST:
   // wait for final write
-  dory_dma_barrier(&DMA_copy_y);
+    dory_dma_barrier(&DMA_copy_y);
+    dory_dma_free(&DMA_copy_y);
 % endif
 }

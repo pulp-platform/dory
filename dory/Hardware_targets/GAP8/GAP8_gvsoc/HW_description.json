@@ -39,5 +39,6 @@
 		"accelerator core0 stack": 3800,
 		"accelerator core1-7 stack": 3600		
 	},
-    "split_ints": true
+    "split_ints": true,
+    "blocking_dma_transfers": false
 }

@@ -42,6 +42,9 @@ endif
 
 
 APP_CFLAGS += -DFLASH_TYPE=$(FLASH_TYPE) -DUSE_$(FLASH_TYPE) -DUSE_$(RAM_TYPE)
+% if blocking_dma:
+APP_CFLAGS += -DALWAYS_BLOCK_DMA_TRANSFERS
+% endif
 % if do_flash:
 % for layer in layers_w:
 FLASH_FILES += hex/${layer}

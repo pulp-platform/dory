@@ -22,6 +22,9 @@ void dory_dma_memcpy_hwc_to_chw(DMA_copy *copy){
       .ext_stride_1d = copy->stride_1d
     };
     mchan_transfer_push_2d(trans);
+#ifdef ALWAYS_BLOCK_DMA_TRANSFERS // needed on GAP8 board
+    dory_dma_barrier(copy);
+#endif
     ext += 1; // next channel
     loc += copy->number_of_1d_copies * copy->number_of_2d_copies;
   }
@@ -78,7 +81,9 @@ void dory_dma_memcpy_3d_async(DMA_copy *copy) {
       .ext_stride_1d = copy->stride_1d
     };
     mchan_transfer_push_2d(trans);
-
+#ifdef ALWAYS_BLOCK_DMA_TRANSFERS // needed on GAP8 board
+    dory_dma_barrier(copy);
+#endif
     loc += size_2d;
     ext += copy->stride_2d;
   }
