@@ -36,7 +36,9 @@ int32_t ${func_name}(void* l2_x, void* l2_y)
   //////////////////////////////////////////////////////////////////////////
   // arguments assigning: keeping same interface between L2 and L3 memory //
   //////////////////////////////////////////////////////////////////////////
-
+% if W_data_size_byte == 2:
+  unsigned int l2_BN	  = Weights_${func_name} + ${int((64 if nif < 64 else nif) * (128 if nof < 128 else nof) * fs1 * fs2 * W_data_size_byte / 8)};
+% endif
 % if int(func_name[-1]) % 2 == 0 or node.skip_L2_L1 == False:
   unsigned int l1_x       = 0x0;
 % if W_data_size_byte == 2:
