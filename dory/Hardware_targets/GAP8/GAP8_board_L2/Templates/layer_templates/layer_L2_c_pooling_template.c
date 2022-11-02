@@ -111,6 +111,7 @@ void ${func_name}(
     DMA_copy_x.number_of_1d_copies = x_tile_size_w;
     DMA_copy_x.length_1d_copy = x_length_nif_byte;
     dory_dma_memcpy_async(&DMA_copy_x);
+    dory_dma_barrier(&DMA_copy_x);
     y_tile_size_h   = (last_h)   ? ${y_tile_size_h_last} : ${y_tile_size_h};
     y_tile_size_w   = (last_w)   ? ${y_tile_size_w_last} : ${y_tile_size_w};
 
@@ -202,6 +203,6 @@ void ${func_name}(
     pi_cl_team_barrier(0);
   }
 % if not TEST:
-  dory_dma_deallocate(dory_dma_channel);
+  dory_dma_free(&DMA_copy_y);
 % endif
 }
