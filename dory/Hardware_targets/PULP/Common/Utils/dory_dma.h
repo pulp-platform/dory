@@ -20,35 +20,6 @@
 #ifndef _DORY_DMA_H
 #define _DORY_DMA_H
 
-#include "pmsis.h"
-
-#ifndef MCHAN_BASE_ADDR
-// FIXME: For GAP9, this must point to ARCHI_MCHAN_EXT_ADDR!!!
-// In PULP-SDK for Kraken, this is fixed.
-// GAP8 hardware to be tested...
-#define MCHAN_BASE_ADDR (ARCHI_MCHAN_DEMUX_ADDR)  // CLUSTER_MCHAN_ADDR
-#endif
-#define MCHAN_EVENT
-//#define MCHAN_POLLED
-#ifdef MCHAN_EVENT
-#define MCHAN_EVENT_BIT (ARCHI_CL_EVT_DMA0)  // 8
-#endif
-#include "mchan.h"
-
-
-#if   defined(MCHAN_POLLED)
-#define MCHAN_FLAGS    (MCHAN_CMD_FLAG_INCREMENTAL)
-#elif defined(MCHAN_EVENT)
-#define MCHAN_FLAGS    (MCHAN_CMD_FLAG_EVENT_ENABLE | MCHAN_CMD_FLAG_INCREMENTAL)
-#elif defined(MCHAN_INTERRUPT)
-#define MCHAN_FLAGS    (MCHAN_CMD_FLAG_INTERRUPT_ENABLE | MCHAN_CMD_FLAG_INCREMENTAL)
-#endif
-
-#define MCHAN_FLAGS_1D (MCHAN_FLAGS)
-#define MCHAN_FLAGS_2D (MCHAN_FLAGS | MCHAN_CMD_FLAG_2D_TRANSFER_EXTERNAL)
-
-#define MIN(a,b) ((a)<(b)?(a):(b))
-
 typedef struct
 {
   void *ext;

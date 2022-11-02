@@ -33,25 +33,20 @@
 
 // MCHAN version 7 has 1 more bit for the transfer length, so all the flag offsets are shifted by 1. Also, LOC (TCDM) striding is not supported in v6.
 #if MCHAN_VERSION==7
-#define MCHAN_CMD_FLAG_DIRECTION_LOC2EXT    (0 << 17)
-#define MCHAN_CMD_FLAG_DIRECTION_EXT2LOC    (1 << 17)
-#define MCHAN_CMD_FLAG_INCREMENTAL          (1 << 18)
-#define MCHAN_CMD_FLAG_2D_TRANSFER_EXTERNAL (1 << 19)
-#define MCHAN_CMD_FLAG_EVENT_ENABLE         (1 << 20)
-#define MCHAN_CMD_FLAG_INTERRUPT_ENABLE     (1 << 21)
-#define MCHAN_CMD_FLAG_BROADCAST_FINISH     (1 << 22)
-#define MCHAN_CMD_FLAG_2D_TRANSFER_LOCAL    (1 << 23)
-#define MCHAN_CMD_SHIFT_DIRECTION (17)
+#define MCHAN_TRANSFER_LEN_SIZE (17)
 #else
-#define MCHAN_CMD_FLAG_DIRECTION_LOC2EXT    (0 << 16)
-#define MCHAN_CMD_FLAG_DIRECTION_EXT2LOC    (1 << 16)
-#define MCHAN_CMD_FLAG_INCREMENTAL          (1 << 17)
-#define MCHAN_CMD_FLAG_2D_TRANSFER_EXTERNAL (1 << 18)
-#define MCHAN_CMD_FLAG_EVENT_ENABLE         (1 << 19)
-#define MCHAN_CMD_FLAG_INTERRUPT_ENABLE     (1 << 20)
-#define MCHAN_CMD_FLAG_BROADCAST_FINISH     (1 << 21)
-#define MCHAN_CMD_SHIFT_DIRECTION (16)
+#define MCHAN_TRANSFER_LEN_SIZE (16)
 #endif
+
+#define MCHAN_CMD_FLAG_DIRECTION_LOC2EXT    (0 << (MCHAN_TRANSFER_LEN_SIZE + 0))
+#define MCHAN_CMD_FLAG_DIRECTION_EXT2LOC    (1 << (MCHAN_TRANSFER_LEN_SIZE + 0))
+#define MCHAN_CMD_FLAG_INCREMENTAL          (1 << (MCHAN_TRANSFER_LEN_SIZE + 1))
+#define MCHAN_CMD_FLAG_2D_TRANSFER_EXTERNAL (1 << (MCHAN_TRANSFER_LEN_SIZE + 2))
+#define MCHAN_CMD_FLAG_EVENT_ENABLE         (1 << (MCHAN_TRANSFER_LEN_SIZE + 3))
+#define MCHAN_CMD_FLAG_INTERRUPT_ENABLE     (1 << (MCHAN_TRANSFER_LEN_SIZE + 4))
+#define MCHAN_CMD_FLAG_BROADCAST_FINISH     (1 << (MCHAN_TRANSFER_LEN_SIZE + 5))
+#define MCHAN_CMD_SHIFT_DIRECTION MCHAN_TRANSFER_LEN_SIZE
+
 
 #define MCHAN_CMD(len, dir, inc, loc_2d, ext_2d, int_en, event_en, broadcast) \
   (len | dir | inc | loc_2d | ext_2d | broadcast | int_en | event_en)
