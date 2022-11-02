@@ -90,7 +90,7 @@ class C_Parser(Parser_HW_to_C):
         if node.get_parameter('weight_bits') < 8:
             ww, ww_dim = self.create_analog_weights(node)
         else:
-            if 'FullyConnected' in node.name:
+            if 'Gemm' in node.op_type:
                 ww, ww_dim = self.create_digital_FC_weights(node)
             else:
                 ww, ww_dim = self.create_digital_weights(node)
