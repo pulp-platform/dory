@@ -139,6 +139,7 @@ void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, 
   void *L2_output = NULL;
   void *L2_input = NULL;
   void *L2_weights = NULL;
+  void *L3_weights_curr = L3_weights;
   void *bypass_activations = NULL;
 
   int dir = 1;
@@ -205,7 +206,7 @@ void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, 
       L2_weights = dmalloc(weights_size[i], dir);
 
     if (allocate_layer[i] == 1)
-      ram_read(L2_weights, L3_weights, weights_size[i]);
+      ram_read(L2_weights, L3_weights_curr, weights_size[i]);
     % else:
     L2_weights = Weights_name[i];
 % endif
@@ -236,7 +237,7 @@ void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, 
     layer_args_t args = {
       .L3_input = (unsigned int) L3_input,
       .L3_output = (unsigned int) L3_output,
-      .L3_after_weights = (unsigned int) L3_weights,
+      .L3_after_weights = (unsigned int) L3_weights_curr,
       .L2_input = (unsigned int) L2_input,
       .bypass = (unsigned int) bypass_activations,
       .L2_output = (unsigned int) L2_output,
@@ -396,7 +397,7 @@ void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, 
     }
 % if l3_supported:
     if (layer_with_weights[i])
-       L3_weights += L3_weights_size[weight_l_cnt++];
+       L3_weights_curr += L3_weights_size[weight_l_cnt++];
 % endif
     dir = !dir;
   }

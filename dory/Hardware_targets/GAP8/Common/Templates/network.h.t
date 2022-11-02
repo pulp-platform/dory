@@ -61,6 +61,15 @@ void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, 
 void execute_layer_fork(void *arg);
 void execute_layer(void *arg);
 
+% if l3_supported and not single_input:
+static char * Input_names[${n_inputs}] = {\
+  % for n in range(n_inputs-1):
+  "${f"inputs_{n}.hex"}",
+  % endfor
+  "${f"inputs_{n_inputs-1}.hex"}"
+};
+% endif
+
 #ifdef DEFINE_CONSTANTS
 % if l3_supported:
 // allocation of buffers with parameters needed by the network execution
@@ -69,14 +78,6 @@ const char * L3_weights_files[] = {
 };
 int L3_weights_size[${weights_number}];
 static int layers_pointers[${len(DORY_HW_graph)}];
-% if not single_input:
-static char * Input_names[${n_inputs}] = {\
-  % for n in range(n_inputs-1):
-  "${f"input_{n}"}",
-  % endfor
-  "${f"input_{n_inputs-1}"}"
-};
-% endif
 % endif
 static char * Layers_name[${len(DORY_HW_graph)}] = {\
 % for node in DORY_HW_graph:

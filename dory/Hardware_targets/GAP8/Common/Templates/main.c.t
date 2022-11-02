@@ -77,11 +77,11 @@ int main () {
 % if not single_input:
   for (int exec = 0; exec < ${n_inputs}; exec++) {
     % if l3_supported:
-  load_file_to_ram(ram_input, Input_names[i]);
+  load_file_to_ram(ram_input, Input_names[exec]);
     % endif
 % elif l3_supported:
 
-  load_file_to_ram(ram_input, "input.hex");
+  load_file_to_ram(ram_input, "inputs.hex");
 % endif
 
   % if l3_supported:

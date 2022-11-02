@@ -54,7 +54,6 @@ def network_generate(frontend, target, conf_file, verbose_level='Check_all+Perf_
         n_inputs = 1
     if n_inputs != 1:
         assert n_inputs > 1, "n_inputs must be >= 1!"
-        assert target == "GAP8.GAP8_board_L2", "n_inputs > 1 is currently only supported for the GAP8_board_L2 target!"
 
     # Reading the onnx file
     confdir = os.path.dirname(conf_file)
