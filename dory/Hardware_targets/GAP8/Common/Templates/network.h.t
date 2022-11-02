@@ -25,6 +25,7 @@
 % endif
 <%
    l3_supported = DORY_HW_graph[0].HW_description['memory']['levels'] > 2
+   single_input = n_inputs==1
 %>\
 % if not l3_supported:
 #include "weights_definition.h"
@@ -56,7 +57,7 @@ typedef struct {
 void network_terminate();
 void network_initialize();
 % endif
-void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output${", void *L2_input_h" if not l3_supported else ""});
+void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, int exec${", void *L2_input_h" if not l3_supported else ""});
 void execute_layer_fork(void *arg);
 void execute_layer(void *arg);
 
@@ -68,6 +69,14 @@ const char * L3_weights_files[] = {
 };
 int L3_weights_size[${weights_number}];
 static int layers_pointers[${len(DORY_HW_graph)}];
+% if not single_input:
+static char * Input_names[${n_inputs}] = {\
+  % for n in range(n_inputs-1):
+  "${f"input_{n}"}",
+  % endfor
+  "${f"input_{n_inputs-1}"}"
+};
+% endif
 % endif
 static char * Layers_name[${len(DORY_HW_graph)}] = {\
 % for node in DORY_HW_graph:

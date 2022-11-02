@@ -127,7 +127,7 @@ void execute_layer_fork(void *args) {
   if (pi_core_id() == 0) pmsis_l1_malloc_free(layer_args->L1_buffer, ${l1_buffer});
 }
 
-void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output${", void *L2_input_h" if not l3_supported else ""})
+void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, int exec${", void *L2_input_h" if not l3_supported else ""})
 {
 /*
   - initial buffer allocation L2 and L1
@@ -218,7 +218,7 @@ void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output${
     else
 % endif
     if (i == 0 || branch_change[i-1] == 0) {
-      checksum("L2 input", L2_input, activations_size[i], activations_checksum[i][0]);
+      checksum("L2 input", L2_input, activations_size[i], activations_checksum[i][exec]);
 % if l3_supported:
       if (allocate_layer[i] == 1)
 % else:
@@ -293,28 +293,29 @@ void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output${
 % if 'Check_all' in verbose_level:
     % if l3_supported:
     if (L3_output_layers[i]==1) {
-      printf("Output in L3. Expected checksum: %d\n", activations_out_checksum[i][0]);
+      printf("Output in L3. Expected checksum: %d\n", activations_out_checksum[i][exec]);
     } else {
 % endif
       checksum(i + 1 < ${len(DORY_HW_graph)} ? "L2 output" : "final output",
-               L2_output, activations_out_size[i], activations_out_checksum[i][0]);
+               L2_output, activations_out_size[i], activations_out_checksum[i][exec]);
       % if l3_supported:
     }
 % endif
     printf("\n");
 % elif 'Last' in verbose_level:
     if (i == ${len(DORY_HW_graph) - 1})
-        checksum("final layer", L2_output, activations_out_size[i], activations_out_checksum[i][0]);
+        checksum("final layer", L2_output, activations_out_size[i], activations_out_checksum[i][exec]);
 % endif
 #endif
 
     // Free memory
+    % if l3_supported:
     if (layer_with_weights[i] == 1)
       dfree(weights_size[i], dir);
     dfree(activations_size[i], dir);
     if (branch_input[i] == 1)
       dfree(activations_size[i], dir);
-
+% endif
     L2_input = L2_output;
 % if not l3_supported:
     if  (branch_output[i]==1)

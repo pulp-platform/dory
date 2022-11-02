@@ -18,7 +18,9 @@
  */
 <%
 l3_supported = DORY_HW_graph[0].HW_description['memory']['levels'] > 2
-    %>\
+n_inputs = DORY_HW_graph[0].n_test_inputs
+single_input = n_inputs==1
+%>\
 % if not l3_supported:
 #include "input.h"
 % else:
@@ -57,30 +59,40 @@ int main () {
 */
 % if l3_supported:
   mem_init();
-% endif
-  % if l3_supported:
-  size_t input_size = 1000000;
-  void *ram_input = ram_malloc(input_size);
-  load_file_to_ram(ram_input, "inputs.hex");
+  network_initialize();
   % endif
-/*
-    Allocating space for input and copying it
-*/
+  /*
+    Allocating space for input
+  */
   void *l2_buffer = pi_l2_malloc(${l2_buffer_size});
-
+#ifdef VERBOSE
+  printf("\nL2 Buffer alloc initial\t@ 0x%08x:\t%s\n", (unsigned int)l2_buffer, l2_buffer?"Ok":"Failed");
+#endif
   size_t l2_input_size = ${int(DORY_HW_graph[0].tiling_dimensions["L2"]["input_activation_memory"])};
+  size_t input_size = 1000000;
+  % if l3_supported:
+
+  void *ram_input = ram_malloc(input_size);
+  % endif
+% if not single_input:
+  for (int exec = 0; exec < ${n_inputs}; exec++) {
+    % if l3_supported:
+  load_file_to_ram(ram_input, Input_names[i]);
+    % endif
+% elif l3_supported:
+
+  load_file_to_ram(ram_input, "input.hex");
+% endif
+
   % if l3_supported:
   ram_read(l2_buffer, ram_input, l2_input_size);
   % endif
 
-#ifdef VERBOSE
-  printf("\nL2 Buffer alloc initial\t@ 0x%08x:\t%s\n", (unsigned int)l2_buffer, l2_buffer?"Ok":"Failed");
-#endif
-  % if l3_supported:
-  network_initialize();
-  % endif
-  network_run(l2_buffer, ${l2_buffer_size}, l2_buffer${", L2_input_h" if not l3_supported else ""});
+      network_run(l2_buffer, ${l2_buffer_size}, l2_buffer, ${"0" if single_input else "exec"}${f", L2_input_h{' + exec * l2_input_size' if not single_input else ''}" if not l3_supported else ""});
 
+  % if not single_input:
+  }
+  % endif
   % if l3_supported:
   ram_free(ram_input, input_size);
   network_terminate();

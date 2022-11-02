@@ -209,7 +209,6 @@ class HW_node(DORY_node):
                 y = np.loadtxt(os.path.join(load_directory, outfile), delimiter=',', dtype=np.int64, usecols=[0])
             except ValueError:
                 y = np.loadtxt(os.path.join(load_directory, outfile), delimiter=',', dtype=np.float, usecols=[0]).astype(np.int64)
-            #import ipdb; ipdb.set_trace()
             if self.output_activation_bits <= 8:
                 y = self._compress(y.ravel(), self.output_activation_bits)
             elif self.split_ints and self.output_activation_bits > 8:

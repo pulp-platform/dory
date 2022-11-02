@@ -41,7 +41,7 @@ def print_template_Makefile(
     try:
         blocking_dma_transfers = HW_description['blocking_dma_transfers']
     except KeyError:
-        printf("Makefile template writer: key 'always_blocking_dma_transfers' not found in HW description, using non-blocking transfers!")
+        print("Makefile template writer: key 'always_blocking_dma_transfers' not found in HW description, using non-blocking transfers!")
         blocking_dma_transfers = False
     tk['blocking_dma'] = blocking_dma_transfers
     root = os.path.realpath(os.path.dirname(__file__))

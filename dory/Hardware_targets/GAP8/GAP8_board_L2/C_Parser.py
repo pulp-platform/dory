@@ -91,6 +91,7 @@ class C_Parser(C_Parser_GAP8):
         if in_bits != 8:
             x_in = HW_node._compress(x_in, in_bits)
 
+
         temp = x_in
         input_values = utils.print_test_vector(temp.flatten(), 'char')
         tk = OrderedDict([])
