@@ -56,6 +56,14 @@ class DORY_node:
         self.conv1d = None
         self.min = None
         self.max = None
+        self.prefix = None
+
+    @property
+    def prefixed_name(self):
+        if self.name and self.prefix:
+            return self.prefix + self.name
+
+        return self.name
 
     def print_parameters(self):
         for parameter in self.__dict__:
@@ -82,7 +90,7 @@ class DORY_node:
             if isinstance(value, type(None)) or (isinstance(value, list) and len(value) == 0):
                 sys.exit("DORY FRONTEND error. Missing some Node initialization. Stopping at argument {}".format(key))
 
-    def populate_DORY_node(self, node_iterating, graph):
+    def populate_DORY_node(self, node_iterating, graph, prefix=""):
         DORY_parameters = {}
         #### Names: Convolution, Addition, FullyConnected, Pooling
         mapping_names = {'AveragePool': 'Pooling', 
@@ -108,6 +116,7 @@ class DORY_node:
         DORY_parameters['output_index'] = node_iterating.output[0]
         DORY_parameters['number_of_input_nodes'] = len(DORY_parameters['input_indexes'])
         DORY_parameters['number_of_input_constants'] = len(DORY_parameters['constant_names'])
+        DORY_parameters['prefix'] = prefix
         self.add_existing_dict_parameter(DORY_parameters)
 
         self.add_constants(node_iterating, graph)

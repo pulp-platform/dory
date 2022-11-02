@@ -34,6 +34,7 @@ class C_Parser(C_Parser_PULP):
         print("\nGenerating .h weight files.")
         weights_vectors = []
         weights_dimensions = []
+        prefix = self.HWgraph[0].prefix
         for i, node in enumerate(self.HWgraph):
             constants = [0, 0, 0, 0]
             for name in node.constant_names:
@@ -59,20 +60,22 @@ class C_Parser(C_Parser_PULP):
         tk['weights_dimensions'] = weights_dimensions
         tk['DORY_HW_graph'] = self.HWgraph
         tk['sdk'] = node.HW_description["software development kit"]["name"]
+        tk['prefix'] = prefix
         root = os.path.dirname(__file__)
         tmpl = Template(filename=os.path.join(root, "Templates/weights_h_template.h"))
         s = tmpl.render(**tk)
-        save_string = os.path.join(self.inc_dir, 'weights.h')
+        save_string = os.path.join(self.inc_dir, prefix+'weights.h')
         with open(save_string, "w") as f:
             f.write(s)
         tmpl = Template(filename=os.path.join(root, "Templates/weights_definition_h_template.h"))
         s = tmpl.render(**tk)
-        save_string = os.path.join(self.inc_dir, 'weights_definition.h') 
+        save_string = os.path.join(self.inc_dir, prefix+'weights_definition.h') 
         with open(save_string, "w") as f:
             f.write(s)
 
     def create_hex_input(self):
         print("\nGenerating .h input file.")
+        prefix = self.HWgraph[0].prefix
         x_in_l = []
         for in_idx in range(self.n_inputs):
             infile = 'input.txt' if self.n_inputs == 1 else f'input_{in_idx}.txt'
@@ -98,9 +101,10 @@ class C_Parser(C_Parser_PULP):
         tk['input_values'] = input_values
         tk['dimension'] = len(x_in)
         tk['sdk'] = self.HW_description["software development kit"]["name"]
+        tk['prefix'] = prefix
         root = os.path.dirname(__file__)
         tmpl = Template(filename=os.path.join(root, "Templates/input_h_template.h"))
         s = tmpl.render(**tk)
-        save_string = os.path.join(self.inc_dir, 'input.h') 
+        save_string = os.path.join(self.inc_dir, prefix+'input.h') 
         with open(save_string, "w") as f:
             f.write(s)

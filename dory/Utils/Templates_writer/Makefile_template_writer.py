@@ -32,9 +32,10 @@ def print_template_Makefile(
     file_list_w = []
     for i, node in enumerate(graph):
         if "Conv" in node.name or "FullyConnected" in node.name:
-            file_list_w.append(node.name+"_weights.hex")
+            file_list_w.append(node.prefixed_name+"_weights.hex")
 
     tk['n_inputs'] = graph[0].n_test_inputs
+    tk['prefix'] = graph[0].prefix
     tk['layers_w'] = file_list_w
     tk['sdk'] = HW_description["software development kit"]["name"]
     tk['do_flash'] = HW_description["memory"]["levels"] > 2

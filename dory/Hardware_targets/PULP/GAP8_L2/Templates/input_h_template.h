@@ -20,9 +20,9 @@
 #define __INPUT_H__
 #include "pmsis.h"
 % if sdk == 'gap_sdk':
-L2_DATA uint8_t L2_input_h[${dimension}] = {
+L2_DATA uint8_t ${prefix}L2_input_h[${dimension}] = {
 % elif sdk == 'pulp-sdk':
-PI_L2 uint8_t L2_input_h[${dimension}] = {
+PI_L2 uint8_t ${prefix}L2_input_h[${dimension}] = {
 % endif
 ${input_values}};
 #endif

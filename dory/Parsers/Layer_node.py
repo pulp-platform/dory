@@ -42,6 +42,7 @@ class Layer_node(DORY_node):
         self.input_activation_memory = None
         self.output_activation_memory = None
         self.layout = None
+        self.prefix = ""
 
     def update_input_dimensions(self, activation_tensor, Layer_parameters):
         if activation_tensor.name in self.input_indexes:
@@ -78,9 +79,10 @@ class Layer_node(DORY_node):
                 Layer_parameters["output_dimensions"] =  [1, 1]
         return Layer_parameters
 
-    def populate_Layer_node(self, node_iterating, graph):
+    def populate_Layer_node(self, node_iterating, graph, prefix=""):
         self.populate_DORY_node(node_iterating,graph)
         Layer_parameters = {}
+        Layer_parameters['prefix'] = prefix
         ## kernel_shape, dilations, group, strides, pads DEFAULTS
         if self.name in ['FullyConnected', 'Addition']:
             Layer_parameters['kernel_shape'] = [1, 1]

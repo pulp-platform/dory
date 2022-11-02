@@ -41,9 +41,11 @@ def dory_to_c(graph, target, conf, confdir, verbose_level, perf_layer, optional,
 
 
 def network_generate(frontend, target, conf_file, verbose_level='Check_all+Perf_final', perf_layer='No', optional='auto',
-                     appdir='./application'):
+                     appdir='./application', prefix=""):
     print(f"Using {frontend} as frontend. Targeting {target} platform. ")
 
+    if len(prefix) > 0 and prefix[-1] != "_":
+        prefix += "_"
     # Reading the json configuration file
     with open(conf_file) as f:
         conf = json.load(f)
@@ -63,7 +65,7 @@ def network_generate(frontend, target, conf_file, verbose_level='Check_all+Perf_
     # Including and running the transformation from Onnx to a DORY compatible graph
     onnx_manager = import_module(f'dory.Frontend_frameworks.{frontend}.Parser')
     onnx_to_dory = onnx_manager.onnx_manager
-    graph = onnx_to_dory(onnx_file, conf).full_graph_parsing()
+    graph = onnx_to_dory(onnx_file, conf, prefix).full_graph_parsing()
 
     dory_to_c(graph, target, conf, confdir, verbose_level, perf_layer, optional, appdir, n_inputs)
 
@@ -86,8 +88,9 @@ if __name__ == '__main__':
     parser.add_argument('--optional', default='auto',
                         help='auto (based on layer precision, 8bits or mixed-sw), 8bit, mixed-hw, mixed-sw')
     parser.add_argument('--app_dir', default='./application', help='Path to the generated application. Default: ./application')
+    parser.add_argument('--prefix', default="", help='Prefix to prepend to network-specific generated functions', type=str)
 
     args = parser.parse_args()
 
     network_generate(args.frontend, args.hardware_target, args.config_file, args.verbose_level, args.perf_layer,
-                     args.optional, args.app_dir)
+                     args.optional, args.app_dir, args.prefix)

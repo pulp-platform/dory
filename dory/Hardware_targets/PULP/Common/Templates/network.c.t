@@ -22,10 +22,11 @@ l3_supported = DORY_HW_graph[0].HW_description['memory']['levels'] > 2
 %>\
 #define DEFINE_CONSTANTS
 %if not l3_supported:
-#include "weights.h"
+#include "${prefix}weights.h"
 %endif
+#include "net_utils.h"
 #include "pmsis.h"
-#include "network.h"
+#include "${prefix}network.h"
 #include "directional_allocator.h"
 #include "mem.h"
 #include <string.h>
@@ -42,32 +43,6 @@ l3_supported = DORY_HW_graph[0].HW_description['memory']['levels'] > 2
 #define VERBOSE 1
 % endif
 
-% if 'Yes' in performance or 'Perf_final' in verbose_level:
-static void print_perf(const char *name, const int cycles, const int macs) {
-  float perf = (float) macs / cycles;
-  printf("\n%s performance:\n", name);
-  printf("  - num cycles: %d\n", cycles);
-  printf("  - MACs: %d\n", macs );
-  printf("  - MAC/cycle: %g\n", perf);
-  printf("  - n. of Cores: %d\n\n", NUM_CORES);
-}
-
-% endif
-% if 'Check_all' in verbose_level:
-#ifdef VERBOSE
-static void checksum(const char *name, const uint8_t *d, size_t size, uint32_t sum_true) {
-    uint32_t sum = 0;
-    for (int i = 0; i < size; i++) sum += d[i];
-
-    printf("Checking %s: Checksum ", name);
-    if (sum_true == sum)
-        printf("OK\n");
-    else
-        printf("Failed: true [%u] vs. calculated [%u]\n", sum_true, sum);
-}
-#endif
-% endif
-
 % if l3_supported:
 #define L3_WEIGHTS_SIZE 4000000
 #define L3_INPUT_SIZE 1500000
@@ -79,7 +54,7 @@ static void *L3_output = NULL;
 
 % if l3_supported:
 /* Moves the weights and the biases from hyperflash to hyperram */
-void network_initialize() {
+void ${prefix}network_initialize() {
 
   L3_weights = ram_malloc(L3_WEIGHTS_SIZE);
   L3_input = ram_malloc(L3_INPUT_SIZE);
@@ -102,7 +77,7 @@ void network_initialize() {
 
 % if l3_supported:
 /* Remove RAM memory */
-void network_terminate() {
+void ${prefix}network_terminate() {
   % if l3_supported:
   ram_free(L3_weights, L3_WEIGHTS_SIZE);
   ram_free(L3_input, L3_INPUT_SIZE);
@@ -111,7 +86,7 @@ void network_terminate() {
 }
 % endif
 
-void execute_layer_fork(void *args) {
+void ${prefix}execute_layer_fork(void *args) {
   layer_args_t *layer_args = (layer_args_t *)args;
   if (pi_core_id() == 0) layer_args->L1_buffer = pmsis_l1_malloc(${l1_buffer});
 
@@ -127,7 +102,7 @@ void execute_layer_fork(void *args) {
   if (pi_core_id() == 0) pmsis_l1_malloc_free(layer_args->L1_buffer, ${l1_buffer});
 }
 
-void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, int exec${", void *L2_input_h" if not l3_supported else ""})
+void ${prefix}network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, int exec${", void *L2_input_h" if not l3_supported else ""})
 {
 /*
   - initial buffer allocation L2 and L1
@@ -259,7 +234,7 @@ void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, 
     pi_perf_stop();
     pi_perf_start();
 % endif
-    pi_cluster_task(&cluster_task, execute_layer_fork, &args);
+    pi_cluster_task(&cluster_task, ${prefix}execute_layer_fork, &args);
     pi_open_from_conf(&cluster_dev, &conf);
     if (pi_cluster_open(&cluster_dev))
       return;
