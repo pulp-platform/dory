@@ -81,7 +81,7 @@ class Tiler_Conv2D():
             previous_layer_tiles = 1
         self.HW_node.previous_layer_tiles = previous_layer_tiles
         # return immediatly if the memory fits the L1
-        if (in_mem + out_mem) <= L1_memory_activation and weights_mem <= L1_memory_weights:
+        if (in_mem + out_mem) <= L1_memory_activation and weights_mem <= L1_memory_weights and ((self.HW_node.weight_bits == 2 and (out_ch <= 512) and (in_ch <= 128)) or self.HW_node.weight_bits == 8):
             return (self.HW_node.tiling_dimensions["L2"]["weights_dimensions"] , [self.HW_node.tiling_dimensions["L2"]["input_dimensions"][0], h_in, self.HW_node.tiling_dimensions["L2"]["input_dimensions"][2]] , [self.HW_node.tiling_dimensions["L2"]["weights_dimensions"][0], h_out, self.HW_node.tiling_dimensions["L2"]["output_dimensions"][2]] )
         else:
             db = 1
@@ -106,12 +106,16 @@ class Tiler_Conv2D():
             ##### ITERATION CONSTRAINTS #################
             ###############################################
             # we do not take into account padding, so we have to take it into account also here to be compliant with row 121
-            if tile_iteration == 0:
+            if tile_iteration == 0 and self.HW_node.weight_bits == 8:
                 solver.Add(tile_h_out == out_dim[0] - (ks[0] - 1) + (s[0] - 1))
                 solver.Add(tile_w_out == out_dim[1] - (ks[1] - 1) + (s[1] - 1))
-            if tile_iteration == 1:
+            if tile_iteration == 1 and self.HW_node.weight_bits == 8:
                 solver.Add(tile_w_out == out_dim[1] - (ks[1] - 1) + (s[1] - 1))
 
+            ###############################################
+            ##### SAFETY CONSTRAINT #################
+            ###############################################
+            solver.Add((tile_n_in * tile_n_out * tile_h_in * tile_w_in) < (in_ch * out_ch * inp_dim[0] * inp_dim[1]))
 
             ###############################################
             ##### GEOMETRICAL CONSTRAINTS #################
@@ -146,7 +150,9 @@ class Tiler_Conv2D():
 
             solver.Add((input_tile_dimension + output_tile_dimension) <= L1_memory_activation)
             solver.Add(weight_tile_dimension <= L1_memory_weights)
-
+            if self.HW_node.weight_bits == 2:
+                solver.Add(tile_n_out <= 512)
+            
             ###############################################
             ##### HEURISTICS ADDITION #####################
             ###############################################
@@ -161,14 +167,15 @@ class Tiler_Conv2D():
                 heuristics += 1000000 * ((tile_w_out - 1) % 16) \
                             + 1000000 * (tile_w_out * tile_h_out >= 16)
             elif g == 1 and self.HW_node.weight_bits == 2:
-                heuristics += 1000000 * ((tile_n_in - 1) % 128) \
-                            + 1000000 * ((tile_n_out - 1) % 512) 
+                heuristics += 100000000 * ((tile_n_in - 1) % 128) \
+                            + 100000000 * ((tile_n_out - 1) % 512)  
             elif g > 1 and self.HW_node.weight_bits == 2:
                 ### TO DO: I THINK IT IS USELESS
                 pass
             ####### Minimization of DMA copies #######
-            heuristics +=  1000000 * tile_w_out
-            heuristics +=  100000 * tile_n_out
+            if self.HW_node.weight_bits == 8:
+                heuristics +=  1000000 * tile_w_out
+                heuristics +=  100000 * tile_n_out
             # ####### Total Dimension of Tile ###############
             heuristics += constraint_all
             solver.Add(obj_expr == heuristics)

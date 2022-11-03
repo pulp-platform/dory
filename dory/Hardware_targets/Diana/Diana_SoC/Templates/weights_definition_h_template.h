@@ -20,6 +20,10 @@
 
 % for i in range(len(weights_vectors)):
 % if weights_dimensions[i] > 0:
+% if DORY_HW_graph[i].weight_bits == 2:
+extern uint32_t Weights_${DORY_HW_graph[i].name}[${weights_dimensions[i]}];
+% else:
 extern uint8_t Weights_${DORY_HW_graph[i].name}[${weights_dimensions[i]}];
+% endif
 % endif
 % endfor

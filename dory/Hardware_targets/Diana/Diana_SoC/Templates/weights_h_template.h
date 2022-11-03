@@ -22,7 +22,11 @@
 
 % for i in range(len(weights_vectors)):
 % if weights_dimensions[i] > 0:
+% if DORY_HW_graph[i].weight_bits == 2:
+L2_DATA uint32_t Weights_${DORY_HW_graph[i].name}[${weights_dimensions[i]}] = {
+% else:
 L2_DATA uint8_t Weights_${DORY_HW_graph[i].name}[${weights_dimensions[i]}] = {
+% endif
 ${weights_vectors[i]}};
 % endif
 % endfor
