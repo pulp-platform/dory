@@ -170,12 +170,15 @@ class onnx_manager(Parser_ONNX_to_DORY):
                 node.add_existing_parameter("output_activation_type", self.DORY_Graph[i].input_activation_type)
             if node.name in ["Convolution", "FullyConnected"]:
                 node.add_existing_parameter("output_activation_bits", 32)
+                # before merging with activations, conv/FC always have 32b int outputs
+                node.add_existing_parameter("output_activation_type", "int")
             if node.name in ["QAddition", "Relu", "BNRelu", "Clip", "Mul", "Add", "Div", "Shift"]:
                 node.add_existing_parameter("constant_bits", self.BNRelu_bits)
             if node.name in ["Pooling"]:
                 node.add_existing_parameter("output_activation_bits", self.DORY_Graph[i].input_activation_bits)
                 node.add_existing_parameter("output_activation_type", self.DORY_Graph[i].input_activation_type)
-        node.add_existing_parameter("output_activation_type", "int") # last node is always int
+        #node.add_existing_parameter("output_activation_type", "int") # last
+        #node is NOT always int!
 
     def add_data_layout(self):
         print("\nQuantlab Frontend: Adding Data Layout.")

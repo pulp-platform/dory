@@ -29,7 +29,9 @@ def print_template_network(
     config_file,
     verbose_level,
     perf_layer,
-    app_directory
+        app_directory,
+        inc_dir_rel,
+        src_dir_rel
 ):
     # Generate the Network management c file.
     tk = OrderedDict([])
@@ -80,18 +82,18 @@ def print_template_network(
     root = os.path.realpath(os.path.dirname(__file__))
     tmpl = Template(filename=os.path.join(root, "../../Hardware_targets", HW_description["name"], "Templates/network_c_template.c"))
     s = tmpl.render(verbose_log=l, **tk)
-    save_string = os.path.join(app_directory, 'DORY_network/src/network.c') 
+    save_string = os.path.join(app_directory, src_dir_rel, 'network.c') 
     with open(save_string, "w") as f:
         f.write(s)
 
     tmpl = Template(filename=os.path.join(root, "../../Hardware_targets", HW_description["name"], "Templates/network_h_template.h"))
     s = tmpl.render(verbose_log=l, **tk)
-    save_string = os.path.join(app_directory, 'DORY_network/inc/network.h') 
+    save_string = os.path.join(app_directory, inc_dir_rel, 'network.h') 
     with open(save_string, "w") as f:
         f.write(s)
 
     tmpl = Template(filename=os.path.join(root, "../../Hardware_targets", HW_description["name"], "Templates/main_template.c"))
     s = tmpl.render(verbose_log=l, **tk)
-    save_string = os.path.join(app_directory, 'DORY_network/src/main.c')
+    save_string = os.path.join(app_directory, src_dir_rel, 'main.c')
     with open(save_string, "w") as f:
         f.write(s)

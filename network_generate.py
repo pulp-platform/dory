@@ -54,7 +54,6 @@ def network_generate(frontend, target, conf_file, verbose_level='Check_all+Perf_
         n_inputs = 1
     if n_inputs != 1:
         assert n_inputs > 1, "n_inputs must be >= 1!"
-        assert target == "GAP8.GAP8_board_L2", "n_inputs > 1 is currently only supported for the GAP8_board_L2 target!"
 
     # Reading the onnx file
     confdir = os.path.dirname(conf_file)
@@ -71,7 +70,7 @@ def network_generate(frontend, target, conf_file, verbose_level='Check_all+Perf_
 
 if __name__ == '__main__':
     Frontends = ["NEMO", "Quantlab"]
-    Hardware_targets = ["GAP8.GAP8_board", "GAP8.GAP8_board_L2", "GAP8.GAP8_gvsoc", "nnx.ne16", "Occamy", "Diana.Diana_TVM", "Diana.Diana_SoC"]
+    Hardware_targets = ["PULP.GAP8", "PULP.GAP8_L2", "PULP.PULP_gvsoc", "nnx.ne16", "Occamy", "Diana.Diana_TVM", "Diana.Diana_SoC"]
 
     parser = argparse.ArgumentParser(formatter_class=RawTextHelpFormatter)
     parser.add_argument('frontend', type=str, choices=Frontends, help='Frontend from which the onnx is produced and from which the network has been trained')

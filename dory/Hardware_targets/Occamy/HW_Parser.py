@@ -47,7 +47,7 @@ class onnx_manager(Parser_DORY_to_HW):
                          os.path.join(config_file_dir, os.path.dirname(config_file["onnx_file"])), config_file, Tiler)
 
     def adjust_data_layout(self):
-        print("\nGAP8 Backend: Adjusting Data Layout to HWC and CoutKCin.")
+        print("\nPULP Backend: Adjusting Data Layout to HWC and CoutKCin.")
         for i, node in enumerate(self.DORY_Graph):
             if "FullyConnected" in node.name:
                 for name in node.constant_names:

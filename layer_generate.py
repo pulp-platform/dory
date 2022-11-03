@@ -344,7 +344,7 @@ def create_graph(params, network_dir):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('hardware_target', type=str, choices=["GAP8.GAP8_gvsoc","GAP8.GAP8_board", "nnx", "Occamy", "Diana"],
+    parser.add_argument('hardware_target', type=str, choices=["GAP8.PULP_gvsoc","GAP8.GAP8", "nnx", "Occamy", "Diana"],
                         help='Hardware platform for which the code is optimized')
     parser.add_argument('--config_file', default='dory/dory_examples/config_files/config_single_layer.json', type=str,
                         help='Path to the JSON file that specifies the ONNX file of the network and other information. Default: config_files/config_single_layer.json')

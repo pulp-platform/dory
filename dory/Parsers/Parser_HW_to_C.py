@@ -39,7 +39,11 @@ class Parser_HW_to_C:
         self.save_string_for_Makefile = save_string
         self.network_directory = network_directory
         self.app_directory = app_directory
+        self.inc_dir_rel = "inc"
+        self.src_dir_rel = "src"
+        self.hex_dir_rel = "hex"
         self.n_inputs = n_inputs
+
 
     def adding_numbers_to_layers(self):
         for i, node in enumerate(self.HWgraph):
@@ -53,7 +57,9 @@ class Parser_HW_to_C:
             self.config_file,
             self.verbose_level,
             self.perf_layer,
-            self.app_directory)
+            self.app_directory,
+            self.inc_dir_rel,
+            self.src_dir_rel)
 
     def mapping_makefile(self):
         print("\nGenerating the Makefile.")
@@ -75,9 +81,9 @@ class Parser_HW_to_C:
         for file in os.listdir(utils_files_dir):
             file_to_copy = os.path.join(utils_files_dir, file)
             if file_to_copy[-1] == 'c':
-                os.system('cp "{}" {}/DORY_network/src'.format(file_to_copy, self.app_directory))
-            elif file_to_copy[-1] == 'h': 
-                os.system('cp "{}" {}/DORY_network/inc'.format(file_to_copy, self.app_directory))
+                os.system('cp -L "{}" {}'.format(file_to_copy, self.src_dir))
+            elif file_to_copy[-1] == 'h':
+                os.system('cp -L "{}" {}'.format(file_to_copy, self.inc_dir))
 
     def create_hex_weights_files(self):
         print("\nGenerating .hex weight files.")
@@ -100,7 +106,7 @@ class Parser_HW_to_C:
                 weights = np.concatenate((weights, np.asarray([0])))
             if weights.shape[0] != 0:
                 string_layer = node.name + "_weights.hex"
-                save_s = '{}/DORY_network/'.format(self.app_directory) + string_layer
+                save_s = os.path.join(self.hex_dir, string_layer)
                 weights.astype('uint8').tofile(save_s)
 
     def create_hex_input(self):
@@ -123,8 +129,20 @@ class Parser_HW_to_C:
                 x_in = HW_node._compress(x_in, in_bits)
 
             string_layer = "inputs.hex" if self.n_inputs == 1 else f"inputs_{in_idx}.hex"
-            save_s = '{}/DORY_network/'.format(self.app_directory) + string_layer
+            save_s = os.path.join(self.hex_dir, string_layer)
             x_in.astype('uint8').tofile(save_s)
+
+    @property
+    def src_dir(self):
+        return os.path.join(self.app_directory, self.src_dir_rel)
+
+    @property
+    def inc_dir(self):
+        return os.path.join(self.app_directory, self.inc_dir_rel)
+
+    @property
+    def hex_dir(self):
+        return os.path.join(self.app_directory, self.hex_dir_rel)
 
     def full_graph_parsing(self):
         print("#####################################################")
@@ -133,9 +151,9 @@ class Parser_HW_to_C:
         print("#####################################################")
         os.system('rm -rf {}'.format(self.app_directory))
         os.system('mkdir {}'.format(self.app_directory))
-        os.system('mkdir {}/DORY_network'.format(self.app_directory))
-        os.system('mkdir {}/DORY_network/inc'.format(self.app_directory))
-        os.system('mkdir {}/DORY_network/src'.format(self.app_directory))
+        os.system('mkdir {}'.format(self.src_dir))
+        os.system('mkdir {}'.format(self.inc_dir))
+        os.system('mkdir {}'.format(self.hex_dir))
         self.adding_numbers_to_layers()
         self.mapping_network_to_C_file()
         self.mapping_makefile()
