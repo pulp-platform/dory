@@ -68,10 +68,10 @@ class onnx_manager(Parser_DORY_to_HW):
                 npad = ((0, (16 - (node.__dict__[weights_name]["value"].shape[0] % 16)) % 16), (0, (16 - (node.__dict__[weights_name]["value"].shape[1] % 16)) % 16), (0, 0), (0,0))
                 temp = np.pad(node.__dict__[weights_name]["value"], pad_width=npad, mode='constant', constant_values=0)
                 temp = np.transpose(temp, (0, 2, 3, 1))
-                temp = temp.reshape(temp.shape[0],temp.shape[1],temp.shape[2],int(temp.shape[3]/16), 16)
-                temp = np.transpose(temp, (3, 0, 1, 2, 4))
+                temp = temp.reshape(int(temp.shape[0]/16), 16,temp.shape[1],temp.shape[2],int(temp.shape[3]/16), 16)
+                temp = np.transpose(temp, (0, 4, 1, 2, 3, 5 ))
                 node.__dict__[weights_name]["value"] = temp
-                node.__dict__[weights_name]["layout"] = "Cout2CinKCout1"
+                node.__dict__[weights_name]["layout"] = "Cout2Cin2Cout1KCin1"
                 for name in node.constant_names:
                     if name not in ["l","k","outshift","outmul"]:
                         if "bias" in name:

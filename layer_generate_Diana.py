@@ -278,14 +278,14 @@ def create_input(node):
     low, high = borders(node.input_activation_bits, node.input_activation_type == 'int')
     size = (1, node.input_channels, node.input_dimensions[0], node.input_dimensions[1])
     # return torch.randint(low=low, high=high, size=size)
-    return torch.randint(low=10, high=11, size=size)
+    return torch.randint(low=2, high=3, size=size)
 
 def create_weight(node):
     low, high = borders(node.weight_bits, signed=True)
     if node.weight_bits == 2:
         low, high = -1, 2
     size = (node.output_channels, node.input_channels // node.group, node.kernel_shape[0], node.kernel_shape[1])
-    if False:#node.weight_bits == 2:
+    if node.weight_bits == 2:
         increasing_factor = 2
         vec_weights = torch.tensor([])
         for i in np.arange(node.output_channels-1,-1,-1):
@@ -298,7 +298,8 @@ def create_weight(node):
         return vec_weights
     else:
         return torch.randint(low=low, high=high, size=size)
-        # return torch.randint(low=2, high=3, size=size)
+
+        # return torch.randint(low=1, high=2, size=size)
 
 def create_bias(node):
     low, high = borders(node.bias_bits, signed=True)

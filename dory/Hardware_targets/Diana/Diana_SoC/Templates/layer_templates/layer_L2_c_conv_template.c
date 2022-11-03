@@ -201,29 +201,30 @@ void ${func_name}(layer* layer_i)
     kernel.stride = ${stride};
     kernel.ox = (int) y_tile_size_w / kernel.ox_unroll;
 % endif
-
+    uint32_t l2_W_tile = l2_W + _i_nof * ${W_tile_size_nof * int(nif * fs1 * fs2 + b_data_size_byte / 8)};
 % if W_data_size_byte == 8:
     dory_cores_barrier_digital();
 % if 'Gemm' in optional: 
-    digital_fully_connected(l2_x_tile, l1_x, l2_W, l1_weights, l1_y, &kernel);
+    digital_fully_connected(l2_x_tile, l1_x, l2_W_tile, l1_weights, l1_y, &kernel);
 % elif flag_DW == 1:
-    digital_depthwise_conv_2d(l2_x_tile, l1_x, l2_W, l1_weights, l1_y, &kernel);
+    digital_depthwise_conv_2d(l2_x_tile, l1_x, l2_W_tile, l1_weights, l1_y, &kernel);
 % elif flag_DW == 0: 
-    digital_conv_2d(l2_x_tile, l1_x, l2_W, l1_weights, l1_y, &kernel);
+    digital_conv_2d(l2_x_tile, l1_x, l2_W_tile, l1_weights, l1_y, &kernel);
 % endif 
     dory_cores_barrier_digital();
 % elif W_data_size_byte == 2:
     dory_cores_barrier_analog();
 % if 'Gemm' in optional: 
-    analog_fully_connected(l2_x, l1_x, l2_W, l1_weights, l1_y, &kernel);
+    analog_fully_connected(l2_x, l1_x, l2_W_tile, l1_weights, l1_y, &kernel);
 % elif flag_DW == 1:
-    analog_depthwise_conv_2d(l2_x, l1_x, l2_W, l2_BN, l1_weights, l1_y, &kernel);
+    analog_depthwise_conv_2d(l2_x, l1_x, l2_W_tile, l2_BN, l1_weights, l1_y, &kernel);
 % elif flag_DW == 0: 
-    analog_conv_2d(l2_x, l1_x, l2_W, l2_BN, l1_weights, l1_y, &kernel);
+    analog_conv_2d(l2_x, l1_x, l2_W_tile, l2_BN, l1_weights, l1_y, &kernel);
 % endif 
     dory_cores_barrier_analog();
 % endif
 
+    uint32_t l2_y_tile = dory_get_tile_3d(l2_y, _i_nof, _i_h, _i_w, ${W_tile_size_nof}, ${y_tile_size_h}, ${y_tile_size_w}, ${y_h}, ${y_w}, 0, 0, 0, 0, 0, 0, ${y_data_size_byte});
     _i_nof_pre = _i_nof;
     _i_nif_pre = _i_nif;
     _i_h_pre   = _i_h;
@@ -270,7 +271,7 @@ void ${func_name}(layer* layer_i)
       }
     }
 % elif W_data_size_byte == 8:
-    DMA_copy_y.ext = l2_y;
+    DMA_copy_y.ext = l2_y_tile;
     DMA_copy_y.loc = l1_y;
     DMA_copy_y.number_of_2d_copies = y_length_nof_byte;
     DMA_copy_y.number_of_1d_copies = y_tile_size_h;

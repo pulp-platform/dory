@@ -81,7 +81,7 @@ class Tiler_Conv2D():
             previous_layer_tiles = 1
         self.HW_node.previous_layer_tiles = previous_layer_tiles
         # return immediatly if the memory fits the L1 
-        if (in_mem + out_mem) <= L1_memory_activation and weights_mem <= L1_memory_weights and ((self.HW_node.weight_bits == 2 and (out_ch <= 512) and (in_ch <= 128)) or self.HW_node.weight_bits == 8):
+        if (in_mem + out_mem) <= L1_memory_activation and weights_mem <= L1_memory_weights and ((self.HW_node.weight_bits == 2 and (out_ch <= 512) and (in_ch <= 128)) or self.HW_node.weight_bits == 8) and ((out_ch <= 16)  or (inp_dim[0] > 1 and inp_dim[1] > 1)):
             return (self.HW_node.tiling_dimensions["L2"]["weights_dimensions"] , [self.HW_node.tiling_dimensions["L2"]["input_dimensions"][0], h_in, self.HW_node.tiling_dimensions["L2"]["input_dimensions"][2]] , [self.HW_node.tiling_dimensions["L2"]["weights_dimensions"][0], h_out, self.HW_node.tiling_dimensions["L2"]["output_dimensions"][2]] )
         else:
             db = 1
@@ -138,6 +138,9 @@ class Tiler_Conv2D():
             
             if g == 1:
                 solver.Add(tile_n_in == int(in_ch))
+
+            if inp_dim[0] == 1 and inp_dim[1] == 1:
+                solver.Add(tile_n_out <= 16)
             
             ###############################################
             ##### CONSTRAINTS FOR DIMENSION ###############

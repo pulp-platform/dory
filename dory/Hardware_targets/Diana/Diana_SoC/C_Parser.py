@@ -245,11 +245,20 @@ class C_Parser(Parser_HW_to_C):
             for i in [0, 1]:
                 if constants[i]!= 0:
                     if i==0:  
-                        dim = int((getattr(node, 'output_channels')+15)/16) * 16 * getattr(node, 'input_channels') * np.prod(getattr(node, 'kernel_shape'))
+                        dim = getattr(node, 'input_channels') * 16 * np.prod(getattr(node, 'kernel_shape'))
                         weights = np.concatenate((weights,node.__dict__[constants[i]]["value"][(batch*dim):((batch+1)*dim)]))
                     if i==1:  
                         weights = np.concatenate((weights,node.__dict__[constants[i]]["value"][(batch*16*int(node.bias_bits/8)):((batch+1)*16*int(node.bias_bits/8))]))
                     save_vector = 1
+        # for batch, channels_tile in enumerate(np.arange(0, getattr(node, 'output_channels'), node.tiling_dimensions['L1']['weights_dimensions'][0])):
+        #     for i in [0, 1]:
+        #         if constants[i]!= 0:
+        #             if i==0:  
+        #                 dim = node.tiling_dimensions['L1']['weights_dimensions'][0] * getattr(node, 'input_channels') * np.prod(getattr(node, 'kernel_shape'))
+        #                 weights = np.concatenate((weights,node.__dict__[constants[i]]["value"][(batch*dim):((batch+1)*dim)]))
+        #             if i==1:  
+        #                 weights = np.concatenate((weights,node.__dict__[constants[i]]["value"][(channels_tile*int(node.bias_bits/8)):((channels_tile+node.tiling_dimensions['L1']['weights_dimensions'][0])*int(node.bias_bits/8))]))
+        #             save_vector = 1
         for i in [2, 3]:
             if constants[i]!= 0:
                 weights = np.concatenate((weights,node.__dict__[constants[i]]["value"]))
