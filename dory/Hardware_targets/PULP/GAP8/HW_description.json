@@ -1,0 +1,45 @@
+{
+	"name": "PULP/GAP8",
+	"memory": {
+		"levels": 3,
+		"L1": {
+			"dimension": 64000,
+			"bandwidth": 32,
+			"latency": 1,
+			"frequency": 100000000
+		},
+		"L2": {
+			"dimension": 512000,
+			"bandwidth": 8,
+			"latency": 10,
+			"frequency": 100000000
+		},
+		"L3": {
+			"dimension": 8000000,
+			"bandwidth": null,
+			"latency": null,
+			"frequency": null
+		},
+		"DMA": "yes",
+		"cache": "no"
+	},
+	"architecture": "single-core+accelerator",
+	"software development kit": {
+		"name": "gap_sdk",
+		"directory": "~/gap_sdk/"
+	},
+	"peak MAC/cycle":
+	{
+		"8bits": 32,
+		"float32": null
+	},
+	"core frequency": 100000000,
+	"accelerator frequency": 100000000,
+	"HW specific parameters":{
+		"accelerator core0 stack": 3500,
+		"accelerator core1-7 stack": 3400
+	},
+    "double_buffering": 1,
+    "split_ints": true,
+    "blocking_dma_transfers": true
+}

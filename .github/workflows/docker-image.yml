@@ -38,12 +38,12 @@ jobs:
           shell: bash
           run: |
             source docker_utils/docker_pulp_sdk.sh
-            python3 -m pytest --durations=0 -x test_GAP8.py --compat "pulp-sdk" --appdir "/dory_app"
+            python3 -m pytest --durations=0 -x test_PULP.py --compat "pulp-sdk" --appdir "/dory_app"
             retcode=$?
             if [ ! $retcode -eq 0 ]; then exit $retcode; fi
             echo $retcode
             source docker_utils/docker_gap_sdk.sh
-            python3 -m pytest --durations=0 -x test_GAP8.py --compat "gap-sdk" --appdir "/dory_app"
+            python3 -m pytest --durations=0 -x test_PULP.py --compat "gap-sdk" --appdir "/dory_app"
             retcode=$?
             if [ ! $retcode -eq 0 ]; then exit $retcode; fi
             echo $retcode

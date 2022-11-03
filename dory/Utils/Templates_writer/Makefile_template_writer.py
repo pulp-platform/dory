@@ -37,6 +37,13 @@ def print_template_Makefile(
     tk['n_inputs'] = graph[0].n_test_inputs
     tk['layers_w'] = file_list_w
     tk['sdk'] = HW_description["software development kit"]["name"]
+    tk['do_flash'] = HW_description["memory"]["levels"] > 2
+    try:
+        blocking_dma_transfers = HW_description['blocking_dma_transfers']
+    except KeyError:
+        print("Makefile template writer: key 'always_blocking_dma_transfers' not found in HW description, using non-blocking transfers!")
+        blocking_dma_transfers = False
+    tk['blocking_dma'] = blocking_dma_transfers
     root = os.path.realpath(os.path.dirname(__file__))
     tmpl = Template(filename=os.path.join(root, "../../Hardware_targets", HW_description["name"], "Templates/Makefile_template"))
     s = tmpl.render(**tk)

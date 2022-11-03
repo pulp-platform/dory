@@ -63,6 +63,10 @@ class HW_node(DORY_node):
         self.check_sum_in = None
         self.check_sum_out = None
         self.L3_input = 0
+        try:
+            self.split_ints = HW_description['split_ints']
+        except KeyError:
+            self.split_ints = False
 
     def create_tiling_dimensions(self, previous_node, config_file):
         #  ATTENTION MEMORY L3 --> TILE MEMORY DIMENSION --> Decide how to set. Re-init the whole memory?
@@ -111,6 +115,16 @@ class HW_node(DORY_node):
         x_out = np.sum(x_reshaped_masked_scaled, axis=1).flatten().astype(np.uint8)
         return x_out
 
+    @staticmethod
+    def _to_uint8(x, bits):
+        #import ipdb; ipdb.set_trace()
+        n_mult = bits//8
+        x = np.tile(x[:, None], (1, n_mult))
+        shifts = np.tile(8 * np.arange(n_mult), (x.shape[0], 1))
+        x_shift_masked = (x >> shifts) & 255
+        x_flat = x_shift_masked.ravel().astype(np.uint8)
+        return x_flat
+
     def add_checksum_w_integer(self):
         self.check_sum_w = 0
 
@@ -144,16 +158,17 @@ class HW_node(DORY_node):
             #### TO CHECK ORDER OF BIASES
             return [np.uint8((el >> shift) & 255) for el in x for shift in range(0, bits, 8)]
 
+        #import ipdb; ipdb.set_trace()
         if bias_name in self.__dict__:
-            self.__dict__[bias_name]["value"] = to_byte(self.__dict__[bias_name]['value'], self.bias_bits)
+            self.__dict__[bias_name]["value"] = self._to_uint8(self.__dict__[bias_name]['value'].astype(np.int64).ravel(), self.bias_bits)
             self.check_sum_w += sum(self.__dict__[bias_name]["value"])
 
         if 'k' in self.__dict__:
-            self.k["value"] = to_byte(self.k['value'], self.constant_bits)
+            self.k["value"] = self._to_uint8(self.k['value'].astype(np.int64).ravel(), self.constant_bits)
             self.check_sum_w += sum(self.k["value"])
 
         if 'l' in self.__dict__:
-            self.l["value"] = to_byte(self.l['value'], self.constant_bits)
+            self.l["value"] = self._to_uint8(self.l['value'].astype(np.int64).ravel(), self.constant_bits)
             self.check_sum_w += sum(self.l["value"])
 
     def add_checksum_activations_integer(self, load_directory, node_number, n_inputs=1):
@@ -194,9 +209,10 @@ class HW_node(DORY_node):
                 y = np.loadtxt(os.path.join(load_directory, outfile), delimiter=',', dtype=np.int64, usecols=[0])
             except ValueError:
                 y = np.loadtxt(os.path.join(load_directory, outfile), delimiter=',', dtype=np.float, usecols=[0]).astype(np.int64)
-
             if self.output_activation_bits <= 8:
                 y = self._compress(y.ravel(), self.output_activation_bits)
+            elif self.split_ints and self.output_activation_bits > 8:
+                y = self._to_uint8(y.ravel(), self.output_activation_bits)
 
             self.check_sum_out.append(int(y.sum()))
 
