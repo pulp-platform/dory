@@ -17,10 +17,10 @@
 
 PULP_APP = main
 
-PULP_APP_SRCS := $(wildcard DORY_network/src/*.c) 
+PULP_APP_SRCS := $(wildcard src/*.c) 
 PULP_INC_PATHS += -DSDK
 
-PULP_CFLAGS = -Wall -pedantic -O0 -g -IDORY_network/inc
+PULP_CFLAGS = -Wall -pedantic -O0 -g -Iinc
 ## APP_LDFLAGS += -lm -flto
 
 include $(PULP_SDK_HOME)/install/rules/pulp.mk

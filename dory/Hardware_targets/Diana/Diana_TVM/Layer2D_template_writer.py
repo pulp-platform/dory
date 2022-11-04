@@ -170,6 +170,7 @@ def print_template_layer(tk,node, layer_type, tmpl_dir, out_dir, double_bufferin
     tk['fs1'] = fs1
     tk['fs2'] = fs2
     tk['W_data_size_byte'] = ds_W
+    tk['b_data_size_byte'] = ds_bias
     tk['W_tile_size_nof'] = tile_n_out 
     if tk['has_bias'] == 1:
         tk['b_size_byte'] = int(math.ceil(n_out * ds_bias / 8.0))
