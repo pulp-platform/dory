@@ -138,7 +138,7 @@ class C_Parser(Parser_HW_to_C):
             for i in [0, 1]:
                 if constants[i]!= 0:
                     if i==0:  
-                        dim = getattr(node, 'input_channels') * 16 * np.prod(getattr(node, 'kernel_shape'))
+                        dim = (getattr(node, 'input_channels')+15)//16*16 * 16 * np.prod(getattr(node, 'kernel_shape'))
                         weights = np.concatenate((weights,node.__dict__[constants[i]]["value"][(batch*dim):((batch+1)*dim)]))
                     if i==1:  
                         weights = np.concatenate((weights,node.__dict__[constants[i]]["value"][(batch*16*int(node.bias_bits/8)):((batch+1)*16*int(node.bias_bits/8))]))
@@ -179,6 +179,14 @@ class C_Parser(Parser_HW_to_C):
                     temp[:,3] = temp1[:,0]
                     node.__dict__[constants[i]]["value"] = temp.flatten()
                 if i==1:
+                    temp = np.asarray(node.__dict__[constants[i]]["value"])
+                    temp = temp.reshape(int(temp.shape[0]/4), 4)
+                    temp1 = copy.deepcopy(temp)
+                    temp[:,0] = temp1[:,3] 
+                    temp[:,1] = temp1[:,2] 
+                    temp[:,2] = temp1[:,1] 
+                    temp[:,3] = temp1[:,0]
+                    node.__dict__[constants[i]]["value"] = temp.flatten()
                     '''
                     Bias e' su 32bit:
                     Si impacchettano i 32bit in 8 valori hex, che noi chiameremo BH[0:7], con MSB alla posizione 0
@@ -186,12 +194,11 @@ class C_Parser(Parser_HW_to_C):
                     Il modo che sono scritti nell'header file segue BH[6] BH[7] BH[4] BH[5] BH[2] BH[3] BH[0] BH[1]
                     '''
                     pass
-
         for batch in np.arange(0, int(np.floor((getattr(node, 'output_channels')+15)/16))):
             for i in [0, 1]:
                 if constants[i]!= 0:
                     if i==0:  
-                        dim = getattr(node, 'input_channels') * 16 * np.prod(getattr(node, 'kernel_shape'))
+                        dim = (getattr(node, 'input_channels')+15)//16*16 * 16 * np.prod(getattr(node, 'kernel_shape'))
                         weights = np.concatenate((weights,node.__dict__[constants[i]]["value"][(batch*dim):((batch+1)*dim)]))
                     if i==1:  
                         weights = np.concatenate((weights,node.__dict__[constants[i]]["value"][(batch*16*int(node.bias_bits/8)):((batch+1)*16*int(node.bias_bits/8))]))
