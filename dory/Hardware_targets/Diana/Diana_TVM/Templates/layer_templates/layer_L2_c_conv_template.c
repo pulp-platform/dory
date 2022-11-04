@@ -202,7 +202,7 @@ int32_t ${func_name}(void* l2_x, void* l2_y)
     kernel.stride = ${stride};
     kernel.ox = (int) y_tile_size_w / kernel.ox_unroll;
 % endif
-    uint32_t l2_W_tile = l2_W + _i_nof * ${W_tile_size_nof * int((nif + 15) // 16 * 16 * fs1 * fs2 + b_data_size_byte / 8)};
+    uint32_t l2_W_tile = Weights_${func_name} + _i_nof * ${W_tile_size_nof * int((nif + 15) // 16 * 16 * fs1 * fs2 + b_data_size_byte / 8)};
 % if W_data_size_byte == 8:
     dory_cores_barrier_digital();
 % if 'Gemm' in optional: 
