@@ -49,14 +49,14 @@ class C_Parser(Parser_HW_to_C):
     def copy_backend_files(self, node):
         root = os.path.dirname(__file__)
         files = os.path.join(root, "../Backend_Kernels/dory-hal/")
-        if os.listdir(os.path.join(files, "include".format(self.source_Constant_bits_library)))[0] not in os.listdir(os.path.join(self.app_directory, "DORY_network/inc")):
+        if os.listdir(os.path.join(files, "include".format(self.source_Constant_bits_library)))[0] not in os.listdir(os.path.join(self.app_directory, "inc")):
             for file in os.listdir(os.path.join(files, "include".format(self.source_Constant_bits_library))):
                 file_to_copy = os.path.join(files, "include".format(self.source_Constant_bits_library), file)
-                os.system('cp "{}" {}'.format(file_to_copy, os.path.join(self.app_directory, 'DORY_network/inc')))
-        if os.listdir(os.path.join(files, "src".format(self.source_Constant_bits_library)))[0] not in os.listdir(os.path.join(self.app_directory, "DORY_network/src")):
+                os.system('cp "{}" {}'.format(file_to_copy, os.path.join(self.app_directory, 'inc')))
+        if os.listdir(os.path.join(files, "src".format(self.source_Constant_bits_library)))[0] not in os.listdir(os.path.join(self.app_directory, "src")):
             for file in os.listdir(os.path.join(files, "src".format(self.source_Constant_bits_library))):
                 file_to_copy = os.path.join(files, "src".format(self.source_Constant_bits_library), file)
-                os.system('cp "{}" {}'.format(file_to_copy, os.path.join(self.app_directory, 'DORY_network/src')))
+                os.system('cp "{}" {}'.format(file_to_copy, os.path.join(self.app_directory, 'src')))
 
     def adding_numbers_to_layers(self):
         for i, node in enumerate(self.HWgraph):
@@ -70,7 +70,7 @@ class C_Parser(Parser_HW_to_C):
     def mapping_layers_to_C_files(self):
         print("\nMapping the layers files to their templates and copying the kernels associated.")
         tmpl_dir = os.path.join(os.path.dirname(__file__), 'Templates/layer_templates')
-        out_dir = '{}/DORY_network'.format(self.app_directory)
+        out_dir = '{}'.format(self.app_directory)
         precision_library = self.precision_library
         c_files = []
         for i, node in enumerate(self.HWgraph):
