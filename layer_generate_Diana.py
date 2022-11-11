@@ -80,8 +80,8 @@ def create_dory_node(params, index, index_out):
 
 
 def calculate_output_dimensions(input_dimensions, kernel_shape, stride, padding):
-    h = np.floor((input_dimensions[0] + padding[0] + padding[1] - kernel_shape[0]) / stride[0] + 1)
-    w = np.floor((input_dimensions[1] + padding[2] + padding[3] - kernel_shape[1]) / stride[1] + 1)
+    h = np.floor((input_dimensions[0] + padding[0] + padding[2] - kernel_shape[0]) / stride[0] + 1)
+    w = np.floor((input_dimensions[1] + padding[1] + padding[3] - kernel_shape[1]) / stride[1] + 1)
     return [int(h), int(w)]
 
 
@@ -305,7 +305,7 @@ def create_bias(node):
     low, high = borders(node.bias_bits, signed=True)
     size = (node.output_channels,1)
     #return torch.randint(low=low, high=high, size=size).flatten()
-    return torch.randint(low=0, high=1000, size=size).flatten()
+    return torch.randint(low=0, high=1, size=size).flatten()
 
 def create_conv(i_layer, layer_node, dory_node, network_dir, input=None, weight=None, batchnorm_params=None):
     x = input if input is not None else create_input(layer_node)
@@ -325,8 +325,7 @@ def create_conv(i_layer, layer_node, dory_node, network_dir, input=None, weight=
         'value': b.numpy(),
         'layout': ''
     }
-
-    y = F.conv2d(input=x, weight=w, bias=b, stride=layer_node.strides, padding=layer_node.pads[0], groups=layer_node.group)
+    y = F.conv2d(input=x, weight=w, bias=b, stride=layer_node.strides, padding=layer_node.pads[:2], groups=layer_node.group)
     y_type = torch.int32
     y = y.type(y_type)
     y_signed = layer_node.output_activation_type == 'int'
@@ -445,7 +444,7 @@ if __name__ == '__main__':
                         help='auto (based on layer precision, 8bits or mixed-sw), 8bit, mixed-hw, mixed-sw')
     args = parser.parse_args()
 
-    number_of_nodes = 1
+    number_of_nodes = 4
     json_configuration_file = []
     if number_of_nodes > 1:
         for i in np.arange(number_of_nodes):

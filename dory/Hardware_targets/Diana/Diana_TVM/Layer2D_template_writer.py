@@ -81,7 +81,7 @@ def print_template_layer(tk,node, layer_type, tmpl_dir, out_dir, double_bufferin
     tile_h_in  = node.tiling_dimensions["L1"]["input_dimensions"][1]
     tile_w_in  = node.tiling_dimensions["L1"]["input_dimensions"][2]
 
-    if "Addition" not in node.name and "Pool" not in node.name:
+    if "Add" not in node.op_type and "Pool" not in node.name:
         n_out  = node.tiling_dimensions["L2"]["weights_dimensions"][0]
     else:
         n_out  = node.tiling_dimensions["L2"]["output_dimensions"][0]
@@ -105,7 +105,7 @@ def print_template_layer(tk,node, layer_type, tmpl_dir, out_dir, double_bufferin
     dt_act     = node.constant_type
     dt_W       = node.weight_type
 
-    if "Addition" in node.name:
+    if "Add" in node.op_type:
         ds_x2  = node.input_activation_bits
         dt_x2  = node.input_activation_type
         tk["data_type_x2"] = dt_x2
@@ -183,7 +183,7 @@ def print_template_layer(tk,node, layer_type, tmpl_dir, out_dir, double_bufferin
     else:
         tk['W_tile_size_nif'] = 1
         tk['W_tile_size_nif_last'] = 1
-    if "Addition" not in node.name and "Pool" not in node.name:
+    if "Add" not in node.op_type and "Pool" not in node.name:
         tk['W_tile_size_byte'] = int(math.ceil(tile_n_out * tk['W_tile_size_nif'] * fs1 * fs2 * ds_W / 8.0))
         if DW == 0:
             tk['W_stride_nof_byte'] = int(math.ceil(tk['nif'] * fs1 * fs2 * ds_W / 8.0))
@@ -209,7 +209,7 @@ def print_template_layer(tk,node, layer_type, tmpl_dir, out_dir, double_bufferin
     if (n_in == (tile_n_in * number_of_clusters) and w_in == tile_w_in and h_in == tile_h_in and n_out == (tile_n_out * number_of_clusters) and n_in > number_of_clusters) \
     or (n_in == tile_n_in and w_in == tile_w_in and h_in == tile_h_in and n_out == (tile_n_out * number_of_clusters)):
         y_buffer_size = int(math.ceil(ds_y * tk['y_tile_size_nof'] * tk['y_tile_size_h'] * tk['y_tile_size_w'] / 8.0))
-        if "Addition" not in node.name and "Pool" not in node.name:
+        if "Add" not in node.op_type and "Pool" not in node.name:
             if DW == 0:
                 W_buffer_size = int(math.ceil(ds_W * tk['y_tile_size_nof']  * tk['W_tile_size_nif'] * fs1 * fs2 / 8.0))
             else:
@@ -218,7 +218,7 @@ def print_template_layer(tk,node, layer_type, tmpl_dir, out_dir, double_bufferin
             W_buffer_size = 0
     else:
         y_buffer_size = tk['double_buffering'] * int(math.ceil(ds_y * tk['y_tile_size_nof'] * tk['y_tile_size_h'] * tk['y_tile_size_w'] / 8.0))
-        if "Addition" not in node.name and "Pool" not in node.name:
+        if "Add" not in node.op_type and "Pool" not in node.name:
             if DW == 0:
                 W_buffer_size = tk['double_buffering'] * int(math.ceil(ds_W * tk['y_tile_size_nof'] * tk['W_tile_size_nif'] * fs1 * fs2 / 8.0))
             else:
@@ -258,9 +258,9 @@ def print_template_layer(tk,node, layer_type, tmpl_dir, out_dir, double_bufferin
     # l1 parameters
     tk['l1_x_offset'] = 0
     tk['l1_y_offset'] = x_buffer_size + 8
-    if "Addition" in node.name:
+    if "Add" in node.op_type:
         tk['l1_x2_offset'] = x_buffer_size + 8 + y_buffer_size + 8
-    if "Addition" not in node.name and "Pool" not in node.name:
+    if "Add" not in node.op_type and "Pool" not in node.name:
         tk['l1_W_offset'] = x_buffer_size + 8 + y_buffer_size + 8
         if tk['FLAG_BATCHNORM'] == 1:
             tk['l1_k_offset'] = x_buffer_size + 8 + y_buffer_size + 8 + W_buffer_size + 8
@@ -269,7 +269,7 @@ def print_template_layer(tk,node, layer_type, tmpl_dir, out_dir, double_bufferin
             tk['l1_b_offset'] = x_buffer_size + 8 + y_buffer_size + 8 + W_buffer_size + 8 + tk['k_tile_size_byte'] + 8 + tk['lambda_tile_size_byte']  + 8
 
     # W last
-    if "Addition" not in node.name and "Pool" not in node.name:
+    if "Add" not in node.op_type and "Pool" not in node.name:
         tk['W_tile_size_nof_last'] = n_out % tile_n_out if (n_out % tile_n_out) > 0 else tile_n_out
         tk['W_tile_size_nif_last'] = tk['W_tile_size_nif']
         tk['W_tile_size_nif_byte_last'] = int(math.ceil(tk['W_tile_size_nif_last'] * ds_W / 8.0))
@@ -300,10 +300,10 @@ def print_template_layer(tk,node, layer_type, tmpl_dir, out_dir, double_bufferin
                 l += "// %s %d\n" % (k.ljust(30), v[0])
             except TypeError:
                 l += "// %s %s\n" % (k.ljust(30), v)
-    if "Addition" not in node.name and "Pool" not in node.name:
+    if "Add" not in node.op_type and "Pool" not in node.name:
         buffer_l1_all = W_buffer_size + x_buffer_size + y_buffer_size + tk['k_tile_size_byte'] + tk['lambda_tile_size_byte'] + 40 + tk['b_size_byte']
         tk['im2col_dim'] = (8 * (fs1 * (tile_h_in + padding_bottom + padding_top) + fs1)) * int( 8 / min(ds_x, ds_y, ds_W))
-    elif "Addition" in node.name:
+    elif "Add" in node.op_type:
         buffer_l1_all = x_buffer_size * tk['double_buffering'] + y_buffer_size + tk['k_tile_size_byte'] + tk['lambda_tile_size_byte'] + 40 + tk['b_size_byte']
     elif "Pool" in node.name:
         buffer_l1_all = x_buffer_size + y_buffer_size + tk['k_tile_size_byte'] + tk['lambda_tile_size_byte'] + 40 + tk['b_size_byte']
@@ -313,11 +313,11 @@ def print_template_layer(tk,node, layer_type, tmpl_dir, out_dir, double_bufferin
     tk['out_add'] = node.outadd["value"] if 'outadd' in node.constant_names else 0
     tk['out_mul'] = node.outmul["value"] if 'outmul' in node.constant_names else 1
 
-    if "Addition" not in node.name and "Pool" not in node.name:
+    if "Add" not in node.op_type and "Pool" not in node.name:
         tmpl = Template(filename=os.path.join(tmpl_dir, "layer_L2_c_conv_template.c"))
     elif "Pool" in node.name:
         tmpl = Template(filename=os.path.join(tmpl_dir, "layer_L2_c_pooling_template.c"))
-    elif "Addition" in node.name:
+    elif "Add" in node.op_type:
         tmpl = Template(filename=os.path.join(tmpl_dir, "layer_L2_c_addition_template.c"))
 
     s_c = tmpl.render(verbose_log=l, **tk)
