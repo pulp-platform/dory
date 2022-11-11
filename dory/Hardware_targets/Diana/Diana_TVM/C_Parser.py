@@ -76,7 +76,7 @@ class C_Parser(Parser_HW_to_C):
         for i, node in enumerate(self.HWgraph):
             if self.precision_library == 'auto':
                 precision_library = '8bit'
-                if "Addition" not in node.name:
+                if "Add" not in node.op_type:
                     if node.get_parameter('weight_bits') < 8:
                         precision_library = 'ternary'
             node.skip_L2_L1 = False
@@ -269,12 +269,12 @@ class C_Parser(Parser_HW_to_C):
         print("## DORY GENERAL PARSING FROM DORY HW IR TO C FILES ##")
         print("## FINAL RAPRESENTATION: COMPILABLE C PROJECT      ##")
         print("#####################################################")
+        self.adding_numbers_to_layers()
         os.system('rm -rf {}'.format(self.app_directory))
         os.system('mkdir {}'.format(self.app_directory))
         os.system('mkdir {}/DORY_network'.format(self.app_directory))
         os.system('mkdir {}/DORY_network/inc'.format(self.app_directory))
         os.system('mkdir {}/DORY_network/src'.format(self.app_directory))
-        self.adding_numbers_to_layers()
         layer_string = self.mapping_layers_to_C_files()
         self.copy_utils_files()
         return layer_string

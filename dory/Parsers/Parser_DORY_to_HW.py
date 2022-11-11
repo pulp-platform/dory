@@ -154,7 +154,7 @@ class Parser_DORY_to_HW:
     def add_tensors_memory_occupation_and_MACs(self):
         print("\nUpdating memory occupation and MACs of tensors in layers")
         for i, node in enumerate(self.DORY_Graph):
-            if "Convolution" in node.name or "FullyConnected" in node.name or "Addition" in node.name or "Pooling" in node.name:
+            if "Convolution" in node.name or "FullyConnected" in node.name or "Add" in node.op_type or "Pooling" in node.name:
                 node.add_memory_and_MACs()
 
     def adjust_data_layout(self):

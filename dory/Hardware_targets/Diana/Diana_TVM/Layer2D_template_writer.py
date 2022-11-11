@@ -319,7 +319,6 @@ def print_template_layer(tk,node, layer_type, tmpl_dir, out_dir, double_bufferin
         tmpl = Template(filename=os.path.join(tmpl_dir, "layer_L2_c_pooling_template.c"))
     elif "Add" in node.op_type:
         tmpl = Template(filename=os.path.join(tmpl_dir, "layer_L2_c_addition_template.c"))
-
     s_c = tmpl.render(verbose_log=l, **tk)
     return s_c
 
