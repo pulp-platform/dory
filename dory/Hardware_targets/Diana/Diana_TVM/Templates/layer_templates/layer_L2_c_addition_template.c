@@ -17,15 +17,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License. 
  */
-${verbose_log}
 
-#include "${func_name}.h"
+#include "pulp.h"
+#include "dory.h"
 % if ULTRA_VERBOSE:
 #define VERBOSE_PRINT(...) printf(__VA_ARGS__)
 % endif
-
-
-
 
 int32_t ${func_name}(void* l2_x, void* l2_x_2, void* l2_y)  
 {
