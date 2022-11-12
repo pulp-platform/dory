@@ -90,42 +90,61 @@ def flatten_list(l):
                 flat_l.append(i)
         return flatten_list(flat_l)
 
+# def _padd_C(w):
+#     K  = len(w[0][0])
+#     C  = int(len(w[0])/9)
+#     FX = 3
+#     FY = 3
+#     #padding along C in case less than 1152 rows are copied. We want always 1152 rows copied inside the analog accelerator
+#     wt = []
+#     if (C<128):
+#         wg=[]
+#         print("Need for padding along C detected...")
+#         for i in range(FX*FY):
+#             for c in range(128):
+#                 wk = []
+#                 for k in range(K):
+#                     if (c<C):
+#                         wk.append(w[0][i*C+c][k])
+#                     else:
+#                         wk.append(0)
+#                 wg.append(wk)
+#         wt.append(wg)
+#     else:
+#         wt = w
+#     return wt
+
 def _padd_C(w):
     K  = len(w[0][0])
-    C  = int(len(w[0])/9)
-    FX = 3
-    FY = 3
+    C  = int(len(w[0]))
     #padding along C in case less than 1152 rows are copied. We want always 1152 rows copied inside the analog accelerator
     wt = []
-    if (C<128):
+    if (C<1152):
         wg=[]
         print("Need for padding along C detected...")
-        for i in range(FX*FY):
-            for c in range(128):
-                wk = []
-                for k in range(K):
-                    if (c<C):
-                        wk.append(w[0][i*C+c][k])
-                    else:
-                        wk.append(0)
-                wg.append(wk)
+        for c in range(1152):
+            wk = []
+            for k in range(K):
+                if (c<C):
+                    wk.append(w[0][c][k])
+                else:
+                    wk.append(0)
+            wg.append(wk)
         wt.append(wg)
     else:
         wt = w
     return wt
-
+    
 def _padd_K(w):
     K  = len(w[0][0])
-    C  = int(len(w[0])/9)
-    FX = 3
-    FY = 3
+    C  = int(len(w[0]))
     wt = []
     if (K<512):
         wg=[]
         print("Need for padding along K detected...")
-        for c in range(C*FX*FY):    #total amount of lines
+        for c in range(C):    #total amount of lines
             wk = []
-            for i in range(512):     #single line parallelism on 16 * 16 bits. Multiple of 512 weights are copied. 
+            for i in range(32):     #single line parallelism on 16 * 16 bits. Multiple of 512 weights are copied.
                 if (i<K):
                     wk.append(w[0][c][i])
                 else:
