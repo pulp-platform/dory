@@ -119,10 +119,10 @@ def _padd_C(w):
     C  = int(len(w[0]))
     #padding along C in case less than 1152 rows are copied. We want always 1152 rows copied inside the analog accelerator
     wt = []
-    if (C<1152):
+    if (C<288):
         wg=[]
         print("Need for padding along C detected...")
-        for c in range(1152):
+        for c in range(288):
             wk = []
             for k in range(K):
                 if (c<C):
@@ -139,12 +139,12 @@ def _padd_K(w):
     K  = len(w[0][0])
     C  = int(len(w[0]))
     wt = []
-    if (K<512):
+    if (K<128):
         wg=[]
         print("Need for padding along K detected...")
         for c in range(C):    #total amount of lines
             wk = []
-            for i in range(32):     #single line parallelism on 16 * 16 bits. Multiple of 512 weights are copied.
+            for i in range(128):     #single line parallelism on 16 * 16 bits. Multiple of 512 weights are copied.
                 if (i<K):
                     wk.append(w[0][c][i])
                 else:
