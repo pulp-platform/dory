@@ -289,8 +289,8 @@ def create_weight(node):
         increasing_factor = 2
         vec_weights = torch.tensor([])
         for i in np.arange(node.output_channels-1,-1,-1):
-            ones = torch.ones(i * increasing_factor + 1, 1)
-            zeros = torch.zeros((node.input_channels // node.group * node.kernel_shape[0] * node.kernel_shape[1] ) - (i * increasing_factor + 1), 1)
+            ones = torch.ones(min(i * increasing_factor + 1, node.input_channels // node.group * node.kernel_shape[0] * node.kernel_shape[1]), 1)
+            zeros = torch.zeros((node.input_channels // node.group * node.kernel_shape[0] * node.kernel_shape[1] ) - min(i * increasing_factor + 1, node.input_channels // node.group * node.kernel_shape[0] * node.kernel_shape[1]), 1)
             column = torch.cat((ones, zeros), 0)
             vec_weights = torch.cat((vec_weights, column), 1)
         vec_weights = vec_weights.transpose(0, 1)
@@ -436,7 +436,7 @@ if __name__ == '__main__':
                         help='Path to the JSON file that specifies the ONNX file of the network and other information. Default: config_files/config_single_layer.json')
     parser.add_argument('--app_dir', default='./application',
                         help='Path to the generated application. Default: ./application')
-    parser.add_argument('--perf_layer', default='No', help='Yes: MAC/cycles per layer. No: No perf per layer.')
+    parser.add_argument('--perf_layer', default='Yes', help='Yes: MAC/cycles per layer. No: No perf per layer.')
     parser.add_argument('--verbose_level', default='None',
                         help="None: No_printf.\nPerf_final: only total performance\nCheck_all+Perf_final: all check + final performances \nLast+Perf_final: all check + final performances \nExtract the parameters from the onnx model")
     parser.add_argument('--backend', default='MCU', help='MCU or Occamy')
