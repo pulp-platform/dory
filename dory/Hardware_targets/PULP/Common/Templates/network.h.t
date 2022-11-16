@@ -17,8 +17,8 @@
  * limitations under the License. 
  */
 
-#ifndef __NETWORK_H__
-#define __NETWORK_H__
+#ifndef __${prefix.upper()}NETWORK_H__
+#define __${prefix.upper()}NETWORK_H__
 
 % if sdk == 'gap_sdk':
 #include "pulp.h"
@@ -96,7 +96,7 @@ static int allocate_layer[${len(DORY_HW_graph)}] = {\
 static char *Weights_name[${len(DORY_HW_graph)}] = {\
 % for i in range(len(DORY_HW_graph)):
 % if 'Conv' in DORY_HW_graph[i].name or 'FullyConnected' in DORY_HW_graph[i].name:
-Weights_${DORY_HW_graph[i].name}${'' if loop.last else ', '}\
+Weights_${DORY_HW_graph[i].prefixed_name}${'' if loop.last else ', '}\
 % else:
 "None"${'' if loop.last else ', '}\
 % endif

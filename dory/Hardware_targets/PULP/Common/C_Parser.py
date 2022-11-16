@@ -23,6 +23,7 @@ import numpy as np
 # DORY modules
 from dory.Parsers.Parser_HW_to_C import Parser_HW_to_C
 import dory.Utils.Templates_writer.Layer2D_template_writer as Layer2D_writer
+import dory.Utils.Templates_writer.Makefile_template_writer as Makefile_writer
 
 
 
@@ -117,7 +118,7 @@ class C_Parser_PULP(Parser_HW_to_C):
         n_memory_levels = self.HW_description['memory']['levels']
         for i, node in enumerate(self.HWgraph):
             self.copy_backend_files(node)
-            
+
             if n_memory_levels > 2 and (node.L3_input != 0 or (node.tiling_dimensions["L3"]["output_dimensions"] != node.tiling_dimensions["L2"]["output_dimensions"]) or (node.tiling_dimensions["L3"]["weights_dimensions"] != node.tiling_dimensions["L2"]["weights_dimensions"])):
                 Layer2D_writer.print_template_layer_L3(node, tmpl_dir, out_dir)
                 if node.tiling_dimensions["L3"]["input_dimensions"][1] > node.tiling_dimensions["L2"]["input_dimensions"][1]:
@@ -148,5 +149,17 @@ class C_Parser_PULP(Parser_HW_to_C):
                 if node.tiling_dimensions["L2"]["input_dimensions"][1] == node.tiling_dimensions["L1"]["input_dimensions"][1]:
                     node.tiling_dimensions["L1"]["output_dimensions"][1] = int((node.tiling_dimensions["L1"]["input_dimensions"][1] + (node.pads[0] + node.pads[2]) - node.kernel_shape[0] + node.strides[0]) / node.strides[0])
                 Layer2D_writer.print_template_layer(node, self.precision_library, tmpl_dir, out_dir, double_buffering=self.double_buffering)
+
+    def mapping_makefile(self):
+        super(C_Parser_PULP, self).mapping_makefile()
+        # also print the "vars.mk"
+        prefix = self.HWgraph[0].prefix
+        Makefile_writer.print_template_Makefile(
+            self.HWgraph,
+            self.HW_description,
+            prefix+"vars.mk",
+            self.app_directory,
+            template_location_rel="Templates/vars.mk_template")
+
 
 

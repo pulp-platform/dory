@@ -16,8 +16,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License. 
  */
-#ifndef __INPUT_H__
-#define __INPUT_H__
+#ifndef __${prefix.upper()}INPUT_H__
+#define __${prefix.upper()}INPUT_H__
 #include "pmsis.h"
 % if sdk == 'gap_sdk':
 L2_DATA uint8_t ${prefix}L2_input_h[${dimension}] = {

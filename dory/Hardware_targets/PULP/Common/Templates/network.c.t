@@ -377,7 +377,9 @@ void ${prefix}network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final
     dir = !dir;
   }
 
-  memcpy(L2_output, l2_final_output, activations_out_size[${len(DORY_HW_graph)-1}]);
+  //memcpy(L2_output, l2_final_output, activations_out_size[${len(DORY_HW_graph)-1}]); // BUGGY!
+  for (int i=0; i<activations_out_size[${len(DORY_HW_graph)-1}]; i++)
+    *((uint8_t*)(l2_final_output+i)) = *((uint8_t*)(L2_output+i));
 
 /* ---------------------------------- */
 /* --------- SECTION 2 END ---------- */

@@ -26,7 +26,8 @@ def print_template_Makefile(
     graph,
     HW_description,
     save_string,
-    app_directory):
+        app_directory,
+        template_location_rel="Templates/Makefile_template"):
     # Generate the Makefile, including all files to upload on the hyperflash
     tk = OrderedDict([])
     file_list_w = []
@@ -46,7 +47,7 @@ def print_template_Makefile(
         blocking_dma_transfers = False
     tk['blocking_dma'] = blocking_dma_transfers
     root = os.path.realpath(os.path.dirname(__file__))
-    tmpl = Template(filename=os.path.join(root, "../../Hardware_targets", HW_description["name"], "Templates/Makefile_template"))
+    tmpl = Template(filename=os.path.join(root, "../../Hardware_targets", HW_description["name"], template_location_rel))
     s = tmpl.render(**tk)
     save_string = os.path.join(app_directory, save_string)
     with open(save_string, "w") as f:
