@@ -123,9 +123,14 @@ int network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output)
   struct pi_device cl_dev = {0};
   struct pi_cluster_conf conf;
   struct pi_cluster_task task = {0};
+
   // First open the cluster
   pi_cluster_conf_init(&conf);
   conf.id=0;
+
+  pi_open_from_conf(&cl_dev, &conf);
+  if (pi_cluster_open(&cl_dev))
+    return -1;
 
 /* ---------------------------------- */
 /* --------- SECTION 0 END ---------- */
@@ -217,9 +222,6 @@ int network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output)
     pi_perf_start();
 % endif
 
-    pi_open_from_conf(&cl_dev, &conf);
-    if (pi_cluster_open(&cl_dev))
-      return -1;
     
     pi_cluster_task(&task, layer, &args);
     % if sdk == 'pulp-sdk':
@@ -228,7 +230,6 @@ int network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output)
     % endif
 
     pi_cluster_send_task_to_cl(&cl_dev, &task);
-    pi_cluster_close(&cl_dev);
 
 % if 'Yes' in performance or 'Perf_final' in verbose_level:
     // performance measurements: end
@@ -326,6 +327,8 @@ int network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output)
 % if 'Perf_final' in verbose_level:
   print_perf("Final", cycle_network_execution, ${MACs});
 % endif
+
+  pi_cluster_close(&cl_dev);
 
 /* ---------------------------------- */
 /* --------- SECTION 3 END ---------- */
