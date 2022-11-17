@@ -25,8 +25,9 @@ class Accelerator(ABC):
         pass
 
     @abstractmethod
-    def heuristic_l1(self, n_out, n_in, h_out, w_out,
-                     tile_n_out, tile_n_in, tile_h_out, tile_w_out,
+    def heuristic_l1(self, solver,
+                     layer_shape_in, layer_shape_out,
+                     tile_shape_in, tile_shape_out,
                      constr_total_size, ks, modifier):
         pass
 
