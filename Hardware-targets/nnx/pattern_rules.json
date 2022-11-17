@@ -19,9 +19,9 @@
 				"outputs":[]}
 		}
 	},
-	"PoolingBNRelu": {
+	"PoolingRequant": {
 		"number_of_nodes": 2,
-		"nodes_name": ["Pooling","BNRelu"],
+		"nodes_name": ["Pooling","Requant"],
 		"dependencies": {
 			"0": {"inputs": [],
 				"outputs":["1"]},

@@ -19,8 +19,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# tilers for layers
 from .tiler_conv2d import Tiler_Conv2D
+from .tiler_pool2d import Tiler_Pool2D
+from .tiler_add import Tiler_Add
 
 
 class Tiler:
@@ -37,6 +38,10 @@ class Tiler:
         # a fully connected or a pooling layer. The relu is included automatically in conv/FC.
         if 'Conv' in self.node.name or 'FullyConnected' in self.node.name:
             return Tiler_Conv2D(self.node, self.prev_node, self.code_reserved_space, self.acc).get_tiling(level)
+        elif 'Pool' in self.node.name:
+            return Tiler_Pool2D(self.node, self.prev_node, self.code_reserved_space).get_tiling(level)
+        elif 'Addition' in self.node.name:
+            return Tiler_Add(self.node, self.prev_node, self.code_reserved_space).get_tiling(level)
         else:
             print("Not supported Layer.")
             return None

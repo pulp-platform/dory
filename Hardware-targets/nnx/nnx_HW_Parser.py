@@ -21,6 +21,7 @@
 # Libraries
 import os
 import json
+import numpy as np
 
 # DORY modules
 from Parsers.HW_node import HW_node
@@ -32,17 +33,17 @@ from .Tiler.tiler import Tiler
 
 class nnx_HW_Parser(Parser_DORY_to_HW):
     # Used to manage the ONNX files. By now, supported Convolutions (PW and DW), Pooling, Fully Connected and Relu.
-    def __init__(self, graph, conf, confdir, accelerator):
-        supported_layers = ["Convolution", "ReluConvolution", "BNReluConvolution"]
+    def __init__(self, graph, conf, confdir, accelerator, hw_desc_path):
+        supported_layers = ["Convolution", "ReluConvolution", "BNReluConvolution", "RequantPooling", "Addition", "FullyConnected"]
         self.nnxdir = os.path.dirname(__file__)
         with open(os.path.join(self.nnxdir, "pattern_rules.json")) as f:
             rules = json.load(f)
-        with open(os.path.join(self.nnxdir, "HW_description.json")) as f:
-            hw_description = json.load(f)
+        with open(hw_desc_path, 'r') as f:
+            hw_desc = json.load(f)
         self.acc = accelerator
         weights_size = self.acc.weights_size
         Tiler.acc = self.acc
-        super().__init__(graph, rules, Pattern_rewriter, supported_layers, hw_description,
+        super().__init__(graph, rules, Pattern_rewriter, supported_layers, hw_desc,
                          os.path.join(confdir, os.path.dirname(conf["onnx_file"])), conf, Tiler,
                          weights_size=lambda self, dim:
                          weights_size(dim[0], dim[1], self.kernel_shape, self.weight_bits, self.group > 1))
@@ -50,14 +51,27 @@ class nnx_HW_Parser(Parser_DORY_to_HW):
     def adjust_data_layout(self):
         print("\nNNX Backend: Adjusting Feature Data Layout to HWC and Weights Data Layout to accelerator specific")
         for i, node in enumerate(self.DORY_Graph):
-            if "Convolution" in node.name:
+            if 'Convolution' in node.name or 'FullyConnected' in node.name:
                 for name in node.constant_names:
                     if name not in ["l", "k", "outshift", "outmult"] and "bias" not in name:
                         weights_name = name
                 weights = getattr(node, weights_name)
-                weights["value"] = self.acc.conv_unroll(weights["value"], node.weight_bits, weights["layout"],
+
+                if 'FullyConnected' in node.name and i > 0:
+                    if weights["layout"] == "CinCout":
+                        weights["value"] = weights["value"].T
+                        weights["layout"] = "CoutCin"
+                    prev = self.DORY_Graph[i - 1]
+                    if prev.layout == "CHW":
+                        temp = weights["value"]
+                        temp = temp.reshape(node.output_channels, prev.output_channels, prev.output_dimensions[0], prev.output_dimensions[1])
+                        temp = np.transpose(temp, (0, 2, 3, 1))
+                        temp = temp.reshape(node.output_channels, -1)
+                        weights["value"] = temp
+                        # needed to compute final checksum for <8b layers
+
+                weights["value"] = self.acc.conv_unroll(weights["value"].astype(np.int32), node.weight_bits, weights["layout"],
                                                         node.group > 1)
-            # Todo elif "Fullyconnected"
 
     def check_parameters(self):
         warning_count = 0
