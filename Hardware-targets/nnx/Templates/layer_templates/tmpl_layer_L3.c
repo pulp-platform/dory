@@ -22,9 +22,58 @@
 #include "network.h"
 #include "dory_get_tile.h"
 
+#ifdef CHECKSUM_L3
+static int checksum = 0;
+
+#define CHECKSUM_CALCULATE()   ${"\\"}
+    uint8_t *y = db[i_db_y].y; ${"\\"}
+    for (int i = 0; i < ${dim_out}; i++) checksum += y[i]
+#define CHECKSUM_REPORT() printf("checksum = %d\n", checksum)
+#else
+#define CHECKSUM_CALCULATE()
+#define CHECKSUM_REPORT()
+#endif
+
+
+#ifdef MEASURE_L3_TILING
+#define PERF_INIT() pi_perf_conf(1<<PI_PERF_CYCLES)
+
+#define PERF_RESTART()             ${"\\"}
+  do {                             ${"\\"}
+    asm volatile("": : :"memory"); ${"\\"}
+    pi_perf_stop();                ${"\\"}
+    pi_perf_reset();               ${"\\"}
+    pi_perf_start();               ${"\\"}
+    asm volatile("": : :"memory"); ${"\\"}
+  } while (0)
+
+#define PERF_READ(var)                ${"\\"}
+  asm volatile("": : :"memory");      ${"\\"}
+  var = pi_perf_read(PI_PERF_CYCLES); ${"\\"}
+  asm volatile("": : :"memory")
+
+#define PERF_ACCUMULATE(accumulator, x) accumulator += x
+
+static int cycles_first_l3_dma = 0, cycles_l3_dma = 0, cycles_exec = 0, cycles_l3_postamble = 0;
+static int total_cycles_l3_dma = 0, total_cycles_exec = 0;
+static int is_first_exec = 1;
+
+#define PERF_REPORT() ${"\\"}
+  printf("Measured latency L3 tiling - preamble + first dma: %d, total dma: %d, total execution: %d, postamble: %d\n", ${"\\"}
+         cycles_first_l3_dma, total_cycles_l3_dma, total_cycles_exec, cycles_l3_postamble);
+#else
+#define PERF_INIT()
+#define PERF_RESTART()
+#define PERF_READ(var)
+#define PERF_ACCUMULATE(accumulator, x)
+#define PERF_REPORT()
+#endif
 
 void __attribute__ ((noinline)) ${func_name}(void *args)
 {
+  PERF_INIT();
+  PERF_RESTART();
+
   layer_args_t *layer_args = (layer_args_t *)args;
   layer_args_t  tile_args = *layer_args;
   % if not (n_tile_x > 1 or n_tile_y > 1):
@@ -54,10 +103,6 @@ void __attribute__ ((noinline)) ${func_name}(void *args)
   % endif
   % if n_tile_y > 1:
   int offset_y = 0;
-  % endif
-  % if n_tile_y > 1 and verbose:
-
-  int checksum = 0;
   % endif
 
   const struct {
@@ -193,8 +238,25 @@ void __attribute__ ((noinline)) ${func_name}(void *args)
         tile_args.padding = NO_PAD;
       % endif
 
+#ifdef MEASURE_L3_TILING
+      if (is_first_exec) {
+        PERF_READ(cycles_first_l3_dma);
+        PERF_RESTART();
+        is_first_exec = 0;
+      } else {
+        PERF_READ(cycles_l3_dma);
+        PERF_RESTART();
+        PERF_ACCUMULATE(total_cycles_l3_dma, cycles_l3_dma);
+      }
+#endif
+
       // execution of L2-L1 layer. Either top, middle or bottom layer.
       ${L2_func_names[0]}((void *)&tile_args);
+
+      PERF_READ(cycles_exec);
+      PERF_RESTART();
+      PERF_ACCUMULATE(total_cycles_exec, cycles_exec);
+
     % if n_tile_W > 1:
 
       // waiting for weights, lambda, and k
@@ -219,10 +281,7 @@ void __attribute__ ((noinline)) ${func_name}(void *args)
     if (j > 0) pi_cl_ram_write_wait(&req_y);
     pi_cl_ram_write(ram, l3_y + offset_y, db[i_db_y].y, ${dim_out}, &req_y);
     offset_y += ${dim_out};
-    % if verbose:
-    uint8_t *y = db[i_db_y].y;
-    for (int i = 0; i < ${dim_out}; i++) checksum += y[i];
-    % endif
+    CHECKSUM_CALCULATE();
 
     i_db_y = !i_db_y;
     % endif
@@ -234,7 +293,11 @@ void __attribute__ ((noinline)) ${func_name}(void *args)
   // last wait
   pi_cl_ram_write_wait(&req_y);
   % if verbose:
-  printf("checksum = %d\n", checksum);
+  CHECKSUM_REPORT();
   % endif
   % endif
+
+  PERF_READ(cycles_l3_postamble);
+  PERF_RESTART();
+  PERF_REPORT();
 }
