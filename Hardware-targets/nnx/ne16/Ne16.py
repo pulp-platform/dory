@@ -1,7 +1,7 @@
 import numpy as np
 import random
 from ..Accelerator import Accelerator
-from ..Util import div_and_ceil, divisible
+from ..Util import div_and_ceil, maximize_divisibility
 
 
 class Ne16(Accelerator):
@@ -29,70 +29,15 @@ class Ne16(Accelerator):
 
     def heuristic_l2(self, tile_n_out, tile_n_in, tile_h_out,
                      total_size, ks=None, modifier=1000000):
-        heuristics_l2 = [
-            # Geometrical shape of tiles
-            {
-                "value": divisible(tile_n_in, self.TP_IN),
-                "prio": 3
-            },
-            {
-                "value": divisible(tile_n_out, self.TP_OUT),
-                "prio": 1
-            },
-            {
-                "value": divisible(tile_h_out, self.KS),
-                "prio": 1.5
-            },
-            # Total dimension of tile
-            {
-                "value": total_size,
-                "prio": 0.000001
-            }
-        ]
-
-        sum_heuristics = 0
-        for h in heuristics_l2:
-            sum_heuristics += int(modifier * h["prio"]) * h["value"]
-
-        return sum_heuristics
-
-    def heuristic_l1(self, n_out, n_in, h_out, w_out,
-                     tile_n_out, tile_n_in, tile_h_out, tile_w_out,
-                     total_size, ks, modifier=1000000):
         heuristics = [
             # Geometrical shape of tiles
             {
-                "value": divisible(tile_n_in, self.TP_IN),
-                "prio": 3
-            },
-            {
-                "value": divisible(tile_n_out, self.TP_OUT),
+                "value": maximize_divisibility(tile_n_out, self.TP_OUT),
                 "prio": 1
             },
             {
-                "value": divisible(tile_w_out, self.KS),
-                "prio": 2
-            },
-            {
-                "value": divisible(tile_h_out, self.KS),
+                "value": maximize_divisibility(tile_h_out, self.KS),
                 "prio": 1.5
-            },
-            # Geometrical shape of border tiles
-            {
-                "value": divisible(n_out, tile_n_out),
-                "prio": 0.01
-            },
-            {
-                "value": divisible(n_in, tile_n_in) % self.TP_IN,
-                "prio": 0.03
-            },
-            {
-                "value": divisible(w_out, tile_w_out) % self.KS,
-                "prio": 0.02
-            },
-            {
-                "value": divisible(h_out, tile_h_out) % self.KS,
-                "prio": 0.01
             },
             # Total dimension of tile
             {
@@ -101,11 +46,50 @@ class Ne16(Accelerator):
             }
         ]
 
-        sum_heuristics = 0
-        for h in heuristics:
-            sum_heuristics += int(modifier * h["prio"]) * h["value"]
+        return sum([int(modifier * h["prio"]) * h["value"] for h in heuristics])
 
-        return sum_heuristics
+    def heuristic_l1(self,
+                     layer_shape_in, layer_shape_out,
+                     tile_shape_in, tile_shape_out,
+                     total_size, ks, g, s, modifier=1000000):
+        heuristics = [
+            {
+                "value": maximize_divisibility(tile_shape_out[2], self.TP_OUT),
+                "prio": 0.01
+            },
+            {
+                "value": maximize_divisibility(tile_shape_out[1], 2 if s[1] == 2 else self.KS),
+                "prio": 2
+            },
+            {
+                "value": maximize_divisibility(tile_shape_out[0], 2 if s[0] == 2 else self.KS),
+                "prio": 1.5
+            },
+            # Geometrical shape of border tiles
+            #{
+            #    "value": maximize_divisibility(layer_shape_out[2], tile_shape_out[2]),
+            #    "prio": 0.01
+            #},
+            #{
+            #    "value": divisible(layer_shape_in[2] % tile_shape_in[2], self.TP_IN),
+            #    "prio": 0.03
+            #},
+            #{
+            #    "value": maximize_divisibility(layer_shape_out[1] % tile_shape_out[1], self.KS),
+            #    "prio": 0.02
+            #},
+            #{
+            #    "value": maximize_divisibility(layer_shape_out[0] % tile_shape_out[0], self.KS),
+            #    "prio": 0.01
+            #},
+            # Total dimension of tile
+            {
+                "value": total_size,
+                "prio": 0.000001
+            }
+        ]
+
+        return sum([int(modifier * h["prio"]) * h["value"] for h in heuristics])
 
     # assuming torch shapes, w must already be in uint format!
     # format --> [Ko, KiMajor, Qw, KiMinor] (binary tensor)
@@ -213,6 +197,11 @@ class Ne16(Accelerator):
                 w = w.transpose(3, 0, 1, 2)
             else:
                 w = w.transpose(0, 3, 1, 2)
+        elif layout == "CoutCin":
+            w = w[:, :, np.newaxis, np.newaxis]
+        elif layout == "CinCout":
+            w = w.T
+            w = w[:, :, np.newaxis, np.newaxis]
         else:
             raise Exception(f'Format {layout} not implemented.')
 

@@ -6,5 +6,6 @@ def rem(a, b):
     return ((a - 1) % b) + 1
 
 
-def divisible(a, b):
+def maximize_divisibility(a, b):
     return (a - 1) % b
+
