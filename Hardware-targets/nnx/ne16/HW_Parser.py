@@ -18,11 +18,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os.path
 from ..nnx_HW_Parser import nnx_HW_Parser
 from .Ne16 import Ne16
 
 
 class onnx_manager(nnx_HW_Parser):
     def __init__(self, *args):
-        super().__init__(*args, accelerator=Ne16())
+        super().__init__(*args, accelerator=Ne16(), hw_desc_path=os.path.join(os.path.dirname(__file__), 'HW_description.json'))
 
