@@ -77,5 +77,5 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    network_generate(args.frontend, args.hardware_target, args.config_file, args.verbose_layer, args.perf_layer,
+    network_generate(args.frontend, args.hardware_target, args.config_file, args.verbose_level, args.perf_layer,
                      args.optional, args.app_dir)

@@ -142,15 +142,15 @@ class Parser_DORY_to_HW:
 
     def update_dimensions_graph(self):
         print("\nUpdating dimensions of vectors inside the graph, if they do not match among nodes")
-        for i, node in enumerate(self.DORY_Graph):
-            if i > 0:
-                if isinstance(self.DORY_Graph[i].input_channels, type(None)):
-                    if "FullyConnected" in self.DORY_Graph[i].name:
-                        self.DORY_Graph[i].input_channels = int(self.DORY_Graph[i-1].output_channels*np.prod(self.DORY_Graph[i-1].output_dimensions))
-                    else:
-                        self.DORY_Graph[i].input_channels = self.DORY_Graph[i-1].output_channels
-                if len(self.DORY_Graph[i].input_dimensions)==0:
-                    self.DORY_Graph[i].input_dimensions = self.DORY_Graph[i-1].output_dimensions
+        graph = self.DORY_Graph
+        for prev, curr in zip(graph[:-1], graph[1:]):
+            if curr.input_channels is None:
+                if "FullyConnected" in curr.name:
+                    curr.input_channels = int(prev.output_channels * np.prod(prev.output_dimensions))
+                else:
+                    curr.input_channels = prev.output_channels
+            if len(curr.input_dimensions) == 0:
+                curr.input_dimensions = prev.output_dimensions
 
     def add_tensors_memory_occupation_and_MACs(self):
         print("\nUpdating memory occupation and MACs of tensors in layers")
