@@ -127,7 +127,7 @@ class Tiler_Conv2D_PULP():
             # size constraint
             input_tile_dimension  = db_x * in_ch * tile_h_in * inp_dim[1] * self.HW_node.input_activation_bits // 8
             output_tile_dimension = db_O * out_ch * tile_h_out * out_dim[1] * self.HW_node.output_activation_bits // 8
-            weight_tile_dimension = db_W * tile_n_out * int(in_ch / g) * np.prod(ks) * self.HW_node.weight_bits // 8
+            weight_tile_dimension = db_W * tile_n_out * (int(in_ch / g) * np.prod(ks) * self.HW_node.weight_bits // 8 + self.HW_node.bias_bits // 8 * int(self.HW_node.bias_memory != 0))
             constants = 0
             for name in self.HW_node.constant_names:
                 if name in ["l","k"]:
@@ -138,7 +138,6 @@ class Tiler_Conv2D_PULP():
                 constants_tile_dimension = 0
             constraint_all = input_tile_dimension + output_tile_dimension + weight_tile_dimension + constants_tile_dimension
             solver.Add(constraint_all <= L2_memory)
-                 
 
             # geometrical constraint
             if db_x == 2 and db_O == 2:   
