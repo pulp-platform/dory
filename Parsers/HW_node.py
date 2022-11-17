@@ -86,10 +86,12 @@ class HW_node(DORY_node):
             constants_memory = 0
             bias_memory = 0
             for name in self.constant_names:
-                if name in ["l", "k"]:
-                    constants_memory += weights_dim[0]*self.constant_bits/8
+                if name == 'k':
+                    constants_memory += weights_dim[0] * self.constant_bits / 8
+                if name == 'l':
+                    constants_memory += weights_dim[0] * self.bias_bits / 8
                 if "bias" in name:
-                    bias_memory += weights_dim[0]*self.bias_bits/8
+                    bias_memory += weights_dim[0] * self.bias_bits / 8
             self.tiling_dimensions[mem]["bias_memory"] = int(bias_memory)
             self.tiling_dimensions[mem]["constants_memory"] = int(constants_memory)
             self.tiling_dimensions[mem]["input_activation_memory"] = np.prod(self.tiling_dimensions[mem]["input_dimensions"])*self.input_activation_bits/8
@@ -162,7 +164,7 @@ class HW_node(DORY_node):
             self.check_sum_w += sum(self.k["value"])
 
         if hasattr(self, 'l'):
-            self.l["value"] = to_byte(self.l["value"], self.constant_bits)
+            self.l["value"] = to_byte(self.l["value"], self.bias_bits)
             self.check_sum_w += sum(self.l["value"])
 
     def add_checksum_activations_integer(self, load_directory, i_node):

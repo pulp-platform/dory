@@ -5,7 +5,7 @@ from Utils.Templates_writer.TemplateWriter import TemplateWriter
 
 
 class TemplateWriter2D_L3(TemplateWriter):
-    def __init__(self, node, tmpldir):
+    def __init__(self, tmpldir, node):
         super().__init__(tmpldir)
 
         ks = node.kernel_shape
@@ -50,8 +50,8 @@ class TemplateWriter2D_L3(TemplateWriter):
 
         ################################################################################
 
-        self.tk['conv_overlap1'] = 2 * (ks[0] // 2) + ks[0] % 2 - 1 - (s[0] - 1)
-        self.tk['conv_overlap2'] = 2 * (ks[1] // 2) + ks[1] % 2 - 1 - (s[1] - 1)
+        self.tk['conv_overlap1'] = ks[0] - s[0]
+        self.tk['conv_overlap2'] = ks[1] - s[1]
         self.tk['padding_top'] = p[0]
         self.tk['padding_left'] = p[1]
         self.tk['padding_bottom'] = p[2]
@@ -96,10 +96,12 @@ class TemplateWriter2D_L3(TemplateWriter):
 
         if not isinstance(node.tiling_dimensions["L2"]["constants_memory"], type(None)):
             self.tk['l3_offset_k'] = offset
-            offset += int(node.tiling_dimensions["L3"]["constants_memory"] / 2)
+            k_offset_size = int(node.tiling_dimensions["L3"]["weights_dimensions"][0] * node.constant_bits // 8)
+            offset += k_offset_size
 
             self.tk['l3_offset_l'] = offset
-            offset += int(node.tiling_dimensions["L3"]["constants_memory"] / 2)
+            l_offset_size = int(node.tiling_dimensions["L3"]["weights_dimensions"][0] * node.bias_bits // 8)
+            offset += l_offset_size
 
         self.tk['weight_dim'] = int(node.tiling_dimensions["L2"]["weight_memory"])
         if self.tk['has_bias'] == 1:
@@ -107,8 +109,8 @@ class TemplateWriter2D_L3(TemplateWriter):
         else:
             self.tk['bias_dim'] = 0
         if not isinstance(node.tiling_dimensions["L2"]["constants_memory"], type(None)):
-            self.tk['lambda_dim'] = int(node.tiling_dimensions["L2"]["constants_memory"] / 2)
-            self.tk['k_dim'] = int(node.tiling_dimensions["L2"]["constants_memory"] / 2)
+            self.tk['k_dim'] = int(node.tiling_dimensions["L2"]["weights_dimensions"][0] * node.constant_bits // 8)
+            self.tk['lambda_dim'] = int(node.tiling_dimensions["L2"]["weights_dimensions"][0] * node.bias_bits // 8)
         else:
             self.tk['lambda_dim'] = 0
             self.tk['k_dim'] = 0
@@ -117,7 +119,7 @@ class TemplateWriter2D_L3(TemplateWriter):
 
 
 class TemplateWriter2D_L2(TemplateWriter):
-    def __init__(self, node, tmpldir):
+    def __init__(self, tmpldir, node, precision_library):
         super().__init__(tmpldir)
 
         ks = node.kernel_shape
@@ -127,13 +129,9 @@ class TemplateWriter2D_L2(TemplateWriter):
         s = node.strides
         g = node.group
         p = node.pads
-        conv_overlap_h = 2 * (ks[0] // 2) + ks[0] % 2 - 1 - (s[0] - 1)
-        padding_top = p[0]
-        padding_left = p[1]
-        padding_bottom = p[2]
-        padding_right = p[3]
-        conv_overlap1 = 2 * (ks[0] // 2) + ks[0] % 2 - 1 - (s[0] - 1)
-        conv_overlap2 = 2 * (ks[1] // 2) + ks[1] % 2 - 1 - (s[1] - 1)
+        padding_top, padding_left, padding_bottom, padding_right = node.pads
+        conv_overlap1 = ks[0] - s[0]
+        conv_overlap2 = ks[1] - s[1]
 
         # TODO what is this??
         if re.search('.0', node.name):
@@ -148,7 +146,7 @@ class TemplateWriter2D_L2(TemplateWriter):
         self.tk['sdk'] = node.hw_desc["software development kit"]["name"]
         self.tk['number_of_clusters'] = node.hw_desc[
             "number_of_clusters"] if "number_of_clusters" in node.hw_desc.keys() else 1
-        #self.tk['optional_type'] = layer_type
+        self.tk['precision_library'] = precision_library
         self.tk['optional'] = node.op_type
         self.tk['flag_DW'] = node.group > 1
         self.tk['FLAG_BATCHNORM'] = 1 if 'k' in node.constant_names else 0
@@ -205,10 +203,10 @@ class TemplateWriter2D_L2(TemplateWriter):
         if "Addition" in node.name:
             ds_x2 = node.input_activation_bits
             dt_x2 = node.input_activation_type
-            self.tk['tk']['data_type_x2'] = dt_x2
-            self.tk['tk']['x_data_size_byte2'] = ds_x2
-            self.tk['tk']['inmul1'] = node.inmul1["value"]
-            self.tk['tk']['inadd1'] = node.inadd1["value"]
+            self.tk['data_type_x2'] = dt_x2
+            self.tk['x_data_size_byte2'] = ds_x2
+            self.tk['inmul1'] = node.inmul1["value"]
+            self.tk['inadd1'] = node.inadd1["value"]
             self.tk['inshift1'] = node.inshift1["value"]
             self.tk['inmul2'] = node.inmul2["value"]
             self.tk['inadd2'] = node.inadd2["value"]
@@ -245,6 +243,7 @@ class TemplateWriter2D_L2(TemplateWriter):
         self.tk['y_w'] = w_out
         self.tk['y_data_size_byte'] = ds_y
         self.tk['act_dim_bit'] = ds_act
+        self.tk['bias_bits'] = ds_bias
         self.tk['y_tile_size_nof'] = tile_n_out if (n_out > tile_n_out) else n_out
         self.tk['y_tile_size_h'] = tile_h_out if (h_out > tile_h_out) > 0 else h_out
         self.tk['y_tile_size_w'] = tile_w_out if (w_out > tile_w_out) > 0 else w_out
@@ -323,10 +322,10 @@ class TemplateWriter2D_L2(TemplateWriter):
                 W_buffer_size = 0
         if self.tk['FLAG_BATCHNORM'] == 1:
             k_buffer_size = int(n_out * ds_act / 8.0)
-            lambd_buffer_size = int(n_out * ds_act / 8.0)
+            lambda_buffer_size = int(n_out * ds_bias / 8.0)
         else:
             k_buffer_size = 0
-            lambd_buffer_size = 0
+            lambda_buffer_size = 0
 
         self.tk['k_tile_size_byte'] = 0
         self.tk['lambda_tile_size_byte'] = 0
@@ -335,15 +334,15 @@ class TemplateWriter2D_L2(TemplateWriter):
         if "Pool" not in node.name:
             if self.tk['FLAG_BATCHNORM'] == 1:
                 self.tk['k_size_byte'] = k_buffer_size
-                self.tk['lambda_size_byte'] = k_buffer_size
+                self.tk['lambda_size_byte'] = lambda_buffer_size
                 self.tk['k_tile_size_byte_transfer'] = int(math.ceil(tile_n_out * ds_act / 8.0))
-                self.tk['lambda_tile_size_byte_transfer'] = int(math.ceil(tile_n_out * ds_act / 8.0))
+                self.tk['lambda_tile_size_byte_transfer'] = int(math.ceil(tile_n_out * ds_bias / 8.0))
                 if n_in == tile_n_in and w_in == tile_w_in and h_in == tile_h_in and n_out == tile_n_out:
                     self.tk['k_tile_size_byte'] = int(math.ceil(tile_n_out * ds_act / 8.0))
-                    self.tk['lambda_tile_size_byte'] = int(math.ceil(tile_n_out * ds_act / 8.0))
+                    self.tk['lambda_tile_size_byte'] = int(math.ceil(tile_n_out * ds_bias / 8.0))
                 else:
                     self.tk['k_tile_size_byte'] = int(math.ceil(tile_n_out * ds_act / 8.0 * 2))
-                    self.tk['lambda_tile_size_byte'] = int(math.ceil(tile_n_out * ds_act / 8.0 * 2))
+                    self.tk['lambda_tile_size_byte'] = int(math.ceil(tile_n_out * ds_bias / 8.0 * 2))
             if has_bias == 1:
                 self.tk['bias_tile_size_byte'] = tile_n_out * int(ds_bias / 8.0)
                 self.tk['b_size_byte'] = int(n_out) * int(ds_bias / 8.0)

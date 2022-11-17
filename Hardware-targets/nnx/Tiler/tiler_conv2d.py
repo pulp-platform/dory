@@ -55,8 +55,6 @@ class Tiler_Conv2D:
         return tiling
 
     def get_tiling_conv2d_L3(self):
-        # TODO In the current setup, width cannot be tiled. Is this the best solution?
-
         L2_memory = self.node.hw_desc["memory"]["L2"]["dimension"] - self.code_reserved_space
         # 4 iterations, adding each time a different part to be tiled, either weights, outputs, or both. Input is forced
 
@@ -102,21 +100,23 @@ class Tiler_Conv2D:
             parameters = pywrapcp.Solver.DefaultSolverParameters()
             solver = pywrapcp.Solver("simple_CP", parameters)
             n_out = solver.IntConst(out_ch)
+            n_in = solver.IntConst(in_ch)
             h_out = solver.IntConst(out_dim[0])
             tile_n_out = solver.IntVar(1, out_ch, 'tile_n_out')
             tile_h_out = solver.IntVar(1, out_dim[0], 'tile_h_out')
             tile_h_in = solver.IntVar(in_dim[0] if input_in_l2 else ks[0], in_dim[0], 'tile_h_in')
-            tile_n_in = tile_n_out if depthwise else in_ch
+            tile_n_in = tile_n_out if depthwise else n_in
 
             # size constraint
-            input_tile_dimension = db_x * in_ch * tile_h_in * in_dim[1] * self.node.input_activation_bits // 8
-            output_tile_dimension = db_o * out_ch * tile_h_out * out_dim[1] * self.node.output_activation_bits // 8
+            input_tile_dimension = db_x * n_in * tile_h_in * in_dim[1] * (self.node.input_activation_bits // 8)
+            output_tile_dimension = tile_h_out * db_o * n_out * out_dim[1] * (self.node.output_activation_bits // 8)
             weight_tile_dimension = db_w * self.acc.weights_size(tile_n_out, tile_n_in, ks, self.node.weight_bits, depthwise)
 
             constants_tile_dimension = 0
-            for name in ["l", "k"]:
-                if name in self.node.constant_names:
-                    constants_tile_dimension += db_w * tile_n_out * self.node.constant_bits // 8
+            if 'k' in self.node.constant_names:
+                constants_tile_dimension += tile_n_out * db_w * (self.node.constant_bits // 8)
+            if 'l' in self.node.constant_names:
+                constants_tile_dimension += tile_n_out * db_w * (self.node.bias_bits // 8)
 
             total_size = input_tile_dimension + output_tile_dimension + weight_tile_dimension + constants_tile_dimension
 
@@ -124,7 +124,7 @@ class Tiler_Conv2D:
 
             # geometrical constraint
             if db_o == 1:
-                solver.Add(tile_h_out == out_dim[0])
+                solver.Add(tile_h_out == h_out)
             else:
                 solver.Add(h_out % tile_h_out == 0)
 
@@ -136,7 +136,6 @@ class Tiler_Conv2D:
             if db_x == 2 and db_o == 2:
                 solver.Add(tile_h_out * s[0] == tile_h_in - (ks[0] - 1) + (s[0] - 1))
 
-            # TODO: Why this constraint?
             if db_x == 2:
                 solver.Add(h_out % ((tile_h_in - ks[0] + s[0]) // s[0]) == 0)
 
@@ -242,14 +241,16 @@ class Tiler_Conv2D:
         ###############################################
         parameters = pywrapcp.Solver.DefaultSolverParameters()
         solver = pywrapcp.Solver("simple_CP", parameters)
-        n_out = solver.IntConst(out_ch)
+        h_in = solver.IntConst(h_in)
+        w_in = solver.IntConst(in_dim[1])
         n_in = solver.IntConst(in_ch)
-        h_out = solver.IntConst(out_dim[0])
+        h_out = solver.IntConst(h_out)
         w_out = solver.IntConst(out_dim[1])
+        n_out = solver.IntConst(out_ch)
         tile_n_in = solver.IntVar(1, in_ch, 'tile_n_in')
         tile_n_out = solver.IntVar(1, out_ch, 'tile_n_out')
-        tile_h_in = solver.IntVar(ks[0], in_dim[0], 'tile_h_in')
-        tile_w_in = solver.IntVar(ks[1], in_dim[1], 'tile_w_in')
+        tile_h_in = solver.IntVar(ks[0], in_dim[0] + p[0] + p[2], 'tile_h_in')
+        tile_w_in = solver.IntVar(ks[1], in_dim[1] + p[1] + p[3], 'tile_w_in')
         tile_h_out = solver.IntVar(1, out_dim[0], 'tile_h_out')
         tile_w_out = solver.IntVar(1, out_dim[1], 'tile_w_out')
 
@@ -273,7 +274,7 @@ class Tiler_Conv2D:
         if depthwise:
             solver.Add(tile_n_in == tile_n_out)
         else:
-            solver.Add(tile_n_in == int(in_ch))
+            solver.Add(tile_n_in == n_in)
 
         ###############################################
         ##### CONSTRAINTS FOR BACKEND LIMITS ##########
@@ -292,30 +293,34 @@ class Tiler_Conv2D:
         #      n_in_tiles = # calculate number of tiles
         #      solver.Add(db_in == 2 if n_in_tiles > 2)
         #      -> To solve this problem, they do multiple rounds of tiling in L3 tiling
-        input_tile_dimension = db * tile_n_in * tile_h_in * tile_w_in * self.node.input_activation_bits // 8
-        output_tile_dimension = db * tile_n_out * tile_h_out * tile_w_out * self.node.output_activation_bits // 8
+        input_tile_dimension = db * tile_n_in * tile_h_in * tile_w_in * (self.node.input_activation_bits // 8)
+        output_tile_dimension = db * tile_n_out * tile_h_out * tile_w_out * (self.node.output_activation_bits // 8)
         weight_tile_dimension = db * self.acc.weights_size(tile_n_out, tile_n_in, ks, self.node.weight_bits, depthwise)
 
         constants_tile_dimension = 0
-        for name in ["l", "k"]:
-            if name in self.node.constant_names:
-                constants_tile_dimension += db * tile_n_out * self.node.constant_bits // 8
+        if 'k' in self.node.constant_names:
+            constants_tile_dimension += db * tile_n_out * (self.node.constant_bits // 8)
+        if 'l' in self.node.constant_names:
+            constants_tile_dimension += db * tile_n_out * (self.node.bias_bits // 8)
 
-        constraint_all = input_tile_dimension + output_tile_dimension + weight_tile_dimension + constants_tile_dimension
+        total_size = input_tile_dimension + output_tile_dimension + weight_tile_dimension + constants_tile_dimension
 
-        solver.Add(constraint_all <= L1_memory)
+        solver.Add(total_size <= L1_memory)
 
         ###############################################
         ##### HEURISTICS ADDITION #####################
         ###############################################
         obj_expr = solver.IntVar(0, 1000000000000, "obj_expr")
 
-        heuristics = self.acc.heuristic_l1(n_out, n_in, h_out, w_out,
-                                           tile_n_out, tile_n_in, tile_h_out, tile_w_out,
-                                           constraint_all, ks, modifier=1000000)
+        heuristics = self.acc.heuristic_l1((h_in, w_in, n_in),
+                                           (n_out, h_out, w_out),
+                                           (tile_h_in, tile_w_in, tile_n_in),
+                                           (tile_h_out, tile_w_out, tile_n_out),
+                                           total_size, ks, g, s, modifier=1000000)
 
         solver.Add(obj_expr == heuristics)
         objective = solver.Maximize(obj_expr, 1)
+        #objective = solver.Minimize(obj_expr, 1)
 
         decision_builder = solver.Phase([tile_n_in, tile_n_out, tile_h_in, tile_h_out, tile_w_in, tile_w_out],
                                         solver.CHOOSE_FIRST_UNBOUND,
