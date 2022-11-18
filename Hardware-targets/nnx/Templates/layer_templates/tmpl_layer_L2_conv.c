@@ -299,7 +299,7 @@ void ${func_name}(
   };
 
   const nnx_norm_t norm = {
-    .mode  = normMode32Bit,
+    .mode  = ${"normMode32Bit" if act_dim_bit == 32 else "normMode8Bit" if act_dim_bit == 8 else "FLAG_UNUSED"},
     .flag_bias  = FLAG_USED,
     .flag_shift = FLAG_UNUSED
   };
@@ -413,7 +413,7 @@ void ${func_name}(
 
       DMA_copy_lambda.ext = l2_bias + ${lambda_tile_size_byte_transfer} * i_nof;
       DMA_copy_lambda.loc = bias_tile_ptr;
-      DMA_copy_lambda.length_1d_copy = W_tile_size_nof * ${int(act_dim_bit/8)};
+      DMA_copy_lambda.length_1d_copy = W_tile_size_nof * ${int(bias_bits/8)};
 % endif
     }
 
