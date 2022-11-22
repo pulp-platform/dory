@@ -2,6 +2,7 @@ import numpy as np
 import random
 from ..Accelerator import Accelerator
 from ..Util import div_and_ceil, maximize_divisibility
+from .Ne16PerfModel import Ne16PerfModel
 
 
 class Ne16(Accelerator):
@@ -39,6 +40,10 @@ class Ne16(Accelerator):
                 "value": maximize_divisibility(tile_h_out, self.KS),
                 "prio": 1.5
             },
+            {
+                "value": tile_n_out,
+                "prio": 0.5
+            },
             # Total dimension of tile
             {
                 "value": total_size,
@@ -52,10 +57,12 @@ class Ne16(Accelerator):
                      layer_shape_in, layer_shape_out,
                      tile_shape_in, tile_shape_out,
                      total_size, ks, g, s, modifier=1000000):
+        ne16_model = Ne16PerfModel('conv', ks, depthwise=g>1, nq_bias=True)
+        ne16_model.set_layer(tile_shape_out + (tile_shape_in[2], ))
         heuristics = [
             {
                 "value": maximize_divisibility(tile_shape_out[2], self.TP_OUT),
-                "prio": 0.01
+                "prio": 1
             },
             {
                 "value": maximize_divisibility(tile_shape_out[1], 2 if s[1] == 2 else self.KS),
@@ -64,6 +71,22 @@ class Ne16(Accelerator):
             {
                 "value": maximize_divisibility(tile_shape_out[0], 2 if s[0] == 2 else self.KS),
                 "prio": 1.5
+            },
+            # Prefer bigger channel out because of greater reuse
+            #{
+            #    "value": tile_shape_out[2],
+            #    "prio": 0.5
+            #},
+            # Prefer tiles with best latency to memory occupation ratio
+            # ERROR: Cannot have division in heuristic
+            # {
+            #     "value": ne16_model.latency / total_size,
+            #     "prio": 0.01
+            # },
+            # Prefer tiles with bigger latency because they give more time to fetch data
+            {
+                "value": ne16_model.latency,
+                "prio": 0.0001
             },
             # Geometrical shape of border tiles
             #{
