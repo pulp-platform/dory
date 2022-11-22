@@ -33,7 +33,7 @@
 //#define NO_DMA_SYNC
 //#define NO_DMA
 
-#ifdef MEASURE_LAYER_COMPONENT_PERF
+#if defined MEASURE_LAYER_COMPONENT_PERF || defined MEASURE_ACQUIRE_HIST || defined MEASURE_DMA_MEMCPY
 #define PERF_INIT() pi_perf_conf(1<<PI_PERF_CYCLES)
 
 #define PERF_RESTART()             ${"\\"}
@@ -50,17 +50,34 @@
   var = pi_perf_read(PI_PERF_CYCLES); ${"\\"}
   asm volatile("": : :"memory")
 
+#define PERF_ACCUMULATE(accumulator, var) accumulator += var
+
 static int cycles_preamble = 0, cycles_first_conf = 0, cycles_first_dma = 0, cycles_nnx = 0, cycles_postamble = 0;
+static int total_cycles_dma_memcpy = 0;
+static int acquire_count_lt_100 = 0, acquire_count_lt_1000 = 0, acquire_count_lt_10000 = 0;
+
+#define PERF_REPORT()                                                                               ${"\\"}
+  do {                                                                                              ${"\\"}
+    printf("Measured time - preamble: %d, first conf: %d, first dma: %d, nnx: %d, postamble: %d\n", ${"\\"}
+           cycles_preamble, cycles_first_conf, cycles_first_dma, cycles_nnx, cycles_postamble);     ${"\\"}
+    printf("              - total dma memcpy: %d\n", total_cycles_dma_memcpy);                      ${"\\"}
+    printf("              - acquire 0-99: %d, 100-999: %d, 1000-9999: %d, 9999-inf: %d\n",          ${"\\"}
+           acquire_count_lt_100, acquire_count_lt_1000 - acquire_count_lt_100,                      ${"\\"}
+           acquire_count_lt_10000 - acquire_count_lt_1000, total_tiles - acquire_count_lt_10000);   ${"\\"}
+  } while (0)
+
 #else
 #define PERF_INIT()
 #define PERF_RESTART()
 #define PERF_READ(var)
+#define PERF_ACCUMULATE(accumulator, var)
+#define PERF_REPORT()
 #endif
 
 #ifdef GVSOC_LOGGING
 #define GVSOC_LOG_LEVEL 1
 #include "pulp_nnx_util.h"
-#endif GVSOC_LOGGING
+#endif  // GVSOC_LOGGING
 
 #ifdef DEBUG_DMA_COPY
 #define dory_dma_memcpy_async(dma)                                                                                             ${"\\"}
@@ -493,13 +510,28 @@ void ${func_name}(
     // This barrier is required before dma_memcpy so that we don't
     // overwrite the data being used by the accelerator.
     % if stride != 2:
+#ifdef MEASURE_ACQUIRE_HIST
+    int cycles_acquire_start = 0, cycles_acquire_stop = 0;
+    PERF_READ(cycles_acquire_start);
+#endif  // MEASURE_ACQUIRE_HIST
     nnx_acquire();
+#ifdef MEASURE_ACQUIRE_HIST
+    PERF_READ(cycles_acquire_stop);
+    PERF_ACCUMULATE(acquire_count_lt_100, (cycles_acquire_stop - cycles_acquire_start) < 100 ? 1 : 0);
+    PERF_ACCUMULATE(acquire_count_lt_1000, (cycles_acquire_stop - cycles_acquire_start) < 1000 ? 1 : 0);
+    PERF_ACCUMULATE(acquire_count_lt_10000, (cycles_acquire_stop - cycles_acquire_start) < 10000 ? 1 : 0);
+#endif  // MEASURE_ACQUIRE_HIST
     % endif
 
     if (i_tile == 0) {
         PERF_READ(cycles_first_conf);
         PERF_RESTART();
     }
+
+#ifdef MEASURE_DMA_MEMCPY
+	int cycles_dma_memcpy_start = 0, cycles_dma_memcpy_stop;
+	PERF_READ(cycles_dma_memcpy_start);
+#endif  // MEASURE_DMA_MEMCPY
 
 #ifndef NO_DMA
     if (is_load_x) {
@@ -531,6 +563,11 @@ void ${func_name}(
       dory_dma_memcpy_async(&DMA_copy_y[DMA_Y_INDEX(i_store_y)]);
     }
 #endif  // NO_DMA
+
+#ifdef MEASURE_DMA_MEMCPY
+	PERF_READ(cycles_dma_memcpy_stop);
+	PERF_ACCUMULATE(total_cycles_dma_memcpy, cycles_dma_memcpy_stop - cycles_dma_memcpy_start);
+#endif  // MEASURE_DMA_MEMCPY
 
 
 //  /$$$$$$$$ /$$   /$$ /$$$$$$$$  /$$$$$$ 
@@ -832,10 +869,6 @@ void ${func_name}(
   // clear NNX for cleanup
   nnx_term();
 
-#ifdef MEASURE_LAYER_COMPONENT_PERF
   PERF_READ(cycles_postamble);
-
-  printf("Measured time - preamble: %d, first conf: %d, first dma: %d, nnx: %d, postamble: %d\n",
-         cycles_preamble, cycles_first_conf, cycles_first_dma, cycles_nnx, cycles_postamble);
-#endif
+  PERF_REPORT();
 }
