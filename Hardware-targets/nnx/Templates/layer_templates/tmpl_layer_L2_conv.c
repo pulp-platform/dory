@@ -33,7 +33,13 @@
 //#define NO_DMA_SYNC
 //#define NO_DMA
 
-#if defined MEASURE_LAYER_COMPONENT_PERF || defined MEASURE_ACQUIRE_HIST || defined MEASURE_DMA_MEMCPY
+#if defined MEASURE_LAYER_COMPONENT || defined MEASURE_EXEC_COMPONENT
+% if flag_DW == 0:
+#define TOTAL_TILES (${tile_dim_nof} /*tile_dim_nof*/ * ${tile_dim_nif} /*tile_dim_nif*/ * ${tile_dim_h} /*tile_dim_h*/ * ${tile_dim_w} /*tile_dim_w*/)
+% else:
+#define TOTAL_TILES (${tile_dim_nof} /*tile_dim_nof*/ * ${tile_dim_h} /*tile_dim_h*/ * ${tile_dim_w} /*tile_dim_w*/)
+% endif
+
 #define PERF_INIT() pi_perf_conf(1<<PI_PERF_CYCLES)
 
 #define PERF_RESTART()             ${"\\"}
@@ -52,27 +58,76 @@
 
 #define PERF_ACCUMULATE(accumulator, var) accumulator += var
 
-static int cycles_preamble = 0, cycles_first_conf = 0, cycles_first_dma = 0, cycles_nnx = 0, cycles_postamble = 0;
-static int total_cycles_dma_memcpy = 0;
-static int acquire_count_lt_100 = 0, acquire_count_lt_1000 = 0, acquire_count_lt_10000 = 0;
+#define PERF_ARRAY_DECLARATION(name) static int cycles_ ## name[TOTAL_TILES];
 
-#define PERF_REPORT()                                                                               ${"\\"}
-  do {                                                                                              ${"\\"}
-    printf("Measured time - preamble: %d, first conf: %d, first dma: %d, nnx: %d, postamble: %d\n", ${"\\"}
-           cycles_preamble, cycles_first_conf, cycles_first_dma, cycles_nnx, cycles_postamble);     ${"\\"}
-    printf("              - total dma memcpy: %d\n", total_cycles_dma_memcpy);                      ${"\\"}
-    printf("              - acquire 0-99: %d, 100-999: %d, 1000-9999: %d, 9999-inf: %d\n",          ${"\\"}
-           acquire_count_lt_100, acquire_count_lt_1000 - acquire_count_lt_100,                      ${"\\"}
-           acquire_count_lt_10000 - acquire_count_lt_1000, total_tiles - acquire_count_lt_10000);   ${"\\"}
-  } while (0)
-
+#define PERF_ARRAY_REPORT(name)          ${"\\"}
+do {                                     ${"\\"}
+  printf(#name " latency:\n");           ${"\\"}
+  for (int i = 0; i < TOTAL_TILES; i++)  ${"\\"}
+    printf("%d,\n", cycles_ ## name[i]); ${"\\"}
+} while (0)
 #else
 #define PERF_INIT()
 #define PERF_RESTART()
 #define PERF_READ(var)
 #define PERF_ACCUMULATE(accumulator, var)
-#define PERF_REPORT()
+#define PERF_ARRAY_DECLARATION(name)
+#define PERF_ARRAY_REPORT(name)
 #endif
+
+#ifdef MEASURE_LAYER_COMPONENT
+static int cycles_preamble = 0, cycles_first_conf = 0, cycles_first_dma = 0, cycles_nnx = 0, cycles_postamble = 0;
+
+#define PERF_LAYER_COMPONENT_READ(component) \
+  PERF_READ(cycles_ ## component);           \
+  PERF_RESTART()
+
+#define PERF_LAYER_COMPONENT_REPORT()                                                               ${"\\"}
+  do {                                                                                              ${"\\"}
+    printf("Measured time - preamble: %d, first conf: %d, first dma: %d, nnx: %d, postamble: %d\n", ${"\\"}
+           cycles_preamble, cycles_first_conf, cycles_first_dma, cycles_nnx, cycles_postamble);     ${"\\"}
+  } while (0)
+#else  // MEASURE_LAYER_COMPONENT
+#define PERF_LAYER_COMPONENT_READ(component)
+#define PERF_LAYER_COMPONENT_REPORT()
+#endif  // MEASURE_LAYER_COMPONENT
+
+#ifdef MEASURE_EXEC_COMPONENT
+typedef enum {
+    exec_component_acquire,
+    exec_component_dma_memcpy,
+    exec_component_dma_barrier,
+    n_exec_component
+} exec_component_e;
+
+static int cycles_exec_component[TOTAL_TILES][n_exec_component] = {0};
+
+#define PERF_EXEC_COMPONENT_BEGIN(component)                               ${"\\"}
+int cycles_ ## component ## _start = 0, cycles_ ## component ## _stop = 0; ${"\\"}
+PERF_READ(cycles_ ## component ## _start)
+
+#define PERF_EXEC_COMPONENT_END(component)                         ${"\\"}
+PERF_READ(cycles_ ## component ## _stop);                          ${"\\"}
+cycles_exec_component[i_tile][exec_component_ ## component] =      ${"\\"}
+    cycles_ ## component ## _stop - cycles_ ## component ## _start
+
+#define PERF_EXEC_COMPONENT_REPORT()              ${"\\"}
+do {                                              ${"\\"}
+  printf("Execution component report:\n");        ${"\\"}
+  printf("acquire,dma_memcpy,dma_barrier\n");     ${"\\"}
+  for (int i = 0; i < TOTAL_TILES; i++) {         ${"\\"}
+    for (int j = 0; j < n_exec_component; j++) {  ${"\\"}
+      printf("%d,", cycles_exec_component[i][j]); ${"\\"}
+    }                                             ${"\\"}
+    printf("\n");                                 ${"\\"}
+  }                                               ${"\\"}
+} while (0)
+#else  // MEASURE_EXEC_COMPONENT
+#define PERF_EXEC_COMPONENT_BEGIN(component)
+#define PERF_EXEC_COMPONENT_END(component)
+#define PERF_EXEC_COMPONENT_REPORT()
+#endif  // MEASURE_EXEC_COMPONENT
+
 
 #ifdef GVSOC_LOGGING
 #define GVSOC_LOG_LEVEL 1
@@ -359,8 +414,7 @@ void ${func_name}(
     nnx_pad_input(&(nnx_tasks[i].cfg), padding_init);
   }
 
-  PERF_READ(cycles_preamble);
-  PERF_RESTART();
+  PERF_LAYER_COMPONENT_READ(preamble);
 
 
 //  /$$$$$$$$ /$$$$$$ /$$       /$$$$$$$$       /$$        /$$$$$$   /$$$$$$  /$$$$$$$ 
@@ -510,29 +564,16 @@ void ${func_name}(
     // This barrier is required before dma_memcpy so that we don't
     // overwrite the data being used by the accelerator.
     % if stride != 2:
-#ifdef MEASURE_ACQUIRE_HIST
-    int cycles_acquire_start = 0, cycles_acquire_stop = 0;
-    PERF_READ(cycles_acquire_start);
-#endif  // MEASURE_ACQUIRE_HIST
+    PERF_EXEC_COMPONENT_BEGIN(acquire);
     nnx_acquire();
-#ifdef MEASURE_ACQUIRE_HIST
-    PERF_READ(cycles_acquire_stop);
-    PERF_ACCUMULATE(acquire_count_lt_100, (cycles_acquire_stop - cycles_acquire_start) < 100 ? 1 : 0);
-    PERF_ACCUMULATE(acquire_count_lt_1000, (cycles_acquire_stop - cycles_acquire_start) < 1000 ? 1 : 0);
-    PERF_ACCUMULATE(acquire_count_lt_10000, (cycles_acquire_stop - cycles_acquire_start) < 10000 ? 1 : 0);
-#endif  // MEASURE_ACQUIRE_HIST
+    PERF_EXEC_COMPONENT_END(acquire);
     % endif
 
     if (i_tile == 0) {
-        PERF_READ(cycles_first_conf);
-        PERF_RESTART();
+        PERF_LAYER_COMPONENT_READ(first_conf);
     }
 
-#ifdef MEASURE_DMA_MEMCPY
-	int cycles_dma_memcpy_start = 0, cycles_dma_memcpy_stop;
-	PERF_READ(cycles_dma_memcpy_start);
-#endif  // MEASURE_DMA_MEMCPY
-
+    PERF_EXEC_COMPONENT_BEGIN(dma_memcpy);
 #ifndef NO_DMA
     if (is_load_x) {
       dory_dma_memcpy_async(&DMA_copy_x);
@@ -563,11 +604,7 @@ void ${func_name}(
       dory_dma_memcpy_async(&DMA_copy_y[DMA_Y_INDEX(i_store_y)]);
     }
 #endif  // NO_DMA
-
-#ifdef MEASURE_DMA_MEMCPY
-	PERF_READ(cycles_dma_memcpy_stop);
-	PERF_ACCUMULATE(total_cycles_dma_memcpy, cycles_dma_memcpy_stop - cycles_dma_memcpy_start);
-#endif  // MEASURE_DMA_MEMCPY
+    PERF_EXEC_COMPONENT_END(dma_memcpy);
 
 
 //  /$$$$$$$$ /$$   /$$ /$$$$$$$$  /$$$$$$ 
@@ -583,6 +620,7 @@ void ${func_name}(
     nnx_offload(nnx_task_to_offload);
     % endif
 
+    PERF_EXEC_COMPONENT_BEGIN(dma_barrier);
 #ifndef NO_DMA
 
 #ifdef NO_DMA_SYNC_ON_BORDER_TILE
@@ -640,10 +678,10 @@ void ${func_name}(
 #endif  // NO_DMA_SYNC_ON_BORDER_TILE
 
 #endif  // NO_DMA
+    PERF_EXEC_COMPONENT_END(dma_barrier);
 
     if (i_tile == 0) {
-        PERF_READ(cycles_first_dma);
-        PERF_RESTART();
+        PERF_LAYER_COMPONENT_READ(first_dma);
     }
 
     % if stride != 2:
@@ -832,8 +870,7 @@ void ${func_name}(
 #endif  // NO_DMA
   }
 
-  PERF_READ(cycles_nnx);
-  PERF_RESTART();
+  PERF_LAYER_COMPONENT_READ(nnx);
 
 #ifndef NO_DMA
   for (int i = i_store_y; i < total_tiles; i++) {
@@ -869,6 +906,8 @@ void ${func_name}(
   // clear NNX for cleanup
   nnx_term();
 
-  PERF_READ(cycles_postamble);
-  PERF_REPORT();
+  PERF_LAYER_COMPONENT_READ(postamble);
+
+  PERF_LAYER_COMPONENT_REPORT();
+  PERF_EXEC_COMPONENT_REPORT();
 }
