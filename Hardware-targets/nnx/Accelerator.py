@@ -25,13 +25,15 @@ class Accelerator(ABC):
         pass
 
     @abstractmethod
-    def heuristic_l1(self, solver,
+    def heuristic_l1(self,
                      layer_shape_in, layer_shape_out,
                      tile_shape_in, tile_shape_out,
-                     constr_total_size, ks, modifier):
+                     total_size, mem_size, ks, g, s, modifier):
         pass
 
     @abstractmethod
-    def heuristic_l2(self, tile_n_out, tile_n_in, tile_h_out,
-                     constr_total_size, ks, modifier):
+    def heuristic_l2(self,
+                     layer_shape_in, layer_shape_out,
+                     tile_shape_in, tile_shape_out,
+                     total_size, mem_size, ks, modifier):
         pass

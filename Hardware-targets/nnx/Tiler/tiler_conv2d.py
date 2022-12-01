@@ -99,12 +99,17 @@ class Tiler_Conv2D:
 
             parameters = pywrapcp.Solver.DefaultSolverParameters()
             solver = pywrapcp.Solver("simple_CP", parameters)
-            n_out = solver.IntConst(out_ch)
-            n_in = solver.IntConst(in_ch)
-            h_out = solver.IntConst(out_dim[0])
-            tile_n_out = solver.IntVar(1, out_ch, 'tile_n_out')
+            h_out = out_dim[0]
+            w_out = out_dim[1]
+            n_out = out_ch
+            h_in = in_dim[0]
+            w_in = in_dim[1]
+            n_in = in_ch
             tile_h_out = solver.IntVar(1, out_dim[0], 'tile_h_out')
+            tile_w_out = w_out
+            tile_n_out = solver.IntVar(1, out_ch, 'tile_n_out')
             tile_h_in = solver.IntVar(in_dim[0] if input_in_l2 else ks[0], in_dim[0], 'tile_h_in')
+            tile_w_in = w_in
             tile_n_in = tile_n_out if depthwise else n_in
 
             # size constraint
@@ -142,7 +147,9 @@ class Tiler_Conv2D:
             # objective
             obj_expr = solver.IntVar(0, 100000000000000, "obj_expr")
 
-            heuristics = self.acc.heuristic_l2(tile_n_out, tile_n_in, tile_h_out, total_size, ks)
+            heuristics = self.acc.heuristic_l2((h_in, w_in, n_in), (h_out, w_out, n_out),
+                                               (tile_h_in, tile_w_in, tile_n_in), (tile_h_out, tile_w_out, tile_n_out),
+                                               total_size, L2_memory, ks)
 
             solver.Add(obj_expr == heuristics)
 
@@ -241,12 +248,12 @@ class Tiler_Conv2D:
         ###############################################
         parameters = pywrapcp.Solver.DefaultSolverParameters()
         solver = pywrapcp.Solver("simple_CP", parameters)
-        h_in = solver.IntConst(h_in)
-        w_in = solver.IntConst(in_dim[1])
-        n_in = solver.IntConst(in_ch)
-        h_out = solver.IntConst(h_out)
-        w_out = solver.IntConst(out_dim[1])
-        n_out = solver.IntConst(out_ch)
+        h_in = h_in
+        w_in = in_dim[1]
+        n_in = in_ch
+        h_out = h_out
+        w_out = out_dim[1]
+        n_out = out_ch
         tile_n_in = solver.IntVar(1, in_ch, 'tile_n_in')
         tile_n_out = solver.IntVar(1, out_ch, 'tile_n_out')
         tile_h_in = solver.IntVar(ks[0], in_dim[0] + p[0] + p[2], 'tile_h_in')
@@ -313,10 +320,10 @@ class Tiler_Conv2D:
         obj_expr = solver.IntVar(0, 1000000000000, "obj_expr")
 
         heuristics = self.acc.heuristic_l1((h_in, w_in, n_in),
-                                           (n_out, h_out, w_out),
+                                           (h_out, w_out, n_out),
                                            (tile_h_in, tile_w_in, tile_n_in),
                                            (tile_h_out, tile_w_out, tile_n_out),
-                                           total_size, ks, g, s, modifier=1000000)
+                                           total_size, L1_memory, ks, g, s, modifier=1000000)
 
         solver.Add(obj_expr == heuristics)
         objective = solver.Maximize(obj_expr, 1)
