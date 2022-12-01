@@ -1,7 +1,7 @@
 import numpy as np
 import random
 from ..Accelerator import Accelerator
-from ..Util import div_and_ceil, maximize_divisibility
+from ..Util import *
 from .Ne16PerfModel import Ne16PerfModel
 
 
@@ -11,6 +11,7 @@ class Ne16(Accelerator):
     KS = 3
     INPUT_BUFFER_H = 5
     INPUT_BUFFER_W = 5
+    OUTPUT_BUFFER_SHAPE = (3, 3, 32)
 
     @property
     def name(self):
@@ -28,27 +29,17 @@ class Ne16(Accelerator):
     def weights_size(self, ko, ki, ks, qw, dw):
         return self.weights_ko_len(ko, dw) * self.weights_ki_size(ki, ks, qw, dw)
 
-    def heuristic_l2(self, tile_n_out, tile_n_in, tile_h_out,
-                     total_size, ks=None, modifier=1000000):
+    def heuristic_l2(self,
+                     layer_shape_in, layer_shape_out,
+                     tile_shape_in, tile_shape_out,
+                     total_size, mem_size, ks=None, modifier=1000000):
         heuristics = [
             # Geometrical shape of tiles
-            {
-                "value": maximize_divisibility(tile_n_out, self.TP_OUT),
-                "prio": 1
-            },
-            {
-                "value": maximize_divisibility(tile_h_out, self.KS),
-                "prio": 1.5
-            },
-            {
-                "value": tile_n_out,
-                "prio": 0.5
-            },
+            maximize_divisibility_w_prio(tile_shape_out[2], self.OUTPUT_BUFFER_SHAPE[2], prio=1),
+            maximize_divisibility_w_prio(tile_shape_out[0], self.OUTPUT_BUFFER_SHAPE[0], prio=1.5),
+            maximize_size_w_prio(tile_shape_out[2], max=layer_shape_out[2], prio=0.5),
             # Total dimension of tile
-            {
-                "value": total_size,
-                "prio": 0.000001
-            }
+            maximize_size_w_prio(total_size, max=mem_size, prio=1)
         ]
 
         return sum([int(modifier * h["prio"]) * h["value"] for h in heuristics])
@@ -56,38 +47,22 @@ class Ne16(Accelerator):
     def heuristic_l1(self,
                      layer_shape_in, layer_shape_out,
                      tile_shape_in, tile_shape_out,
-                     total_size, ks, g, s, modifier=1000000):
+                     total_size, mem_size, ks, g, s, modifier=1000000):
         ne16_model = Ne16PerfModel('conv', ks, depthwise=g>1, nq_bias=True)
+        ne16_model.set_layer(layer_shape_out + (layer_shape_in[2], ))
+        layer_latency = ne16_model.latency
         ne16_model.set_layer(tile_shape_out + (tile_shape_in[2], ))
         heuristics = [
-            {
-                "value": maximize_divisibility(tile_shape_out[2], self.TP_OUT),
-                "prio": 1
-            },
-            {
-                "value": maximize_divisibility(tile_shape_out[1], 2 if s[1] == 2 else self.KS),
-                "prio": 2
-            },
-            {
-                "value": maximize_divisibility(tile_shape_out[0], 2 if s[0] == 2 else self.KS),
-                "prio": 1.5
-            },
+            # Prefer tile output height divisible by the 
+            maximize_divisibility_w_prio(tile_shape_out[0], 2 if s[0] == 2 else self.OUTPUT_BUFFER_SHAPE[0], prio=1.5),
+            # Divisibility of output width
+            maximize_divisibility_w_prio(tile_shape_out[1], 2 if s[1] == 2 else self.OUTPUT_BUFFER_SHAPE[1], prio=2),
+            # Divisibility of output channels
+            maximize_divisibility_w_prio(tile_shape_out[2], self.OUTPUT_BUFFER_SHAPE[2], prio=1),
             # Prefer bigger channel out because of greater reuse
-            #{
-            #    "value": tile_shape_out[2],
-            #    "prio": 0.5
-            #},
-            # Prefer tiles with best latency to memory occupation ratio
-            # ERROR: Cannot have division in heuristic
-            # {
-            #     "value": ne16_model.latency / total_size,
-            #     "prio": 0.01
-            # },
-            # Prefer tiles with bigger latency because they give more time to fetch data
-            {
-                "value": ne16_model.latency,
-                "prio": 0.0001
-            },
+            maximize_size_w_prio(tile_shape_out[2], max=layer_shape_out[2], prio=0.5),
+            # # Prefer tiles with bigger latency because they give more time to fetch data
+            maximize_size_w_prio(ne16_model.latency, max=layer_latency, prio=0.5),
             # Geometrical shape of border tiles
             #{
             #    "value": maximize_divisibility(layer_shape_out[2], tile_shape_out[2]),
@@ -98,18 +73,15 @@ class Ne16(Accelerator):
             #    "prio": 0.03
             #},
             #{
-            #    "value": maximize_divisibility(layer_shape_out[1] % tile_shape_out[1], self.KS),
+            #    "value": maximize_divisibility(layer_shape_out[1] % tile_shape_out[1], self.OUTPUT_BUFFER_SHAPE[1]),
             #    "prio": 0.02
             #},
             #{
-            #    "value": maximize_divisibility(layer_shape_out[0] % tile_shape_out[0], self.KS),
+            #    "value": maximize_divisibility(layer_shape_out[0] % tile_shape_out[0], self.OUTPUT_BUFFER_SHAPE[0]),
             #    "prio": 0.01
             #},
             # Total dimension of tile
-            {
-                "value": total_size,
-                "prio": 0.000001
-            }
+            maximize_size_w_prio(total_size, max=mem_size, prio=1)
         ]
 
         return sum([int(modifier * h["prio"]) * h["value"] for h in heuristics])
