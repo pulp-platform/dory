@@ -19,21 +19,31 @@
  * limitations under the License. 
  */
 
+/* Defines
+ *
+ * 1. Modes
+ *    To enable any of the special measurements modes, just add the define
+ *    - NO_DMA_SYNC_ON_BORDER_TILE - removes the DMA synchronization on border tiles
+ *    - NO_DMA_SYNC - removes the DMA synchronization
+ *    - NO_DMA - removes the DMA synchronization and transactions
+ *
+ * 2. Measurements
+ *    - MEASURE_LAYER_COMPONENTS - measure more coarse components (first dma, first conf, exec...)
+ *    - MEASURE_EXECUTION_COMPONENTS - measure execution components per tile iteration, usefull to see if there are DMA stalls
+ *
+ * 3. Performance tweaks
+ *    - REVERSE_LOOP_RANGE - execute border tiles first
+ *      Cout tile changes
+ */
+
+
 #include "${func_name}.h"
 #include "pulp_nnx.h"
 #include "network.h"
 #include "dory_dma.h"
 #include "dory_get_tile.h"
 
-/* Measurement defines
- * To enable any of the special measurements modes, just add the define
- *   - NO_DMA_SYNC - removes the DMA synchronization points
- *   - NO_DMA      - removes the DMA synchronization points and transactions
- */
-//#define NO_DMA_SYNC
-//#define NO_DMA
-
-#if defined MEASURE_LAYER_COMPONENT || defined MEASURE_EXEC_COMPONENT
+#if defined MEASURE_LAYER_COMPONENTS || defined MEASURE_EXECUTION_COMPONENTS
 % if flag_DW == 0:
 #define TOTAL_TILES (${tile_dim_nof} /*tile_dim_nof*/ * ${tile_dim_nif} /*tile_dim_nif*/ * ${tile_dim_h} /*tile_dim_h*/ * ${tile_dim_w} /*tile_dim_w*/)
 % else:
@@ -75,7 +85,7 @@ do {                                     ${"\\"}
 #define PERF_ARRAY_REPORT(name)
 #endif
 
-#ifdef MEASURE_LAYER_COMPONENT
+#ifdef MEASURE_LAYER_COMPONENTS
 static int cycles_preamble = 0, cycles_first_conf = 0, cycles_first_dma = 0, cycles_nnx = 0, cycles_postamble = 0;
 
 #define PERF_LAYER_COMPONENT_READ(component) \
@@ -87,12 +97,12 @@ static int cycles_preamble = 0, cycles_first_conf = 0, cycles_first_dma = 0, cyc
     printf("Measured time - preamble: %d, first conf: %d, first dma: %d, nnx: %d, postamble: %d\n", ${"\\"}
            cycles_preamble, cycles_first_conf, cycles_first_dma, cycles_nnx, cycles_postamble);     ${"\\"}
   } while (0)
-#else  // MEASURE_LAYER_COMPONENT
+#else  // MEASURE_LAYER_COMPONENTS
 #define PERF_LAYER_COMPONENT_READ(component)
 #define PERF_LAYER_COMPONENT_REPORT()
-#endif  // MEASURE_LAYER_COMPONENT
+#endif  // MEASURE_LAYER_COMPONENTS
 
-#ifdef MEASURE_EXEC_COMPONENT
+#ifdef MEASURE_EXECUTION_COMPONENTS
 typedef enum {
     exec_component_acquire,
     exec_component_dma_memcpy,
@@ -122,11 +132,11 @@ do {                                              ${"\\"}
     printf("\n");                                 ${"\\"}
   }                                               ${"\\"}
 } while (0)
-#else  // MEASURE_EXEC_COMPONENT
+#else  // MEASURE_EXECUTION_COMPONENTS
 #define PERF_EXEC_COMPONENT_BEGIN(component)
 #define PERF_EXEC_COMPONENT_END(component)
 #define PERF_EXEC_COMPONENT_REPORT()
-#endif  // MEASURE_EXEC_COMPONENT
+#endif  // MEASURE_EXECUTION_COMPONENTS
 
 
 #ifdef GVSOC_LOGGING
@@ -134,14 +144,12 @@ do {                                              ${"\\"}
 #include "pulp_nnx_util.h"
 #endif  // GVSOC_LOGGING
 
-#ifdef DEBUG_DMA_COPY
-#define dory_dma_memcpy_async(dma)                                                                                             ${"\\"}
-  do                                                                                                                           ${"\\"}
-  {                                                                                                                            ${"\\"}
-    printf(                                                                                                                    ${"\\"}
-        "\n[" #dma "] ext:%p, loc:%p, n_2d:%d, s_2d:%d, n_1d:%d, s_1d:%d, l_1d:%d\n",                                          ${"\\"}
-        dma.ext, dma.loc, dma.number_of_2d_copies, dma.stride_2d, dma.number_of_1d_copies, dma.stride_1d, dma.length_1d_copy); ${"\\"}
-    dory_dma_memcpy_async(dma);                                                                                                ${"\\"}
+#ifdef DEBUG_DMA
+#define DEBUG_DMA_PRINT(dma)                                                             ${"\\"}
+  do {                                                                                   ${"\\"}
+    printf("\n[" #dma "] ext:%p, loc:%p, n_2d:%d, s_2d:%d, n_1d:%d, s_1d:%d, l_1d:%d\n", ${"\\"}
+        dma.ext, dma.loc, dma.number_of_2d_copies, dma.stride_2d,                        ${"\\"}
+        dma.number_of_1d_copies, dma.stride_1d, dma.length_1d_copy);                     ${"\\"}
   } while (0)
 #endif
 
@@ -271,7 +279,11 @@ void ${func_name}(
   int W_tile_ko_len = ${l1_W_tile_ko_len};
 
   // Tile loop indices
+  #ifdef REVERSE_LOOP_RANGE
+  int i_nof = ${tile_dim_nof} - 1, i_nif = 0, i_h = ${tile_dim_h} - 1, i_w = ${tile_dim_w} - 1;
+  #else
   int i_nof = 0, i_nif = 0, i_h = 0, i_w = 0;
+  #endif
 
   // Double buffer pointer indices
   int i_db_x = 0, i_db_y = 0, i_db_w = 0;
@@ -576,12 +588,16 @@ void ${func_name}(
     PERF_EXEC_COMPONENT_BEGIN(dma_memcpy);
 #ifndef NO_DMA
     if (is_load_x) {
+      DEBUG_DMA_PRINT(DMA_copy_x);
       dory_dma_memcpy_async(&DMA_copy_x);
     }
     if (is_load_w) {
+      DEBUG_DMA_PRINT(DMA_copy_W);
       dory_dma_memcpy_async(&DMA_copy_W);
 % if FLAG_BATCHNORM == 1:
+      DEBUG_DMA_PRINT(DMA_copy_k);
       dory_dma_memcpy_async(&DMA_copy_k);
+      DEBUG_DMA_PRINT(DMA_copy_lambda);
       dory_dma_memcpy_async(&DMA_copy_lambda);
 % endif
     }
@@ -601,6 +617,7 @@ void ${func_name}(
 
 #ifndef NO_DMA
     if (is_store) {
+      DEBUG_DMA_PRINT(DMA_copy_y[DMA_Y_INDEX(i_store_y)]);
       dory_dma_memcpy_async(&DMA_copy_y[DMA_Y_INDEX(i_store_y)]);
     }
 #endif  // NO_DMA
@@ -775,6 +792,7 @@ void ${func_name}(
     const int i_nof_prev = i_nof;
     % endif
 
+#ifndef REVERSE_LOOP_RANGE
     % if tile_dim_nif != 1 and flag_DW == 0:
     // loop nest is nof,h,w,nif
     i_nif += 1;
@@ -806,29 +824,62 @@ void ${func_name}(
     % if tile_dim_nif != 1 and flag_DW == 0:
     }
     % endif
+#else   // REVERSE_LOOP_RANGE
+    % if tile_dim_nif != 1 and flag_DW == 0:
+    // loop nest is nof,h,w,nif
+    i_nif += 1;
+    if(i_nif == ${tile_dim_nif}) {
+      i_nif = 0;
+    % endif
+      % if tile_dim_w != 1:
+      i_w -= 1;
+      if(i_w == -1) {
+        i_w = ${tile_dim_w} - 1;
+      % endif
+        % if tile_dim_h != 1:
+        i_h += 1;
+        if(i_h == -1) {
+          i_h = ${tile_dim_h} - 1;
+        % endif
+          % if flag_DW == 1:
+          i_nif += 1;
+          % endif
+          % if tile_dim_nof != 1:
+          i_nof -= 1;
+          % endif
+        % if tile_dim_h != 1:
+        }
+        % endif
+      % if tile_dim_w != 1:
+      }
+      % endif
+    % if tile_dim_nif != 1 and flag_DW == 0:
+    }
+    % endif
+#endif  // REVERSE_LOOP_RANGE
 
     ///////////////////////
     // Update load flags //
     ///////////////////////
 
-    is_load_w = 0 \
+    is_load_w = 0\
 % if tile_dim_nif != 1:
-|| i_nif_prev != i_nif \
+ || i_nif_prev != i_nif\
 % endif
 % if tile_dim_nof != 1:
-|| i_nof_prev != i_nof \
+ || i_nof_prev != i_nof\
 % endif
 ;
 
-    is_load_x = 0 \
+    is_load_x = 0\
 % if tile_dim_nif != 1:
-|| i_nif_prev != i_nif \
+ || i_nif_prev != i_nif\
 % endif
 % if tile_dim_h != 1:
-|| i_h_prev != i_h \
+ || i_h_prev != i_h\
 % endif
 % if tile_dim_w != 1:
-|| i_w_prev != i_w \
+ || i_w_prev != i_w\
 % endif
 ;
 
