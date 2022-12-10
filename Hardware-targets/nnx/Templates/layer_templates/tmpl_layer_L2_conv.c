@@ -21,19 +21,24 @@
 
 /* Defines
  *
- * 1. Modes
- *    To enable any of the special measurements modes, just add the define
+ * 1. Debugging
+ *    - DEBUG_DMA - prints information about the DMA transfers
+ *
+ * 2. Logging
+ *    - GVSOC_LOGGING - enable gvsoc logging
+ *
+ * 3. Modes
  *    - NO_DMA_SYNC_ON_BORDER_TILE - removes the DMA synchronization on border tiles
  *    - NO_DMA_SYNC - removes the DMA synchronization
  *    - NO_DMA - removes the DMA synchronization and transactions
  *
- * 2. Measurements
+ * 4. Measurements
  *    - MEASURE_LAYER_COMPONENTS - measure more coarse components (first dma, first conf, exec...)
  *    - MEASURE_EXECUTION_COMPONENTS - measure execution components per tile iteration, usefull to see if there are DMA stalls
  *
- * 3. Performance tweaks
- *    - REVERSE_LOOP_RANGE - execute border tiles first
- *      Cout tile changes
+ * 5. Performance tweaks
+ *    - REVERSE_LOOP_RANGE - reverse the per-tile-dimension loop order
+ *    - SPATIAL_BORDER_TILES_FIRST - spatial border tiles are at index 0
  */
 
 
@@ -151,7 +156,9 @@ do {                                              ${"\\"}
         dma.ext, dma.loc, dma.number_of_2d_copies, dma.stride_2d,                        ${"\\"}
         dma.number_of_1d_copies, dma.stride_1d, dma.length_1d_copy);                     ${"\\"}
   } while (0)
-#endif
+#else   // DEBUG_DMA
+#define DEBUG_DMA_PRINT(dma)                                                             ${"\\"}
+#endif  // DEBUG_DMA
 
 % if ULTRA_VERBOSE:
 // #define VERBOSE_PRINT(...) printf(__VA_ARGS__)
@@ -461,18 +468,32 @@ void ${func_name}(
     ///////////////////////
     // DMA configuration //
     ///////////////////////
+#ifndef SPATIAL_BORDER_TILES_FIRST
+    const int is_h_border = i_h + 1 == ${tile_dim_h};
+    const int is_w_border = i_w + 1 == ${tile_dim_w};
+#else   // SPATIAL_BORDER_TILES_FIRST
+    const int is_h_border = i_h == 0;
+    const int is_w_border = i_w == 0;
+#endif  // SPATIAL_BORDER_TILES_FIRST
+    const int is_nif_border = i_nif + 1 == ${tile_dim_nif};
+    const int is_nof_border = i_nof + 1 == ${tile_dim_nof};
 
     if (is_load_x) {
-      x_tile_size_h = (i_h + 1 == ${tile_dim_h}) ? ${x_tile_size_h_last} : ${x_tile_size_h};
-      x_tile_size_w = (i_w + 1 == ${tile_dim_w}) ? ${x_tile_size_w_last} : ${x_tile_size_w};
-      x_length_nif_byte = (i_nif + 1 == ${tile_dim_nif}) ? ${x_tile_size_nif_byte_last} : ${x_tile_size_nif_byte};
+      x_tile_size_h = is_h_border ? ${x_tile_size_h_last} : ${x_tile_size_h};
+      x_tile_size_w = is_w_border ? ${x_tile_size_w_last} : ${x_tile_size_w};
+      x_length_nif_byte = is_nif_border ? ${x_tile_size_nif_byte_last} : ${x_tile_size_nif_byte};
 
       // additionally overlap by padding for the first tile after a border one
       // this because in the first tile we use less pixels from x_buffer, since we have the ones of padding
-      const int pad_offset_h = i_h > 0 ? padding.top : 0;
-      const int pad_offset_w = i_w > 0 ? padding.left : 0;
+#ifndef SPATIAL_BORDER_TILES_FIRST
+      const int x_offset_h = i_h > 0 ? padding.top : 0;
+      const int x_offset_w = i_w > 0 ? padding.left : 0;
+#else   // SPATIAL_BORDER_TILES_FIRST
+      const int x_offset_h = i_h > 0 ? padding.top + ${x_tile_size_h - x_tile_size_h_last} : 0;
+      const int x_offset_w = i_w > 0 ? padding.left + ${x_tile_size_w - x_tile_size_w_last} : 0;
+#endif  // SPATIAL_BORDER_TILES_FIRST
 
-      DMA_copy_x.ext = dory_get_tile_3d(l2_x, i_h, i_w, i_nif, ${x_tile_size_h}, ${x_tile_size_w}, ${x_tile_size_nif}, ${x_w}, ${nif*g}, ${conv_overlap1}, ${conv_overlap2}, 0, pad_offset_h, pad_offset_w, 0, ${x_data_size_byte});
+      DMA_copy_x.ext = dory_get_tile_3d(l2_x, i_h, i_w, i_nif, ${x_tile_size_h}, ${x_tile_size_w}, ${x_tile_size_nif}, ${x_w}, ${nif*g}, ${conv_overlap1}, ${conv_overlap2}, 0, x_offset_h, x_offset_w, 0, ${x_data_size_byte});
       DMA_copy_x.loc = x_tile_ptr;
       DMA_copy_x.number_of_2d_copies = x_tile_size_h;
       DMA_copy_x.number_of_1d_copies = x_tile_size_w;
@@ -480,10 +501,9 @@ void ${func_name}(
     }
 
     if (is_load_w) {
-      W_tile_size_nof = (i_nof + 1 == ${tile_dim_nof}) ? ${W_tile_size_nof_last} : ${W_tile_size_nof};
-      W_tile_size_nif = (i_nif + 1 == ${tile_dim_nif}) ? ${W_tile_size_nif_last} : ${W_tile_size_nif};
-
-      W_tile_ko_len = (i_nof + 1 == ${tile_dim_nof}) ? ${l1_W_tile_ko_len_last} : ${l1_W_tile_ko_len};
+      W_tile_size_nof = is_nof_border ? ${W_tile_size_nof_last} : ${W_tile_size_nof};
+      W_tile_size_nif = is_nif_border ? ${W_tile_size_nif_last} : ${W_tile_size_nif};
+      W_tile_ko_len = is_nof_border ? ${l1_W_tile_ko_len_last} : ${l1_W_tile_ko_len};
 
       DMA_copy_W.ext = l2_W + ${l1_W_tile_ko_len * l1_W_tile_ki_size} * i_nof;
       DMA_copy_W.loc = w_tile_ptr;
@@ -500,11 +520,19 @@ void ${func_name}(
 % endif
     }
 
-    y_tile_size_h = (i_h + 1 == ${tile_dim_h}) ? ${y_tile_size_h_last} : ${y_tile_size_h};
-    y_tile_size_w = (i_w + 1 == ${tile_dim_w}) ? ${y_tile_size_w_last} : ${y_tile_size_w};
-    y_length_nof_byte = (i_nof + 1 == ${tile_dim_nof}) ? ${y_length_nof_byte_last} : ${y_tile_size_nof_byte};
+#ifndef SPATIAL_BORDER_TILES_FIRST
+    const int y_offset_h = 0;
+    const int y_offset_w = 0;
+#else   // SPATIAL_BORDER_TILES_FIRST
+    const int y_offset_h = i_h > 0 ? ${y_tile_size_h - y_tile_size_h_last} : 0;
+    const int y_offset_w = i_w > 0 ? ${y_tile_size_w - y_tile_size_w_last} : 0;
+#endif  // SPATIAL_BORDER_TILES_FIRST
 
-    DMA_copy_y[DMA_Y_INDEX(i_tile)].ext = dory_get_tile_3d(l2_y, i_h, i_w, i_nof, ${y_tile_size_h}, ${y_tile_size_w}, ${y_tile_size_nof}, ${y_w}, ${int(nof*factor)}, 0, 0, 0, 0, 0, 0, ${y_data_size_byte});
+    y_tile_size_h = is_h_border ? ${y_tile_size_h_last} : ${y_tile_size_h};
+    y_tile_size_w = is_w_border ? ${y_tile_size_w_last} : ${y_tile_size_w};
+    y_length_nof_byte = is_nof_border ? ${y_length_nof_byte_last} : ${y_tile_size_nof_byte};
+
+    DMA_copy_y[DMA_Y_INDEX(i_tile)].ext = dory_get_tile_3d(l2_y, i_h, i_w, i_nof, ${y_tile_size_h}, ${y_tile_size_w}, ${y_tile_size_nof}, ${y_w}, ${int(nof*factor)}, 0, 0, 0, y_offset_h, y_offset_w, 0, ${y_data_size_byte});
     DMA_copy_y[DMA_Y_INDEX(i_tile)].loc = y_tile_ptr;
     DMA_copy_y[DMA_Y_INDEX(i_tile)].number_of_2d_copies = y_tile_size_h;
     DMA_copy_y[DMA_Y_INDEX(i_tile)].number_of_1d_copies = y_tile_size_w;
@@ -514,20 +542,20 @@ void ${func_name}(
     // NE16 configuration //
     ////////////////////////
 
-    int is_border_tile = 0
+    const int is_border_tile = 0\
   % if tile_dim_nif != 1:
-      || i_nif + 1 == ${tile_dim_nif}
+ || is_nif_border\
   % endif
   % if tile_dim_h != 1:
-      || i_h + 1 == ${tile_dim_h}
+ || is_h_border\
   % endif
   % if tile_dim_w != 1:
-      || i_w + 1 == ${tile_dim_w}
+ || is_w_border\
   % endif
   % if tile_dim_nof != 1:
-      || i_nof + 1 == ${tile_dim_nof}
+ || is_nof_border\
   % endif
-    ;
+;
 
     nnx_task_to_offload = is_border_tile ? &nnx_tasks[NNX_TASK_REMAINDER] : &nnx_tasks[NNX_TASK_BODY];
 
