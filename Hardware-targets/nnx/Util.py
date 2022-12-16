@@ -37,3 +37,12 @@ def maximize_condition(cond, prio):
     """
     return maximize_size_w_prio(cond, 1, prio)
 
+def minimize_size_w_prio(a, max, prio):
+    """Minimize the value of `a`
+
+    Since we are maximizing our objective function, minimizing a value is the
+    same problem as maximizing the negation of the value. To keep the value
+    in the positive range, it is subtracted from the maximal value.
+    """
+    return maximize_size_w_prio(max-a, max, prio)
+

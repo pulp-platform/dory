@@ -251,15 +251,30 @@ class Tiler_Conv2D:
         h_in = h_in
         w_in = in_dim[1]
         n_in = in_ch
+        layer_in_shape = (h_in, w_in, n_in)
         h_out = h_out
         w_out = out_dim[1]
         n_out = out_ch
-        tile_n_in = solver.IntVar(1, in_ch, 'tile_n_in')
-        tile_n_out = solver.IntVar(1, out_ch, 'tile_n_out')
-        tile_h_in = solver.IntVar(ks[0], in_dim[0] + p[0] + p[2], 'tile_h_in')
-        tile_w_in = solver.IntVar(ks[1], in_dim[1] + p[1] + p[3], 'tile_w_in')
+        layer_out_shape = (h_out, w_out, n_out)
         tile_h_out = solver.IntVar(1, out_dim[0], 'tile_h_out')
         tile_w_out = solver.IntVar(1, out_dim[1], 'tile_w_out')
+        tile_n_out = solver.IntVar(1, out_ch, 'tile_n_out')
+        tile_out_shape = (tile_h_out, tile_w_out, tile_n_out)
+        tile_h_in = solver.IntVar(ks[0], in_dim[0] + p[0] + p[2], 'tile_h_in')
+        tile_w_in = solver.IntVar(ks[1], in_dim[1] + p[1] + p[3], 'tile_w_in')
+        tile_n_in = solver.IntVar(1, in_ch, 'tile_n_in')
+        tile_in_shape = (tile_h_in, tile_w_in, tile_n_in)
+
+        def rem(a, b):
+            """Remainder w/o 0
+            Return remainder or if the remainder is 0, `b`.
+            """
+            return ((a - 1) % b) + 1
+
+        border_tile_out_shape = [rem(solver.IntConst(layer), tile) \
+            for layer, tile in zip(layer_out_shape, tile_out_shape)]
+        border_tile_in_shape = [rem(solver.IntConst(layer), tile) \
+            for layer, tile in zip(layer_in_shape, tile_in_shape)]
 
         ###############################################
         ##### GEOMETRICAL CONSTRAINTS #################
@@ -287,7 +302,8 @@ class Tiler_Conv2D:
         ##### CONSTRAINTS FOR BACKEND LIMITS ##########
         ###############################################
 
-        # None
+        for constraint in self.acc.constraint_l1(layer_out_shape, tile_out_shape):
+            solver.Add(constraint)
 
         ###############################################
         ##### CONSTRAINTS FOR DIMENSION ###############
@@ -319,13 +335,15 @@ class Tiler_Conv2D:
         ###############################################
         obj_expr = solver.IntVar(0, 1000000000000, "obj_expr")
 
-        heuristics = self.acc.heuristic_l1((h_in, w_in, n_in),
-                                           (h_out, w_out, n_out),
-                                           (tile_h_in, tile_w_in, tile_n_in),
-                                           (tile_h_out, tile_w_out, tile_n_out),
-                                           total_size, L1_memory, ks, g, s, modifier=1000000)
+        heuristics = self.acc.heuristic_l1(layer_in_shape, layer_out_shape,
+                                           tile_in_shape, tile_out_shape,
+                                           border_tile_in_shape, border_tile_out_shape,
+                                           total_size, L1_memory, ks, g, s)
 
-        solver.Add(obj_expr == heuristics)
+        modifier = 1000000
+        heuristics_sum = sum([int(modifier * h["prio"]) * h["value"] for h in heuristics])
+
+        solver.Add(obj_expr == heuristics_sum)
         objective = solver.Maximize(obj_expr, 1)
         #objective = solver.Minimize(obj_expr, 1)
 

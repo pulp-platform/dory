@@ -30,61 +30,53 @@ class Ne16(Accelerator):
         return self.weights_ko_len(ko, dw) * self.weights_ki_size(ki, ks, qw, dw)
 
     def heuristic_l2(self,
-                     layer_shape_in, layer_shape_out,
-                     tile_shape_in, tile_shape_out,
+                     layer_in_shape, layer_out_shape,
+                     tile_in_shape, tile_out_shape,
                      total_size, mem_size, ks=None, modifier=1000000):
         heuristics = [
             # Geometrical shape of tiles
-            maximize_divisibility_w_prio(tile_shape_out[2], self.OUTPUT_BUFFER_SHAPE[2], prio=1),
-            maximize_divisibility_w_prio(tile_shape_out[0], self.OUTPUT_BUFFER_SHAPE[0], prio=1.5),
-            maximize_size_w_prio(tile_shape_out[2], max=layer_shape_out[2], prio=0.5),
+            maximize_divisibility_w_prio(tile_out_shape[2], self.OUTPUT_BUFFER_SHAPE[2], prio=1),
+            maximize_divisibility_w_prio(tile_out_shape[0], self.OUTPUT_BUFFER_SHAPE[0], prio=1.5),
+            maximize_size_w_prio(tile_out_shape[2], max=layer_out_shape[2], prio=0.5),
             # Total dimension of tile
             maximize_size_w_prio(total_size, max=mem_size, prio=1)
         ]
 
         return sum([int(modifier * h["prio"]) * h["value"] for h in heuristics])
+
+    def constraint_l1(self, layer_out_shape, tile_out_shape):
+        return [(tile != layer) * (tile % buffer) == 0 \
+            for layer, tile, buffer in zip(layer_out_shape, tile_out_shape, self.OUTPUT_BUFFER_SHAPE)]
 
     def heuristic_l1(self,
-                     layer_shape_in, layer_shape_out,
-                     tile_shape_in, tile_shape_out,
-                     total_size, mem_size, ks, g, s, modifier=1000000):
+                     layer_in_shape, layer_out_shape,
+                     tile_in_shape, tile_out_shape,
+                     border_tile_in_shape, border_tile_out_shape,
+                     total_size, mem_size, ks, g, s):
         ne16_model = Ne16PerfModel('conv', ks, depthwise=g>1, nq_bias=True)
-        ne16_model.set_layer(layer_shape_out + (layer_shape_in[2], ))
+        ne16_model.set_layer(layer_out_shape + (layer_in_shape[2], ))
         layer_latency = ne16_model.latency
-        ne16_model.set_layer(tile_shape_out + (tile_shape_in[2], ))
-        heuristics = [
-            # Prefer tile output height divisible by the 
-            maximize_divisibility_w_prio(tile_shape_out[0], 2 if s[0] == 2 else self.OUTPUT_BUFFER_SHAPE[0], prio=1.5),
-            # Divisibility of output width
-            maximize_divisibility_w_prio(tile_shape_out[1], 2 if s[1] == 2 else self.OUTPUT_BUFFER_SHAPE[1], prio=2),
-            # Divisibility of output channels
-            maximize_divisibility_w_prio(tile_shape_out[2], self.OUTPUT_BUFFER_SHAPE[2], prio=1),
-            # Prefer bigger channel out because of greater reuse
-            maximize_size_w_prio(tile_shape_out[2], max=layer_shape_out[2], prio=0.5),
-            # # Prefer tiles with bigger latency because they give more time to fetch data
-            maximize_size_w_prio(ne16_model.latency, max=layer_latency, prio=0.5),
-            # Geometrical shape of border tiles
-            #{
-            #    "value": maximize_divisibility(layer_shape_out[2], tile_shape_out[2]),
-            #    "prio": 0.01
-            #},
-            #{
-            #    "value": divisible(layer_shape_in[2] % tile_shape_in[2], self.TP_IN),
-            #    "prio": 0.03
-            #},
-            #{
-            #    "value": maximize_divisibility(layer_shape_out[1] % tile_shape_out[1], self.OUTPUT_BUFFER_SHAPE[1]),
-            #    "prio": 0.02
-            #},
-            #{
-            #    "value": maximize_divisibility(layer_shape_out[0] % tile_shape_out[0], self.OUTPUT_BUFFER_SHAPE[0]),
-            #    "prio": 0.01
-            #},
-            # Total dimension of tile
+        ne16_model.set_layer(tile_out_shape + (tile_in_shape[2], ))
+
+        def tile_size(output_shape, cin, ks):
+            input_size = output_shape[0] * output_shape[1] * cin
+            output_size = output_shape[0] * output_shape[1] * output_shape[2]
+            weights_size = ks[0] * ks[1] * cin * output_shape[2]
+            return input_size + output_size + weights_size
+
+        cin = layer_in_shape[2]
+
+        return [
+            # Balance out body and border tile size
+            minimize_size_w_prio(tile_size(tile_out_shape, cin, ks) - tile_size(border_tile_out_shape, cin, ks),
+                                 max=tile_size(layer_out_shape, cin, ks), prio=2),
+
+            # Bigger latency -> more time to fetch data
+            maximize_size_w_prio(ne16_model.latency, max=layer_latency, prio=1.5),
+
+            # Bigger tile size
             maximize_size_w_prio(total_size, max=mem_size, prio=1)
         ]
-
-        return sum([int(modifier * h["prio"]) * h["value"] for h in heuristics])
 
     # assuming torch shapes, w must already be in uint format!
     # format --> [Ko, KiMajor, Qw, KiMinor] (binary tensor)
