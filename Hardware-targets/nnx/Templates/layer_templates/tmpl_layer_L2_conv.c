@@ -48,6 +48,10 @@
 #include "dory_dma.h"
 #include "dory_get_tile.h"
 
+% if flag_DW:
+#undef DISTRIBUTED_WEIGHTS_LOADING
+% endif
+
 #if defined MEASURE_LAYER_COMPONENTS || defined MEASURE_EXECUTION_COMPONENTS
 % if flag_DW == 0:
 #define TOTAL_TILES (${tile_dim_nof} /*tile_dim_nof*/ * ${tile_dim_nif} /*tile_dim_nif*/ * ${tile_dim_h} /*tile_dim_h*/ * ${tile_dim_w} /*tile_dim_w*/)
@@ -157,7 +161,7 @@ do {                                              ${"\\"}
         dma.number_of_1d_copies, dma.stride_1d, dma.length_1d_copy);                     ${"\\"}
   } while (0)
 #else   // DEBUG_DMA
-#define DEBUG_DMA_PRINT(dma)                                                             ${"\\"}
+#define DEBUG_DMA_PRINT(dma)
 #endif  // DEBUG_DMA
 
 % if ULTRA_VERBOSE:
@@ -218,89 +222,6 @@ void ${func_name}(
     .value = 0
   };
 
-  /////////////////////
-  // DMA declaration //
-  /////////////////////
-
-  DMA_copy DMA_copy_W, DMA_copy_x;
-% if FLAG_BATCHNORM == 1:
-  DMA_copy DMA_copy_k, DMA_copy_lambda;
-% endif
-  DMA_copy DMA_copy_y[DMA_Y_CONTEXT_SIZE];
-
-  //////////////////
-  // DMA defaults //
-  //////////////////
-
-  DMA_copy_x.stride_2d = ${l1_x_dma_stride_2d};
-  DMA_copy_x.stride_1d = ${l1_x_dma_stride_1d};
-  DMA_copy_x.dir = 1;
-  
-  DMA_copy_W.number_of_2d_copies = 1;
-  DMA_copy_W.stride_2d = 0;
-  DMA_copy_W.number_of_1d_copies = 1;
-  DMA_copy_W.stride_1d = 0;
-  DMA_copy_W.dir = 1;
-
-% if FLAG_BATCHNORM == 1:
-  DMA_copy_k.stride_2d = 0;
-  DMA_copy_k.number_of_2d_copies = 1;
-  DMA_copy_k.stride_1d = 0;
-  DMA_copy_k.number_of_1d_copies = 1;
-  DMA_copy_k.dir = 1;
-
-  DMA_copy_lambda.stride_2d = 0;
-  DMA_copy_lambda.number_of_2d_copies = 1;
-  DMA_copy_lambda.stride_1d = 0;
-  DMA_copy_lambda.number_of_1d_copies = 1;
-  DMA_copy_lambda.dir = 1;
-% endif
-  
-  for (int i = 0; i < DMA_Y_CONTEXT_SIZE; i++) {
-    DMA_copy_y[i].stride_2d = ${l1_y_dma_stride_2d};
-    DMA_copy_y[i].stride_1d = ${l1_y_dma_stride_1d};
-    DMA_copy_y[i].dir = 0;
-  }
-
-% if has_bias == 1:
-  DMA_copy DMA_copy_bias;
-  DMA_copy_bias.stride_2d = 0;
-  DMA_copy_bias.stride_1d = 0;
-  DMA_copy_bias.dir = 1;
-% endif
-
-  //////////////////////////
-  // Variable declaration //
-  //////////////////////////
-
-  int y_tile_size_h = ${y_tile_size_h};
-  int y_tile_size_w = ${y_tile_size_w};
-  int y_length_nof_byte = ${y_tile_size_nof_byte};
-
-  int x_tile_size_h = ${x_tile_size_h};
-  int x_tile_size_w = ${x_tile_size_w};
-  int x_length_nif_byte = ${x_tile_size_nif_byte};
-
-  int W_tile_size_nof = ${W_tile_size_nof};
-  int W_tile_size_nif = ${W_tile_size_nif};
-  int W_tile_ko_len = ${l1_W_tile_ko_len};
-
-  // Tile loop indices
-  #ifdef REVERSE_LOOP_RANGE
-  int i_nof = ${tile_dim_nof} - 1, i_nif = 0, i_h = ${tile_dim_h} - 1, i_w = ${tile_dim_w} - 1;
-  #else
-  int i_nof = 0, i_nif = 0, i_h = 0, i_w = 0;
-  #endif
-
-  // Double buffer pointer indices
-  int i_db_x = 0, i_db_y = 0, i_db_w = 0;
-
-  // Store iterator
-  int i_store_y = 0;
-
-  // Load flags (first tile must be loaded)
-  int is_load_w = 1, is_load_x = 1;
-
   ////////////////////////
   // Double buffer init //
   ////////////////////////
@@ -341,6 +262,100 @@ void ${func_name}(
       .w = l1_buffer_w + ${l1_W_tile_size}
     }
   };
+
+  // Double buffer pointer indices
+  int i_db_x = 0, i_db_y = 0, i_db_w = 0;
+
+  /////////////////////
+  // DMA declaration //
+  /////////////////////
+
+  DMA_copy DMA_copy_x = {
+    .stride_2d = ${l1_x_dma_stride_2d},
+    .stride_1d = ${l1_x_dma_stride_1d},
+    .dir = 1
+  };
+  
+  DMA_copy DMA_copy_W = {
+    .ext = l2_W,
+    .loc = db[i_db_w].w,
+    .number_of_2d_copies = 1,
+    .stride_2d = 0,
+    .number_of_1d_copies = 1,
+    .stride_1d = 0,
+    .length_1d_copy = ${l1_W_tile_ko_len} * ${l1_W_tile_ki_size},
+    .dir = 1
+  };
+
+% if FLAG_BATCHNORM == 1:
+  DMA_copy DMA_copy_k = {
+    .ext = l2_scale,
+    .loc = db[i_db_w].scale,
+    .stride_2d = 0,
+    .number_of_2d_copies = 1,
+    .stride_1d = 0,
+    .number_of_1d_copies = 1,
+    .length_1d_copy = ${W_tile_size_nof} * ${int(act_dim_bit/8)},
+    .dir = 1
+  };
+
+  DMA_copy DMA_copy_lambda = {
+    .ext = l2_bias,
+    .loc = db[i_db_w].bias,
+    .stride_2d = 0,
+    .number_of_2d_copies = 1,
+    .stride_1d = 0,
+    .number_of_1d_copies = 1,
+    .length_1d_copy = ${W_tile_size_nof} * ${int(bias_bits/8)},
+    .dir = 1
+  };
+% endif
+  
+  DMA_copy DMA_copy_y[DMA_Y_CONTEXT_SIZE];
+  for (int i = 0; i < DMA_Y_CONTEXT_SIZE; i++) {
+    DMA_copy_y[i].stride_2d = ${l1_y_dma_stride_2d};
+    DMA_copy_y[i].stride_1d = ${l1_y_dma_stride_1d};
+    DMA_copy_y[i].dir = 0;
+  }
+
+% if has_bias == 1:
+  DMA_copy DMA_copy_bias = {
+    .stride_2d = 0,
+    .stride_1d = 0,
+    .dir = 1
+  };
+% endif
+
+  //////////////////////////
+  // Variable declaration //
+  //////////////////////////
+
+  int y_tile_size_h = ${y_tile_size_h};
+  int y_tile_size_w = ${y_tile_size_w};
+  int y_length_nof_byte = ${y_tile_size_nof_byte};
+
+  int x_tile_size_h = ${x_tile_size_h};
+  int x_tile_size_w = ${x_tile_size_w};
+  int x_length_nif_byte = ${x_tile_size_nif_byte};
+
+  // Tile loop indices
+  #ifdef REVERSE_LOOP_RANGE
+  int i_nof = ${tile_dim_nof} - 1, i_nif = 0, i_h = ${tile_dim_h} - 1, i_w = ${tile_dim_w} - 1;
+  #else
+  int i_nof = 0, i_nif = 0, i_h = 0, i_w = 0;
+  #endif
+
+  // Store iterator
+  int i_store_y = 0;
+
+  // Load flags
+#ifndef DISTRIBUTED_WEIGHTS_LOADING
+  int is_load_w = 1;
+#else   // DISTRIBUTED_WEIGHTS_LOADING
+  const int is_load_w = 1;
+#endif  // DISTRIBUTED_WEIGHTS_LOADING
+  int is_change_w = 1;
+  int is_load_x = 1;
 
   //////////////////////
   // Accelerator init //
@@ -445,6 +460,8 @@ void ${func_name}(
 //    | $$    /$$$$$$| $$$$$$$$| $$$$$$$$      | $$$$$$$$|  $$$$$$/|  $$$$$$/| $$      
 //    |__/   |______/|________/|________/      |________/ \______/  \______/ |__/      
 
+  int i_spatial_tile = 0;
+
   for (int i_tile = 0; i_tile < total_tiles; i_tile++)
   {
                                                                                         
@@ -478,6 +495,9 @@ void ${func_name}(
     const int is_nif_border = i_nif + 1 == ${tile_dim_nif};
     const int is_nof_border = i_nof + 1 == ${tile_dim_nof};
 
+    const int W_tile_size_nof = is_nof_border ? ${W_tile_size_nof_last} : ${W_tile_size_nof};
+    const int W_tile_size_nif = is_nif_border ? ${W_tile_size_nif_last} : ${W_tile_size_nif};
+
     if (is_load_x) {
       x_tile_size_h = is_h_border ? ${x_tile_size_h_last} : ${x_tile_size_h};
       x_tile_size_w = is_w_border ? ${x_tile_size_w_last} : ${x_tile_size_w};
@@ -500,25 +520,23 @@ void ${func_name}(
       DMA_copy_x.length_1d_copy = x_length_nif_byte;
     }
 
+#ifndef DISTRIBUTED_WEIGHTS_LOADING
     if (is_load_w) {
-      W_tile_size_nof = is_nof_border ? ${W_tile_size_nof_last} : ${W_tile_size_nof};
-      W_tile_size_nif = is_nif_border ? ${W_tile_size_nif_last} : ${W_tile_size_nif};
-      W_tile_ko_len = is_nof_border ? ${l1_W_tile_ko_len_last} : ${l1_W_tile_ko_len};
+      // Special because of accelerators special memory layout
+      const int W_tile_size_nof_k_major = is_nof_border ? ${l1_W_tile_ko_len_last} : ${l1_W_tile_ko_len};
 
-      DMA_copy_W.ext = l2_W + ${l1_W_tile_ko_len * l1_W_tile_ki_size} * i_nof;
       DMA_copy_W.loc = w_tile_ptr;
-      DMA_copy_W.length_1d_copy = W_tile_ko_len * ${l1_W_tile_ki_size};
+      DMA_copy_W.length_1d_copy = W_tile_size_nof_k_major * ${l1_W_tile_ki_size};
 
 % if FLAG_BATCHNORM == 1:
-      DMA_copy_k.ext = l2_scale + ${k_tile_size_byte_transfer} * i_nof;
       DMA_copy_k.loc = scale_tile_ptr;
       DMA_copy_k.length_1d_copy = W_tile_size_nof * ${int(act_dim_bit/8)};
 
-      DMA_copy_lambda.ext = l2_bias + ${lambda_tile_size_byte_transfer} * i_nof;
       DMA_copy_lambda.loc = bias_tile_ptr;
       DMA_copy_lambda.length_1d_copy = W_tile_size_nof * ${int(bias_bits/8)};
 % endif
     }
+#endif  // DISTRIBUTED_WEIGHTS_LOADING
 
 #ifndef SPATIAL_BORDER_TILES_FIRST
     const int y_offset_h = 0;
@@ -619,16 +637,29 @@ void ${func_name}(
       DEBUG_DMA_PRINT(DMA_copy_x);
       dory_dma_memcpy_async(&DMA_copy_x);
     }
+
+#ifdef DISTRIBUTED_WEIGHTS_LOADING
+    // We are fetching it ahead of time so don't fetch at last i_nof anymore.
+    // This looks very complicated now, but after reordering configuration
+    // and DMA stuff, it should be simple.
+    if (!(i_nof + 1 == ${tile_dim_nof} && i_spatial_tile > 0)) {
+#endif  // DISTRIBUTED_WEIGHTS_LOADING
     if (is_load_w) {
       DEBUG_DMA_PRINT(DMA_copy_W);
       dory_dma_memcpy_async(&DMA_copy_W);
+      DMA_copy_W.ext += DMA_copy_W.length_1d_copy;
 % if FLAG_BATCHNORM == 1:
       DEBUG_DMA_PRINT(DMA_copy_k);
       dory_dma_memcpy_async(&DMA_copy_k);
+      DMA_copy_k.ext += DMA_copy_k.length_1d_copy;
       DEBUG_DMA_PRINT(DMA_copy_lambda);
       dory_dma_memcpy_async(&DMA_copy_lambda);
+      DMA_copy_lambda.ext += DMA_copy_lambda.length_1d_copy;
 % endif
     }
+#ifdef DISTRIBUTED_WEIGHTS_LOADING
+    }
+#endif  // DISTRIBUTED_WEIGHTS_LOADING
 #endif  // NO_DMA
 
 
@@ -649,6 +680,17 @@ void ${func_name}(
       dory_dma_memcpy_async(&DMA_copy_y[DMA_Y_INDEX(i_store_y)]);
     }
 #endif  // NO_DMA
+#ifdef TILE_CHECKSUM
+    if (is_store) {
+      uint8_t *ptr = (uint8_t *)DMA_copy_y[DMA_Y_INDEX(i_store_y)].loc;
+      int sum = 0;
+      for (int i = 0; i < DMA_copy_y[DMA_Y_INDEX(i_store_y)].number_of_2d_copies; i++)
+        for (int i = 0; i < DMA_copy_y[DMA_Y_INDEX(i_store_y)].number_of_1d_copies; i++)
+          for (int i = 0; i < DMA_copy_y[DMA_Y_INDEX(i_store_y)].length_1d_copy; i++)
+            sum += *ptr++;
+      printf("[%d] Checksum: %d\n", i_store_y, sum);
+    }
+#endif
     PERF_EXEC_COMPONENT_END(dma_memcpy);
 
 
@@ -804,6 +846,39 @@ void ${func_name}(
 //  \______/ |__/      |_______/ |__/  |__/   |__/   |________/      |______/|__/  \__/|_______/ |______/ \______/ |________/ \______/ 
 
     /////////////////////////
+    // Update DMA Pointers //
+    /////////////////////////
+
+// Update loc for next iteration
+#ifdef DISTRIBUTED_WEIGHTS_LOADING
+    if (is_change_w) {
+      DMA_copy_W.loc = db[!i_db_w].w;
+      DMA_copy_k.loc = db[!i_db_w].scale;
+      DMA_copy_lambda.loc = db[!i_db_w].bias;
+    } else {
+      DMA_copy_W.loc += DMA_copy_W.length_1d_copy;
+      DMA_copy_k.loc += DMA_copy_k.length_1d_copy;
+      DMA_copy_lambda.loc += DMA_copy_lambda.length_1d_copy;
+    }
+
+    <%
+      n_spatial_tiles = tile_dim_h * tile_dim_w
+      W_tile_chunk_size_nof_last = W_tile_size_nof_last // n_spatial_tiles
+      W_tile_rem_size_nof_last = W_tile_size_nof_last % n_spatial_tiles
+      W_tile_chunk_size_nof = W_tile_size_nof // n_spatial_tiles
+      W_tile_rem_size_nof = W_tile_size_nof % n_spatial_tiles
+    %>
+    int W_tile_chunk_size_nof = is_nof_border ? ${W_tile_chunk_size_nof_last} : ${W_tile_chunk_size_nof};
+    const int W_tile_rem_size_nof = is_nof_border ? ${W_tile_rem_size_nof_last} : ${W_tile_rem_size_nof};
+    if (i_spatial_tile < W_tile_rem_size_nof)
+         W_tile_chunk_size_nof++;
+
+    DMA_copy_W.length_1d_copy = W_tile_chunk_size_nof * ${l1_W_tile_ki_size};
+    DMA_copy_k.length_1d_copy = W_tile_chunk_size_nof * ${int(act_dim_bit/8)};
+    DMA_copy_lambda.length_1d_copy = W_tile_chunk_size_nof * ${int(bias_bits/8)};
+#endif  // DISTRIBUTED_WEIGHTS_LOADING
+
+    /////////////////////////
     // Update tile indices //
     /////////////////////////
 
@@ -885,12 +960,18 @@ void ${func_name}(
     }
     % endif
 #endif  // REVERSE_LOOP_RANGE
+    
+    i_spatial_tile++;
+    if (i_spatial_tile >= ${n_spatial_tiles})
+      i_spatial_tile = 0;
 
     ///////////////////////
     // Update load flags //
     ///////////////////////
 
-    is_load_w = 0\
+% if not flag_DW:
+% endif
+    is_change_w = 0\
 % if tile_dim_nif != 1:
  || i_nif_prev != i_nif\
 % endif
@@ -898,6 +979,12 @@ void ${func_name}(
  || i_nof_prev != i_nof\
 % endif
 ;
+% if not flag_DW:
+% endif
+
+#ifndef DISTRIBUTED_WEIGHTS_LOADING
+    is_load_w = is_change_w;
+#endif  // DISTRIBUTED_WEIGHTS_LOADING
 
     is_load_x = 0\
 % if tile_dim_nif != 1:
@@ -923,7 +1010,7 @@ void ${func_name}(
     ///////////////////////////////////
 
     if (is_load_x) i_db_x = !i_db_x;
-    if (is_load_w) i_db_w = !i_db_w;
+    if (is_change_w) i_db_w = !i_db_w;
     i_db_y = !i_db_y;
   }
 
@@ -947,6 +1034,15 @@ void ${func_name}(
 #ifndef NO_DMA
     dory_dma_memcpy_async(&DMA_copy_y[DMA_Y_INDEX(i)]);
 #endif  // NO_DMA
+#ifdef TILE_CHECKSUM
+    uint8_t *ptr = (uint8_t *)DMA_copy_y[DMA_Y_INDEX(i_store_y)].loc;
+    int sum = 0;
+    for (int i = 0; i < DMA_copy_y[DMA_Y_INDEX(i_store_y)].number_of_2d_copies; i++)
+      for (int i = 0; i < DMA_copy_y[DMA_Y_INDEX(i_store_y)].number_of_1d_copies; i++)
+        for (int i = 0; i < DMA_copy_y[DMA_Y_INDEX(i_store_y)].length_1d_copy; i++)
+          sum += *ptr++;
+    printf("[%d] Checksum: %d\n", i, sum);
+#endif
   }
 
   PERF_LAYER_COMPONENT_READ(nnx);
