@@ -178,6 +178,11 @@ class Parser_DORY_to_HW:
 
         self.DORY_Graph = graph
 
+    def tile_checksums(self):
+        print("\nDORY Backend: Printing checksums for tiles.")
+        for i, node in enumerate(self.DORY_Graph):
+            node.tile_checksums(self.network_directory, i)
+
     def renaming_weights(self):
         print("\nDORY Backend: Renaming Weights tensors.")
         for i, node in enumerate(self.DORY_Graph):            
@@ -210,6 +215,7 @@ class Parser_DORY_to_HW:
         self.Printer_Frontend.print_json_from_DORY_graph("04_DORY_HW_graph_added_tensors_dim", self.DORY_Graph)
         self.Printer_Frontend.print_onnx_from_DORY_graph("04_DORY_HW_graph_added_tensors_dim", self.DORY_Graph)
         self.tiling()
+        self.tile_checksums()
         self.Printer_Frontend.print_json_from_DORY_graph("06_DORY_HW_tiled_graph", self.DORY_Graph)
         self.Printer_Frontend.print_onnx_from_DORY_graph("06_DORY_HW_tiled_graph", self.DORY_Graph)
         self.renaming_weights()

@@ -190,6 +190,44 @@ class HW_node(DORY_node):
         self.check_sum_in = file_checksum('input.txt' if i_node == 0 else f'out_layer{i_node - 1}.txt', self.input_activation_bits)
         self.check_sum_out = file_checksum(f'out_layer{i_node}.txt', self.output_activation_bits)
 
+    def tile_checksums(self, networkdir, index):
+        filename = f'out_layer{index}.txt'
+        filepath = os.path.join(networkdir, filename)
+
+        try:
+            data = loadtxt(filepath, dtype=np.int64)
+        except ValueError:
+            data = loadtxt(filepath, dtype=np.float)
+        except FileNotFoundError:
+            print(f"File {filename} doesn't exist. Exiting DORY...")
+            sys.exit(-1)
+
+        if self.output_activation_bits <= 8:
+            data = self.__compress(data.ravel(), self.output_activation_bits)
+
+        data = data.reshape((self.output_dimensions[0], self.output_dimensions[1], self.output_channels))
+
+        # TODO: extend to L2 mem, for now only L1, so when there is L3-L2 tiling it will probably be wrong
+
+        h, w, c = self.output_dimensions + [self.output_channels]
+        c_tile, h_tile, w_tile = self.tiling_dimensions["L1"]["output_dimensions"]
+
+        def tile_order(dim_tile, dim_layer, is_reversed=False):
+            order = range(0, dim_layer, dim_tile)
+            return reversed(order) if is_reversed else order
+
+        i_tile = 0
+
+        for c_tile_start in tile_order(c_tile, c):
+            for h_tile_start in tile_order(h_tile, h):
+                for w_tile_start in tile_order(w_tile, w):
+                    data_tile = data[h_tile_start:h_tile_start + h_tile,
+                                     w_tile_start:w_tile_start + w_tile,
+                                     c_tile_start:c_tile_start + c_tile]
+                    checksum_tile = data_tile.sum()
+                    print(f'[{i_tile}] Checksum: {checksum_tile}')
+                    i_tile += 1
+
     def export_to_dict(self):
         node_dict = {"name": self.name, "DORY_node_parameters": {}, "Layer_node_parameters": {}, "Weights": {}}
         for key, value in self.__dict__.items():
