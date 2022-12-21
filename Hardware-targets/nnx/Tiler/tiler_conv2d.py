@@ -136,7 +136,7 @@ class Tiler_Conv2D:
             if db_w == 1:
                 solver.Add(tile_n_out == out_ch)
             else:
-                solver.Add(n_out % tile_n_out == 0)
+                solver.Add(solver.IntConst(n_out) % tile_n_out == 0)
 
             if db_x == 2 and db_o == 2:
                 solver.Add(tile_h_out * s[0] == tile_h_in - (ks[0] - 1) + (s[0] - 1))
@@ -297,13 +297,6 @@ class Tiler_Conv2D:
             solver.Add(tile_n_in == tile_n_out)
         else:
             solver.Add(tile_n_in == n_in)
-
-        ###############################################
-        ##### CONSTRAINTS FOR BACKEND LIMITS ##########
-        ###############################################
-
-        for constraint in self.acc.constraint_l1(layer_out_shape, tile_out_shape):
-            solver.Add(constraint)
 
         ###############################################
         ##### CONSTRAINTS FOR DIMENSION ###############

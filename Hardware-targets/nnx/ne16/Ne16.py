@@ -44,10 +44,6 @@ class Ne16(Accelerator):
 
         return sum([int(modifier * h["prio"]) * h["value"] for h in heuristics])
 
-    def constraint_l1(self, layer_out_shape, tile_out_shape):
-        return [(tile != layer) * (tile % buffer) == 0 \
-            for layer, tile, buffer in zip(layer_out_shape, tile_out_shape, self.OUTPUT_BUFFER_SHAPE)]
-
     def heuristic_l1(self,
                      layer_in_shape, layer_out_shape,
                      tile_in_shape, tile_out_shape,
@@ -64,15 +60,28 @@ class Ne16(Accelerator):
             weights_size = ks[0] * ks[1] * cin * output_shape[2]
             return input_size + output_size + weights_size
 
+        subtile_out_shape = (2 if s[0] == 2 else self.OUTPUT_BUFFER_SHAPE[0],
+                             2 if s[1] == 2 else self.OUTPUT_BUFFER_SHAPE[1],
+                             self.OUTPUT_BUFFER_SHAPE[2])
+
         cin = layer_in_shape[2]
 
         return [
+            maximize_divisibility_or_max_w_prio(tile_out_shape[0], subtile_out_shape[0],
+                                                max=layer_out_shape[0], prio=5),
+
+            maximize_divisibility_or_max_w_prio(tile_out_shape[1], subtile_out_shape[1],
+                                                max=layer_out_shape[1], prio=5),
+
+            maximize_divisibility_or_max_w_prio(tile_out_shape[2], subtile_out_shape[2],
+                                                max=layer_out_shape[2], prio=1),
+
             # Balance out body and border tile size
             minimize_size_w_prio(tile_size(tile_out_shape, cin, ks) - tile_size(border_tile_out_shape, cin, ks),
                                  max=tile_size(layer_out_shape, cin, ks), prio=2),
 
             # Bigger latency -> more time to fetch data
-            maximize_size_w_prio(ne16_model.latency, max=layer_latency, prio=1.5),
+            maximize_size_w_prio(ne16_model.latency, max=layer_latency, prio=5),
 
             # Bigger tile size
             maximize_size_w_prio(total_size, max=mem_size, prio=1)
