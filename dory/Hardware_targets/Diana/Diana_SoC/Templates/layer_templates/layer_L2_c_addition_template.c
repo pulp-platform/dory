@@ -111,22 +111,22 @@ void ${func_name}(layer* layer_i)  {
     uint32_t l2_x2_tile = dory_get_tile_3d(l2_x_2, _i_nif, _i_h, _i_w, ${x_tile_size_nif}, ${x_tile_size_h}, ${x_tile_size_w}, ${x_h}, ${x_w},0, ${conv_overlap1}, ${conv_overlap2}, 0, 0, 0, ${x_data_size_byte});
 
 % if node.previous_layer_tiles != 1:
-    DMA_copy_x.ext = l2_x_tile;
-    DMA_copy_x.loc = l1_x2;
-    DMA_copy_x.number_of_2d_copies = x_length_nif_byte;
-    DMA_copy_x.number_of_1d_copies = x_tile_size_h;
-    DMA_copy_x.length_1d_copy = x_tile_size_w;
-    dory_dma_memcpy_async_digital(DMA_copy_x);
-    dory_dma_barrier_digital(DMA_copy_x);
+    // DMA_copy_x.ext = l2_x_tile;
+    // DMA_copy_x.loc = l1_x2;
+    // DMA_copy_x.number_of_2d_copies = x_length_nif_byte;
+    // DMA_copy_x.number_of_1d_copies = x_tile_size_h;
+    // DMA_copy_x.length_1d_copy = x_tile_size_w;
+    // dory_dma_memcpy_async_digital(DMA_copy_x);
+    // dory_dma_barrier_digital(DMA_copy_x);
 % endif
 
-    DMA_copy_x2.ext = l2_x2_tile;
-    DMA_copy_x2.loc = l1_x;
-    DMA_copy_x2.number_of_2d_copies = x_length_nif_byte;
-    DMA_copy_x2.number_of_1d_copies = x_tile_size_h;
-    DMA_copy_x2.length_1d_copy = x_tile_size_w;
-    dory_dma_memcpy_async_digital(DMA_copy_x2);
-    dory_dma_barrier_digital(DMA_copy_x2);
+    // DMA_copy_x2.ext = l2_x2_tile;
+    // DMA_copy_x2.loc = l1_x;
+    // DMA_copy_x2.number_of_2d_copies = x_length_nif_byte;
+    // DMA_copy_x2.number_of_1d_copies = x_tile_size_h;
+    // DMA_copy_x2.length_1d_copy = x_tile_size_w;
+    // dory_dma_memcpy_async_digital(DMA_copy_x2);
+    // dory_dma_barrier_digital(DMA_copy_x2);
 
     Layer_parameters kernel;
     kernel.padding = 0x0000;
@@ -167,13 +167,13 @@ void ${func_name}(layer* layer_i)  {
       }
 
 % if tile_dim_nof * tile_dim_h * tile_dim_w > 1 or node.branch_out == 1:
-    DMA_copy_y.ext = l2_y;
-    DMA_copy_y.loc = l1_y;
-    DMA_copy_y.number_of_2d_copies = y_length_nof_byte;
-    DMA_copy_y.number_of_1d_copies = y_tile_size_h;
-    DMA_copy_y.length_1d_copy = y_tile_size_w;
-    dory_dma_memcpy_async_digital(DMA_copy_y); 
-    dory_dma_barrier_digital(DMA_copy_y);
+    // DMA_copy_y.ext = l2_y;
+    // DMA_copy_y.loc = l1_y;
+    // DMA_copy_y.number_of_2d_copies = y_length_nof_byte;
+    // DMA_copy_y.number_of_1d_copies = y_tile_size_h;
+    // DMA_copy_y.length_1d_copy = y_tile_size_w;
+    // dory_dma_memcpy_async_digital(DMA_copy_y); 
+    // dory_dma_barrier_digital(DMA_copy_y);
 % endif
   }
 
