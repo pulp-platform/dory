@@ -88,19 +88,40 @@ class onnx_manager(Parser_DORY_to_HW):
                         node.__dict__[weights_name]["value"] = np.transpose(node.__dict__[weights_name]["value"], (1, 2, 3, 0))
                         node.__dict__[weights_name]["layout"] = "CinKCout"
                     else:
-                        npad = ((0, (16 - (node.__dict__[weights_name]["value"].shape[0] % 16)) % 16), (0, 0), (0, 0), (0,0))
-                        temp = np.pad(node.__dict__[weights_name]["value"], pad_width=npad, mode='constant', constant_values=0)
-                        temp = np.transpose(temp, (1, 2, 3, 0))
-                        temp = temp.reshape(temp.shape[0],temp.shape[1],temp.shape[2],int(temp.shape[3]/16), 16)
-                        temp = np.transpose(temp, (3, 0, 1, 2, 4))
+                        if node.group == 1:
+                            npad = ((0, (16 - (node.__dict__[weights_name]["value"].shape[0] % 16)) % 16), (0, 0), (0, 0), (0,0))
+                            temp = np.pad(node.__dict__[weights_name]["value"], pad_width=npad, mode='constant', constant_values=0)
+                            temp = np.transpose(temp, (1, 2, 3, 0))
+                            temp = temp.reshape(temp.shape[0],temp.shape[1],temp.shape[2],int(temp.shape[3]/16), 16)
+                            temp = np.transpose(temp, (3, 0, 1, 2, 4))
+                        else:
+                            for ch in np.arange(node.__dict__[weights_name]["value"].shape[0]):
+                                if ch == 0:
+                                    temp = np.concatenate((node.__dict__[weights_name]["value"][ch,:,:,:].reshape(1,node.__dict__[weights_name]["value"].shape[1],node.__dict__[weights_name]["value"].shape[2],node.__dict__[weights_name]["value"].shape[3]), np.zeros((15, 1, node.__dict__[weights_name]["value"].shape[2], node.__dict__[weights_name]["value"].shape[3]))), axis = 0)
+                                else:
+                                    temp1 = np.concatenate((node.__dict__[weights_name]["value"][ch,:,:,:].reshape(1,node.__dict__[weights_name]["value"].shape[1],node.__dict__[weights_name]["value"].shape[2],node.__dict__[weights_name]["value"].shape[3]), np.zeros((15, 1, node.__dict__[weights_name]["value"].shape[2], node.__dict__[weights_name]["value"].shape[3]))), axis = 0)
+                                    temp = np.concatenate((temp, temp1), axis=0)
+                            temp = np.transpose(temp, (1, 2, 3, 0))
+                            temp = temp.reshape(temp.shape[0],temp.shape[1],temp.shape[2],int(temp.shape[3]/16), 16)
+                            temp = np.transpose(temp, (3, 0, 1, 2, 4))
                         node.__dict__[weights_name]["value"] = temp
                         node.__dict__[weights_name]["layout"] = "Cout2CinKCout1"
                 for name in node.constant_names:
                     if name not in ["l","k","outshift","outmul"]:
                         if "bias" in name:
                             weights_name = name
-                            npad = ((0, (16 - (node.__dict__[weights_name]["value"].shape[0] % 16)) % 16))
-                            node.__dict__[weights_name]["value"] = np.pad(node.__dict__[weights_name]["value"], pad_width=npad, mode='constant', constant_values=0)
+                            if node.group == 1:
+                                npad = ((0, (16 - (node.__dict__[weights_name]["value"].shape[0] % 16)) % 16))
+                                node.__dict__[weights_name]["value"] = np.pad(node.__dict__[weights_name]["value"], pad_width=npad, mode='constant', constant_values=0)
+                            else:
+                                npad = ((0, node.__dict__[weights_name]["value"].shape[0] * 15))
+                                for ch in np.arange(node.__dict__[weights_name]["value"].shape[0]):
+                                    if ch == 0:
+                                        temp = np.concatenate((node.__dict__[weights_name]["value"][ch].reshape(1), np.zeros(15)), axis = 0)
+                                    else:
+                                        temp1 = np.concatenate((node.__dict__[weights_name]["value"][ch].reshape(1), np.zeros(15)), axis = 0)
+                                        temp = np.concatenate((temp, temp1), axis=0)
+                                node.__dict__[weights_name]["value"] = np.asarray(temp)
 
     def check_parameters(self):
         WARNINGS =0

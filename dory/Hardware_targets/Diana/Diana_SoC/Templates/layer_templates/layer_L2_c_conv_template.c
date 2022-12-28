@@ -125,20 +125,20 @@ void ${func_name}(layer* layer_i)
 
 % if node.previous_layer_tiles > 1 or node.skip_L2_L1 == False:
 % if W_data_size_byte == 2:
-    // {
-    //   int channel_number = (int)((x_length_nif_byte+63)/64);
-    //   int block_number = (int)((x_tile_size_h * x_tile_size_w * channel_number + 511) / 512);
-    //   for (int blocks_index = 0; blocks_index < block_number; blocks_index++)
-    //   {
-    //     int byte_transfer = 0; 
-    //     if (blocks_index == (block_number-1))
-    //       byte_transfer = 16 * (((x_tile_size_h * x_tile_size_w * channel_number) % 512) ? ((x_tile_size_h * x_tile_size_w * channel_number) % 512) : 512);
-    //     else
-    //       byte_transfer = 16 * 512;
-    //     memcpy_analog(l2_x + blocks_index*byte_transfer, l1_x+blocks_index*16*512, byte_transfer * 4, DMA_copy_x.dir, 4 );
-    //     dory_dma_barrier_analog(DMA_copy_x);
-    //   }
-    // }
+    {
+      int channel_number = (int)((x_length_nif_byte+63)/64);
+      int block_number = (int)((x_tile_size_h * x_tile_size_w * channel_number + 511) / 512);
+      for (int blocks_index = 0; blocks_index < block_number; blocks_index++)
+      {
+        int byte_transfer = 0; 
+        if (blocks_index == (block_number-1))
+          byte_transfer = 16 * (((x_tile_size_h * x_tile_size_w * channel_number) % 512) ? ((x_tile_size_h * x_tile_size_w * channel_number) % 512) : 512);
+        else
+          byte_transfer = 16 * 512;
+        memcpy_analog(l2_x + blocks_index*byte_transfer, l1_x+blocks_index*16*512, byte_transfer * 4, DMA_copy_x.dir, 4 );
+        dory_dma_barrier_analog(DMA_copy_x);
+      }
+    }
 % elif W_data_size_byte == 8:
     int pad_offset_h=0, pad_offset_w=0;
     if(_i_h > 0)
@@ -146,13 +146,13 @@ void ${func_name}(layer* layer_i)
     if(_i_w > 0)
       pad_offset_w = ${padding_left};
     uint32_t l2_x_tile = dory_get_tile_3d(l2_x, _i_nif, _i_h, _i_w, ${x_tile_size_nif}, ${x_tile_size_h}, ${x_tile_size_w}, ${x_h}, ${x_w},0, ${conv_overlap1}, ${conv_overlap2}, 0, pad_offset_h, pad_offset_w, ${x_data_size_byte});
-    // DMA_copy_x.ext = l2_x_tile;
-    // DMA_copy_x.loc = l1_x;
-    // DMA_copy_x.number_of_2d_copies = x_length_nif_byte;
-    // DMA_copy_x.number_of_1d_copies = x_tile_size_h;
-    // DMA_copy_x.length_1d_copy = x_tile_size_w;
-    // dory_dma_memcpy_async_digital(DMA_copy_x);
-    // dory_dma_barrier_digital(DMA_copy_x); 
+    DMA_copy_x.ext = l2_x_tile;
+    DMA_copy_x.loc = l1_x;
+    DMA_copy_x.number_of_2d_copies = x_length_nif_byte;
+    DMA_copy_x.number_of_1d_copies = x_tile_size_h;
+    DMA_copy_x.length_1d_copy = x_tile_size_w;
+    dory_dma_memcpy_async_digital(DMA_copy_x);
+    dory_dma_barrier_digital(DMA_copy_x); 
 % endif
 % endif
 
@@ -185,7 +185,11 @@ void ${func_name}(layer* layer_i)
     kernel.fx = ${fs1};
     kernel.fy = ${fs2};
     kernel.oy = y_tile_size_h;
+% if data_type_y == 'int':
     kernel.activation_function = 0;
+% elif data_type_y == 'uint':
+    kernel.activation_function = 1;
+% endif
     kernel.output_shift = ${out_shift};
     kernel.dilation = 1;
 % if W_data_size_byte == 8:
@@ -256,28 +260,28 @@ void ${func_name}(layer* layer_i)
 
 % if tile_dim_nof * tile_dim_nif * tile_dim_h * tile_dim_w > 1 or node.branch_out == 1 or node.skip_L2_L1 == False:
 % if W_data_size_byte == 2:
-    // {
-    //   int channel_number = (int)((y_length_nof_byte+63)/64);
-    //   int block_number = (int)((y_tile_size_h * y_tile_size_w * channel_number + 511) / 512);
-    //   for (int blocks_index = 0; blocks_index < block_number; blocks_index++)
-    //   {
-    //     int byte_transfer = 0; 
-    //     if (blocks_index == (block_number-1))
-    //       byte_transfer = 16 * (((y_tile_size_h * y_tile_size_w * channel_number) % 512) ? ((y_tile_size_h * y_tile_size_w * channel_number) % 512) : 512);
-    //     else
-    //       byte_transfer = 16 * 512;
-    //     memcpy_analog(l2_y + blocks_index*byte_transfer, l1_y+blocks_index*16*512, byte_transfer * 4, DMA_copy_y.dir, 4 );
-    //     dory_dma_barrier_analog(DMA_copy_y);
-    //   }
-    // }
+    {
+      int channel_number = (int)((y_length_nof_byte+63)/64);
+      int block_number = (int)((y_tile_size_h * y_tile_size_w * channel_number + 511) / 512);
+      for (int blocks_index = 0; blocks_index < block_number; blocks_index++)
+      {
+        int byte_transfer = 0; 
+        if (blocks_index == (block_number-1))
+          byte_transfer = 16 * (((y_tile_size_h * y_tile_size_w * channel_number) % 512) ? ((y_tile_size_h * y_tile_size_w * channel_number) % 512) : 512);
+        else
+          byte_transfer = 16 * 512;
+        memcpy_analog(l2_y + blocks_index*byte_transfer, l1_y+blocks_index*16*512, byte_transfer * 4, DMA_copy_y.dir, 4 );
+        dory_dma_barrier_analog(DMA_copy_y);
+      }
+    }
 % elif W_data_size_byte == 8:
-    // DMA_copy_y.ext = l2_y_tile;
-    // DMA_copy_y.loc = l1_y;
-    // DMA_copy_y.number_of_2d_copies = y_length_nof_byte;
-    // DMA_copy_y.number_of_1d_copies = y_tile_size_h;
-    // DMA_copy_y.length_1d_copy = y_tile_size_w;
-    // dory_dma_memcpy_async_digital(DMA_copy_y);
-    // dory_dma_barrier_digital(DMA_copy_y); 
+    DMA_copy_y.ext = l2_y_tile;
+    DMA_copy_y.loc = l1_y;
+    DMA_copy_y.number_of_2d_copies = y_length_nof_byte;
+    DMA_copy_y.number_of_1d_copies = y_tile_size_h;
+    DMA_copy_y.length_1d_copy = y_tile_size_w;
+    dory_dma_memcpy_async_digital(DMA_copy_y);
+    dory_dma_barrier_digital(DMA_copy_y); 
 % endif
 % endif
   }

@@ -147,8 +147,10 @@ class Tiler_Conv2D():
             ###############################################
             input_tile_dimension  = db * tile_n_in * tile_h_in * tile_w_in * self.HW_node.input_activation_bits // 8
             output_tile_dimension = db * tile_n_out * tile_h_out * tile_w_out * self.HW_node.output_activation_bits // 8
-            weight_tile_dimension = db * (tile_n_in * tile_n_out * np.prod(ks) * self.HW_node.weight_bits // 8 // g + (1 if self.HW_node.weight_bits == 8 else 0) * tile_n_out * self.HW_node.bias_bits // 8)
-
+            if g == 1:
+                weight_tile_dimension = db * (tile_n_in * tile_n_out * np.prod(ks) * self.HW_node.weight_bits // 8 // g + (1 if self.HW_node.weight_bits == 8 else 0) * tile_n_out * self.HW_node.bias_bits // 8)
+            else:
+                weight_tile_dimension = db * (tile_n_in * tile_n_out * np.prod(ks) * self.HW_node.weight_bits // 8 // g * 16 + (1 if self.HW_node.weight_bits == 8 else 0) * tile_n_out * self.HW_node.bias_bits // 8 * 16)
             constraint_all = input_tile_dimension + output_tile_dimension + weight_tile_dimension
 
             solver.Add((input_tile_dimension + output_tile_dimension) <= L1_memory_activation)

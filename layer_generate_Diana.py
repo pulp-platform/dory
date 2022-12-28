@@ -32,7 +32,7 @@ from dory.Parsers.Layer_node import Layer_node
 
 def borders(bits, signed):
     low = -(2 ** (bits-1)) if signed else 0
-    high = 2 ** (bits-1) - 1 if signed else 2 ** bits - 1
+    high = 2 ** (bits-1) - 1
     return low, high
 
 
@@ -63,7 +63,7 @@ def create_dory_node(params, index, index_out):
     node.constant_names = []
     node.input_activation_type = params['input_type']
     node.input_activation_bits = params['intermediate_bits']
-    node.output_activation_type = "uint"#params['output_type']
+    node.output_activation_type = params['output_type']
     node.output_activation_bits = params['output_bits']
     node.weight_type = 'int'
     node.weight_bits = None
@@ -277,8 +277,8 @@ def calculate_batchnorm_params(x, output_bits, constant_bits, signed):
 def create_input(node):
     low, high = borders(node.input_activation_bits, node.input_activation_type == 'int')
     size = (1, node.input_channels, node.input_dimensions[0], node.input_dimensions[1])
-    # return torch.randint(low=low, high=high, size=size)
-    return torch.randint(low=2, high=3, size=size)
+    return torch.randint(low=low, high=high, size=size)
+    # return torch.randint(low=2, high=3, size=size)
 
 def create_weight(node):
     low, high = borders(node.weight_bits, signed=True)
@@ -298,14 +298,13 @@ def create_weight(node):
         return vec_weights
     else:
         return torch.randint(low=low, high=high, size=size)
-
-        # return torch.randint(low=1, high=2, size=size)
+        # return torch.randint(low=1, high=50, size=size)
 
 def create_bias(node):
     low, high = borders(node.bias_bits, signed=True)
     size = (node.output_channels,1)
-    #return torch.randint(low=low, high=high, size=size).flatten()
-    return torch.randint(low=0, high=1, size=size).flatten()
+    return torch.randint(low=low, high=high, size=size).flatten()
+    # return torch.randint(low=0, high=1, size=size).flatten()
 
 def create_conv(i_layer, layer_node, dory_node, network_dir, input=None, weight=None, batchnorm_params=None):
     x = input if input is not None else create_input(layer_node)

@@ -120,7 +120,10 @@ class Layer_node(DORY_node):
     def add_memory_and_MACs(self):
         if "Convolution" in self.name or "FullyConnected" in self.name:
             self.add_existing_parameter("MACs", int(np.prod(self.output_dimensions)*self.output_channels*self.input_channels*np.prod(self.kernel_shape)/self.group))
-            self.add_existing_parameter("weight_memory", int(self.output_channels*self.input_channels*np.prod(self.kernel_shape)/self.group*self.weight_bits/8))
+            if self.group == 1:
+                self.add_existing_parameter("weight_memory", int(self.output_channels*self.input_channels*np.prod(self.kernel_shape)/self.group*self.weight_bits/8))
+            else:
+                self.add_existing_parameter("weight_memory", int(self.output_channels*self.input_channels*np.prod(self.kernel_shape)/self.group*16*self.weight_bits/8))
         else:
             self.add_existing_parameter("MACs", int(0))
             self.add_existing_parameter("weight_memory", int(0))
@@ -133,7 +136,10 @@ class Layer_node(DORY_node):
                 constants_memory+=self.output_channels*self.constant_bits/8
             if "bias" in name:
                 bias_memory+=self.output_channels*self.bias_bits/8
-        self.add_existing_parameter("bias_memory", int(bias_memory))
+        if self.group == 1:
+            self.add_existing_parameter("bias_memory", int(bias_memory))
+        else:
+            self.add_existing_parameter("bias_memory", int(bias_memory*16))
         self.add_existing_parameter("constants_memory", int(constants_memory))
 
 

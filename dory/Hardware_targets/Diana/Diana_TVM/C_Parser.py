@@ -124,25 +124,44 @@ class C_Parser(Parser_HW_to_C):
                     temp[:,3] = temp1[:,0]
                     node.__dict__[constants[i]]["value"] = temp.flatten()
                 if i==1:
-                    new_weights = []
-                    for pos in range(4):
-                        for ch in range(int(np.asarray(node.__dict__[constants[i]]["value"]).shape[0]/16)):
-                            for pos_in in [3,2,1,0]:
-                                new_weights.append(node.__dict__[constants[i]]["value"][pos+4*(ch*4+pos_in)])
-                    final_weights = []
-                    for ch in range(int((node.output_channels+15)/16)):
-                        for byte in range(4):
-                            final_weights.append(new_weights[(node.output_channels*byte + ch*16):(node.output_channels*byte + ch*16 + 16)])
+                    if node.group == 1:
+                        new_weights = []
+                        for pos in range(4):
+                            for ch in range(int(np.asarray(node.__dict__[constants[i]]["value"]).shape[0]/16)):
+                                for pos_in in [3,2,1,0]:
+                                    new_weights.append(node.__dict__[constants[i]]["value"][pos+4*(ch*4+pos_in)])
+                        final_weights = []
+                        for ch in range(int((node.output_channels+15)/16)):
+                            for byte in range(4):
+                                final_weights.append(new_weights[(node.output_channels*byte + ch*16):(node.output_channels*byte + ch*16 + 16)])
+                    else:
+                        final_weights = []
+                        for c in np.arange(getattr(node, 'output_channels')):
+                            for pos in range(4):
+                                for ch in range(4):
+                                    for pos_in in [3,2,1,0]:
+                                        final_weights.append(node.__dict__[constants[i]]["value"][c*16*4 + pos + 4*(ch*4 + pos_in)])
                     node.__dict__[constants[i]]["value"] = np.asarray(final_weights).flatten().tolist()
-        for batch in np.arange(0, int(np.floor((getattr(node, 'output_channels')+15)/16))):
-            for i in [0, 1]:
-                if constants[i]!= 0:
-                    if i==0:  
-                        dim = (getattr(node, 'input_channels')+15)//16*16 * 16 * np.prod(getattr(node, 'kernel_shape'))
-                        weights = np.concatenate((weights,node.__dict__[constants[i]]["value"][(batch*dim):((batch+1)*dim)]))
-                    if i==1:  
-                        weights = np.concatenate((weights,node.__dict__[constants[i]]["value"][(batch*16*int(node.bias_bits/8)):((batch+1)*16*int(node.bias_bits/8))]))
-                    save_vector = 1
+        if node.group == 1:
+            for batch in np.arange(0, int(np.floor((getattr(node, 'output_channels')+15)/16))):
+                for i in [0, 1]:
+                    if constants[i]!= 0:
+                        if i==0:  
+                            dim = (getattr(node, 'input_channels')+15)//16*16 * 16 * np.prod(getattr(node, 'kernel_shape'))
+                            weights = np.concatenate((weights,node.__dict__[constants[i]]["value"][(batch*dim):((batch+1)*dim)]))
+                        if i==1:  
+                            weights = np.concatenate((weights,node.__dict__[constants[i]]["value"][(batch*16*int(node.bias_bits/8)):((batch+1)*16*int(node.bias_bits/8))]))
+                        save_vector = 1
+        else:
+            for batch in np.arange(0, getattr(node, 'output_channels')):
+                for i in [0, 1]:
+                    if constants[i]!= 0:
+                        if i==0:  
+                            dim =  16 * np.prod(getattr(node, 'kernel_shape'))
+                            weights = np.concatenate((weights,node.__dict__[constants[i]]["value"][(batch*dim):((batch+1)*dim)]))
+                        if i==1:  
+                            weights = np.concatenate((weights,node.__dict__[constants[i]]["value"][(batch*16*int(node.bias_bits/8)):((batch+1)*16*int(node.bias_bits/8))]))
+                        save_vector = 1
         for i in [2, 3]:
             if constants[i]!= 0:
                 weights = np.concatenate((weights,node.__dict__[constants[i]]["value"]))

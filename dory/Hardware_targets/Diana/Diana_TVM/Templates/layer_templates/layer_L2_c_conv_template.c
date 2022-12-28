@@ -186,7 +186,11 @@ int32_t ${func_name}(void* l2_x, void* l2_y)
     kernel.fx = ${fs1};
     kernel.fy = ${fs2};
     kernel.oy = y_tile_size_h;
+% if data_type_y == 'int':
     kernel.activation_function = 0;
+% elif data_type_y == 'uint':
+    kernel.activation_function = 1;
+% endif
     kernel.output_shift = ${out_shift};
     kernel.dilation = 1;
 % if W_data_size_byte == 8:
@@ -194,11 +198,11 @@ int32_t ${func_name}(void* l2_x, void* l2_y)
     kernel.stride = ${1 if stride > 1 else 0};
 % elif W_data_size_byte == 2:
     kernel.ox_unroll = 1;
-    /*for (int i = 0; i < 2; i++)
+    for (int i = 0; i < 2; i++)
     {
       if (((kernel.ox_unroll * 2 * kernel.k) <= 512) && ((kernel.c * ${fs2} * (${fs1} + kernel.ox_unroll * 2 - 1)) <= 1152))
         kernel.ox_unroll = kernel.ox_unroll * 2;
-    }*/
+    }
     kernel.stride = ${stride};
     kernel.ox = (int) y_tile_size_w / kernel.ox_unroll;
 % endif
