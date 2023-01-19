@@ -26,6 +26,7 @@
  *
  * 2. Logging
  *    - GVSOC_LOGGING - enable gvsoc logging
+ *    - TILE_CHECKSUM - calculate and print per-tile-checksum
  *
  * 3. Modes
  *    - NO_DMA_SYNC_ON_BORDER_TILE - removes the DMA synchronization on border tiles
@@ -175,18 +176,18 @@ do {                                              ${"\\"}
 #endif
 
 #ifdef TILE_CHECKSUM
-#define TILE_CHECKSUM_PRINT(dma)                            ${"\\"} 
+#define TILE_CHECKSUM_PRINT(dma, i_tile)                    ${"\\"} 
     do {                                                    ${"\\"}
         uint8_t *ptr = (uint8_t *)dma.loc;                  ${"\\"}
         int sum = 0;                                        ${"\\"}
         for (int i = 0; i < dma.number_of_2d_copies; i++)   ${"\\"}
-          for (int i = 0; i < dma.number_of_1d_copies; i++) ${"\\"}
-            for (int i = 0; i < dma.length_1d_copy; i++)    ${"\\"}
+          for (int j = 0; j < dma.number_of_1d_copies; j++) ${"\\"}
+            for (int k = 0; k < dma.length_1d_copy; k++)    ${"\\"}
               sum += *ptr++;                                ${"\\"}
-        printf("[%d] Checksum: %d\n", i, sum);              ${"\\"}
+        printf("[%d] Checksum: %d\n", i_tile, sum);         ${"\\"}
     } while (0)
 #else
-#define TILE_CHECKSUM_PRINT(dma)
+#define TILE_CHECKSUM_PRINT(dma, i_tile)
 
 #endif
 % if ULTRA_VERBOSE:
@@ -312,6 +313,9 @@ void ${func_name}(
   int x_tile_size_h = ${x_tile_size_h};
   int x_tile_size_w = ${x_tile_size_w};
   int x_length_nif_byte = ${x_tile_size_nif_byte};
+
+  int W_tile_size_nof = ${W_tile_size_nof};
+  int W_tile_size_nif = ${W_tile_size_nif};
 
   // Tile loop indices
   #ifdef REVERSE_LOOP_RANGE
@@ -455,7 +459,7 @@ void ${func_name}(
     .flag_rounding = FLAG_UNUSED
   };
 
-  const nnx_padding_t init_padding = {
+  nnx_padding_t tile_padding = {
     .top    = i_h == 0 ? padding.top : DONT_PAD,
     .right  = i_w == ${tile_dim_w} - 1 ? padding.right : DONT_PAD,
     .bottom = i_h == ${tile_dim_h} - 1 ? padding.bottom : DONT_PAD,
@@ -479,11 +483,11 @@ void ${func_name}(
 
   for (int i = 0; i < MIN(NNX_TASK_COUNT, total_tiles); i++) {
     nnx_task_init(&nnx_tasks[i]);
-    nnx_conv_${fs1}x${fs2}${'_dw' if flag_DW else ''}(&(nnx_tasks[i].cfg), nnx_weights, nnx_input, nnx_output, init_padding, stride);
+    nnx_conv_${fs1}x${fs2}${'_dw' if flag_DW else ''}(&(nnx_tasks[i].cfg), nnx_weights, nnx_input, nnx_output, tile_padding, stride);
     nnx_norm_quant(&(nnx_tasks[i].cfg), norm, quant);
-    nnx_pad_input(&(nnx_tasks[i].cfg), init_padding);
+    nnx_pad_input(&(nnx_tasks[i].cfg), tile_padding);
 
-    const int x_tile_ptr_w_padding = db[i_db_x].x - (init_padding.top * x_tile_size_w + init_padding.left) * 256;
+    const int x_tile_ptr_w_padding = db[i_db_x].x - (tile_padding.top * x_tile_size_w + tile_padding.left) * ${x_tile_size_nif};
     nnx_tasks[i].infeat_ptr = x_tile_ptr_w_padding;
     nnx_tasks[i].outfeat_ptr = db[i_db_y].y;
     nnx_tasks[i].weights_ptr = db[i_db_w].w;
@@ -493,7 +497,9 @@ void ${func_name}(
 
   nnx_task_t *nnx_task_to_offload = &nnx_tasks[NNX_TASK_BODY];
 
+  % if stride != 2:
   nnx_acquire();
+  % endif
 
   PERF_LAYER_COMPONENT_READ(preamble);
 
@@ -596,6 +602,8 @@ void ${func_name}(
     //printf("[%d] n_h:%d n_w:%d\n", i_tile, n_h, n_w);
 
     int x_tile_size_h_to_process = x_tile_size_h + tile_padding.top;
+    const int x_begin_ptr = nnx_task_to_offload->infeat_ptr;
+    const int y_begin_ptr = nnx_task_to_offload->outfeat_ptr;
     for (int i = 0; i < n_h; i++) {
       int x_tile_size_w_to_process = x_tile_size_w + tile_padding.left;
       for (int j = 0; j < n_w; j++) {
@@ -620,7 +628,7 @@ void ${func_name}(
             x_tile_size_w, y_tile_size_w, subtile_padding);
 
         nnx_task_to_offload->infeat_ptr =
-          dory_get_tile_3d(x_tile_ptr_w_padding,
+          dory_get_tile_3d(x_begin_ptr,
                            i, j, 0, /* iterator */
                            5, 5, ${x_tile_size_nif}, /* size */
                            x_tile_size_w, ${x_tile_size_nif}, /* stride */
@@ -628,7 +636,7 @@ void ${func_name}(
                            i > 0 ? subtile_padding.top : 0, j > 0 ? subtile_padding.left : 0, 0, /* offset */
                            ${x_data_size_byte} /* data size */ );
         nnx_task_to_offload->outfeat_ptr =
-          dory_get_tile_3d(y_tile_ptr,
+          dory_get_tile_3d(y_begin_ptr,
                            i, j, 0, /* iterator */
                            2, 2, ${y_tile_size_nof}, /* size */
                            y_tile_size_w, ${y_tile_size_nof}, /* stride */
@@ -636,12 +644,29 @@ void ${func_name}(
                            0, 0, 0, /* offset */
                            ${y_data_size_byte} /* data size */ );
 
+        //printf("\n[loop %d, %d] x_ptr:%p, y_ptr:%p\n", i, j,
+        //       nnx_task_to_offload->infeat_ptr, nnx_task_to_offload->outfeat_ptr);
+        //printf("Subtile dims (h x w x c):\n");
+        //printf("  - in:  (%d x %d x %d)\n", x_subtile_size_h, x_subtile_size_w, W_tile_size_nif);
+        //printf("  - out: (%d x %d x %d)\n", y_subtile_size_h, y_subtile_size_w, W_tile_size_nof);
+
         asm volatile("": : :"memory");
         nnx_acquire();
         //printf("[loop %d, %d] x_ptr:%p, y_ptr:%p\n", i, j,
         //       nnx_task_to_offload->infeat_ptr, nnx_task_to_offload->outfeat_ptr);
         nnx_offload(nnx_task_to_offload);
         nnx_run_async();
+        //nnx_busywait();
+
+        //uint8_t *ptr = (uint8_t *)nnx_task_to_offload->outfeat_ptr;                  \
+        //int sum = 0;                                       
+        //for (int ii = 0; ii < 2; ii++) {
+        //  for (int jj = 0; jj < 2; jj++)
+        //    for (int kk = 0; kk < ${y_tile_size_nof}; kk++)   
+        //      sum += *(ptr + jj*${y_tile_size_nof} + kk);                               
+        //  ptr += y_tile_size_w * ${y_tile_size_nof};
+        //}
+        //printf("[%d] Checksum: %d\n", i*n_w + j, sum);
 
         x_tile_size_w_to_process -= 4;
       }
@@ -855,8 +880,8 @@ void ${func_name}(
     const int is_nif_border = i_nif + 1 == ${tile_dim_nif};
     const int is_nof_border = i_nof + 1 == ${tile_dim_nof};
 
-    const int W_tile_size_nof = is_nof_border ? ${W_tile_size_nof_last} : ${W_tile_size_nof};
-    const int W_tile_size_nif = is_nif_border ? ${W_tile_size_nif_last} : ${W_tile_size_nif};
+    W_tile_size_nof = is_nof_border ? ${W_tile_size_nof_last} : ${W_tile_size_nof};
+    W_tile_size_nif = is_nif_border ? ${W_tile_size_nif_last} : ${W_tile_size_nif};
 
     if (is_load_x) {
       x_tile_size_h = is_h_border ? ${x_tile_size_h_last} : ${x_tile_size_h};
@@ -941,13 +966,10 @@ void ${func_name}(
 
     nnx_task_to_offload = is_border_tile ? &nnx_tasks[NNX_TASK_REMAINDER] : &nnx_tasks[NNX_TASK_BODY];
 
-    const nnx_padding_t tile_padding = {
-      .top    = i_h == 0 ? padding.top : DONT_PAD,
-      .right  = i_w == ${tile_dim_w} - 1 ? padding.right : DONT_PAD,
-      .bottom = i_h == ${tile_dim_h} - 1 ? padding.bottom : DONT_PAD,
-      .left   = i_w == 0 ? padding.left : DONT_PAD,
-      .value = 0
-    };
+    tile_padding.top    = i_h == 0 ? padding.top : DONT_PAD;
+    tile_padding.right  = i_w == ${tile_dim_w} - 1 ? padding.right : DONT_PAD;
+    tile_padding.bottom = i_h == ${tile_dim_h} - 1 ? padding.bottom : DONT_PAD;
+    tile_padding.left   = i_w == 0 ? padding.left : DONT_PAD;
 
     % if stride != 2:
     if (is_border_tile) {
@@ -960,10 +982,8 @@ void ${func_name}(
 
     % endif
     const x_tile_ptr_w_padding = x_tile_ptr - (tile_padding.top * x_tile_size_w + tile_padding.left) * ${x_tile_size_nif};
-    % if stride != 2:
     nnx_task_to_offload->infeat_ptr = x_tile_ptr_w_padding;
     nnx_task_to_offload->outfeat_ptr = y_tile_ptr;
-    % endif
     nnx_task_to_offload->weights_ptr = w_tile_ptr;
     % if FLAG_BATCHNORM == 1:
     nnx_task_to_offload->scale_ptr = scale_tile_ptr;
@@ -1036,9 +1056,9 @@ void ${func_name}(
 #ifndef NO_DMA
     if (is_store) {
       dory_dma_memcpy_async(&DMA_copy_y[DMA_Y_INDEX(i_store_y)]);
+      TILE_CHECKSUM_PRINT(DMA_copy_y[DMA_Y_INDEX(i_store_y)], i_store_y);
     }
 #endif  // NO_DMA
-    TILE_CHECKSUM_PRINT(DMA_copy_y[DMA_Y_INDEX(i_store_y)]);
     PERF_EXEC_COMPONENT_END(dma_memcpy);
   }
 
@@ -1062,7 +1082,7 @@ void ${func_name}(
 #ifndef NO_DMA
     dory_dma_memcpy_async(&DMA_copy_y[DMA_Y_INDEX(i)]);
 #endif  // NO_DMA
-    TILE_CHECKSUM_PRINT(DMA_copy_y[DMA_Y_INDEX(i)]);
+    TILE_CHECKSUM_PRINT(DMA_copy_y[DMA_Y_INDEX(i)], i);
   }
 
   PERF_LAYER_COMPONENT_READ(nnx);
