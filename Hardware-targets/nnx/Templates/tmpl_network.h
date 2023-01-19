@@ -20,6 +20,8 @@
 #ifndef __NETWORK_H__
 #define __NETWORK_H__
 
+#include <stddef.h>
+
 #define PAD_TOP    (1 << 3)
 #define PAD_RIGHT  (1 << 2)
 #define PAD_BOTTOM (1 << 1)
@@ -44,7 +46,7 @@ typedef struct {
 
 void network_terminate();
 void network_initialize();
-int  network_run(l2_buffer, l2_buffer_size, l2_final_output);
+int  network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output);
 void execute_layer_fork(void *arg);
 void execute_layer(void *arg);
 
