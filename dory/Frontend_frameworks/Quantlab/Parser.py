@@ -91,7 +91,8 @@ class onnx_manager(Parser_ONNX_to_DORY):
                 node.constant_names.append("outadd")
                 delattr(node, 'out_add')
                 # input 1 parameters
-                #### Look at the order of inputs in Onnx. If the lowest index is not the first argument, revert the order inmul1 and inmul2
+                #### Look at the order of inputs in Onnx. If the lowest index
+                #is not the first argument, revert the order inmul1 and inmul2
                 if int(node.input_indexes[0]) > int(node.input_indexes[1]):
                     temp_shift = node.in1_shift
                     temp_mul   = node.in1_mul
@@ -167,7 +168,15 @@ class onnx_manager(Parser_ONNX_to_DORY):
                 node.add_existing_parameter("output_activation_bits", int(np.log2(node.out_n_levels)))
                 delattr(node, "add_bits")
                 delattr(node, "out_n_levels")
-                node.add_existing_parameter("output_activation_type", self.DORY_Graph[i].input_activation_type)
+                # if the node has the "out_signed" attribute, use it to set the
+                # output act type. Otherwise, infer it from the input types 
+                if hasattr(node, "out_signed"):
+                    out_type = "int" if node.out_signed else "uint"
+                    delattr(node, "out_signed")
+                else:
+                    out_type = "uint" if node.input_activation_type == "uint" and node.second_input_activation_type == "uint" else "int"
+                
+                node.add_existing_parameter("output_activation_type", out_type)
             if node.name in ["Convolution", "FullyConnected"]:
                 node.add_existing_parameter("output_activation_bits", 32)
                 # before merging with activations, conv/FC always have 32b int outputs
