@@ -131,7 +131,7 @@ class Tiler_Conv2D:
             if db_o == 1:
                 solver.Add(tile_h_out == h_out)
             else:
-                solver.Add(h_out % tile_h_out == 0)
+                solver.Add(solver.IntConst(h_out) % tile_h_out == 0)
 
             if db_w == 1:
                 solver.Add(tile_n_out == out_ch)
@@ -142,7 +142,7 @@ class Tiler_Conv2D:
                 solver.Add(tile_h_out * s[0] == tile_h_in - (ks[0] - 1) + (s[0] - 1))
 
             if db_x == 2:
-                solver.Add(h_out % ((tile_h_in - ks[0] + s[0]) // s[0]) == 0)
+                solver.Add(solver.IntConst(h_out) % ((tile_h_in - ks[0] + s[0]) // s[0]) == 0)
 
             # objective
             obj_expr = solver.IntVar(0, 100000000000000, "obj_expr")
