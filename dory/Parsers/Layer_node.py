@@ -109,7 +109,7 @@ class Layer_node(DORY_node):
             Layer_parameters = self.update_output_dimensions(activation_tensor, Layer_parameters)
         for activation_tensor in graph.graph.output:
             Layer_parameters = self.update_output_dimensions(activation_tensor, Layer_parameters)
-        if 'Global' in node_iterating.name:
+        if 'Global' in node_iterating.op_type:
             Layer_parameters['kernel_shape'] = Layer_parameters['input_dimensions']
             Layer_parameters['strides'] = [1, 1]
         #### Adding control for layers with g > 1. Only DW (groups = input channels = output channels) and g=1 supported.
