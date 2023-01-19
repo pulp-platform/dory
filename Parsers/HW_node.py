@@ -22,6 +22,7 @@
 import os
 import sys
 import numpy as np
+from collections import namedtuple
 
 # DORY modules
 from Parsers.DORY_node import DORY_node
@@ -216,17 +217,26 @@ class HW_node(DORY_node):
             order = range(0, dim_layer, dim_tile)
             return reversed(order) if is_reversed else order
 
-        i_tile = 0
+        Dim = namedtuple("Dim", "start size tile_size")
 
-        for c_tile_start in tile_order(c_tile, c):
-            for h_tile_start in tile_order(h_tile, h):
-                for w_tile_start in tile_order(w_tile, w):
-                    data_tile = data[h_tile_start:h_tile_start + h_tile,
-                                     w_tile_start:w_tile_start + w_tile,
-                                     c_tile_start:c_tile_start + c_tile]
-                    checksum_tile = data_tile.sum()
-                    print(f'[{i_tile}] Checksum: {checksum_tile}')
-                    i_tile += 1
+        def tile_checksum(h:Dim, w:Dim, c:Dim, stride=(1, 1)):
+            i_tile = 0
+            for c_tile_start in range(c.start, c.start + c.size, c.tile_size):
+                for h_tile_start in range(h.start, h.start + h.size, h.tile_size):
+                    for w_tile_start in range(w.start, w.start + w.size, w.tile_size):
+                        data_tile = data[h_tile_start:h_tile_start + h.tile_size,
+                                         w_tile_start:w_tile_start + w.tile_size,
+                                         c_tile_start:c_tile_start + c.tile_size]
+                        checksum_tile = data_tile.sum()
+                        print(f'[{i_tile}] Checksum: {checksum_tile}')
+                        i_tile += 1
+
+                        if stride[0] != 1 or stride[1] != 1:
+                            tile_checksum(Dim(h_tile_start, h.tile_size, stride[0]),
+                                          Dim(w_tile_start, w.tile_size, stride[1]),
+                                          Dim(c_tile_start, c.tile_size, c.tile_size))
+
+        tile_checksum(Dim(0, h, h_tile), Dim(0, w, w_tile), Dim(0, c, c_tile), stride=self.strides)
 
     def export_to_dict(self):
         node_dict = {"name": self.name, "DORY_node_parameters": {}, "Layer_node_parameters": {}, "Weights": {}}
