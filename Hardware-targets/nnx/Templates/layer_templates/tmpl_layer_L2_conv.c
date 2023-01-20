@@ -53,13 +53,13 @@
 #undef DISTRIBUTED_WEIGHTS_LOADING
 % endif
 
-#if defined MEASURE_LAYER_COMPONENTS || defined MEASURE_EXECUTION_COMPONENTS
 % if flag_DW == 0:
 #define TOTAL_TILES (${tile_dim_nof} /*tile_dim_nof*/ * ${tile_dim_nif} /*tile_dim_nif*/ * ${tile_dim_h} /*tile_dim_h*/ * ${tile_dim_w} /*tile_dim_w*/)
 % else:
 #define TOTAL_TILES (${tile_dim_nof} /*tile_dim_nof*/ * ${tile_dim_h} /*tile_dim_h*/ * ${tile_dim_w} /*tile_dim_w*/)
 % endif
 
+#if defined MEASURE_LAYER_COMPONENTS || defined MEASURE_EXECUTION_COMPONENTS || defined MEASURE_STRIDE_COMPONENTS
 #define PERF_INIT() pi_perf_conf(1<<PI_PERF_CYCLES)
 
 #define PERF_RESTART()             ${"\\"}
@@ -96,16 +96,16 @@ do {                                     ${"\\"}
 #endif
 
 #ifdef MEASURE_LAYER_COMPONENTS
-static int cycles_preamble = 0, cycles_first_conf = 0, cycles_first_dma = 0, cycles_nnx = 0, cycles_postamble = 0;
+static int cycles_preamble = 0, cycles_first_dma = 0, cycles_nnx = 0, cycles_postamble = 0;
 
-#define PERF_LAYER_COMPONENT_READ(component) \
-  PERF_READ(cycles_ ## component);           \
+#define PERF_LAYER_COMPONENT_READ(component) ${"\\"}
+  PERF_READ(cycles_ ## component);           ${"\\"}
   PERF_RESTART()
 
-#define PERF_LAYER_COMPONENT_REPORT()                                                               ${"\\"}
-  do {                                                                                              ${"\\"}
-    printf("Measured time - preamble: %d, first conf: %d, first dma: %d, nnx: %d, postamble: %d\n", ${"\\"}
-           cycles_preamble, cycles_first_conf, cycles_first_dma, cycles_nnx, cycles_postamble);     ${"\\"}
+#define PERF_LAYER_COMPONENT_REPORT()                                               ${"\\"}
+  do {                                                                              ${"\\"}
+    printf("Measured time - preamble: %d, first dma: %d, nnx: %d, postamble: %d\n", ${"\\"}
+           cycles_preamble, cycles_first_dma, cycles_nnx, cycles_postamble);        ${"\\"}
   } while (0)
 #else  // MEASURE_LAYER_COMPONENTS
 #define PERF_LAYER_COMPONENT_READ(component)
@@ -147,7 +147,46 @@ do {                                              ${"\\"}
 #define PERF_EXEC_COMPONENT_END(component)
 #define PERF_EXEC_COMPONENT_REPORT()
 #endif  // MEASURE_EXECUTION_COMPONENTS
+ 
+#ifdef MEASURE_STRIDE_COMPONENTS
+#define N_STRIDE_TILES ((${y_tile_size_h} / 2) * (${y_tile_size_w} / 2))
 
+typedef enum {
+    stride_component_acquire,
+    stride_component_config,
+    n_stride_component
+} stride_component_e;
+
+static int cycles_stride_component[TOTAL_TILES][N_STRIDE_TILES][n_stride_component] = {0};
+
+#define PERF_STRIDE_COMPONENT_BEGIN(component)                                           ${"\\"}
+int cycles_stride_ ## component ## _start = 0, cycles_stride_ ## component ## _stop = 0; ${"\\"}
+PERF_READ(cycles_stride_ ## component ## _start)
+
+#define PERF_STRIDE_COMPONENT_END(component)                                    ${"\\"}
+PERF_READ(cycles_stride_ ## component ## _stop);                                ${"\\"}
+cycles_stride_component[i_tile][i*n_w + j][stride_component_ ## component] =    ${"\\"}
+    cycles_stride_ ## component ## _stop - cycles_stride_ ## component ## _start
+
+#define PERF_STRIDE_COMPONENT_REPORT()                   ${"\\"}
+do {                                                     ${"\\"}
+  printf("Stride component report:\n");                  ${"\\"}
+  printf("acquire,config\n");                            ${"\\"}
+  for (int i = 0; i < TOTAL_TILES; i++) {                ${"\\"}
+    printf("\nTile %d:\n", i);                           ${"\\"}
+    for (int j = 0; j < N_STRIDE_TILES; j++) {           ${"\\"}
+      for (int k = 0; k < n_stride_component; k++) {     ${"\\"}
+        printf("%d,", cycles_stride_component[i][j][k]); ${"\\"}
+      }                                                  ${"\\"}
+      printf("\n");                                      ${"\\"}
+    }                                                    ${"\\"}
+  }                                                      ${"\\"}
+} while (0)
+#else   // MEASURE_STRIDE_COMPONENTS
+#define PERF_STRIDE_COMPONENT_BEGIN(component)
+#define PERF_STRIDE_COMPONENT_END(component)
+#define PERF_STRIDE_COMPONENT_REPORT()
+#endif  // MEASURE_STRIDE_COMPONENTS
 
 #ifdef GVSOC_LOGGING
 #define GVSOC_LOG_LEVEL 1
@@ -1010,10 +1049,6 @@ void ${func_name}(
     nnx_acquire();
     PERF_EXEC_COMPONENT_END(acquire);
     % endif
-
-    if (i_tile == 0) {
-        PERF_LAYER_COMPONENT_READ(first_conf);
-    }
 
     PERF_EXEC_COMPONENT_BEGIN(dma_memcpy);
 #ifndef NO_DMA
