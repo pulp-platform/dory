@@ -301,7 +301,7 @@ void ${prefix}network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final
         bypass_dimension = activations_out_size[i];
       }
 
-    if (i > 0 && branch_output[i-1]==0)
+    if (i > 0 && branch_output[i-1] == 0 && branch_change[i-1] == 0)
       dfree(activations_size[i], dir);
 % endif
     // Residual connections
