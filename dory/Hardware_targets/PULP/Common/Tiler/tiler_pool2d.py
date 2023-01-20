@@ -58,8 +58,6 @@ class Tiler_Pool2D_PULP():
         s = self.HW_node.strides
         p = self.HW_node.pads
 
-        conv_overlap_h = 2 * (ks[0] // 2) + ks[0] % 2 - 1 - (s[0] - 1)
-
         if self.previous_HW_node.tiling_dimensions["L3"]["output_dimensions"] != self.previous_HW_node.tiling_dimensions["L3"]["output_dimensions"]:
             input_L3 = 1
             input_dim_constraint = self.previous_HW_node.tiling_dimensions["L2"]["output_activation_memory"]

@@ -32,7 +32,13 @@ ${verbose_log}
 #define VERBOSE_PRINT(...) printf(__VA_ARGS__)
 % endif
 
-
+#ifdef SINGLE_CORE_DMA
+%if sdk == "gap_sdk":
+L1_DATA static uint32_t dory_dma_channel = 0;
+%else:
+PI_L1 static uint32_t dory_dma_channel = 0;
+%endif
+#endif
 
 
 void ${func_name}(
@@ -69,9 +75,14 @@ void ${func_name}(
   int y_length_nof_byte;
   // copy first tiles
   //l2_x has input activations
+#ifndef SINGLE_CORE_DMA
   uint32_t dory_dma_channel = dory_dma_allocate();
+#else
+  if (pi_core_id() == 0)
+    dory_dma_channel = dory_dma_allocate();
+#endif
   volatile DMA_copy DMA_copy_x, DMA_copy_x2, DMA_copy_y;
-  
+
   DMA_copy_x.hwc_to_chw = 0;
   DMA_copy_x.stride_2d = ${x_stride_w_byte};
   DMA_copy_x.stride_1d = ${x_stride_c_byte};

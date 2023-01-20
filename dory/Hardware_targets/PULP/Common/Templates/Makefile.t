@@ -45,6 +45,9 @@ APP_CFLAGS += -DFLASH_TYPE=$(FLASH_TYPE) -DUSE_$(FLASH_TYPE) -DUSE_$(RAM_TYPE)
 % if blocking_dma:
 APP_CFLAGS += -DALWAYS_BLOCK_DMA_TRANSFERS
 % endif
+% if single_core_dma:
+APP_CFLAGS += -DSINGLE_CORE_DMA
+% endif
 
 include ${prefix}vars.mk
 

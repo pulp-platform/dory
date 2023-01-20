@@ -39,6 +39,9 @@ static void *directional_mem_end = NULL;
 static void directional_allocator_init(void *begin, int size) {
     directional_mem_begin = begin;
     directional_mem_end = begin + size;
+#if DBG_DIRALLOC
+    printf("Directional allocator init:\n   Set directional_mem_begin to 0x%X\n   Set directional_mem_end to 0x%X", directional_mem_begin, directional_mem_end);
+#endif
 }
 
 static void *dmalloc(int size, int direction) {
@@ -51,6 +54,9 @@ static void *dmalloc(int size, int direction) {
             directional_mem_end -= size;
             retval = directional_mem_end;
         }
+#if DBG_DIRALLOC
+        printf("Direcional allocator:\n   Allocated %d bytes in direction %d\n   Begin now at 0x%X\n   End now at 0x%X\n", size, direction, directional_mem_begin, directional_mem_end);
+#endif
     }
     return retval;
 }
@@ -60,6 +66,9 @@ static void dfree(int size, int direction) {
         directional_mem_begin -= size;
     else
         directional_mem_end += size;
+#if DBG_DIRALLOC
+    printf("Directional allocator:\n   Freed %d bytes in direction %d\n   Begin now at 0x%X\n   End now at 0x%X\n", size, direction, directional_mem_begin, directional_mem_end);
+#endif
 }
 
 #endif

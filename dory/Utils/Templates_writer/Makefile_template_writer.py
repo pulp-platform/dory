@@ -46,6 +46,12 @@ def print_template_Makefile(
         print("Makefile template writer: key 'always_blocking_dma_transfers' not found in HW description, using non-blocking transfers!")
         blocking_dma_transfers = False
     tk['blocking_dma'] = blocking_dma_transfers
+    try:
+        single_core_dma = HW_description['single_core_dma']
+    except KeyError:
+        print("Makefile template writer: key 'single_core_dma' not found in HW description, using multi-core transfers!")
+        single_core_dma = False
+    tk['single_core_dma'] = single_core_dma
     root = os.path.realpath(os.path.dirname(__file__))
     tmpl = Template(filename=os.path.join(root, "../../Hardware_targets", HW_description["name"], template_location_rel))
     s = tmpl.render(**tk)

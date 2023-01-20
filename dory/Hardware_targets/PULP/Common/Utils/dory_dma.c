@@ -30,15 +30,24 @@
 #define MIN(a,b) ((a)<(b)?(a):(b))
 
 void dory_dma_memcpy_hwc_to_chw(DMA_copy *copy){
+#ifdef SINGLE_CORE_DMA
+  if (pi_core_id() == 0) {
+#endif
+  int start_pixel, stop_pixel; // "pixel" is a misnomer; the CHANNELS are divided between the cores
+  // this function assumes that a DW tile is always as wide as the complete feature map (this is enforced by DORY's tiler)
+  // if there is only 1 DMA control unit for the cluster (e.g., Kraken), we can't execute DMA calls on multiple clusters.
+#ifndef SINGLE_CORE_DMA
   int core_id = pi_core_id();
   int Log2Core = log2(NUM_CORES);
   int number_of_copies_per_core = (copy->length_1d_copy >> Log2Core) + ((copy->length_1d_copy & (NUM_CORES-1))!=0);
-  int start_pixel, stop_pixel; // "pixel" is a misnomer; the CHANNELS are divided between the cores
-  // this function assumes that a DW tile is always as wide as the complete feature map (this is enforced by DORY's tiler)
   start_pixel = MIN(number_of_copies_per_core * core_id, copy->length_1d_copy);
   stop_pixel = MIN(start_pixel + number_of_copies_per_core, copy->length_1d_copy);
-  void * ext = copy->ext + start_pixel;
+#else
+  start_pixel = 0;
+  stop_pixel = copy->length_1d_copy;
+#endif
   void * loc = copy->loc + copy->number_of_1d_copies*copy->number_of_2d_copies*start_pixel;
+  void * ext = copy->ext + start_pixel;
   const int size_2d = copy->number_of_1d_copies * copy->number_of_2d_copies;
 
   for (int i=start_pixel; i<stop_pixel; i++) {
@@ -57,6 +66,9 @@ void dory_dma_memcpy_hwc_to_chw(DMA_copy *copy){
     ext += 1; // next channel
     loc += copy->number_of_1d_copies * copy->number_of_2d_copies;
   }
+#ifdef SINGLE_CORE_DMA
+  }
+#endif
 }
 
 void dory_dma_memcpy_1d_async(DMA_copy *copy) {
@@ -90,16 +102,23 @@ void dory_dma_memcpy_2d_async(DMA_copy *copy) {
 }
 
 void dory_dma_memcpy_3d_async(DMA_copy *copy) {
+#ifdef SINGLE_CORE_DMA
+  if (pi_core_id() == 0) {
+#endif
+  int start_pixel, stop_pixel;
+#ifndef SINGLE_CORE_DMA
   int core_id = pi_core_id();
   int Log2Core = log2(NUM_CORES);
   int number_of_2d_copies_per_core = (copy->number_of_2d_copies >> Log2Core) + ((copy->number_of_2d_copies & (NUM_CORES-1))!=0);
-  int start_pixel, stop_pixel;
   start_pixel = MIN(number_of_2d_copies_per_core * core_id, copy->number_of_2d_copies);
   stop_pixel = MIN(start_pixel + number_of_2d_copies_per_core, copy->number_of_2d_copies);
+#else
+  start_pixel = 0;
+  stop_pixel = copy->number_of_2d_copies;
+#endif
   void *ext = copy->ext + copy->stride_2d*start_pixel;
   void *loc = copy->loc + copy->length_1d_copy*copy->number_of_1d_copies*start_pixel;
   const int size_2d = copy->number_of_1d_copies * copy->length_1d_copy;
-
   for (int i = start_pixel; i < stop_pixel; i++) {
     mchan_transfer_t trans = {
       .cmd = size_2d | copy->dir << MCHAN_CMD_SHIFT_DIRECTION | MCHAN_FLAGS_2D,
@@ -116,6 +135,9 @@ void dory_dma_memcpy_3d_async(DMA_copy *copy) {
     loc += size_2d;
     ext += copy->stride_2d;
   }
+#ifdef SINGLE_CORE_DMA
+  }
+#endif
 }
 
 void dory_dma_memcpy_async(DMA_copy *copy) {
@@ -136,7 +158,14 @@ void dory_dma_free(DMA_copy *copy) {
 }
 
 void dory_dma_barrier(DMA_copy *copy) {
+#ifdef SINGLE_CORE_DMA
+  // if DMA is only used by a single core (only 1 ctrl interface), other cores must not access its register file. Instead, they should all wait for core 0 to confirm the transfer is over.
+  if (pi_core_id() == 0)
+    mchan_transfer_wait(copy->tid);
+  pi_cl_team_barrier(0);
+#else
   mchan_transfer_wait(copy->tid);
+#endif
 }
 
 int dory_dma_allocate() {

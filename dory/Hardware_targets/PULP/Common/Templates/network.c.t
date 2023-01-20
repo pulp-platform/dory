@@ -51,7 +51,9 @@ l3_supported = DORY_HW_graph[0].HW_description['memory']['levels'] > 2
 static void *L3_weights = NULL;
 static void *L3_input = NULL;
 static void *L3_output = NULL;
-
+% if 'Yes' in performance or 'Perf_final' in verbose_level:
+int ${prefix}cycle_network_execution;
+% endif
 % if l3_supported:
 /* Moves the weights and the biases from hyperflash to hyperram */
 void ${prefix}network_initialize() {
@@ -104,6 +106,47 @@ void ${prefix}execute_layer_fork(void *args) {
 
 void ${prefix}network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, int exec${", void *L2_input_h" if not l3_supported else ""})
 {
+  struct pi_device cluster_dev = {0};
+  struct pi_cluster_conf conf;
+  struct pi_cluster_task cluster_task = {0};
+  // First open the cluster
+  pi_cluster_conf_init(&conf);
+  conf.id=0;
+<%
+    n_args = 4 if l3_supported else 5
+%>\
+  unsigned int args[${n_args}];
+  args[0] = (unsigned int) l2_buffer;
+  args[1] = (unsigned int) l2_buffer_size;
+  args[2] = (unsigned int) l2_final_output;
+  args[3] = (unsigned int) exec;
+  % if not l3_supported:
+  args[4] = (unsigned int) L2_input_h;
+  % endif
+  // open cluster...
+  pi_cluster_task(&cluster_task, ${prefix}network_run_cluster, args);
+  pi_open_from_conf(&cluster_dev, &conf);
+  if (pi_cluster_open(&cluster_dev))
+    return;
+  // Then offload an entry point, this will get executed on the cluster controller
+  cluster_task.stack_size = ${master_stack};
+  cluster_task.slave_stack_size = ${slave_stack};
+  pi_cluster_send_task_to_cl(&cluster_dev, &cluster_task);
+  pi_cluster_close(&cluster_dev);
+  % if 'Perf_final' in verbose_level:
+  print_perf("Final", ${prefix}cycle_network_execution, ${MACs});
+  % endif
+}
+
+void ${prefix}network_run_cluster(void *args) {
+  unsigned int * real_args = (unsigned int *) args;
+  void * l2_buffer = (void *) real_args[0];
+  size_t l2_buffer_size = (size_t) real_args[1];
+  void * l2_final_output = (void *) real_args[2];
+  int exec = (int) real_args[3];
+  % if not l3_supported:
+  void * L2_input_h = (void *)real_args[4];
+  % endif
 /*
   - initial buffer allocation L2 and L1
   - variable declaration
@@ -119,21 +162,13 @@ void ${prefix}network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final
 
   int dir = 1;
   int residual_number = 0;
-  % if not l3_supported:
   int bypass_dimension = 0;
+  % if not l3_supported:
   int left_branch_nodes = 0, right_branch_nodes = 0;
   int z = 0;
   int end_left = 0;
   % endif
   int perf_cyc = 0;
-  struct pi_device cluster_dev = {0};
-  struct pi_cluster_conf conf;
-  struct pi_cluster_task cluster_task = {0};
-  // First open the cluster
-  pi_cluster_conf_init(&conf);
-  conf.id=0;
-
-  int residual_act_size;
 /* ---------------------------------- */
 /* --------- SECTION 0 END ---------- */
 /* ---------------------------------- */
@@ -155,7 +190,7 @@ void ${prefix}network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final
 /* ---------------------------------- */
 % if 'Yes' in performance or 'Perf_final' in verbose_level:
   // perf measurement begin
-  int cycle_network_execution = 0;
+  ${prefix}cycle_network_execution = 0;
 % endif
 /* MAIN SECTION
   - for loop over all the layers of the network
@@ -182,7 +217,7 @@ void ${prefix}network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final
       L2_weights = dmalloc(weights_size[i], dir);
 
     if (allocate_layer[i] == 1)
-      ram_read(L2_weights, L3_weights_curr, weights_size[i]);
+      cl_ram_read(L2_weights, L3_weights_curr, weights_size[i]);
     % else:
     L2_weights = Weights_name[i];
 % endif
@@ -210,7 +245,7 @@ void ${prefix}network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final
 #endif
 % endif
 
-    layer_args_t args = {
+    layer_args_t largs = {
       .L3_input = (unsigned int) L3_input,
       .L3_output = (unsigned int) L3_output,
       .L3_after_weights = (unsigned int) L3_weights_curr,
@@ -235,21 +270,12 @@ void ${prefix}network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final
     pi_perf_stop();
     pi_perf_start();
 % endif
-    pi_cluster_task(&cluster_task, ${prefix}execute_layer_fork, &args);
-    pi_open_from_conf(&cluster_dev, &conf);
-    if (pi_cluster_open(&cluster_dev))
-      return;
-    // Then offload an entry point, this will get executed on the cluster controller
-    cluster_task.stack_size = ${master_stack};
-    cluster_task.slave_stack_size = ${slave_stack};
-    pi_cluster_send_task_to_cl(&cluster_dev, &cluster_task);
-    // closing of the cluster
-    pi_cluster_close(&cluster_dev);
+    ${prefix}execute_layer_fork((void *) &largs);
 % if 'Yes' in performance or 'Perf_final' in verbose_level:
     // performance measurements: end
     pi_perf_stop();
     perf_cyc =  pi_perf_read(PI_PERF_CYCLES);
-    cycle_network_execution += perf_cyc;
+    ${prefix}cycle_network_execution += perf_cyc;
 % endif
 
 % if 'Yes' in performance:
@@ -290,9 +316,9 @@ void ${prefix}network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final
     if (layer_with_weights[i] == 1)
       dfree(weights_size[i], dir);
     dfree(activations_size[i], dir);
+    % endif
     if (branch_input[i] == 1)
-      dfree(residual_act_size, dir);
-% endif
+      dfree(bypass_dimension, dir);
     L2_input = L2_output;
 % if not l3_supported:
     if  (branch_output[i]==1)
@@ -308,34 +334,34 @@ void ${prefix}network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final
     if (i < ${len(DORY_HW_graph) - 1}) {
  % if l3_supported:
       if (branch_input[i+1] == 1) {
-        bypass_activations = dmalloc(residual_act_size, !dir);
+        bypass_activations = dmalloc(bypass_dimension, !dir);
         residual_number--;
-        cl_ram_read(bypass_activations, layers_pointers[residual_number], residual_act_size);
-        cl_ram_free(layers_pointers[residual_number], residual_act_size);
+        cl_ram_read(bypass_activations, layers_pointers[residual_number], bypass_dimension);
+        cl_ram_free(layers_pointers[residual_number], bypass_dimension);
       }
 
       // TODO I feel like this should look ahead instead of back
       if (i > 0 && branch_output[i-1]==1 && L3_input_layers[i]==1) { // TODO don't understand this condition
-        L3_input = ram_malloc(1500000);
+        L3_input = cl_ram_malloc(1500000);
       }
       if (branch_output[i]==1 && L3_output_layers[i]==1) {
-        ram_free(L3_input + activations_out_size[i], 1500000 - activations_out_size[i]);
+        cl_ram_free(L3_input + activations_out_size[i], 1500000 - activations_out_size[i]);
         layers_pointers[residual_number] = L3_input;
         residual_number++;
-        residual_act_size = activations_out_size[i];
+        bypass_dimension = activations_out_size[i];
       } else
     if (branch_output[i]==1 || branch_change[i] == 1) {
-        layers_pointers[residual_number] = ram_malloc(activations_out_size[i]);
-        ram_write(layers_pointers[residual_number], L2_output, activations_out_size[i]);
+        layers_pointers[residual_number] = cl_ram_malloc(activations_out_size[i]);
+        cl_ram_write(layers_pointers[residual_number], L2_output, activations_out_size[i]);
         residual_number++;
-        residual_act_size = activations_out_size[i];
+        bypass_dimension = activations_out_size[i];
     }
 
       if (branch_change[i]==1) {
         dfree(activations_out_size[i], !dir);
         L2_input = dmalloc(activations_size[i + 1], !dir);
-        ram_read(L2_input, layers_pointers[residual_number - 2], activations_size[i + 1]);
-        ram_free(layers_pointers[residual_number - 2], activations_out_size[i + 1]);
+        cl_ram_read(L2_input, layers_pointers[residual_number - 2], activations_size[i + 1]);
+        cl_ram_free(layers_pointers[residual_number - 2], activations_size[i + 1]);
       }
       if (L3_output_layers[i] == 1)
         dfree(activations_out_size[i], !dir);
@@ -392,9 +418,6 @@ void ${prefix}network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final
 /* -------- SECTION 3 BEGIN --------- */
 /* ---------------------------------- */
 
-% if 'Perf_final' in verbose_level:
-  print_perf("Final", cycle_network_execution, ${MACs});
-% endif
 
 /* ---------------------------------- */
 /* --------- SECTION 3 END ---------- */
