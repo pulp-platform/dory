@@ -133,6 +133,7 @@ void ${prefix}network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final
   pi_cluster_conf_init(&conf);
   conf.id=0;
 
+  int residual_act_size;
 /* ---------------------------------- */
 /* --------- SECTION 0 END ---------- */
 /* ---------------------------------- */
@@ -290,7 +291,7 @@ void ${prefix}network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final
       dfree(weights_size[i], dir);
     dfree(activations_size[i], dir);
     if (branch_input[i] == 1)
-      dfree(activations_size[i], dir);
+      dfree(residual_act_size, dir);
 % endif
     L2_input = L2_output;
 % if not l3_supported:
@@ -307,10 +308,10 @@ void ${prefix}network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final
     if (i < ${len(DORY_HW_graph) - 1}) {
  % if l3_supported:
       if (branch_input[i+1] == 1) {
-        bypass_activations = dmalloc(activations_out_size[i], !dir);
+        bypass_activations = dmalloc(residual_act_size, !dir);
         residual_number--;
-        ram_read(bypass_activations, layers_pointers[residual_number], activations_out_size[i]);
-        ram_free(layers_pointers[residual_number], activations_out_size[i]);
+        cl_ram_read(bypass_activations, layers_pointers[residual_number], residual_act_size);
+        cl_ram_free(layers_pointers[residual_number], residual_act_size);
       }
 
       // TODO I feel like this should look ahead instead of back
@@ -321,11 +322,13 @@ void ${prefix}network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final
         ram_free(L3_input + activations_out_size[i], 1500000 - activations_out_size[i]);
         layers_pointers[residual_number] = L3_input;
         residual_number++;
+        residual_act_size = activations_out_size[i];
       } else
     if (branch_output[i]==1 || branch_change[i] == 1) {
         layers_pointers[residual_number] = ram_malloc(activations_out_size[i]);
         ram_write(layers_pointers[residual_number], L2_output, activations_out_size[i]);
         residual_number++;
+        residual_act_size = activations_out_size[i];
     }
 
       if (branch_change[i]==1) {
