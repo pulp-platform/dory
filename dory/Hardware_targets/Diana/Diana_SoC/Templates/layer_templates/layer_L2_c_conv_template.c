@@ -103,7 +103,7 @@ void ${func_name}(layer* layer_i)
   // tile loop nest
   for(iter=0; iter < total_tiles; iter++) {
     // check if last in any dimension
-    x_tile_size_nif = (_i_nif+1   == ${tile_dim_nif}) ? ${x_tile_size_nif_last} : ${x_tile_size_nif};
+    x_tile_size_nif = (_i_nif+1   == ${tile_dim_nif}) ? ${(x_tile_size_nif_last + 15) // 16 * 16} : ${(x_tile_size_nif + 15) // 16 * 16};
     x_tile_size_h   = (_i_h+1     == ${tile_dim_h})   ? ${x_tile_size_h_last} : ${x_tile_size_h};
 % if W_data_size_byte == 8 and 'Gemm' not in optional:
     x_tile_size_w   = (_i_w+1     == ${tile_dim_w})   ? ${(x_tile_size_w_last + 15) // 16 * 16} : ${(x_tile_size_w + 15) // 16 * 16};
@@ -113,7 +113,7 @@ void ${func_name}(layer* layer_i)
     y_tile_size_w   = (_i_w+1     == ${tile_dim_w})   ? ${(y_tile_size_w_last)} : ${(y_tile_size_w)};
 % endif
     x_tile_size_byte = x_tile_size_nif*x_tile_size_h*x_tile_size_w*${x_data_size_byte}/8;
-    x_length_nif_byte = (_i_nif+1 == ${tile_dim_nif})   ? ${x_tile_size_nif_byte_last} : ${x_tile_size_nif_byte};
+    x_length_nif_byte = (_i_nif+1 == ${tile_dim_nif})   ? ${(x_tile_size_nif_byte_last + 15) // 16 * 16} : ${(x_tile_size_nif_byte + 15) // 16 * 16};
     y_tile_size_h   = (_i_h+1     == ${tile_dim_h})   ? ${y_tile_size_h_last} : ${y_tile_size_h};
 % if W_data_size_byte == 8:
     y_length_nof_byte = (_i_nof+1   == ${tile_dim_nof}) ? ${(W_tile_size_nof_last + 15) // 16 * 16} : ${(W_tile_size_nof + 15) // 16 * 16};
@@ -185,7 +185,11 @@ void ${func_name}(layer* layer_i)
     kernel.fx = ${fs1};
     kernel.fy = ${fs2};
     kernel.oy = y_tile_size_h;
+% if data_type_y == 'int':
     kernel.activation_function = 0;
+% elif data_type_y == 'uint':
+    kernel.activation_function = 1;
+% endif
     kernel.output_shift = ${out_shift};
     kernel.dilation = 1;
 % if W_data_size_byte == 8:
@@ -193,37 +197,38 @@ void ${func_name}(layer* layer_i)
     kernel.stride = ${1 if stride > 1 else 0};
 % elif W_data_size_byte == 2:
     kernel.ox_unroll = 1;
-    /*for (int i = 0; i < 2; i++)
+    for (int i = 0; i < 2; i++)
     {
       if (((kernel.ox_unroll * 2 * kernel.k) <= 512) && ((kernel.c * ${fs2} * (${fs1} + kernel.ox_unroll * 2 - 1)) <= 1152))
         kernel.ox_unroll = kernel.ox_unroll * 2;
-    }*/
+    }
     kernel.stride = ${stride};
     kernel.ox = (int) y_tile_size_w / kernel.ox_unroll;
 % endif
-
+    uint32_t l2_W_tile = l2_W + _i_nof * ${W_tile_size_nof * int((nif + 15) // 16 * 16 * fs1 * fs2 + b_data_size_byte / 8)};
 % if W_data_size_byte == 8:
     dory_cores_barrier_digital();
 % if 'Gemm' in optional: 
-    digital_fully_connected(l2_x_tile, l1_x, l2_W, l1_weights, l1_y, &kernel);
+    digital_fully_connected(l2_x_tile, l1_x, l2_W_tile, l1_weights, l1_y, &kernel);
 % elif flag_DW == 1:
-    digital_depthwise_conv_2d(l2_x_tile, l1_x, l2_W, l1_weights, l1_y, &kernel);
+    digital_depthwise_conv_2d(l2_x_tile, l1_x, l2_W_tile, l1_weights, l1_y, &kernel);
 % elif flag_DW == 0: 
-    digital_conv_2d(l2_x_tile, l1_x, l2_W, l1_weights, l1_y, &kernel);
+    digital_conv_2d(l2_x_tile, l1_x, l2_W_tile, l1_weights, l1_y, &kernel);
 % endif 
     dory_cores_barrier_digital();
 % elif W_data_size_byte == 2:
     dory_cores_barrier_analog();
 % if 'Gemm' in optional: 
-    analog_fully_connected(l2_x, l1_x, l2_W, l1_weights, l1_y, &kernel);
+    analog_fully_connected(l2_x, l1_x, l2_W_tile, l1_weights, l1_y, &kernel);
 % elif flag_DW == 1:
-    analog_depthwise_conv_2d(l2_x, l1_x, l2_W, l2_BN, l1_weights, l1_y, &kernel);
+    analog_depthwise_conv_2d(l2_x, l1_x, l2_W_tile, l2_BN, l1_weights, l1_y, &kernel);
 % elif flag_DW == 0: 
-    analog_conv_2d(l2_x, l1_x, l2_W, l2_BN, l1_weights, l1_y, &kernel);
+    analog_conv_2d(l2_x, l1_x, l2_W_tile, l2_BN, l1_weights, l1_y, &kernel);
 % endif 
     dory_cores_barrier_analog();
 % endif
 
+    uint32_t l2_y_tile = dory_get_tile_3d(l2_y, _i_nof, _i_h, _i_w, ${W_tile_size_nof}, ${y_tile_size_h}, ${y_tile_size_w}, ${y_h}, ${y_w}, 0, 0, 0, 0, 0, 0, ${y_data_size_byte});
     _i_nof_pre = _i_nof;
     _i_nif_pre = _i_nif;
     _i_h_pre   = _i_h;
@@ -270,7 +275,7 @@ void ${func_name}(layer* layer_i)
       }
     }
 % elif W_data_size_byte == 8:
-    DMA_copy_y.ext = l2_y;
+    DMA_copy_y.ext = l2_y_tile;
     DMA_copy_y.loc = l1_y;
     DMA_copy_y.number_of_2d_copies = y_length_nof_byte;
     DMA_copy_y.number_of_1d_copies = y_tile_size_h;

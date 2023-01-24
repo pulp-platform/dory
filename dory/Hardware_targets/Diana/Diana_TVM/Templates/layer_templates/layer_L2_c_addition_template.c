@@ -17,23 +17,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License. 
  */
-${verbose_log}
 
-#include "${func_name}.h"
+#include "pulp.h"
+#include "dory.h"
 % if ULTRA_VERBOSE:
 #define VERBOSE_PRINT(...) printf(__VA_ARGS__)
 % endif
 
-
-
-
-void ${func_name}(layer* layer_i)  {
-
-  unsigned int l2_x =         layer_i->L2_input;
-  unsigned int l2_x_2 =       layer_i->L2_input_add;
-  unsigned int l2_y =         layer_i->L2_output;
-
-
+int32_t ${func_name}(void* l2_x, void* l2_x_2, void* l2_y)  
+{
 % if int(func_name[-1]) % 2 == 0:
   unsigned int l1_x2       = 0x0;
   unsigned int l1_y       = 128000 - ${int((l1_x2_offset - l1_y_offset)/32)*32+32};
@@ -178,5 +170,6 @@ void ${func_name}(layer* layer_i)  {
   }
 
   dory_dma_deallocate(dory_dma_channel);
+  return 0;
 }
 

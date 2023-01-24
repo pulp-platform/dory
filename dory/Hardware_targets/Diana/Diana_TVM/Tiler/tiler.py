@@ -40,7 +40,7 @@ class Tiler:
             return Tiler_Conv2D(self).get_tiling(level)
         elif 'Pool' in self.HW_node.name:
             return Tiler_Pool2D(self).get_tiling(level)
-        elif 'Addition' in self.HW_node.name:
+        elif 'Add' in self.HW_node.op_type:
             return Tiler_Add(self).get_tiling(level)
         else:
             print("Not supported Layer.")

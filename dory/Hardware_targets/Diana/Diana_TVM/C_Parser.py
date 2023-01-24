@@ -49,14 +49,14 @@ class C_Parser(Parser_HW_to_C):
     def copy_backend_files(self, node):
         root = os.path.dirname(__file__)
         files = os.path.join(root, "../Backend_Kernels/dory-hal/")
-        if os.listdir(os.path.join(files, "include".format(self.source_Constant_bits_library)))[0] not in os.listdir(os.path.join(self.app_directory, "DORY_network/inc")):
+        if os.listdir(os.path.join(files, "include".format(self.source_Constant_bits_library)))[0] not in os.listdir(os.path.join(self.app_directory, "inc")):
             for file in os.listdir(os.path.join(files, "include".format(self.source_Constant_bits_library))):
                 file_to_copy = os.path.join(files, "include".format(self.source_Constant_bits_library), file)
-                os.system('cp "{}" {}'.format(file_to_copy, os.path.join(self.app_directory, 'DORY_network/inc')))
-        if os.listdir(os.path.join(files, "src".format(self.source_Constant_bits_library)))[0] not in os.listdir(os.path.join(self.app_directory, "DORY_network/src")):
+                os.system('cp "{}" {}'.format(file_to_copy, os.path.join(self.app_directory, 'inc')))
+        if os.listdir(os.path.join(files, "src".format(self.source_Constant_bits_library)))[0] not in os.listdir(os.path.join(self.app_directory, "src")):
             for file in os.listdir(os.path.join(files, "src".format(self.source_Constant_bits_library))):
                 file_to_copy = os.path.join(files, "src".format(self.source_Constant_bits_library), file)
-                os.system('cp "{}" {}'.format(file_to_copy, os.path.join(self.app_directory, 'DORY_network/src')))
+                os.system('cp "{}" {}'.format(file_to_copy, os.path.join(self.app_directory, 'src')))
 
     def adding_numbers_to_layers(self):
         for i, node in enumerate(self.HWgraph):
@@ -70,13 +70,13 @@ class C_Parser(Parser_HW_to_C):
     def mapping_layers_to_C_files(self):
         print("\nMapping the layers files to their templates and copying the kernels associated.")
         tmpl_dir = os.path.join(os.path.dirname(__file__), 'Templates/layer_templates')
-        out_dir = '{}/DORY_network'.format(self.app_directory)
+        out_dir = '{}'.format(self.app_directory)
         precision_library = self.precision_library
         c_files = []
         for i, node in enumerate(self.HWgraph):
             if self.precision_library == 'auto':
                 precision_library = '8bit'
-                if "Addition" not in node.name:
+                if "Add" not in node.op_type:
                     if node.get_parameter('weight_bits') < 8:
                         precision_library = 'ternary'
             node.skip_L2_L1 = False
@@ -124,25 +124,44 @@ class C_Parser(Parser_HW_to_C):
                     temp[:,3] = temp1[:,0]
                     node.__dict__[constants[i]]["value"] = temp.flatten()
                 if i==1:
-                    new_weights = []
-                    for pos in range(4):
-                        for ch in range(int(np.asarray(node.__dict__[constants[i]]["value"]).shape[0]/16)):
-                            for pos_in in [3,2,1,0]:
-                                new_weights.append(node.__dict__[constants[i]]["value"][pos+4*(ch*4+pos_in)])
-                    final_weights = []
-                    for ch in range(int((node.output_channels+15)/16)):
-                        for byte in range(4):
-                            final_weights.append(new_weights[(node.output_channels*byte + ch*16):(node.output_channels*byte + ch*16 + 16)])
+                    if node.group == 1:
+                        new_weights = []
+                        for pos in range(4):
+                            for ch in range(int(np.asarray(node.__dict__[constants[i]]["value"]).shape[0]/16)):
+                                for pos_in in [3,2,1,0]:
+                                    new_weights.append(node.__dict__[constants[i]]["value"][pos+4*(ch*4+pos_in)])
+                        final_weights = []
+                        for ch in range(int((node.output_channels+15)/16)):
+                            for byte in range(4):
+                                final_weights.append(new_weights[(node.output_channels*byte + ch*16):(node.output_channels*byte + ch*16 + 16)])
+                    else:
+                        final_weights = []
+                        for c in np.arange(getattr(node, 'output_channels')):
+                            for pos in range(4):
+                                for ch in range(4):
+                                    for pos_in in [3,2,1,0]:
+                                        final_weights.append(node.__dict__[constants[i]]["value"][c*16*4 + pos + 4*(ch*4 + pos_in)])
                     node.__dict__[constants[i]]["value"] = np.asarray(final_weights).flatten().tolist()
-        for batch in np.arange(0, int(np.floor((getattr(node, 'output_channels')+15)/16))):
-            for i in [0, 1]:
-                if constants[i]!= 0:
-                    if i==0:  
-                        dim = getattr(node, 'input_channels') * 16 * np.prod(getattr(node, 'kernel_shape'))
-                        weights = np.concatenate((weights,node.__dict__[constants[i]]["value"][(batch*dim):((batch+1)*dim)]))
-                    if i==1:  
-                        weights = np.concatenate((weights,node.__dict__[constants[i]]["value"][(batch*16*int(node.bias_bits/8)):((batch+1)*16*int(node.bias_bits/8))]))
-                    save_vector = 1
+        if node.group == 1:
+            for batch in np.arange(0, int(np.floor((getattr(node, 'output_channels')+15)/16))):
+                for i in [0, 1]:
+                    if constants[i]!= 0:
+                        if i==0:  
+                            dim = (getattr(node, 'input_channels')+15)//16*16 * 16 * np.prod(getattr(node, 'kernel_shape'))
+                            weights = np.concatenate((weights,node.__dict__[constants[i]]["value"][(batch*dim):((batch+1)*dim)]))
+                        if i==1:  
+                            weights = np.concatenate((weights,node.__dict__[constants[i]]["value"][(batch*16*int(node.bias_bits/8)):((batch+1)*16*int(node.bias_bits/8))]))
+                        save_vector = 1
+        else:
+            for batch in np.arange(0, getattr(node, 'output_channels')):
+                for i in [0, 1]:
+                    if constants[i]!= 0:
+                        if i==0:  
+                            dim =  16 * np.prod(getattr(node, 'kernel_shape'))
+                            weights = np.concatenate((weights,node.__dict__[constants[i]]["value"][(batch*dim):((batch+1)*dim)]))
+                        if i==1:  
+                            weights = np.concatenate((weights,node.__dict__[constants[i]]["value"][(batch*16*int(node.bias_bits/8)):((batch+1)*16*int(node.bias_bits/8))]))
+                        save_vector = 1
         for i in [2, 3]:
             if constants[i]!= 0:
                 weights = np.concatenate((weights,node.__dict__[constants[i]]["value"]))
@@ -179,6 +198,14 @@ class C_Parser(Parser_HW_to_C):
                     temp[:,3] = temp1[:,0]
                     node.__dict__[constants[i]]["value"] = temp.flatten()
                 if i==1:
+                    temp = np.asarray(node.__dict__[constants[i]]["value"])
+                    temp = temp.reshape(int(temp.shape[0]/4), 4)
+                    temp1 = copy.deepcopy(temp)
+                    temp[:,0] = temp1[:,3] 
+                    temp[:,1] = temp1[:,2] 
+                    temp[:,2] = temp1[:,1] 
+                    temp[:,3] = temp1[:,0]
+                    node.__dict__[constants[i]]["value"] = temp.flatten()
                     '''
                     Bias e' su 32bit:
                     Si impacchettano i 32bit in 8 valori hex, che noi chiameremo BH[0:7], con MSB alla posizione 0
@@ -186,12 +213,11 @@ class C_Parser(Parser_HW_to_C):
                     Il modo che sono scritti nell'header file segue BH[6] BH[7] BH[4] BH[5] BH[2] BH[3] BH[0] BH[1]
                     '''
                     pass
-
         for batch in np.arange(0, int(np.floor((getattr(node, 'output_channels')+15)/16))):
             for i in [0, 1]:
                 if constants[i]!= 0:
                     if i==0:  
-                        dim = int((getattr(node, 'output_channels')+15)/16) * 16 * getattr(node, 'input_channels') * np.prod(getattr(node, 'kernel_shape'))
+                        dim = (getattr(node, 'input_channels')+15)//16*16 * 16 * np.prod(getattr(node, 'kernel_shape'))
                         weights = np.concatenate((weights,node.__dict__[constants[i]]["value"][(batch*dim):((batch+1)*dim)]))
                     if i==1:  
                         weights = np.concatenate((weights,node.__dict__[constants[i]]["value"][(batch*16*int(node.bias_bits/8)):((batch+1)*16*int(node.bias_bits/8))]))
@@ -262,12 +288,12 @@ class C_Parser(Parser_HW_to_C):
         print("## DORY GENERAL PARSING FROM DORY HW IR TO C FILES ##")
         print("## FINAL RAPRESENTATION: COMPILABLE C PROJECT      ##")
         print("#####################################################")
+        self.adding_numbers_to_layers()
         os.system('rm -rf {}'.format(self.app_directory))
         os.system('mkdir {}'.format(self.app_directory))
         os.system('mkdir {}/DORY_network'.format(self.app_directory))
         os.system('mkdir {}/DORY_network/inc'.format(self.app_directory))
         os.system('mkdir {}/DORY_network/src'.format(self.app_directory))
-        self.adding_numbers_to_layers()
         layer_string = self.mapping_layers_to_C_files()
         self.copy_utils_files()
         return layer_string

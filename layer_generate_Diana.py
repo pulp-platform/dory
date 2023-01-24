@@ -32,7 +32,7 @@ from dory.Parsers.Layer_node import Layer_node
 
 def borders(bits, signed):
     low = -(2 ** (bits-1)) if signed else 0
-    high = 2 ** (bits-1) - 1 if signed else 2 ** bits - 1
+    high = 2 ** (bits-1) - 1
     return low, high
 
 
@@ -63,7 +63,7 @@ def create_dory_node(params, index, index_out):
     node.constant_names = []
     node.input_activation_type = params['input_type']
     node.input_activation_bits = params['intermediate_bits']
-    node.output_activation_type = "uint"#params['output_type']
+    node.output_activation_type = params['output_type']
     node.output_activation_bits = params['output_bits']
     node.weight_type = 'int'
     node.weight_bits = None
@@ -80,8 +80,8 @@ def create_dory_node(params, index, index_out):
 
 
 def calculate_output_dimensions(input_dimensions, kernel_shape, stride, padding):
-    h = np.floor((input_dimensions[0] + padding[0] + padding[1] - kernel_shape[0]) / stride[0] + 1)
-    w = np.floor((input_dimensions[1] + padding[2] + padding[3] - kernel_shape[1]) / stride[1] + 1)
+    h = np.floor((input_dimensions[0] + padding[0] + padding[2] - kernel_shape[0]) / stride[0] + 1)
+    w = np.floor((input_dimensions[1] + padding[1] + padding[3] - kernel_shape[1]) / stride[1] + 1)
     return [int(h), int(w)]
 
 
@@ -277,20 +277,20 @@ def calculate_batchnorm_params(x, output_bits, constant_bits, signed):
 def create_input(node):
     low, high = borders(node.input_activation_bits, node.input_activation_type == 'int')
     size = (1, node.input_channels, node.input_dimensions[0], node.input_dimensions[1])
-    # return torch.randint(low=low, high=high, size=size)
-    return torch.randint(low=10, high=11, size=size)
+    return torch.randint(low=low, high=high, size=size)
+    # return torch.randint(low=2, high=3, size=size)
 
 def create_weight(node):
     low, high = borders(node.weight_bits, signed=True)
     if node.weight_bits == 2:
         low, high = -1, 2
     size = (node.output_channels, node.input_channels // node.group, node.kernel_shape[0], node.kernel_shape[1])
-    if False:#node.weight_bits == 2:
+    if node.weight_bits == 2:
         increasing_factor = 2
         vec_weights = torch.tensor([])
         for i in np.arange(node.output_channels-1,-1,-1):
-            ones = torch.ones(i * increasing_factor + 1, 1)
-            zeros = torch.zeros((node.input_channels // node.group * node.kernel_shape[0] * node.kernel_shape[1] ) - (i * increasing_factor + 1), 1)
+            ones = torch.ones(min(i * increasing_factor + 1, node.input_channels // node.group * node.kernel_shape[0] * node.kernel_shape[1]), 1)
+            zeros = torch.zeros((node.input_channels // node.group * node.kernel_shape[0] * node.kernel_shape[1] ) - min(i * increasing_factor + 1, node.input_channels // node.group * node.kernel_shape[0] * node.kernel_shape[1]), 1)
             column = torch.cat((ones, zeros), 0)
             vec_weights = torch.cat((vec_weights, column), 1)
         vec_weights = vec_weights.transpose(0, 1)
@@ -298,13 +298,13 @@ def create_weight(node):
         return vec_weights
     else:
         return torch.randint(low=low, high=high, size=size)
-        # return torch.randint(low=2, high=3, size=size)
+        # return torch.randint(low=1, high=50, size=size)
 
 def create_bias(node):
     low, high = borders(node.bias_bits, signed=True)
     size = (node.output_channels,1)
-    #return torch.randint(low=low, high=high, size=size).flatten()
-    return torch.randint(low=0, high=1, size=size).flatten()
+    return torch.randint(low=low, high=high, size=size).flatten()
+    # return torch.randint(low=0, high=1, size=size).flatten()
 
 def create_conv(i_layer, layer_node, dory_node, network_dir, input=None, weight=None, batchnorm_params=None):
     x = input if input is not None else create_input(layer_node)
@@ -324,8 +324,7 @@ def create_conv(i_layer, layer_node, dory_node, network_dir, input=None, weight=
         'value': b.numpy(),
         'layout': ''
     }
-
-    y = F.conv2d(input=x, weight=w, bias=b, stride=layer_node.strides, padding=layer_node.pads[0], groups=layer_node.group)
+    y = F.conv2d(input=x, weight=w, bias=b, stride=layer_node.strides, padding=layer_node.pads[:2], groups=layer_node.group)
     y_type = torch.int32
     y = y.type(y_type)
     y_signed = layer_node.output_activation_type == 'int'
@@ -436,7 +435,7 @@ if __name__ == '__main__':
                         help='Path to the JSON file that specifies the ONNX file of the network and other information. Default: config_files/config_single_layer.json')
     parser.add_argument('--app_dir', default='./application',
                         help='Path to the generated application. Default: ./application')
-    parser.add_argument('--perf_layer', default='No', help='Yes: MAC/cycles per layer. No: No perf per layer.')
+    parser.add_argument('--perf_layer', default='Yes', help='Yes: MAC/cycles per layer. No: No perf per layer.')
     parser.add_argument('--verbose_level', default='None',
                         help="None: No_printf.\nPerf_final: only total performance\nCheck_all+Perf_final: all check + final performances \nLast+Perf_final: all check + final performances \nExtract the parameters from the onnx model")
     parser.add_argument('--backend', default='MCU', help='MCU or Occamy')

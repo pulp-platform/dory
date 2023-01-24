@@ -81,7 +81,7 @@ class Tiler_Conv2D():
             previous_layer_tiles = 1
         self.HW_node.previous_layer_tiles = previous_layer_tiles
         # return immediatly if the memory fits the L1
-        if (in_mem + out_mem) <= L1_memory_activation and weights_mem <= L1_memory_weights and ((self.HW_node.weight_bits == 2 and (out_ch <= 512) and (in_ch <= 128)) or self.HW_node.weight_bits == 8):
+        if (in_mem + out_mem) <= L1_memory_activation and weights_mem <= L1_memory_weights and ((self.HW_node.weight_bits == 2 and (out_ch <= 512) and (in_ch <= 128)) or self.HW_node.weight_bits == 8) and ((out_ch <= 16)  or (inp_dim[0] > 1 and inp_dim[1] > 1)):
             return (self.HW_node.tiling_dimensions["L2"]["weights_dimensions"] , [self.HW_node.tiling_dimensions["L2"]["input_dimensions"][0], h_in, self.HW_node.tiling_dimensions["L2"]["input_dimensions"][2]] , [self.HW_node.tiling_dimensions["L2"]["weights_dimensions"][0], h_out, self.HW_node.tiling_dimensions["L2"]["output_dimensions"][2]] )
         else:
             db = 1
@@ -139,13 +139,18 @@ class Tiler_Conv2D():
             if g == 1:
                 solver.Add(tile_n_in == int(in_ch))
             
+            if inp_dim[0] == 1 and inp_dim[1] == 1:
+                solver.Add(tile_n_out <= 16)
+            
             ###############################################
             ##### CONSTRAINTS FOR DIMENSION ###############
             ###############################################
             input_tile_dimension  = db * tile_n_in * tile_h_in * tile_w_in * self.HW_node.input_activation_bits // 8
             output_tile_dimension = db * tile_n_out * tile_h_out * tile_w_out * self.HW_node.output_activation_bits // 8
-            weight_tile_dimension = db * (tile_n_in * tile_n_out * np.prod(ks) * self.HW_node.weight_bits // 8 // g + (1 if self.HW_node.weight_bits == 8 else 0) * tile_n_out * self.HW_node.bias_bits // 8)
-
+            if g == 1:
+                weight_tile_dimension = db * (tile_n_in * tile_n_out * np.prod(ks) * self.HW_node.weight_bits // 8 // g + (1 if self.HW_node.weight_bits == 8 else 0) * tile_n_out * self.HW_node.bias_bits // 8)
+            else:
+                weight_tile_dimension = db * (tile_n_in * tile_n_out * np.prod(ks) * self.HW_node.weight_bits // 8 // g * 16 + (1 if self.HW_node.weight_bits == 8 else 0) * tile_n_out * self.HW_node.bias_bits // 8 * 16)
             constraint_all = input_tile_dimension + output_tile_dimension + weight_tile_dimension
 
             solver.Add((input_tile_dimension + output_tile_dimension) <= L1_memory_activation)

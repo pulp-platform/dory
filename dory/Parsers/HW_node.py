@@ -76,6 +76,7 @@ class HW_node(DORY_node):
             self.tiling_dimensions["L{}".format(level-1)]["output_dimensions"] = output_dims
             if "Convolution" in self.name or "FullyConnected" in self.name:
                 self.tiling_dimensions["L{}".format(level-1)]["weights_dimensions"] = weights_dim
+<<<<<<< HEAD
                 #groups = self.group if self.group < weights_dim[0] else
                 #weights_dim[0] # not really correct: If we tile a grouped
                 #conv, the effective number of groups is the higher of the two
@@ -83,6 +84,13 @@ class HW_node(DORY_node):
                 groups = self.group if all(self.group <= d for d in weights_dim) else max(weights_dim)
 
                 self.tiling_dimensions["L{}".format(level-1)]["weight_memory"] = np.prod(weights_dim)/groups*np.prod(self.kernel_shape)*self.weight_bits/8
+=======
+                groups = self.group if self.group < weights_dim[0] else weights_dim[0]
+                if groups == 1:
+                    self.tiling_dimensions["L{}".format(level-1)]["weight_memory"] = np.prod(weights_dim)/groups*np.prod(self.kernel_shape)*self.weight_bits/8
+                else:
+                    self.tiling_dimensions["L{}".format(level-1)]["weight_memory"] = np.prod(weights_dim)/groups*np.prod(self.kernel_shape)*self.weight_bits/8*16
+>>>>>>> master
             else:
                 self.tiling_dimensions["L{}".format(level-1)]["weight_memory"] = 0
             constants_memory = 0
@@ -91,7 +99,11 @@ class HW_node(DORY_node):
                 if name in ["l","k"]:
                     constants_memory+=weights_dim[0]*self.constant_bits/8
                 if "bias" in name:
-                    bias_memory+=weights_dim[0]*self.bias_bits/8
+                    if groups == 1:
+                        bias_memory+=weights_dim[0]*self.bias_bits/8
+                    else:
+                        bias_memory+=weights_dim[0]*self.bias_bits/8*16
+
             self.tiling_dimensions["L{}".format(level-1)]["bias_memory"] = int(bias_memory)
             self.tiling_dimensions["L{}".format(level-1)]["constants_memory"] = int(constants_memory)
             self.tiling_dimensions["L{}".format(level-1)]["input_activation_memory"] = np.prod(self.tiling_dimensions["L{}".format(level-1)]["input_dimensions"])*self.input_activation_bits/8
