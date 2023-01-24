@@ -45,23 +45,10 @@ APP_CFLAGS += -DFLASH_TYPE=$(FLASH_TYPE) -DUSE_$(FLASH_TYPE) -DUSE_$(RAM_TYPE)
 % if blocking_dma:
 APP_CFLAGS += -DALWAYS_BLOCK_DMA_TRANSFERS
 % endif
-% if do_flash:
-% for layer in layers_w:
-FLASH_FILES += hex/${layer}
-% endfor
-% if n_inputs > 1:
-% for n_in in range(n_inputs):
-FLASH_FILES += hex/inputs_${n_in}.hex
-% endfor
-% else:
-FLASH_FILES += hex/inputs.hex
+% if single_core_dma:
+APP_CFLAGS += -DSINGLE_CORE_DMA
 % endif
 
-READFS_FILES := $(FLASH_FILES)
-% endif
-% if sdk == 'gap_sdk':
-APP_CFLAGS += -DFS_READ_FS
-% endif
-#PLPBRIDGE_FLAGS += -f
+include ${prefix}vars.mk
 
 include $(RULES_DIR)/pmsis_rules.mk

@@ -35,6 +35,8 @@ def print_template_network(
 ):
     # Generate the Network management c file.
     tk = OrderedDict([])
+    prefix = graph[0].prefix
+    tk['prefix'] = prefix
     if 'Check' in verbose_level:
         tk['verbose'] = True
     else:
@@ -57,9 +59,9 @@ def print_template_network(
     for i, node in enumerate(graph):
         MACs += node.MACs
         if "Conv" in node.name or "FullyConnected" in node.name:
-            file_list_w.append(node.name+"_weights.hex")
-        list_h.append(node.name+".h")
-        list_name.append(node.name)
+            file_list_w.append(node.prefixed_name+"_weights.hex")
+        list_h.append(node.prefixed_name+".h")
+        list_name.append(node.prefixed_name)
     tk['MACs'] = MACs
     tk['files_list'] = utils.print_file_list(file_list_w)
     tk['fc_frequency'] = HW_description["core frequency"]
@@ -76,24 +78,24 @@ def print_template_network(
         except TypeError:
             try:
                 l += "// %s %d\n" % (k.ljust(30), v[0])
-            except TypeError:
+            except (TypeError, IndexError):
                 l += "// %s %s\n" % (k.ljust(30), v)
     tk['DORY_HW_graph'] = graph
     root = os.path.realpath(os.path.dirname(__file__))
     tmpl = Template(filename=os.path.join(root, "../../Hardware_targets", HW_description["name"], "Templates/network_c_template.c"))
     s = tmpl.render(verbose_log=l, **tk)
-    save_string = os.path.join(app_directory, src_dir_rel, 'network.c') 
+    save_string = os.path.join(app_directory, src_dir_rel, prefix + 'network.c')
     with open(save_string, "w") as f:
         f.write(s)
 
     tmpl = Template(filename=os.path.join(root, "../../Hardware_targets", HW_description["name"], "Templates/network_h_template.h"))
     s = tmpl.render(verbose_log=l, **tk)
-    save_string = os.path.join(app_directory, inc_dir_rel, 'network.h') 
+    save_string = os.path.join(app_directory, inc_dir_rel, prefix + 'network.h')
     with open(save_string, "w") as f:
         f.write(s)
 
     tmpl = Template(filename=os.path.join(root, "../../Hardware_targets", HW_description["name"], "Templates/main_template.c"))
     s = tmpl.render(verbose_log=l, **tk)
-    save_string = os.path.join(app_directory, src_dir_rel, 'main.c')
+    save_string = os.path.join(app_directory, src_dir_rel, prefix + 'main.c')
     with open(save_string, "w") as f:
         f.write(s)

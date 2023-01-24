@@ -32,6 +32,14 @@
 #define VERBOSE_PRINT(...) printf(__VA_ARGS__)
 % endif
 
+#ifdef SINGLE_CORE_DMA
+%if sdk == "gap_sdk":
+L1_DATA static uint32_t dory_dma_channel = 0;
+%else:
+PI_L1 static uint32_t dory_dma_channel = 0;
+%endif
+#endif
+
 void ${func_name}(
   void *args
 ) {
@@ -54,7 +62,12 @@ void ${func_name}(
   /////////////////////
   // DMA declaration //
   /////////////////////
+#ifndef SINGLE_CORE_DMA
   uint32_t dory_dma_channel = dory_dma_allocate();
+#else
+  if (pi_core_id() == 0)
+    dory_dma_channel = dory_dma_allocate();
+#endif
   volatile DMA_copy DMA_copy_k, DMA_copy_lambda;
   volatile DMA_copy DMA_copy_W, DMA_copy_x, DMA_copy_y;
 % if has_bias == 1:
@@ -297,7 +310,7 @@ void ${func_name}(
   % elif flag_DW == 0 and 'mixed' in optional_type  and ('Gemm' in func_name or 'MatMul' in func_name or 'FullyConnected' in func_name) and y_data_size_byte == 32:
     ${"x" if 'hw' in optional_type else ""}pulp_nn_linear_${data_type_x[0]}${x_data_size_byte}_${data_type_y[0]}${y_data_size_byte}_${data_type_weights[0]}${W_data_size_byte}(
   % elif flag_DW == 0 and 'mixed' in optional_type  and ('Gemm' in func_name or 'MatMul' in func_name or 'FullyConnected' in func_name):
-    pulp_nn_linear_${data_type_x[0]}${x_data_size_byte}_${data_type_y[0]}${y_data_size_byte}_${data_type_weights[0]}${W_data_size_byte}(
+  ${"x" if 'hw' in optional_type else ""}pulp_nn_linear_${data_type_x[0]}${x_data_size_byte}_${data_type_y[0]}${y_data_size_byte}_${data_type_weights[0]}${W_data_size_byte}(
   % elif flag_DW == 1 and optional_type == '8bit' and fs1 == 3 and fs2 == 3 and stride==1:
     pulp_nn_depthwise_generic(
   % elif flag_DW == 1 and optional_type == '8bit' and fs1*fs2 < 4:

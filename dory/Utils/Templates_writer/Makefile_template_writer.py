@@ -26,15 +26,17 @@ def print_template_Makefile(
     graph,
     HW_description,
     save_string,
-    app_directory):
+        app_directory,
+        template_location_rel="Templates/Makefile_template"):
     # Generate the Makefile, including all files to upload on the hyperflash
     tk = OrderedDict([])
     file_list_w = []
     for i, node in enumerate(graph):
         if "Conv" in node.name or "FullyConnected" in node.name:
-            file_list_w.append(node.name+"_weights.hex")
+            file_list_w.append(node.prefixed_name+"_weights.hex")
 
     tk['n_inputs'] = graph[0].n_test_inputs
+    tk['prefix'] = graph[0].prefix
     tk['layers_w'] = file_list_w
     tk['sdk'] = HW_description["software development kit"]["name"]
     tk['do_flash'] = HW_description["memory"]["levels"] > 2
@@ -44,8 +46,14 @@ def print_template_Makefile(
         print("Makefile template writer: key 'always_blocking_dma_transfers' not found in HW description, using non-blocking transfers!")
         blocking_dma_transfers = False
     tk['blocking_dma'] = blocking_dma_transfers
+    try:
+        single_core_dma = HW_description['single_core_dma']
+    except KeyError:
+        print("Makefile template writer: key 'single_core_dma' not found in HW description, using multi-core transfers!")
+        single_core_dma = False
+    tk['single_core_dma'] = single_core_dma
     root = os.path.realpath(os.path.dirname(__file__))
-    tmpl = Template(filename=os.path.join(root, "../../Hardware_targets", HW_description["name"], "Templates/Makefile_template"))
+    tmpl = Template(filename=os.path.join(root, "../../Hardware_targets", HW_description["name"], template_location_rel))
     s = tmpl.render(**tk)
     save_string = os.path.join(app_directory, save_string)
     with open(save_string, "w") as f:

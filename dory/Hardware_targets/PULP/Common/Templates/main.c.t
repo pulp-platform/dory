@@ -22,11 +22,11 @@ n_inputs = DORY_HW_graph[0].n_test_inputs
 single_input = n_inputs==1
 %>\
 % if not l3_supported:
-#include "input.h"
+#include "${prefix}input.h"
 % else:
 #include "mem.h"
 % endif
-#include "network.h"
+#include "${prefix}network.h"
 
 #include "pmsis.h"
 
@@ -59,7 +59,7 @@ int main () {
 */
 % if l3_supported:
   mem_init();
-  network_initialize();
+  ${prefix}network_initialize();
   % endif
   /*
     Allocating space for input
@@ -77,25 +77,22 @@ int main () {
 % if not single_input:
   for (int exec = 0; exec < ${n_inputs}; exec++) {
     % if l3_supported:
-  load_file_to_ram(ram_input, Input_names[exec]);
+      load_file_to_ram(ram_input, ${prefix}Input_names[exec]);
     % endif
 % elif l3_supported:
-
-  load_file_to_ram(ram_input, "inputs.hex");
+      load_file_to_ram(ram_input, "${prefix}inputs.hex");
 % endif
-
   % if l3_supported:
-  ram_read(l2_buffer, ram_input, l2_input_size);
+      ram_read(l2_buffer, ram_input, l2_input_size);
   % endif
-
-      network_run(l2_buffer, ${l2_buffer_size}, l2_buffer, ${"0" if single_input else "exec"}${f", L2_input_h{' + exec * l2_input_size' if not single_input else ''}" if not l3_supported else ""});
+      ${prefix}network_run(l2_buffer, ${l2_buffer_size}, l2_buffer, ${"0" if single_input else "exec"}${f", {prefix}L2_input_h{' + exec * l2_input_size' if not single_input else ''}" if not l3_supported else ""});
 
   % if not single_input:
   }
   % endif
   % if l3_supported:
   ram_free(ram_input, input_size);
-  network_terminate();
+  ${prefix}network_terminate();
   % endif
   pi_l2_free(l2_buffer, ${l2_buffer_size});
 }

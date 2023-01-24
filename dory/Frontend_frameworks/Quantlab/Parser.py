@@ -35,7 +35,7 @@ file_path = "/".join(os.path.realpath(__file__).split("/")[:-1])
 class onnx_manager(Parser_ONNX_to_DORY):
     # Used to manage the ONNX files. By now, supported Convolutions (PW and DW), Pooling, Fully Connected and Relu.
 
-    def __init__(self, onnx, config_file):
+    def __init__(self, onnx, config_file, net_prefix=""):
         layers_accepted = ['Conv', 'Pad', 'Mul', 'Add', 'Div', 'Constant', 'AveragePool', 'GlobalAveragePool', 'MaxPool', 'Cast', 'Clip', 'Floor', 'Flatten', 'Gemm', 'MatMul', 'Shape', 'Gather', 'Unsqueeze', 'Squeeze', 'Concat', 'Reshape', 'Sigmoid', 'LogSoftmax']
         layers_neglected = ['Cast', 'Floor', 'Flatten', 'Shape', 'Gather', 'Unsqueeze', 'Concat', 'Reshape', 'Sigmoid', 'LogSoftmax', 'Squeeze']
         layers_to_node = ['AveragePool', 'MaxPool', 'Conv', 'Gemm', 'MatMul', 'GlobalAveragePool']
@@ -53,7 +53,7 @@ class onnx_manager(Parser_ONNX_to_DORY):
             self.n_test_inputs = config_file["n_inputs"]
         except KeyError:
             self.n_test_inputs = 1
-        super().__init__(onnx, rules, layers_accepted, layers_neglected, layers_to_node)
+        super().__init__(onnx, rules, layers_accepted, layers_neglected, layers_to_node, net_prefix)
 
     def frontend_mapping_to_DORY_nodes(self):
         print("\nQuantlab Frontend: Matching patterns from generated ONNX to DORY.")
@@ -91,7 +91,8 @@ class onnx_manager(Parser_ONNX_to_DORY):
                 node.constant_names.append("outadd")
                 delattr(node, 'out_add')
                 # input 1 parameters
-                #### Look at the order of inputs in Onnx. If the lowest index is not the first argument, revert the order inmul1 and inmul2
+                #### Look at the order of inputs in Onnx. If the lowest index
+                #is not the first argument, revert the order inmul1 and inmul2
                 if int(node.input_indexes[0]) > int(node.input_indexes[1]):
                     temp_shift = node.in1_shift
                     temp_mul   = node.in1_mul
@@ -167,7 +168,15 @@ class onnx_manager(Parser_ONNX_to_DORY):
                 node.add_existing_parameter("output_activation_bits", int(np.log2(node.out_n_levels)))
                 delattr(node, "add_bits")
                 delattr(node, "out_n_levels")
-                node.add_existing_parameter("output_activation_type", self.DORY_Graph[i].input_activation_type)
+                # if the node has the "out_signed" attribute, use it to set the
+                # output act type. Otherwise, infer it from the input types 
+                if hasattr(node, "out_signed"):
+                    out_type = "int" if node.out_signed else "uint"
+                    delattr(node, "out_signed")
+                else:
+                    out_type = "uint" if node.input_activation_type == "uint" and node.second_input_activation_type == "uint" else "int"
+                
+                node.add_existing_parameter("output_activation_type", out_type)
             if node.name in ["Convolution", "FullyConnected"]:
                 node.add_existing_parameter("output_activation_bits", 32)
                 # before merging with activations, conv/FC always have 32b int outputs

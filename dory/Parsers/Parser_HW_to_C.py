@@ -105,12 +105,13 @@ class Parser_HW_to_C:
             while len(weights) % 4 != 0:
                 weights = np.concatenate((weights, np.asarray([0])))
             if weights.shape[0] != 0:
-                string_layer = node.name + "_weights.hex"
+                string_layer = node.prefixed_name + "_weights.hex"
                 save_s = os.path.join(self.hex_dir, string_layer)
                 weights.astype('uint8').tofile(save_s)
 
     def create_hex_input(self):
         print("\nGenerating .hex input file.")
+        prefix = self.HWgraph[0].prefix
         for in_idx in range(self.n_inputs):
             infile = 'input.txt' if self.n_inputs == 1 else f'input_{in_idx}.txt'
             try:
@@ -128,7 +129,7 @@ class Parser_HW_to_C:
             if in_bits != 8:
                 x_in = HW_node._compress(x_in, in_bits)
 
-            string_layer = "inputs.hex" if self.n_inputs == 1 else f"inputs_{in_idx}.hex"
+            string_layer = prefix+"inputs.hex" if self.n_inputs == 1 else f"{prefix}inputs_{in_idx}.hex"
             save_s = os.path.join(self.hex_dir, string_layer)
             x_in.astype('uint8').tofile(save_s)
 

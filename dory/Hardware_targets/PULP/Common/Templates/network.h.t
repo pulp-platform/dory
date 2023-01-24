@@ -17,8 +17,8 @@
  * limitations under the License. 
  */
 
-#ifndef __NETWORK_H__
-#define __NETWORK_H__
+#ifndef __${prefix.upper()}NETWORK_H__
+#define __${prefix.upper()}NETWORK_H__
 
 % if sdk == 'gap_sdk':
 #include "pulp.h"
@@ -28,60 +28,40 @@
    single_input = n_inputs==1
 %>\
 % if not l3_supported:
-#include "weights_definition.h"
+#include "${prefix}weights_definition.h"
 % endif
 #include <stddef.h>
 
-#define PAD_TOP    (1 << 3)
-#define PAD_RIGHT  (1 << 2)
-#define PAD_BOTTOM (1 << 1)
-#define PAD_LEFT   (1 << 0)
-#define NO_PAD     (0)
-
-typedef struct {
-    unsigned int L3_input;
-    unsigned int L3_output;
-    unsigned int L3_after_weights;
-    unsigned int L2_input;
-    unsigned int bypass;
-    unsigned int L2_output;
-    unsigned int L2_weights;
-    unsigned int L1_buffer;
-    unsigned int ram;
-    unsigned int out_mult;
-    unsigned int out_shift;
-    unsigned int layer_id;
-} layer_args_t;
 
 % if l3_supported:
-void network_terminate();
-void network_initialize();
+void ${prefix}network_terminate();
+void ${prefix}network_initialize();
 % endif
-void network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, int exec${", void *L2_input_h" if not l3_supported else ""});
-void execute_layer_fork(void *arg);
-void execute_layer(void *arg);
+void ${prefix}network_run_cluster(void * args);
+void ${prefix}network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, int exec${", void *L2_input_h" if not l3_supported else ""});
+void ${prefix}execute_layer_fork(void *arg);
 
 % if l3_supported and not single_input:
-static char * Input_names[${n_inputs}] = {\
+static char * ${prefix}Input_names[${n_inputs}] = { \
   % for n in range(n_inputs-1):
-  "${f"inputs_{n}.hex"}",
+  "${f"{prefix}inputs_{n}.hex"}",
   % endfor
-  "${f"inputs_{n_inputs-1}.hex"}"
+  "${f"{prefix}inputs_{n_inputs-1}.hex"}"
 };
 % endif
 
 #ifdef DEFINE_CONSTANTS
 % if l3_supported:
 // allocation of buffers with parameters needed by the network execution
-const char * L3_weights_files[] = {
+static const char * L3_weights_files[] = {
   ${files_list}
 };
-int L3_weights_size[${weights_number}];
+static int L3_weights_size[${weights_number}];
 static int layers_pointers[${len(DORY_HW_graph)}];
 % endif
 static char * Layers_name[${len(DORY_HW_graph)}] = {\
 % for node in DORY_HW_graph:
-"${node.name}"${'' if loop.last else ', '}\
+"${node.prefixed_name}"${'' if loop.last else ', '}\
 % endfor
 };
 % if l3_supported:
@@ -117,7 +97,7 @@ static int allocate_layer[${len(DORY_HW_graph)}] = {\
 static char *Weights_name[${len(DORY_HW_graph)}] = {\
 % for i in range(len(DORY_HW_graph)):
 % if 'Conv' in DORY_HW_graph[i].name or 'FullyConnected' in DORY_HW_graph[i].name:
-Weights_${DORY_HW_graph[i].name}${'' if loop.last else ', '}\
+Weights_${DORY_HW_graph[i].prefixed_name}${'' if loop.last else ', '}\
 % else:
 "None"${'' if loop.last else ', '}\
 % endif

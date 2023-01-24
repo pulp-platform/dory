@@ -32,7 +32,7 @@ from dory.Utils.DORY_utils import Printer
 
 class Parser_ONNX_to_DORY:
     # Used to manage the ONNX files. By now, supported Convolutions (PW and DW), Pooling, Fully Connected and Relu.
-    def __init__(self, network, rules, layers_accepted, layers_neglected, layers_to_node):
+    def __init__(self, network, rules, layers_accepted, layers_neglected, layers_to_node, net_prefix=""):
         self.graph = onnx.load(network)
         self.Printer_Frontend = Printer("logs/Frontend")
         self.Printer_Frontend.print_onnx("Original_graph", self.graph)
@@ -43,6 +43,8 @@ class Parser_ONNX_to_DORY:
         self.layers_to_node = layers_to_node
         self.layers_supported_by_DORY_Frontend_IR = ["Convolution", "Pooling", "FullyConnected", "Addition", "QAddition", "Relu", "BNRelu", "Requant"]
         self.rules = rules
+        self.net_prefix = net_prefix
+        print(f"onnx_to_dory net prefix: {net_prefix}")
         self.DORY_Graph = []
 
     def create_node(self, node_iterating, graph):
@@ -51,10 +53,10 @@ class Parser_ONNX_to_DORY:
         As an alternative, create a DORY node (Mul, Shift, Div, Clip, etc...).
         '''
         new_node = DORY_node.DORY_node()
-        new_node.populate_DORY_node(node_iterating,graph)
+        new_node.populate_DORY_node(node_iterating,graph, self.net_prefix)
         if new_node.name in ['FullyConnected', 'Addition', 'Convolution', 'Pooling']:
             new_node = Layer_node.Layer_node()
-            new_node.populate_Layer_node(node_iterating,graph)
+            new_node.populate_Layer_node(node_iterating,graph, self.net_prefix)
         return new_node
 
     def ONNXtoDORY(self):
@@ -73,7 +75,7 @@ class Parser_ONNX_to_DORY:
             elif node_iterating.op_type in self.layers_accepted:
                 new_node = self.create_node(node_iterating, self.graph)
                 self.DORY_Graph.append(new_node)
-            else: 
+            else:
                 sys.exit("DORY Frontend. Node not parsed.")
 
     def remove_Constants(self):

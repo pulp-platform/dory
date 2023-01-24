@@ -17,8 +17,8 @@
  * limitations under the License. 
  */
 
-#ifndef __WEIGHTS_H__
-#define __WEIGHTS_H__
+#ifndef __${prefix.upper()}WEIGHTS_H__
+#define __${prefix.upper()}WEIGHTS_H__
 % if sdk == 'gap_sdk':
 #include "pulp.h"
 % endif
@@ -27,9 +27,9 @@
 % for i in range(len(weights_vectors)):
 % if weights_dimensions[i] > 0:
 % if sdk == 'gap_sdk':
-L2_DATA uint8_t Weights_${DORY_HW_graph[i].name}[${weights_dimensions[i]}] = {
+L2_DATA uint8_t Weights_${DORY_HW_graph[i].prefixed_name}[${weights_dimensions[i]}] = {
 % elif sdk == 'pulp-sdk':
-PI_L2 uint8_t Weights_${DORY_HW_graph[i].name}[${weights_dimensions[i]}] = {
+PI_L2 uint8_t Weights_${DORY_HW_graph[i].prefixed_name}[${weights_dimensions[i]}] = {
 % endif
 ${weights_vectors[i]}};
 % endif
