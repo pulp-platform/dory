@@ -76,7 +76,6 @@ class HW_node(DORY_node):
             self.tiling_dimensions["L{}".format(level-1)]["output_dimensions"] = output_dims
             if "Convolution" in self.name or "FullyConnected" in self.name:
                 self.tiling_dimensions["L{}".format(level-1)]["weights_dimensions"] = weights_dim
-<<<<<<< HEAD
                 #groups = self.group if self.group < weights_dim[0] else
                 #weights_dim[0] # not really correct: If we tile a grouped
                 #conv, the effective number of groups is the higher of the two
@@ -84,13 +83,6 @@ class HW_node(DORY_node):
                 groups = self.group if all(self.group <= d for d in weights_dim) else max(weights_dim)
 
                 self.tiling_dimensions["L{}".format(level-1)]["weight_memory"] = np.prod(weights_dim)/groups*np.prod(self.kernel_shape)*self.weight_bits/8
-=======
-                groups = self.group if self.group < weights_dim[0] else weights_dim[0]
-                if groups == 1:
-                    self.tiling_dimensions["L{}".format(level-1)]["weight_memory"] = np.prod(weights_dim)/groups*np.prod(self.kernel_shape)*self.weight_bits/8
-                else:
-                    self.tiling_dimensions["L{}".format(level-1)]["weight_memory"] = np.prod(weights_dim)/groups*np.prod(self.kernel_shape)*self.weight_bits/8*16
->>>>>>> master
             else:
                 self.tiling_dimensions["L{}".format(level-1)]["weight_memory"] = 0
             constants_memory = 0
