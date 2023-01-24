@@ -80,7 +80,7 @@ class HW_node(DORY_node):
                 #weights_dim[0] # not really correct: If we tile a grouped
                 #conv, the effective number of groups is the higher of the two
                 #channel numbers
-                groups = self.group if all(self.group < d for d in weights_dim) else max(weights_dim)
+                groups = self.group if all(self.group <= d for d in weights_dim) else max(weights_dim)
 
                 self.tiling_dimensions["L{}".format(level-1)]["weight_memory"] = np.prod(weights_dim)/groups*np.prod(self.kernel_shape)*self.weight_bits/8
             else:
@@ -163,7 +163,6 @@ class HW_node(DORY_node):
             #### TO CHECK ORDER OF BIASES
             return [np.uint8((el >> shift) & 255) for el in x for shift in range(0, bits, 8)]
 
-        #import ipdb; ipdb.set_trace()
         if bias_name in self.__dict__:
             self.__dict__[bias_name]["value"] = self._to_uint8(self.__dict__[bias_name]['value'].astype(np.int64).ravel(), self.bias_bits)
             self.check_sum_w += sum(self.__dict__[bias_name]["value"])
