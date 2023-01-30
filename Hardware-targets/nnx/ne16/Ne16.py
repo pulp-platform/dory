@@ -60,13 +60,14 @@ class Ne16(Accelerator):
             weights_size = ks[0] * ks[1] * cin * output_shape[2]
             return input_size + output_size + weights_size
 
-        subtile_out_shape = (2 if s[0] == 2 else self.OUTPUT_BUFFER_SHAPE[0],
-                             2 if s[1] == 2 else self.OUTPUT_BUFFER_SHAPE[1],
+        subtile_out_shape = (2 if s == [2, 2] else self.OUTPUT_BUFFER_SHAPE[0],
+                             2 if s == [2, 2] else self.OUTPUT_BUFFER_SHAPE[1],
                              self.OUTPUT_BUFFER_SHAPE[2])
 
         cin = layer_in_shape[2]
 
         return [
+            # TODO: Add heuristic that prefers more width tiles then height - less switching on borders
             maximize_divisibility_or_max_w_prio(tile_out_shape[0], subtile_out_shape[0],
                                                 max=layer_out_shape[0], prio=5),
 

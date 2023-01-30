@@ -227,8 +227,8 @@ do {                                                     ${"\\"}
     } while (0)
 #else
 #define TILE_CHECKSUM_PRINT(dma, i_tile)
-
 #endif
+
 % if ULTRA_VERBOSE:
 // #define VERBOSE_PRINT(...) printf(__VA_ARGS__)
 #define VERBOSE_PRINT(...)
@@ -522,7 +522,13 @@ void ${func_name}(
 
   for (int i = 0; i < MIN(NNX_TASK_COUNT, total_tiles); i++) {
     nnx_task_init(&nnx_tasks[i]);
-    nnx_conv_${fs1}x${fs2}${'_dw' if flag_DW else ''}(&(nnx_tasks[i].cfg), nnx_weights, nnx_input, nnx_output, tile_padding, stride);
+    //nnx_conv_${fs1}x${fs2}${'_dw' if flag_DW else ''}(&(nnx_tasks[i].cfg), nnx_weights, nnx_input, nnx_output, tile_padding, stride);
+    nnx_conv_configure(&nnx_tasks[i], ${fs1}, ${int(flag_DW)}, \
+                       8, 8, ${W_data_size}, weightOffsetModeLayerWise, ${-(2**(W_data_size-1))}, stride);
+    nnx_conv_set_strides(&nnx_tasks[i], ${x_tile_size_nif}, \
+                         ${x_tile_size_w}, ${x_tile_size_nif}, ${y_tile_size_w}, ${y_tile_size_nof});
+    nnx_conv_set_counters(&nnx_tasks[i], ${x_tile_size_nif}, \
+                          ${y_tile_size_h}, ${y_tile_size_w}, ${y_tile_size_nof});
     nnx_norm_quant(&(nnx_tasks[i].cfg), norm, quant);
     nnx_pad_input(&(nnx_tasks[i].cfg), tile_padding);
 
@@ -536,9 +542,7 @@ void ${func_name}(
 
   nnx_task_t *nnx_task_to_offload = &nnx_tasks[NNX_TASK_BODY];
 
-  % if stride != 2:
-  nnx_acquire();
-  % endif
+  nnx_acquire_blocking();
 
   PERF_LAYER_COMPONENT_READ(preamble);
 
@@ -566,10 +570,8 @@ void ${func_name}(
 // | $$$$$$$$| $$  \ $$| $$$$$$$$|  $$$$$$/
 // |________/|__/  |__/|________/ \______/ 
 
-    % if stride != 2:
     DEBUG_OFFLOAD_PRINT(nnx_task_to_offload);
     nnx_offload(nnx_task_to_offload);
-    % endif
 
     PERF_EXEC_COMPONENT_BEGIN(dma_barrier);
 
@@ -630,88 +632,7 @@ void ${func_name}(
         PERF_LAYER_COMPONENT_READ(first_dma);
     }
 
-    % if stride != 2:
     nnx_run_async();
-    % else:
-    const n_h = DIVNCEIL(y_tile_size_h, 2);
-    const n_w = DIVNCEIL(y_tile_size_w, 2);
-    const is_odd_h = y_tile_size_h % 2;
-    const is_odd_w = y_tile_size_w % 2;
-    //printf("[%d] is_odd_h:%s, is_odd_w:%s\n", i_tile, is_odd_h ? "True" : "False", is_odd_w ? "True" : "False");
-    //printf("[%d] n_h:%d n_w:%d\n", i_tile, n_h, n_w);
-
-    int x_tile_size_h_to_process = x_tile_size_h + tile_padding.top;
-    const int x_begin_ptr = nnx_task_to_offload->infeat_ptr;
-    const int y_begin_ptr = nnx_task_to_offload->outfeat_ptr;
-    for (int i = 0; i < n_h; i++) {
-      int x_tile_size_w_to_process = x_tile_size_w + tile_padding.left;
-      for (int j = 0; j < n_w; j++) {
-        const y_extra_h = x_tile_size_h_to_process < 5 ? x_tile_size_h_to_process + tile_padding.bottom - 3 : 0;
-        const y_extra_w = x_tile_size_w_to_process < 5 ? x_tile_size_w_to_process + tile_padding.right - 3 : 0;
-        const y_subtile_size_h = is_odd_h && i == n_h - 1 ? 1 + y_extra_h : 3;
-        const y_subtile_size_w = is_odd_w && j == n_w - 1 ? 1 + y_extra_w : 3;
-        const x_subtile_size_h = x_tile_size_h_to_process < 5 ? x_tile_size_h_to_process : 5;
-        const x_subtile_size_w = x_tile_size_w_to_process < 5 ? x_tile_size_w_to_process : 5;
-
-        nnx_padding_t subtile_padding = {
-          .top    = i == 0       ? tile_padding.top    : DONT_PAD,
-          .right  = j == n_w - 1 && x_tile_size_w_to_process < 5 ? tile_padding.right  : DONT_PAD,
-          .bottom = i == n_h - 1 && x_tile_size_h_to_process < 5 ? tile_padding.bottom : DONT_PAD,
-          .left   = j == 0       ? tile_padding.left   : DONT_PAD,
-          .value = 0
-        };
-
-        nnx_pad_input(&(nnx_task_to_offload->cfg), subtile_padding);
-        nnx_conv_${fs1}x${fs2}${'_dw' if flag_DW else ''}_update_dims(&(nnx_task_to_offload->cfg),
-            y_subtile_size_h, y_subtile_size_w, x_subtile_size_w, W_tile_size_nof, W_tile_size_nif,
-            x_tile_size_w, y_tile_size_w, subtile_padding);
-
-        nnx_task_to_offload->infeat_ptr =
-          dory_get_tile_3d(x_begin_ptr,
-                           i, j, 0, /* iterator */
-                           5, 5, ${x_tile_size_nif}, /* size */
-                           x_tile_size_w, ${x_tile_size_nif}, /* stride */
-                           1, 1, 0, /* overlap */
-                           i > 0 ? subtile_padding.top : 0, j > 0 ? subtile_padding.left : 0, 0, /* offset */
-                           ${x_data_size_byte} /* data size */ );
-        nnx_task_to_offload->outfeat_ptr =
-          dory_get_tile_3d(y_begin_ptr,
-                           i, j, 0, /* iterator */
-                           2, 2, ${y_tile_size_nof}, /* size */
-                           y_tile_size_w, ${y_tile_size_nof}, /* stride */
-                           0, 0, 0, /* overlap */
-                           0, 0, 0, /* offset */
-                           ${y_data_size_byte} /* data size */ );
-
-        //printf("\n[loop %d, %d] x_ptr:%p, y_ptr:%p\n", i, j,
-        //       nnx_task_to_offload->infeat_ptr, nnx_task_to_offload->outfeat_ptr);
-        //printf("Subtile dims (h x w x c):\n");
-        //printf("  - in:  (%d x %d x %d)\n", x_subtile_size_h, x_subtile_size_w, W_tile_size_nif);
-        //printf("  - out: (%d x %d x %d)\n", y_subtile_size_h, y_subtile_size_w, W_tile_size_nof);
-
-        asm volatile("": : :"memory");
-        nnx_acquire();
-        //printf("[loop %d, %d] x_ptr:%p, y_ptr:%p\n", i, j,
-        //       nnx_task_to_offload->infeat_ptr, nnx_task_to_offload->outfeat_ptr);
-        nnx_offload(nnx_task_to_offload);
-        nnx_run_async();
-        //nnx_busywait();
-
-        //uint8_t *ptr = (uint8_t *)nnx_task_to_offload->outfeat_ptr;                  \
-        //int sum = 0;                                       
-        //for (int ii = 0; ii < 2; ii++) {
-        //  for (int jj = 0; jj < 2; jj++)
-        //    for (int kk = 0; kk < ${y_tile_size_nof}; kk++)   
-        //      sum += *(ptr + jj*${y_tile_size_nof} + kk);                               
-        //  ptr += y_tile_size_w * ${y_tile_size_nof};
-        //}
-        //printf("[%d] Checksum: %d\n", i*n_w + j, sum);
-
-        x_tile_size_w_to_process -= 4;
-      }
-      x_tile_size_h_to_process -= 4;
-    }
-    % endif
 
     // End early if we are at the last tile
     const int is_last_tile = i_tile + 1 == total_tiles;
@@ -1010,16 +931,15 @@ void ${func_name}(
     tile_padding.bottom = i_h == ${tile_dim_h} - 1 ? padding.bottom : DONT_PAD;
     tile_padding.left   = i_w == 0 ? padding.left : DONT_PAD;
 
-    % if stride != 2:
     if (is_border_tile) {
-      nnx_conv_${fs1}x${fs2}${'_dw' if flag_DW else ''}_update_dims(&(nnx_task_to_offload->cfg),
-          y_tile_size_h, y_tile_size_w, x_tile_size_w, W_tile_size_nof, W_tile_size_nif,
-          x_tile_size_w, y_tile_size_w, tile_padding);
+      nnx_conv_set_strides(nnx_task_to_offload, ${x_tile_size_nif}, \
+                           x_tile_size_w, ${x_tile_size_nif}, y_tile_size_w, W_tile_size_nof);
+      nnx_conv_set_counters(nnx_task_to_offload, ${x_tile_size_nif}, \
+                            y_tile_size_h, y_tile_size_w, W_tile_size_nof);
     }
 
     nnx_pad_input(&(nnx_task_to_offload->cfg), tile_padding);
 
-    % endif
     const x_tile_ptr_w_padding = x_tile_ptr - (tile_padding.top * x_tile_size_w + tile_padding.left) * ${x_tile_size_nif};
     nnx_task_to_offload->infeat_ptr = x_tile_ptr_w_padding;
     nnx_task_to_offload->outfeat_ptr = y_tile_ptr;
@@ -1044,11 +964,9 @@ void ${func_name}(
     // jobs commited.
     // This barrier is required before dma_memcpy so that we don't
     // overwrite the data being used by the accelerator.
-    % if stride != 2:
     PERF_EXEC_COMPONENT_BEGIN(acquire);
-    nnx_acquire();
+    nnx_acquire_blocking();
     PERF_EXEC_COMPONENT_END(acquire);
-    % endif
 
     PERF_EXEC_COMPONENT_BEGIN(dma_memcpy);
 #ifndef NO_DMA

@@ -146,7 +146,10 @@ class nnx_C_Parser(Parser_HW_to_C):
             elif 'Pool' in node.name:
                 tmplfiles.append('tmpl_layer_L2_pool.c')
             elif 'Conv' in node.name or 'FullyConnected' in node.name:
-                tmplfiles.append('tmpl_layer_L2_conv.c')
+                if node.strides == [2, 2]:
+                    tmplfiles.append('tmpl_layer_L2_conv_stride2x2.c')
+                else:
+                    tmplfiles.append('tmpl_layer_L2_conv.c')
 
             outfiles = [f'{node.name}.h', f'{node.name}.c']
             outfiles = [os.path.join(self.destdir(file), file) for file in outfiles]
