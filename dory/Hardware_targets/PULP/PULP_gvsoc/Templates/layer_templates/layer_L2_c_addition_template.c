@@ -235,7 +235,7 @@ void ${func_name}(
       x_tile_size_nif_exec
       );
     % else:
-    ${"x" if 'hw' in optional_type else ""}pulp_nn_add_${data_type_x[0]}${x_data_size_byte}_${data_type_x2[0]}${x_data_size_byte2}_${data_type_y[0]}${y_data_size_byte}(
+    ${"x" if 'nn' in optional_type else ""}pulp_nn_add_${data_type_x[0]}${x_data_size_byte}_${data_type_x2[0]}${x_data_size_byte2}_${data_type_y[0]}${y_data_size_byte}(
       x,
       x2,
       y,

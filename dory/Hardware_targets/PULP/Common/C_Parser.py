@@ -27,7 +27,8 @@ import dory.Utils.Templates_writer.Makefile_template_writer as Makefile_writer
 
 
 
-class C_Parser_PULP(Parser_HW_to_C):
+class C_Parser_PULP(Parser_HW_to_C):
+
     # Used to manage the ONNX files. By now, supported Convolutions (PW and DW), Pooling, Fully Connected and Relu.
     def __init__(self, graph, config_file, config_file_dir, verbose_level, perf_layer, precision_library, app_directory, n_inputs=1):
 
@@ -41,7 +42,8 @@ class C_Parser_PULP(Parser_HW_to_C):
         try:
             db = HW_description['double_buffering']
         except KeyError:
-            print("C_Parser_PULP: Key 'double_buffering' not found in HW_description.json - setting to 2")
+            print("C_Parser_PULP: Key 'double_buffering' not found in HW_description.json - setting to 2")
+
             db = 2
         self.double_buffering = db
 
@@ -53,18 +55,20 @@ class C_Parser_PULP(Parser_HW_to_C):
             self.precision_library = '8bit'
             if "Addition" not in node.name and "Pool" not in node.name:
                 if node.get_parameter('output_activation_bits') < 8 or node.get_parameter('input_activation_bits') < 8 or node.get_parameter('weight_bits') < 8:
-                    self.precision_library = 'mixed-sw'
+                    self.precision_library = 'xpulpv2'
             else:
                 if node.get_parameter('output_activation_bits') < 8 or node.get_parameter('input_activation_bits') < 8:
-                    self.precision_library = 'mixed-sw'
+                    self.precision_library = 'xpulpv2'
 
         root = self.get_file_path()
         if self.precision_library == "8bit":
             files = os.path.join(root, "../Backend_Kernels/pulp-nn/")
-        elif self.precision_library == "mixed-sw":
+        elif self.precision_library == "xpulpv2":
             files = os.path.join(root, "../Backend_Kernels/pulp-nn-mixed/XpulpV2/")
-        elif self.precision_library == "mixed-hw":
+        elif self.precision_library == "xpulpnn":
             files = os.path.join(root, "../Backend_Kernels/pulp-nn-mixed/XpulpNN/")
+        elif self.precision_library == "xpulpnn-mixed":
+            files = os.path.join(root, "../Backend_Kernels/pulp-nn-mixed/XpulpNN-mixed/")
         if os.listdir(os.path.join(files, "{}bit/include".format(self.source_Constant_bits_library)))[0] not in os.listdir(self.inc_dir):
             for file in os.listdir(os.path.join(files, "{}bit/include".format(self.source_Constant_bits_library))):
                 file_to_copy = os.path.join(files, "{}bit/include".format(self.source_Constant_bits_library), file)
@@ -74,14 +78,16 @@ class C_Parser_PULP(Parser_HW_to_C):
                 for file in os.listdir(os.path.join(files, "{}bit/src".format(self.source_Constant_bits_library))):
                     file_to_copy = os.path.join(files, "{}bit/src".format(self.source_Constant_bits_library), file)
                     os.system('cp "{}" {}'.format(file_to_copy, os.path.join(self.app_directory, self.src_dir_rel)))
-        elif self.precision_library in ["mixed-sw", "mixed-hw"]:
+        elif self.precision_library in ["xpulpv2", "xpulpnn", "xpulpnn-mixed"]:
             Input_bits = str(node.get_parameter('input_activation_bits'))
             Output_bits = str(node.get_parameter('output_activation_bits'))
             Input_type = node.get_parameter('input_activation_type')[0]
             Output_type = node.get_parameter('output_activation_type')[0]
             out = "_" + Output_type + Output_bits
             in_out = "_" + Input_type + Input_bits + out
-            maybe_x = 'x' if self.precision_library == "mixed-hw" else ''
+            #maybe_x = 'x' if self.precision_library == "mixed-hw" else ''
+            maybe_x = 'x' if "nn" in self.precision_library else ''
+            maybe_mix = 'mix_' if "mixed" in self.precision_library else ''
             if "Addition" in node.name:
                 in1_in2_out = "_" + Input_type + Input_bits + "_" + node.get_parameter('second_input_activation_type')[0] + str(node.get_parameter('second_input_activation_bits')) + "_" + Output_type + Output_bits
                 file = f'Add/{maybe_x}pulp_nn_add{in1_in2_out}.c'
@@ -92,22 +98,22 @@ class C_Parser_PULP(Parser_HW_to_C):
 
             in_out_weights = "_" + Input_type + Input_bits + "_" + Output_type + Output_bits + "_" + node.get_parameter('weight_type')[0] + str(node.get_parameter('weight_bits'))
             if "Conv" in node.name and node.group > 1:
-                file = f'Depthwise/{maybe_x}pulp_nn_depthwise{in_out_weights}.c'
+                file = f'Depthwise/{maybe_x}pulp_nn_{maybe_mix}depthwise{in_out_weights}.c'
             elif "Conv" in node.name and node.group == 1:
-                if node.conv1d and self.precision_library == 'mixed-hw':
+                if node.conv1d and self.precision_library == 'xpulpnn':
                     file = f'Convolution/xpulp_nn_conv1d{in_out_weights}.c'
                 else:
-                    file = f'Convolution/{maybe_x}pulp_nn_conv{in_out_weights}.c'
+                    file = f'Convolution/{maybe_x}pulp_nn_{maybe_mix}conv{in_out_weights}.c'
             elif "FullyConnected" in node.name and node.output_activation_bits == 32: 
-                file = f'LinearNoQuant/{maybe_x}pulp_nn_linear{in_out_weights}.c'
+                file = f'LinearNoQuant/{maybe_x}pulp_nn_{maybe_mix}linear{in_out_weights}.c'
             elif "FullyConnected" in node.name:
-                file = f'LinearQuant/{maybe_x}pulp_nn_linear{in_out_weights}.c'
+                file = f'LinearQuant/{maybe_x}pulp_nn_{maybe_mix}linear{in_out_weights}.c'
             file_to_copy = os.path.join(files, "{}bit/src".format(self.source_Constant_bits_library), file)
             os.system('cp "{}" {}'.format(file_to_copy, os.path.join(self.app_directory, self.src_dir_rel)))
             if ("Conv" in node.name or "FullyConnected" in node.name) and node.get_parameter('output_activation_bits') != 32:
-                in_bits_matmul = "8" if self.precision_library == "mixed-sw" else str(Input_bits)
+                in_bits_matmul = "8" if self.precision_library == "xpulpv2" else str(Input_bits)
                 in_out_weights = "_" + Input_type + in_bits_matmul + "_" + Output_type + Output_bits + "_" + node.get_parameter('weight_type')[0] + str(node.get_parameter('weight_bits'))
-                file = f'MatrixMultiplication/{maybe_x}pulp_nn_matmul{in_out_weights}.c'
+                file = f'MatrixMultiplication/{maybe_x}pulp_nn_{maybe_mix}matmul{in_out_weights}.c'
                 file_to_copy = os.path.join(files, "{}bit/src".format(self.source_Constant_bits_library), file)
                 os.system('cp "{}" {}'.format(file_to_copy, os.path.join(self.app_directory, self.src_dir_rel)))
 

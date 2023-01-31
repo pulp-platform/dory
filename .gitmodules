@@ -13,4 +13,4 @@
 [submodule "dory/Hardware_targets/GAP8/Backend_Kernels/pulp-nn-mixed"]
 	path = dory/Hardware_targets/PULP/Backend_Kernels/pulp-nn-mixed
 	url = https://github.com/pulp-platform/pulp-nn-mixed.git
-	branch = main
+	branch = anadalini-rebase

@@ -26,6 +26,7 @@
 #include "dory_get_tile.h"
 #include "dory_dma.h"
 #include "pulp_nn_kernels.h"
+#include "pulp_nn_utils.h"
 
 % if ULTRA_VERBOSE:
 #define VERBOSE_PRINT(...) printf(__VA_ARGS__)
@@ -34,6 +35,109 @@
 void ${func_name}(
   void *args
 ) {
+    /////////////////////////
+  //     CSRs SETUP      //
+  ////////////////////////
+  %if optional_type == 'xpulpnn-mixed':
+  LEGACY_MODE("0");
+  ## Convolution/Pointwise
+  % if (flag_DW == 0) and ('Conv' in func_name):
+  A_SKIP("1");
+  W_SKIP("3");
+  MIXED_SKIP("8");
+  % if ((x_data_size_byte == W_data_size_byte) and (x_data_size_byte == 8)) or (W_data_size_byte == 8):
+  IVEC_FMT("2");
+  % elif ((x_data_size_byte == W_data_size_byte) and (x_data_size_byte == 4)) or ((x_data_size_byte == 2) and (W_data_size_byte == 4)):
+  IVEC_FMT("3");
+  % elif (x_data_size_byte == W_data_size_byte) and (x_data_size_byte == 2):
+  IVEC_FMT("4");
+  % elif ((x_data_size_byte == 4) and (W_data_size_byte == 2)):
+  IVEC_FMT("5");
+  % elif ((x_data_size_byte == 8) and (W_data_size_byte == 2)):
+  IVEC_FMT("6");
+  % elif ((x_data_size_byte == 8) and (W_data_size_byte == 4)):
+  IVEC_FMT("8");
+  % else:
+  IVEC_FMT("0");
+  % endif
+  ## Linear
+  % elif flag_DW == 0 and ('Gemm' in func_name or 'MatMul' in func_name or 'FullyConnected' in func_name):
+  ## Linear No Quant
+  % if (y_data_size_byte == 32) or (y_data_size_byte == 64):
+  A_SKIP("0");
+  W_SKIP("0");
+  A_STRIDE(0);
+  W_STRIDE(0);
+  A_ROLLBACK(4);
+  W_ROLLBACK(4);
+  % if (W_data_size_byte == 8):
+  IVEC_FMT("2");
+  % elif (W_data_size_byte >= x_data_size_byte) and (W_data_size_byte == 4):
+  IVEC_FMT("3");
+  % elif (x_data_size_byte == W_data_size_byte) and (x_data_size_byte == 2):
+  IVEC_FMT("4");
+  %elif (x_data_size_byte == 4) and (W_data_size_byte == 2):
+  IVEC_FMT("5");
+  MIXED_SKIP("1");
+  %elif (x_data_size_byte == 8) and (W_data_size_byte == 2):
+  IVEC_FMT("6");
+  MIXED_SKIP("1");
+  %elif (x_data_size_byte == 8) and (W_data_size_byte == 4):
+  IVEC_FMT("8");
+  MIXED_SKIP("1");
+  %else:
+  IVEC_FMT("0");
+  MIXED_SKIP("0");
+  % endif
+  ## Linear Quant
+  % else:
+  % if (W_data_size_byte == 8):
+  IVEC_FMT("2");
+  % elif (W_data_size_byte >= x_data_size_byte) and (W_data_size_byte == 4):
+  IVEC_FMT("3");
+  % elif (x_data_size_byte == W_data_size_byte) and (x_data_size_byte == 2):
+  IVEC_FMT("4");
+  %elif (x_data_size_byte == 4) and (W_data_size_byte == 2):
+  IVEC_FMT("5");
+  MIXED_SKIP("1");
+  %elif (x_data_size_byte == 8) and (W_data_size_byte == 2):
+  IVEC_FMT("6");
+  MIXED_SKIP("1");
+  %elif (x_data_size_byte == 8) and (W_data_size_byte == 4):
+  IVEC_FMT("8");
+  MIXED_SKIP("1");
+  %else:
+  IVEC_FMT("0");
+  MIXED_SKIP("0");
+  % endif
+  A_SKIP("0");
+  % if y_data_size_byte == 2:
+  W_SKIP("3");
+  % elif y_data_size_byte == 4:
+  W_SKIP("1");
+  % else:
+  W_SKIP("0");
+  % endif
+  % endif
+  ## Depthwise
+  % elif flag_DW == 1:
+  IVEC_FMT("2");
+  % if (x_data_size_byte == 2) or (W_data_size_byte == 2) or (y_data_size_byte == 2):
+  A_SKIP("3");
+  W_SKIP("3");
+  % elif (x_data_size_byte == 4) or (W_data_size_byte == 4) or (y_data_size_byte == 4):
+  A_SKIP("1");
+  W_SKIP("1");
+  % elif (x_data_size_byte == 8) and (W_data_size_byte == 8) and (y_data_size_byte == 8):
+  A_SKIP("1");
+  W_SKIP("0");
+  % else:
+  A_SKIP("0");
+  W_SKIP("0");
+  % endif
+  % endif
+  % endif
+
   //////////////////////////////////////////////////////////////////////////
   // arguments assigning: keeping same interface between L2 and L3 memory //
   //////////////////////////////////////////////////////////////////////////
@@ -397,22 +501,22 @@ void ${func_name}(
     pulp_nn_linear_out_32(
   % elif flag_DW == 0 and optional_type == '8bit' and ('FullyConnected' in func_name):
     pulp_nn_linear(
-  % elif flag_DW == 0 and optional_type == 'mixed-hw' and conv1d:
+  % elif flag_DW == 0 and optional_type == 'xpulpnn' and conv1d:
   xpulp_nn_conv1d_${data_type_x[0]}${x_data_size_byte}_${data_type_y[0]}${y_data_size_byte}_${data_type_weights[0]}${W_data_size_byte}(
-  % elif flag_DW == 0 and 'mixed' in optional_type  and ('Conv' in func_name):
-    ${"x" if 'hw' in optional_type else ""}pulp_nn_conv_${data_type_x[0]}${x_data_size_byte}_${data_type_y[0]}${y_data_size_byte}_${data_type_weights[0]}${W_data_size_byte}(
-  % elif flag_DW == 0 and 'mixed' in optional_type  and ('Gemm' in func_name or 'MatMul' in func_name or 'FullyConnected' in func_name) and y_data_size_byte == 32:
-    ${"x" if 'hw' in optional_type else ""}pulp_nn_linear_${data_type_x[0]}${x_data_size_byte}_${data_type_y[0]}${y_data_size_byte}_${data_type_weights[0]}${W_data_size_byte}(
-  % elif flag_DW == 0 and 'mixed' in optional_type  and ('Gemm' in func_name or 'MatMul' in func_name or 'FullyConnected' in func_name):
-  ${"x" if 'hw' in optional_type else ""}pulp_nn_linear_${data_type_x[0]}${x_data_size_byte}_${data_type_y[0]}${y_data_size_byte}_${data_type_weights[0]}${W_data_size_byte}(
+  % elif flag_DW == 0 and 'xpulp' in optional_type  and ('Conv' in func_name):
+    ${"x" if 'nn' in optional_type else ""}pulp_nn_${"mix_" if 'mixed' in optional_type else ""}conv_${data_type_x[0]}${x_data_size_byte}_${data_type_y[0]}${y_data_size_byte}_${data_type_weights[0]}${W_data_size_byte}(
+  % elif flag_DW == 0 and 'xpulp' in optional_type  and ('Gemm' in func_name or 'MatMul' in func_name or 'FullyConnected' in func_name) and y_data_size_byte == 32:
+    ${"x" if 'nn' in optional_type else ""}pulp_nn_${"mix_" if 'mixed' in optional_type else ""}linear_${data_type_x[0]}${x_data_size_byte}_${data_type_y[0]}${y_data_size_byte}_${data_type_weights[0]}${W_data_size_byte}(
+  % elif flag_DW == 0 and 'xpulp' in optional_type  and ('Gemm' in func_name or 'MatMul' in func_name or 'FullyConnected' in func_name):
+  ${"x" if 'nn' in optional_type else ""}pulp_nn_${"mix_" if 'mixed' in optional_type else ""}linear_${data_type_x[0]}${x_data_size_byte}_${data_type_y[0]}${y_data_size_byte}_${data_type_weights[0]}${W_data_size_byte}(
   % elif flag_DW == 1 and optional_type == '8bit' and fs1 == 3 and fs2 == 3 and stride==1:
     pulp_nn_depthwise_generic(
   % elif flag_DW == 1 and optional_type == '8bit' and fs1*fs2 < 4:
     pulp_nn_depthwise_generic_less_4_weights(
   % elif flag_DW == 1 and optional_type == '8bit':
     pulp_nn_depthwise_generic(
-  % elif flag_DW == 1 and 'mixed' in optional_type:
-    ${"x" if 'hw' in optional_type else ""}pulp_nn_depthwise_${data_type_x[0]}${x_data_size_byte}_${data_type_y[0]}${y_data_size_byte}_${data_type_weights[0]}${W_data_size_byte}(
+  % elif flag_DW == 1 and 'xpulp' in optional_type:
+    ${"x" if 'nn' in optional_type else ""}pulp_nn_${"mix_" if 'mixed' in optional_type else ""}depthwise_${data_type_x[0]}${x_data_size_byte}_${data_type_y[0]}${y_data_size_byte}_${data_type_weights[0]}${W_data_size_byte}(
   % endif
   % if 'Gemm' in func_name or 'FullyConnected' in func_name:
       % if has_bias:
