@@ -1,3 +1,6 @@
+#ifndef __DORY_DMA_H__
+#define __DORY_DMA_H__
+
 #include "pmsis.h"
 
 #ifdef GAP_SDK
@@ -110,3 +113,5 @@ static void dma_transfer_free(DmaTransfer transfer) {
 static void dma_transfer_wait(DmaTransfer transfer) {
   mchan_transfer_wait(transfer.id);
 }
+
+#endif  // __DORY_DMA_H__

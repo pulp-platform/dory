@@ -1,3 +1,7 @@
+#ifndef __DORY_GET_TILE_H__
+#define __DORY_GET_TILE_H__
+
+
 /**
  *  @brief Gets a tile over a one-dimensional tiling grid.
  *
@@ -126,3 +130,6 @@ static unsigned int  dory_get_tile_3d(
                      + (tile_kk*(tile_size_k - tile_overlap_k) - tile_offset_k) * data_size / 8;
   return y;
 }
+
+
+#endif // __DORY_GET_TILE_H__

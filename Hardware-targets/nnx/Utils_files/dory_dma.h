@@ -1,3 +1,6 @@
+#ifndef __DORY_DMA_H__
+#define __DORY_DMA_H__
+
 #include "pmsis.h"
 
 #ifdef GAP_SDK
@@ -108,3 +111,5 @@ static void dory_dma_free(DMA_copy *copy) {
 static void dory_dma_barrier(DMA_copy *copy) {
   mchan_transfer_wait(copy->tid);
 }
+
+#endif  // __DORY_DMA_H__
