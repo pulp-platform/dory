@@ -51,8 +51,9 @@ static void execute_stride2x2_prepare(Layer tile, Kernel kernel, nnx_task_t * co
     task->outfeat_ptr = tile.addr.output;
 }
 
-static void execute_stride2x2_blocking(nnx_task_t task, Layer tile, Kernel kernel) {
+static int execute_stride2x2_blocking(nnx_task_t task, Layer tile, Kernel kernel) {
     const int stride = 2;
+    int last_job_id = -1;
 
     const int n_h = DIVNCEIL(tile.output.height, stride);
     const int n_w = DIVNCEIL(tile.output.width, stride);
@@ -86,11 +87,13 @@ static void execute_stride2x2_blocking(nnx_task_t task, Layer tile, Kernel kerne
 
             task.cfg.padding = get_padding(i, j, n_h, n_w, tile_padding);
 
-            nnx_acquire_blocking();
+            last_job_id = nnx_acquire_blocking();
             nnx_offload(&task);
             nnx_run_async();
         }
     }
+
+    return last_job_id;
 }
 
 static void execute_stride2x2_wait() {

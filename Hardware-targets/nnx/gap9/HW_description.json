@@ -3,7 +3,7 @@
 	"memory": {
 		"levels": 3,
 		"L1": {
-			"dimension": 128000,
+			"dimension": 100000,
 			"bandwidth": 32,
 			"latency": 1,
 			"frequency": 100000000
@@ -37,7 +37,7 @@
 	"accelerator frequency": 100000000,
 	"HW specific parameters":{
 		"accelerator core0 stack": 1000,
-		"accelerator core1-7 stack": 1000,
+		"accelerator core1-7 stack": 2048,
 		"code reserved space": 152000
 	}
 

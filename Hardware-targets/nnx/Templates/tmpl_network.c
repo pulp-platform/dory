@@ -95,7 +95,7 @@ void layer(void *args) {
   {
 % for i in range(len(DORY_HW_graph)):
     case ${i}:
-      ${func_name[i]}(args);
+      pi_cl_team_fork(3, (void *)${func_name[i]}, args);
       break;
 % endfor
   }
@@ -228,6 +228,8 @@ int network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output)
     task.stack_size = ${master_stack};
     task.slave_stack_size = ${slave_stack};
     % endif
+
+    task.slave_stack_size = 2048;
 
     pi_cluster_send_task_to_cl(&cl_dev, &task);
 

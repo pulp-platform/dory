@@ -147,7 +147,7 @@ class nnx_C_Parser(Parser_HW_to_C):
                 tmplfiles.append('tmpl_layer_L2_pool.c')
             elif 'Conv' in node.name or 'FullyConnected' in node.name:
                 if node.strides == [2, 2]:
-                    tmplfiles.append('tmpl_layer_L2_conv_stride2x2.c')
+                    tmplfiles.append('tmpl_layer_L2_conv_stride2x2_multicore.c')
                 else:
                     tmplfiles.append('tmpl_layer_L2_conv.c')
 
