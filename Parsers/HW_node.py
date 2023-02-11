@@ -231,10 +231,10 @@ class HW_node(DORY_node):
                         print(f'[{i_tile}] Checksum: {checksum_tile}')
                         i_tile += 1
 
-                        if stride[0] != 1 or stride[1] != 1:
-                            tile_checksum(Dim(h_tile_start, h.tile_size, stride[0]),
-                                          Dim(w_tile_start, w.tile_size, stride[1]),
-                                          Dim(c_tile_start, c.tile_size, c.tile_size))
+                        #if stride[0] != 1 or stride[1] != 1:
+                        #    tile_checksum(Dim(h_tile_start, h.tile_size, stride[0]),
+                        #                  Dim(w_tile_start, w.tile_size, stride[1]),
+                        #                  Dim(c_tile_start, c.tile_size, c.tile_size))
 
         tile_checksum(Dim(0, h, h_tile), Dim(0, w, w_tile), Dim(0, c, c_tile), stride=self.strides)
 

@@ -160,6 +160,7 @@ class TemplateWriter2D_L2(TemplateWriter):
         self.tk['padding_left'] = padding_left
         self.tk['padding_right'] = padding_right
         self.tk['stride'] = s[0]
+        self.tk['s'] = s
 
         ################## NEED A REWRITING IN THIS TEMPLATE PART ######################
         #### VARIABLE CREATION FOR COMPATIBILITY WITH THE SECTION AFTER ################
@@ -232,8 +233,8 @@ class TemplateWriter2D_L2(TemplateWriter):
         self.tk['x_w'] = w_in
         self.tk['x_data_size_byte'] = node.input_activation_bits
         self.tk['x_tile_size_nif'] = tile_n_in
-        self.tk['x_tile_size_h'] = tile_h_in
-        self.tk['x_tile_size_w'] = tile_w_in
+        self.tk['x_tile_size_h'] = tile_h_in if tile_h_in <= h_in else h_in
+        self.tk['x_tile_size_w'] = tile_w_in if tile_w_in <= w_in else w_in
         self.tk['x_tile_size_byte'] = int(math.ceil(ds_x * tile_n_in * tile_h_in * tile_w_in / 8.0))
         self.tk['x_tile_size_nif_byte'] = int(math.ceil(tile_n_in * ds_x / 8.0))
         self.tk['x_stride_w_byte'] = int(math.ceil(w_in * n_in * ds_x / 8.0))
