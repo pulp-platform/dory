@@ -26,7 +26,6 @@
 #include "dory_dma_v2.h"
 #include "dory_get_tile.h"
 #include "layer_debug.h"
-#include "memory.h"
 #include "tile_status.h"
 #include "execute_stride2x2.h"
 #include "monitor.h"
@@ -75,6 +74,11 @@ static const Layer border = {
     }
 };
 
+#define DMA_MUTEX_ID (2)
+
+static DmaTransfer dma_transfer;
+static uint32_t dma_mutex;
+
 static void load_input_prepare(Layer tile, Layer body, Layer layer, TileIndex index, DmaTransferConf * const conf) {
     // additionally overlap by padding for the first tile after a border one
     // this because in the first tile we use less pixels from x_buffer, since we have the ones of padding
@@ -92,10 +96,9 @@ static void load_input_prepare(Layer tile, Layer body, Layer layer, TileIndex in
     conf->number_of_2d_copies = tile.input.height;
     conf->number_of_1d_copies = tile.input.width;
     conf->length_1d_copy = tile.input.channel;
-}
-
-static void load_input_async(DmaTransferConf conf, MemoryStatus * const status) {
-    memory_transfer_async(conf, status);
+    conf->stride_2d = ${l1_x_dma_stride_2d};
+    conf->stride_1d = ${l1_x_dma_stride_1d};
+    conf->dir = 1;
 }
 
 static void load_weights_prepare(Layer tile, Kernel kernel,
@@ -111,77 +114,15 @@ static void load_weights_prepare(Layer tile, Kernel kernel,
     const int size_scale = tile.output.channel * ${int(act_dim_bit/8)};
     const int size_bias = tile.output.channel * ${int(bias_bits/8)};
 
-    #define CONF_SET(name)                                              ${"\\"}
-        do {                                                            ${"\\"}
-            if (status_ ## name.is_transfer) {                          ${"\\"}
-                conf_ ## name->ext = (void *)status_ ## name.addr_ext;  ${"\\"}
-                conf_ ## name->loc = (void *)tile.addr.name;            ${"\\"}
-                conf_ ## name->length_1d_copy = size_ ## name;          ${"\\"}
-            }                                                           ${"\\"}
-        } while (0)
+    #define CONF_SET(name)                                     ${"\\"}
+        conf_ ## name->ext = (void *)status_ ## name.addr_ext; ${"\\"}
+        conf_ ## name->loc = (void *)tile.addr.name;           ${"\\"}
+        conf_ ## name->length_1d_copy = size_ ## name;         ${"\\"}
+        conf_ ## name->dir = 1;
 
     CONF_SET(weights);
     CONF_SET(scale);
     CONF_SET(bias);
-}
-
-static void load_weights_async(DmaTransferConf conf_weights,
-                               DmaTransferConf conf_scale,
-                               DmaTransferConf conf_bias,
-                               MemoryStatus * const status_weights,
-                               MemoryStatus * const status_scale,
-                               MemoryStatus * const status_bias) {
-    #define MEMORY_TRANSFER_1D_ASYNC(name) ${"\\"}
-        memory_transfer_1d_async(conf_ ## name, status_ ## name)
-
-    MEMORY_TRANSFER_1D_ASYNC(weights);
-    MEMORY_TRANSFER_1D_ASYNC(scale);
-    MEMORY_TRANSFER_1D_ASYNC(bias);
-}
-
-static void load(Layer * const tile, nnx_task_t * const task, TileStatus tile_status,
-                 Layer body, Layer border, Layer layer,
-                 TileIndex end_index, Address local_addr, Kernel kernel) {
-
-    DmaTransferConf conf_input = {
-        .stride_2d = ${l1_x_dma_stride_2d},
-        .stride_1d = ${l1_x_dma_stride_1d},
-        .dir = 1
-    };
-    DmaTransferConf conf_weights = { .dir = 1 };
-    DmaTransferConf conf_scale = { .dir = 1 };
-    DmaTransferConf conf_bias = { .dir = 1 };
-
-    *tile = tile_create(tile_status.index, end_index, body, border, layer, local_addr);
-
-    if (tile_status.memory_status.input.is_transfer) {
-        load_input_prepare(*tile, body, layer, tile_status.index, &conf_input);
-        load_input_async(conf_input, &tile_status.memory_status.input);
-    }
-
-    if (tile_status.memory_status.weights.is_transfer) {
-        load_weights_prepare(*tile, kernel,
-                             tile_status.memory_status.weights,
-                             tile_status.memory_status.scale,
-                             tile_status.memory_status.bias,
-                             &conf_weights,
-                             &conf_scale,
-                             &conf_bias);
-
-        load_weights_async(conf_weights,
-                           conf_scale,
-                           conf_bias,
-                           &tile_status.memory_status.weights,
-                           &tile_status.memory_status.scale,
-                           &tile_status.memory_status.bias);
-    }
-
-    execute_stride2x2_prepare(*tile, kernel, task);
-
-    memory_wait(&tile_status.memory_status.input);
-    memory_wait(&tile_status.memory_status.weights);
-    memory_wait(&tile_status.memory_status.scale);
-    memory_wait(&tile_status.memory_status.bias);
 }
 
 static void store_prepare(Layer tile, Layer body, Layer layer, TileIndex index, DmaTransferConf * const conf) {
@@ -201,9 +142,42 @@ static void store_prepare(Layer tile, Layer body, Layer layer, TileIndex index, 
     conf->dir = 0;
 }
 
-static void store(DmaTransferConf conf) {
-    DmaTransfer transfer = dma_transfer_async(conf);
-    dma_transfer_wait(transfer);
+static void load(Layer * const tile, nnx_task_t * const task, TileStatus tile_status,
+                 Layer body, Layer border, Layer layer,
+                 TileIndex end_index, Address local_addr, Kernel kernel) {
+
+    DmaTransferConf conf_input, conf_weights, conf_scale, conf_bias;
+
+    *tile = tile_create(tile_status.index, end_index, body, border, layer, local_addr);
+
+    eu_mutex_lock(dma_mutex);
+    if (tile_status.input.is_transfer) {
+        load_input_prepare(*tile, body, layer, tile_status.index, &conf_input);
+        dma_transfer_async(conf_input);
+    }
+
+    if (tile_status.weights.is_transfer) {
+        load_weights_prepare(*tile, kernel,
+                             tile_status.weights,
+                             tile_status.scale,
+                             tile_status.bias,
+                             &conf_weights,
+                             &conf_scale,
+                             &conf_bias);
+
+        dma_transfer_1d_async(conf_weights);
+        dma_transfer_1d_async(conf_scale);
+        dma_transfer_1d_async(conf_bias);
+
+        tile_status.weights.addr_ext += conf_weights.length_1d_copy;
+        tile_status.scale.addr_ext += conf_scale.length_1d_copy;
+        tile_status.bias.addr_ext += conf_bias.length_1d_copy;
+    }
+
+    execute_stride2x2_prepare(*tile, kernel, task);
+
+    dma_transfer_wait(dma_transfer);
+    eu_mutex_unlock(dma_mutex);
 }
 
 int inc(int index, int end) {
@@ -219,6 +193,7 @@ int inc(int index, int end) {
 static Layer tiles[BUFFER_SIZE];
 static nnx_task_t nnx_tasks[BUFFER_SIZE];
 static DmaTransferConf store_conf[BUFFER_SIZE];
+static int nnx_job_ids[BUFFER_SIZE];
 
 static struct {
     Monitor input, output, store_conf;
@@ -318,6 +293,9 @@ void ${func_name}(void *args) {
         }
 
         nnx_init();
+        dma_mutex = eu_mutex_addr(DMA_MUTEX_ID);
+        dma_transfer = dma_transfer_create();
+        eu_mutex_init(dma_mutex);
     }
 
     pi_cl_team_barrier(0);
@@ -327,39 +305,36 @@ void ${func_name}(void *args) {
     // Loader
 
     if (pi_core_id() == LOADER_ID) {
-        int i_load = 0;
+        int i_buff = 0;
         #define MEMORY_STATUS_INIT(name)     ${"\\"}
             .name = {                        ${"\\"}
                 .addr_ext = layer.addr.name, ${"\\"}
-                .is_wait = 0,                ${"\\"}
                 .is_transfer = 1,            ${"\\"}
                 .buffer_index = 0            ${"\\"}
             }
 
         TileStatus tile_status = {
             .index = { 0 },
-            .memory_status = {
-                MEMORY_STATUS_INIT(input),
-                MEMORY_STATUS_INIT(weights),
-                MEMORY_STATUS_INIT(scale),
-                MEMORY_STATUS_INIT(bias),
-                MEMORY_STATUS_INIT(output)
-            }
+            MEMORY_STATUS_INIT(input),
+            MEMORY_STATUS_INIT(weights),
+            MEMORY_STATUS_INIT(scale),
+            MEMORY_STATUS_INIT(bias),
+            MEMORY_STATUS_INIT(output)
         };
 
         for (int i = 0; i < total_tiles; i++) {
             monitor_produce_begin(&monitor.input);
             const Address local_addr = tile_status_get_addr(tile_status, buffer_addresses);
-            load(&tiles[i_load], &nnx_tasks[i_load], tile_status,
+            load(&tiles[i_buff], &nnx_tasks[i_buff], tile_status,
                  body, border, layer,
                  end_index, local_addr, kernel);
             monitor_produce_end(&monitor.input);
 
             monitor_produce_begin(&monitor.store_conf);
-            store_prepare(tiles[i_load], body, layer, tile_status.index, &store_conf[i_load]);
+            store_prepare(tiles[i_buff], body, layer, tile_status.index, &store_conf[i_buff]);
             monitor_produce_end(&monitor.store_conf);
 
-            i_load = inc(i_load, BUFFER_SIZE);
+            i_buff = inc(i_buff, BUFFER_SIZE);
             tile_status = tile_status_get_next(tile_status, end_index);
         }
     }
@@ -368,16 +343,17 @@ void ${func_name}(void *args) {
     // Executer
 
     if (pi_core_id() == EXECUTER_ID) {
-        int i_exec = 0;
+        int i_buff = 0;
         for (int i = 0; i < total_tiles; i++) {
             monitor_consume_begin(&monitor.input);
             monitor_produce_begin(&monitor.output);
-            execute_stride2x2_blocking(nnx_tasks[i_exec], tiles[i_exec], kernel);
-            nnx_wait_empty();
+
+            nnx_job_ids[i_buff] = execute_stride2x2_blocking(nnx_tasks[i_buff], tiles[i_buff], kernel);
+
             monitor_consume_end(&monitor.input);
             monitor_produce_end(&monitor.output);
 
-            i_exec = inc(i_exec, BUFFER_SIZE);
+            i_buff = inc(i_buff, BUFFER_SIZE);
         }
     }
 
@@ -385,15 +361,22 @@ void ${func_name}(void *args) {
     // Storer
 
     if (pi_core_id() == STORER_ID) {
-        int i_store = 0;
+        int i_buff = 0;
         for (int i = 0; i < total_tiles; i++) {
             monitor_consume_begin(&monitor.store_conf);
             monitor_consume_begin(&monitor.output);
-            store(store_conf[i_store]);
+
+            nnx_wait_on_id(nnx_job_ids[i_buff]);
+
+            eu_mutex_lock(dma_mutex);
+            dma_transfer_async(store_conf[i_buff]);
+            dma_transfer_wait(dma_transfer);
+            eu_mutex_unlock(dma_mutex);
+
             monitor_consume_end(&monitor.store_conf);
             monitor_consume_end(&monitor.output);
 
-            i_store = inc(i_store, BUFFER_SIZE);
+            i_buff = inc(i_buff, BUFFER_SIZE);
         }
     }
 
@@ -407,5 +390,6 @@ void ${func_name}(void *args) {
         monitor_term(&monitor.output);
         monitor_term(&monitor.store_conf);
         nnx_term();
+        dma_transfer_free(dma_transfer);
     }
 }

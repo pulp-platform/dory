@@ -1,7 +1,7 @@
 #ifndef __TILE_STATUS_H__
 #define __TILE_STATUS_H__
 
-#include "memory.h"
+#include <stdint.h>
 
 typedef struct Address {
     uint32_t input;
@@ -15,32 +15,32 @@ typedef struct TileIndex {
     int height, width, output_channel;
 } TileIndex;
 
+typedef struct MemoryStatus {
+    uint32_t addr_ext;
+    int is_transfer;
+    int buffer_index;
+} MemoryStatus;
+
 typedef struct TileStatus {
     TileIndex index;
-    struct {
-        MemoryStatus input;
-        MemoryStatus weights;
-        MemoryStatus scale;
-        MemoryStatus bias;
-        MemoryStatus output;
-    } memory_status;
+    MemoryStatus input;
+    MemoryStatus weights;
+    MemoryStatus scale;
+    MemoryStatus bias;
+    MemoryStatus output;
 } TileStatus;
 
 static void tile_status_print(TileStatus status) {
     #define MEM_STATUS_ARGS(name) \
-        status.memory_status.name.addr_ext, \
-        status.memory_status.name.is_wait, \
-        status.memory_status.name.is_transfer, \
-        status.memory_status.name.buffer_index, \
-        status.memory_status.name.transfer.id
+        status.name.addr_ext, \
+        status.name.is_transfer, \
+        status.name.buffer_index
 
     #define MEM_STATUS_STRING(name) \
         "   - " #name ":\n" \
         "     > addr_ext:%p\n" \
-        "     > is_wait:%d\n" \
         "     > is_transfer:%d\n" \
-        "     > buffer_index:%d\n" \
-        "     > transfer.id:%d\n"
+        "     > buffer_index:%d\n"
 
     printf("TileStatus:\n"
            " * index:\n"
@@ -163,31 +163,25 @@ TileStatus tile_status_get_next(TileStatus current, TileIndex end_index) {
     // Leans on tile loop going from outermost to innermost OUT_CH->H->W
     int is_first_input_again = next.index.height == 0 && next.index.width == 0 && next.index.output_channel == 0;
     int is_change_input = next.index.height != current.index.height || next.index.width != current.index.width;
-    next.memory_status.input.is_transfer = !is_first_input_again && is_change_input;
+    next.input.is_transfer = !is_first_input_again && is_change_input;
 
     int is_last_weights = current.index.output_channel + 1 == end_index.output_channel;
     int is_change_weights = next.index.output_channel != current.index.output_channel;
-    next.memory_status.weights.is_transfer = !is_last_weights && is_change_weights;
-    next.memory_status.scale.is_transfer = next.memory_status.weights.is_transfer;
-    next.memory_status.bias.is_transfer  = next.memory_status.weights.is_transfer;
+    next.weights.is_transfer = !is_last_weights && is_change_weights;
+    next.scale.is_transfer = next.weights.is_transfer;
+    next.bias.is_transfer  = next.weights.is_transfer;
 
-    next.memory_status.output.is_transfer = 1;
+    next.output.is_transfer = 1;
 
-    next.memory_status.input.is_wait = 0;
-    next.memory_status.weights.is_wait = 0;
-    next.memory_status.scale.is_wait = 0;
-    next.memory_status.bias.is_wait = 0;
-    next.memory_status.output.is_wait = 0;
-
-    next.memory_status.input.addr_ext = current.memory_status.input.addr_ext;
-    next.memory_status.weights.addr_ext = current.memory_status.weights.addr_ext;
-    next.memory_status.scale.addr_ext = current.memory_status.scale.addr_ext;
-    next.memory_status.bias.addr_ext = current.memory_status.bias.addr_ext;
-    next.memory_status.output.addr_ext = current.memory_status.output.addr_ext;
+    next.input.addr_ext = current.input.addr_ext;
+    next.weights.addr_ext = current.weights.addr_ext;
+    next.scale.addr_ext = current.scale.addr_ext;
+    next.bias.addr_ext = current.bias.addr_ext;
+    next.output.addr_ext = current.output.addr_ext;
 
 #define UPDATE_BUFFER_INDEX(name) \
-        next.memory_status.name.buffer_index = \
-            buffer_index_get_next(current.memory_status.name.buffer_index, next.memory_status.name.is_transfer);
+        next.name.buffer_index = \
+            buffer_index_get_next(current.name.buffer_index, next.name.is_transfer);
 
     UPDATE_BUFFER_INDEX(input);
     UPDATE_BUFFER_INDEX(weights);
@@ -199,7 +193,7 @@ TileStatus tile_status_get_next(TileStatus current, TileIndex end_index) {
 }
 
 static Address tile_status_get_addr(TileStatus status, Address * const buffer_addresses) {
-#define SET_ADDR(name) .name = buffer_addresses[status.memory_status.name.buffer_index].name
+#define SET_ADDR(name) .name = buffer_addresses[status.name.buffer_index].name
     return (Address) {
         SET_ADDR(input),
         SET_ADDR(weights),
@@ -207,14 +201,6 @@ static Address tile_status_get_addr(TileStatus status, Address * const buffer_ad
         SET_ADDR(bias),
         SET_ADDR(output)
     };
-}
-
-static void tile_memory_wait(TileStatus * const status) {
-    memory_wait(&status->memory_status.input);
-    memory_wait(&status->memory_status.weights);
-    memory_wait(&status->memory_status.scale);
-    memory_wait(&status->memory_status.bias);
-    memory_wait(&status->memory_status.output);
 }
 
 #endif

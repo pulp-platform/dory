@@ -46,19 +46,16 @@ typedef struct DmaTransferConf {
   int dir; // 0 l1->l2, 1 l2->l1
 } DmaTransferConf;
 
-static DmaTransfer dma_transfer_1d_async(DmaTransferConf conf) {
-  DmaTransfer transfer = { .id = mchan_transfer_get_id() };
+static void dma_transfer_1d_async(DmaTransferConf conf) {
   mchan_transfer_push_1d((mchan_transfer_t) {
     .cmd = conf.length_1d_copy | (conf.dir << MCHAN_CMD_SHIFT_DIRECTION) | MCHAN_FLAGS_1D,
     .size = conf.length_1d_copy,
     .loc = conf.loc,
     .ext = conf.ext,
   });
-  return transfer;
 }
 
-static DmaTransfer dma_transfer_2d_async(DmaTransferConf conf) {
-  DmaTransfer transfer = { .id = mchan_transfer_get_id() };
+static void dma_transfer_2d_async(DmaTransferConf conf) {
   const int size_2d = conf.number_of_1d_copies * conf.length_1d_copy;
 
   mchan_transfer_push_2d((mchan_transfer_t) {
@@ -69,12 +66,9 @@ static DmaTransfer dma_transfer_2d_async(DmaTransferConf conf) {
     .ext_size_1d = conf.length_1d_copy,
     .ext_stride_1d = conf.stride_1d
   });
-
-  return transfer;
 }
 
-static DmaTransfer dma_transfer_3d_async(DmaTransferConf conf) {
-  DmaTransfer transfer = { .id = mchan_transfer_get_id() };
+static void dma_transfer_3d_async(DmaTransferConf conf) {
   char *ext = (char *)conf.ext;
   char *loc = (char *)conf.loc;
   const int size_2d = conf.number_of_1d_copies * conf.length_1d_copy;
@@ -92,18 +86,20 @@ static DmaTransfer dma_transfer_3d_async(DmaTransferConf conf) {
     loc += size_2d;
     ext += conf.stride_2d;
   }
-
-  return transfer;
 }
 
-static DmaTransfer dma_transfer_async(DmaTransferConf conf) {
+static void dma_transfer_async(DmaTransferConf conf) {
   if (conf.number_of_2d_copies == 1 && conf.number_of_1d_copies == 1) {
-    return dma_transfer_1d_async(conf);
+    dma_transfer_1d_async(conf);
   } else if (conf.number_of_2d_copies == 1) {
-    return dma_transfer_2d_async(conf);
+    dma_transfer_2d_async(conf);
   } else {
-    return dma_transfer_3d_async(conf);
+    dma_transfer_3d_async(conf);
   }
+}
+
+static DmaTransfer dma_transfer_create() {
+  return (DmaTransfer) { .id = mchan_transfer_get_id() };
 }
 
 static void dma_transfer_free(DmaTransfer transfer) {
