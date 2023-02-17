@@ -142,22 +142,19 @@ static void store_prepare(Layer tile, Layer body, Layer layer, TileIndex index, 
     conf->dir = 0;
 }
 
-static void load(Layer * const tile, nnx_task_t * const task, TileStatus tile_status,
-                 Layer body, Layer border, Layer layer,
-                 TileIndex end_index, Address local_addr, Kernel kernel) {
+static void load(Layer tile, nnx_task_t * const task, TileStatus tile_status,
+                 Layer body, Layer layer, Kernel kernel) {
 
     DmaTransferConf conf_input, conf_weights, conf_scale, conf_bias;
 
-    *tile = tile_create(tile_status.index, end_index, body, border, layer, local_addr);
-
     eu_mutex_lock(dma_mutex);
     if (tile_status.input.is_transfer) {
-        load_input_prepare(*tile, body, layer, tile_status.index, &conf_input);
+        load_input_prepare(tile, body, layer, tile_status.index, &conf_input);
         dma_transfer_async(conf_input);
     }
 
     if (tile_status.weights.is_transfer) {
-        load_weights_prepare(*tile, kernel,
+        load_weights_prepare(tile, kernel,
                              tile_status.weights,
                              tile_status.scale,
                              tile_status.bias,
@@ -174,7 +171,7 @@ static void load(Layer * const tile, nnx_task_t * const task, TileStatus tile_st
         tile_status.bias.addr_ext += conf_bias.length_1d_copy;
     }
 
-    execute_stride2x2_prepare(*tile, kernel, task);
+    execute_stride2x2_prepare(tile, kernel, task);
 
     dma_transfer_wait(dma_transfer);
     eu_mutex_unlock(dma_mutex);
@@ -187,6 +184,7 @@ int inc(int index, int end) {
 #define LOADER_ID (0)
 #define EXECUTER_ID (1)
 #define STORER_ID (2)
+#define CORES (3)
 
 #define BUFFER_SIZE (2)
 
@@ -199,113 +197,56 @@ static struct {
     Monitor input, output, store_conf;
 } monitor;
 
-void ${func_name}(void *args) {
-
-    #ifdef DEBUG_GVSOC
-    nnx_activate_gvsoc_logging(GVSOC_LOGGING_FORMAT_DECIMAL);
-    #endif
-
-    layer_args_t *layer_args = (layer_args_t *)args;
-
-    const unsigned int out_shift = layer_args->out_shift;
-
-    Layer layer = {
-        .addr = {
-            .input = layer_args->L2_input,
-            .weights = layer_args->L2_weights,
-            .scale = layer_args->L2_weights + ${l2_k_offset},
-            .bias = layer_args->L2_weights + ${l2_lambda_offset},
-            .output = layer_args->L2_output
-        },
-        .padding = {
-            .top    = layer_args->padding & PAD_TOP ? ${padding_top} : DONT_PAD,
-            .right  = ${padding_right},
-            .bottom = layer_args->padding & PAD_BOTTOM ? ${padding_bottom} : DONT_PAD,
-            .left   = ${padding_left}
-        }
-    };
-
-    // Double buffer address init
-
-    const unsigned int l1_buffer = layer_args->L1_buffer;
-    const int l1_buffer_input = l1_buffer + ${l1_x_offset};
-    const int l1_buffer_output = l1_buffer + ${l1_y_offset};
-    const int l1_buffer_weights = l1_buffer + ${l1_W_offset};
-    const int l1_buffer_scale = l1_buffer + ${l1_k_offset};
-    const int l1_buffer_bias = l1_buffer + ${l1_lambda_offset};
-
-    Address buffer_addresses[2] = {
-        {
-            .input = l1_buffer_input,
-            .weights = l1_buffer_weights,
-            .scale = l1_buffer_scale,
-            .bias = l1_buffer_bias,
-            .output = l1_buffer_output
-        },
-        {
-            .input = l1_buffer_input + ${l1_x_tile_size},
-            .weights = l1_buffer_weights + ${l1_W_tile_size},
-            .scale = l1_buffer_scale + ${l1_k_tile_size},
-            .bias = l1_buffer_bias + ${l1_lambda_tile_size},
-            .output = l1_buffer_output + ${l1_y_tile_size}
-        }
-    };
-
-    // Initialization
-
-    if (pi_core_id() == 0) {
-        int err = 0;
-
-        if (err = monitor_init(&monitor.input, BUFFER_SIZE)) {
-            printf("Input monitor initialization failed with status %d.\n", err);
-            return;
-        }
-
-        if (err = monitor_init(&monitor.output, BUFFER_SIZE)) {
-            printf("Output monitor initialization failed with status %d.\n", err);
-            monitor_term(&monitor.input);
-            return;
-        }
-
-        if (err = monitor_init(&monitor.store_conf, BUFFER_SIZE)) {
-            printf("Store conf monitor initialization failed with status %d.\n", err);
-            monitor_term(&monitor.input);
-            monitor_term(&monitor.output);
-            return;
-        }
-
-        // Init nnx tasks
-        for (int i = 0; i < BUFFER_SIZE; i++) {
-            nnx_tasks[i] = nnx_task_create(
-                ${fs1}, ${int(flag_DW)},
-                ${x_data_size_byte}, ${y_data_size_byte}, ${W_data_size},
-                weightOffsetModeLayerWise, ${-(2**(W_data_size-1))},
-                (nnx_quant_t) {
-                    .shift_amount = out_shift,
-                    .mode = quantMode8Bit,
-                    .function = quantFunctionRelu,
-                    .flag_rounding = FLAG_UNUSED
-                }, (nnx_norm_t) {
-                    .mode  = ${"normMode32Bit" if act_dim_bit == 32 else "normMode8Bit" if act_dim_bit == 8 else "FLAG_UNUSED"},
-                    .flag_bias  = FLAG_USED,
-                    .flag_shift = FLAG_UNUSED
-                }, ${stride});
-        }
-
-        nnx_init();
-        dma_mutex = eu_mutex_addr(DMA_MUTEX_ID);
-        dma_transfer = dma_transfer_create();
-        eu_mutex_init(dma_mutex);
-    }
-
-    pi_cl_team_barrier(0);
-
+static void layer_task_fork(void *args) {
     const int total_tiles = end_index.height * end_index.width * end_index.output_channel;
 
     // Loader
 
     if (pi_core_id() == LOADER_ID) {
-        int i_buff = 0;
+        layer_args_t *layer_args = (layer_args_t *)args;
+
+        Layer layer = {
+            .addr = {
+                .input = layer_args->L2_input,
+                .weights = layer_args->L2_weights,
+                .scale = layer_args->L2_weights + ${l2_k_offset},
+                .bias = layer_args->L2_weights + ${l2_lambda_offset},
+                .output = layer_args->L2_output
+            },
+            .padding = {
+                .top    = layer_args->padding & PAD_TOP ? ${padding_top} : DONT_PAD,
+                .right  = ${padding_right},
+                .bottom = layer_args->padding & PAD_BOTTOM ? ${padding_bottom} : DONT_PAD,
+                .left   = ${padding_left}
+            }
+        };
+
+        // Double buffer address init
+
+        const unsigned int l1_buffer = layer_args->L1_buffer;
+        const int l1_buffer_input = l1_buffer + ${l1_x_offset};
+        const int l1_buffer_output = l1_buffer + ${l1_y_offset};
+        const int l1_buffer_weights = l1_buffer + ${l1_W_offset};
+        const int l1_buffer_scale = l1_buffer + ${l1_k_offset};
+        const int l1_buffer_bias = l1_buffer + ${l1_lambda_offset};
+
+        Address buffer_addresses[2] = {
+            {
+                .input = l1_buffer_input,
+                .weights = l1_buffer_weights,
+                .scale = l1_buffer_scale,
+                .bias = l1_buffer_bias,
+                .output = l1_buffer_output
+            },
+            {
+                .input = l1_buffer_input + ${l1_x_tile_size},
+                .weights = l1_buffer_weights + ${l1_W_tile_size},
+                .scale = l1_buffer_scale + ${l1_k_tile_size},
+                .bias = l1_buffer_bias + ${l1_lambda_tile_size},
+                .output = l1_buffer_output + ${l1_y_tile_size}
+            }
+        };
+
         #define MEMORY_STATUS_INIT(name)     ${"\\"}
             .name = {                        ${"\\"}
                 .addr_ext = layer.addr.name, ${"\\"}
@@ -322,12 +263,15 @@ void ${func_name}(void *args) {
             MEMORY_STATUS_INIT(output)
         };
 
+        int i_buff = 0;
+
         for (int i = 0; i < total_tiles; i++) {
-            monitor_produce_begin(&monitor.input);
             const Address local_addr = tile_status_get_addr(tile_status, buffer_addresses);
-            load(&tiles[i_buff], &nnx_tasks[i_buff], tile_status,
-                 body, border, layer,
-                 end_index, local_addr, kernel);
+            Layer tile = tile_create(tile_status.index, end_index, body, border, layer, local_addr);
+
+            monitor_produce_begin(&monitor.input);
+            tiles[i_buff] = tile;
+            load(tiles[i_buff], &nnx_tasks[i_buff], tile_status, body, layer, kernel);
             monitor_produce_end(&monitor.input);
 
             monitor_produce_begin(&monitor.store_conf);
@@ -379,17 +323,72 @@ void ${func_name}(void *args) {
             i_buff = inc(i_buff, BUFFER_SIZE);
         }
     }
+}
 
-    pi_cl_team_barrier(0);
+void ${func_name}(void *args) {
+
+    #ifdef DEBUG_GVSOC
+    nnx_activate_gvsoc_logging(GVSOC_LOGGING_FORMAT_DECIMAL);
+    #endif
+
+    layer_args_t *layer_args = (layer_args_t *)args;
+
+    // Initialization
+
+    int err = 0;
+
+    if (err = monitor_init(&monitor.input, BUFFER_SIZE)) {
+        printf("Input monitor initialization failed with status %d.\n", err);
+        return;
+    }
+
+    if (err = monitor_init(&monitor.output, BUFFER_SIZE)) {
+        printf("Output monitor initialization failed with status %d.\n", err);
+        monitor_term(&monitor.input);
+        return;
+    }
+
+    if (err = monitor_init(&monitor.store_conf, BUFFER_SIZE)) {
+        printf("Store conf monitor initialization failed with status %d.\n", err);
+        monitor_term(&monitor.input);
+        monitor_term(&monitor.output);
+        return;
+    }
+
+    // Init nnx tasks
+    for (int i = 0; i < BUFFER_SIZE; i++) {
+        nnx_tasks[i] = nnx_task_create(
+                ${fs1}, ${int(flag_DW)},
+                ${x_data_size_byte}, ${y_data_size_byte}, ${W_data_size},
+                weightOffsetModeLayerWise, ${-(2**(W_data_size-1))},
+                (nnx_quant_t) {
+                    .shift_amount = layer_args->out_shift,
+                    .mode = quantMode8Bit,
+                    .function = quantFunctionRelu,
+                    .flag_rounding = FLAG_UNUSED
+                }, (nnx_norm_t) {
+                    .mode  = ${"normMode32Bit" if act_dim_bit == 32 else "normMode8Bit" if act_dim_bit == 8 else "FLAG_UNUSED"},
+                    .flag_bias  = FLAG_USED,
+                    .flag_shift = FLAG_UNUSED
+                }, ${stride});
+    }
+
+    nnx_init();
+    dma_mutex = eu_mutex_addr(DMA_MUTEX_ID);
+    dma_transfer = dma_transfer_create();
+    eu_mutex_init(dma_mutex);
+
+
+    // Fork
+
+    pi_cl_team_fork(CORES, (void *)layer_task_fork, args);
 
 
     // Terminate
 
-    if (pi_core_id() == 0) {
-        monitor_term(&monitor.input);
-        monitor_term(&monitor.output);
-        monitor_term(&monitor.store_conf);
-        nnx_term();
-        dma_transfer_free(dma_transfer);
-    }
+    monitor_term(&monitor.input);
+    monitor_term(&monitor.output);
+    monitor_term(&monitor.store_conf);
+    nnx_term();
+    dma_transfer_free(dma_transfer);
 }

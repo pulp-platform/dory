@@ -95,7 +95,7 @@ void layer(void *args) {
   {
 % for i in range(len(DORY_HW_graph)):
     case ${i}:
-      pi_cl_team_fork(3, (void *)${func_name[i]}, args);
+      ${func_name[i]}(args);
       break;
 % endfor
   }
