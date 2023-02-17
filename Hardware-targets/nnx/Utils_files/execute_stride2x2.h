@@ -3,6 +3,8 @@
 
 #include <stddef.h>
 #include "pulp_nnx.h"
+#include "pulp_nnx_defs.h"
+#include "pulp_nnx_hal.h"
 #include "tile_status.h"
 #include "dory_get_tile.h"
 
@@ -66,6 +68,7 @@ static int execute_stride2x2_blocking(nnx_task_t task, Layer tile, Kernel kernel
     const uint32_t output_base = task.outfeat_ptr;
     const uint32_t tile_padding = task.cfg.padding;
 
+    int i_job = 0;
     for (int i = 0; i < n_h; i++) {
         for (int j = 0; j < n_w; j++) {
             task.infeat_ptr = dory_get_tile_3d(input_base,
@@ -88,8 +91,16 @@ static int execute_stride2x2_blocking(nnx_task_t task, Layer tile, Kernel kernel
             task.cfg.padding = get_padding(i, j, n_h, n_w, tile_padding);
 
             last_job_id = nnx_acquire_blocking();
-            nnx_offload(&task);
+            if (i_job < 2) {
+                nnx_offload(&task);
+            } else {
+                NE16_WRITE_IO_REG(NE16_REG_INFEAT_PTR, task.infeat_ptr);
+                NE16_WRITE_IO_REG(NE16_REG_OUTFEAT_PTR, task.outfeat_ptr);
+                NE16_WRITE_IO_REG(NE16_REG_PADDING, task.cfg.padding);
+            }
             nnx_run_async();
+
+            i_job++;
         }
     }
 
