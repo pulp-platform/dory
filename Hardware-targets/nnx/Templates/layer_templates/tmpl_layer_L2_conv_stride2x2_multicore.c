@@ -269,14 +269,14 @@ static void layer_task_fork(void *args) {
             const Address local_addr = tile_status_get_addr(tile_status, buffer_addresses);
             Layer tile = tile_create(tile_status.index, end_index, body, border, layer, local_addr);
 
-            monitor_produce_begin(&monitor.input);
+            monitor_produce_begin(monitor.input);
             tiles[i_buff] = tile;
             load(tiles[i_buff], &nnx_tasks[i_buff], tile_status, body, layer, kernel);
-            monitor_produce_end(&monitor.input);
+            monitor_produce_end(monitor.input);
 
-            monitor_produce_begin(&monitor.store_conf);
+            monitor_produce_begin(monitor.store_conf);
             store_prepare(tiles[i_buff], body, layer, tile_status.index, &store_conf[i_buff]);
-            monitor_produce_end(&monitor.store_conf);
+            monitor_produce_end(monitor.store_conf);
 
             i_buff = inc(i_buff, BUFFER_SIZE);
             tile_status = tile_status_get_next(tile_status, end_index);
@@ -289,13 +289,13 @@ static void layer_task_fork(void *args) {
     if (pi_core_id() == EXECUTER_ID) {
         int i_buff = 0;
         for (int i = 0; i < total_tiles; i++) {
-            monitor_consume_begin(&monitor.input);
-            monitor_produce_begin(&monitor.output);
+            monitor_consume_begin(monitor.input);
+            monitor_produce_begin(monitor.output);
 
             nnx_job_ids[i_buff] = execute_stride2x2_blocking(nnx_tasks[i_buff], tiles[i_buff], kernel);
 
-            monitor_consume_end(&monitor.input);
-            monitor_produce_end(&monitor.output);
+            monitor_consume_end(monitor.input);
+            monitor_produce_end(monitor.output);
 
             i_buff = inc(i_buff, BUFFER_SIZE);
         }
@@ -307,8 +307,8 @@ static void layer_task_fork(void *args) {
     if (pi_core_id() == STORER_ID) {
         int i_buff = 0;
         for (int i = 0; i < total_tiles; i++) {
-            monitor_consume_begin(&monitor.store_conf);
-            monitor_consume_begin(&monitor.output);
+            monitor_consume_begin(monitor.store_conf);
+            monitor_consume_begin(monitor.output);
 
             nnx_wait_on_id(nnx_job_ids[i_buff]);
 
@@ -317,8 +317,8 @@ static void layer_task_fork(void *args) {
             dma_transfer_wait(dma_transfer);
             eu_mutex_unlock(dma_mutex);
 
-            monitor_consume_end(&monitor.store_conf);
-            monitor_consume_end(&monitor.output);
+            monitor_consume_end(monitor.store_conf);
+            monitor_consume_end(monitor.output);
 
             i_buff = inc(i_buff, BUFFER_SIZE);
         }
@@ -344,14 +344,14 @@ void ${func_name}(void *args) {
 
     if (err = monitor_init(&monitor.output, BUFFER_SIZE)) {
         printf("Output monitor initialization failed with status %d.\n", err);
-        monitor_term(&monitor.input);
+        monitor_term(monitor.input);
         return;
     }
 
     if (err = monitor_init(&monitor.store_conf, BUFFER_SIZE)) {
         printf("Store conf monitor initialization failed with status %d.\n", err);
-        monitor_term(&monitor.input);
-        monitor_term(&monitor.output);
+        monitor_term(monitor.input);
+        monitor_term(monitor.output);
         return;
     }
 
@@ -386,9 +386,9 @@ void ${func_name}(void *args) {
 
     // Terminate
 
-    monitor_term(&monitor.input);
-    monitor_term(&monitor.output);
-    monitor_term(&monitor.store_conf);
+    monitor_term(monitor.input);
+    monitor_term(monitor.output);
+    monitor_term(monitor.store_conf);
     nnx_term();
     dma_transfer_free(dma_transfer);
 }
