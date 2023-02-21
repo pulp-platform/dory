@@ -131,7 +131,7 @@ int32_t ${func_name}(void* l2_x, void* l2_x_2, void* l2_y)
     kernel.ox = y_tile_size_w;
     kernel.oy = y_tile_size_h;
     kernel.activation_function = 0;
-    kernel.output_shift = 0;
+    kernel.output_shift = ${out_shift};
     kernel.dilation = 1;
     kernel.stride = 0;
 
