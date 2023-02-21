@@ -197,9 +197,20 @@ class C_Parser(Parser_HW_to_C):
                         final_weights = []
                         for c in np.arange(getattr(node, 'output_channels')):
                             for pos in range(4):
-                                for ch in range(4):
+                                for ch in range(1):
                                     for pos_in in [3,2,1,0]:
-                                        final_weights.append(node.__dict__[constants[i]]["value"][c*16*4 + pos + 4*(ch*4 + pos_in)])
+                                        final_weights.append(node.__dict__[constants[i]]["value"][c*4*4 + pos + 4*(ch*4 + pos_in)])
+
+                        # new_weights = []
+                        # for pos in range(4):
+                        #     for ch in range(int(np.asarray(node.__dict__[constants[i]]["value"]).shape[0]/16)):
+                        #         for pos_in in [3,2,1,0]:
+                        #             new_weights.append(node.__dict__[constants[i]]["value"][pos+4*(ch*4+pos_in)])
+                        # final_weights = []
+                        # for ch in range(int((node.output_channels+15)/16)):
+                        #     for byte in range(4):
+                        #         final_weights.append(new_weights[(node.output_channels*byte + ch*16):(node.output_channels*byte + ch*16 + 16)])
+
                     node.__dict__[constants[i]]["value"] = np.asarray(final_weights).flatten().tolist()
         if node.group == 1:
             for batch in np.arange(0, int(np.floor((getattr(node, 'output_channels')+15)/16))):

@@ -138,9 +138,9 @@ class C_Parser(Parser_HW_to_C):
                         final_weights = []
                         for c in np.arange(getattr(node, 'output_channels')):
                             for pos in range(4):
-                                for ch in range(4):
+                                for ch in range(1):
                                     for pos_in in [3,2,1,0]:
-                                        final_weights.append(node.__dict__[constants[i]]["value"][c*16*4 + pos + 4*(ch*4 + pos_in)])
+                                        final_weights.append(node.__dict__[constants[i]]["value"][c*4*4 + pos + 4*(ch*4 + pos_in)])
                     node.__dict__[constants[i]]["value"] = np.asarray(final_weights).flatten().tolist()
         if node.group == 1:
             for batch in np.arange(0, int(np.floor((getattr(node, 'output_channels')+15)/16))):
