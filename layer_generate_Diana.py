@@ -305,6 +305,7 @@ def create_bias(node):
     size = (node.output_channels,1)
     # return torch.randint(low=low, high=high, size=size).flatten()
     # return torch.randint(low=0, high=1, size=size).flatten()
+    ### STILL NEED TO FIX BIAS FOR DW
     return torch.randint(low=0x01020304, high=0x01020305, size=size).flatten()
 
 def create_conv(i_layer, layer_node, dory_node, network_dir, input=None, weight=None, batchnorm_params=None):
