@@ -147,6 +147,7 @@ void ${func_name}(layer* layer_i)  {
     element_wise_sum(l2_x2_tile, l1_x, l2_x_tile, l1_x2, l1_y, &kernel);
     dory_cores_barrier_digital();
 
+    uint32_t l2_y_tile = dory_get_tile_3d(l2_y, _i_nof, _i_h, _i_w, ${W_tile_size_nof}, ${y_tile_size_h}, ${y_tile_size_w}, ${y_h}, ${y_w}, 0, 0, 0, 0, 0, 0, ${y_data_size_byte});
     _i_nof_pre = _i_nof;
     _i_nif_pre = _i_nif;
     _i_h_pre   = _i_h;
@@ -167,7 +168,7 @@ void ${func_name}(layer* layer_i)  {
       }
 
 % if tile_dim_nof * tile_dim_h * tile_dim_w > 1 or node.branch_out == 1:
-    DMA_copy_y.ext = l2_y;
+    DMA_copy_y.ext = l2_y_tile;
     DMA_copy_y.loc = l1_y;
     DMA_copy_y.number_of_2d_copies = y_length_nof_byte;
     DMA_copy_y.number_of_1d_copies = y_tile_size_h;

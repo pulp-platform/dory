@@ -122,6 +122,7 @@ class onnx_manager(Parser_DORY_to_HW):
                                         temp1 = np.concatenate((node.__dict__[weights_name]["value"][ch].reshape(1), np.zeros(15)), axis = 0)
                                         temp = np.concatenate((temp, temp1), axis=0)
                                 node.__dict__[weights_name]["value"] = np.asarray(temp)
+                                import pdb;pdb.set_trace()
 
     def check_parameters(self):
         WARNINGS =0
