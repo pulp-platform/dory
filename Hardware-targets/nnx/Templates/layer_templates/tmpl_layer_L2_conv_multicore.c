@@ -80,14 +80,14 @@ static void load_input_prepare(Layer tile, Layer body, Layer layer, TileIndex in
     const int x_offset_h = index.height > 0 ? layer.padding.top : 0;
     const int x_offset_w = index.width > 0 ? layer.padding.left : 0;
 
-    conf->ext = (void *)dory_get_tile_3d(layer.addr.input,
+    conf->ext = dory_get_tile_3d(layer.addr.input,
                                    index.height, index.width, 0,
                                    body.input.height, body.input.width, body.input.channel,
                                    ${x_w}, ${nif*g},
                                    ${conv_overlap1}, ${conv_overlap2}, 0,
                                    x_offset_h, x_offset_w, 0,
                                    ${x_data_size_byte});
-    conf->loc = (void *)tile.addr.input;
+    conf->loc = tile.addr.input;
     conf->number_of_2d_copies = tile.input.height;
     conf->number_of_1d_copies = tile.input.width;
     conf->length_1d_copy = tile.input.channel;
@@ -110,8 +110,8 @@ static void load_weights_prepare(Layer tile, Kernel kernel,
     const int size_bias = tile.output.channel * ${int(bias_bits/8)};
 
     #define CONF_SET(name)                                     ${"\\"}
-        conf_ ## name->ext = (void *)status_ ## name.addr_ext; ${"\\"}
-        conf_ ## name->loc = (void *)tile.addr.name;           ${"\\"}
+        conf_ ## name->ext = status_ ## name.addr_ext; ${"\\"}
+        conf_ ## name->loc = tile.addr.name;           ${"\\"}
         conf_ ## name->length_1d_copy = size_ ## name;         ${"\\"}
         conf_ ## name->dir = 1;
 
@@ -121,14 +121,14 @@ static void load_weights_prepare(Layer tile, Kernel kernel,
 }
 
 static void store_prepare(Layer tile, Layer body, Layer layer, TileIndex index, DmaTransferConf * const conf) {
-    conf->ext = (void *)dory_get_tile_3d(layer.addr.output,
+    conf->ext = dory_get_tile_3d(layer.addr.output,
                                          index.height, index.width, index.output_channel,
                                          body.output.height, body.output.width, body.output.channel,
                                          ${y_w}, ${int(nof*factor)},
                                          0, 0, 0,
                                          0, 0, 0,
                                          ${y_data_size_byte});
-    conf->loc = (void *)tile.addr.output;
+    conf->loc = tile.addr.output;
     conf->number_of_2d_copies = tile.output.height;
     conf->number_of_1d_copies = tile.output.width;
     conf->length_1d_copy = tile.output.channel;
@@ -262,7 +262,7 @@ static void layer_task_fork(void *args) {
             DmaTransfer transfer = dma_transfer_create();
             load_async(tiles[i_buff], &tile_status, body, layer, kernel);
             dma_mutex_unlock();
-            execute_stride2x2_prepare(tile, kernel, &nnx_tasks[i_buff]);
+            execute_prepare(tile, &nnx_tasks[i_buff]);
             dma_mutex_lock();
             dma_transfer_wait(transfer);
             dma_mutex_unlock();
@@ -286,7 +286,7 @@ static void layer_task_fork(void *args) {
             monitor_consume_begin(monitor.input);
             monitor_produce_begin(monitor.output);
 
-            nnx_job_ids[i_buff] = execute_stride2x2_blocking(nnx_tasks[i_buff], tiles[i_buff], kernel);
+            nnx_job_ids[i_buff] = execute_async(nnx_tasks[i_buff]);
 
             monitor_produce_end(monitor.output);
 

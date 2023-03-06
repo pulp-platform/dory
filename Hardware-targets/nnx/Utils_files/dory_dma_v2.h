@@ -36,13 +36,13 @@ typedef struct DmaTransfer {
 } DmaTransfer;
 
 typedef struct DmaTransferConf {
-  void *ext;
-  void *loc;
-  unsigned short stride_2d;
-  unsigned short number_of_2d_copies;
-  unsigned short stride_1d;
-  unsigned short number_of_1d_copies;
-  unsigned short length_1d_copy;
+  uint32_t ext;
+  uint32_t loc;
+  int stride_2d;
+  int number_of_2d_copies;
+  int stride_1d;
+  int number_of_1d_copies;
+  int length_1d_copy;
   int dir; // 0 l1->l2, 1 l2->l1
 } DmaTransferConf;
 
@@ -69,22 +69,12 @@ static void dma_transfer_2d_async(DmaTransferConf conf) {
 }
 
 static void dma_transfer_3d_async(DmaTransferConf conf) {
-  char *ext = (char *)conf.ext;
-  char *loc = (char *)conf.loc;
   const int size_2d = conf.number_of_1d_copies * conf.length_1d_copy;
 
   for (int i = 0; i < conf.number_of_2d_copies; i++) {
-    mchan_transfer_push_2d((mchan_transfer_t) {
-      .cmd = size_2d | conf.dir << MCHAN_CMD_SHIFT_DIRECTION | MCHAN_FLAGS_2D,
-      .size = size_2d,
-      .loc = loc,
-      .ext = ext,
-      .ext_size_1d = conf.length_1d_copy,
-      .ext_stride_1d = conf.stride_1d
-    });
-
-    loc += size_2d;
-    ext += conf.stride_2d;
+    dma_transfer_2d_async(conf);
+    conf.loc += size_2d;
+    conf.ext += conf.stride_2d;
   }
 }
 
@@ -108,6 +98,21 @@ static void dma_transfer_free(DmaTransfer transfer) {
 
 static void dma_transfer_wait(DmaTransfer transfer) {
   mchan_transfer_wait(transfer.id);
+  mchan_transfer_free(transfer.id);
+}
+
+static uint32_t dma_mutex;
+
+static void dma_mutex_init() {
+  dma_mutex = eu_mutex_addr(0);
+}
+
+static void dma_mutex_lock() {
+  eu_mutex_lock(dma_mutex);
+}
+
+static void dma_mutex_unlock() {
+  eu_mutex_unlock(dma_mutex);
 }
 
 #endif  // __DORY_DMA_H__

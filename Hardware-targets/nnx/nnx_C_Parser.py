@@ -149,7 +149,7 @@ class nnx_C_Parser(Parser_HW_to_C):
                 if node.strides == [2, 2]:
                     tmplfiles.append('tmpl_layer_L2_conv_stride2x2_multicore.c')
                 else:
-                    tmplfiles.append('tmpl_layer_L2_conv.c')
+                    tmplfiles.append('tmpl_layer_L2_conv_multicore.c')
 
             outfiles = [f'{node.name}.h', f'{node.name}.c']
             outfiles = [os.path.join(self.destdir(file), file) for file in outfiles]

@@ -1,10 +1,8 @@
-#ifndef __EXECUTE_STRIDE2x2_H__
-#define __EXECUTE_STRIDE2x2_H__
+#ifndef __EXECUTE_H__
+#define __EXECUTE_H__
 
-#include <stddef.h>
+#include <stdint.h>
 #include "pulp_nnx.h"
-#include "pulp_nnx_defs.h"
-#include "pulp_nnx_hal.h"
 #include "tile_status.h"
 #include "dory_get_tile.h"
 
@@ -28,12 +26,40 @@ static uint32_t get_padding(int i, int j, int n_h, int n_w, uint32_t tile_paddin
     return padding;
 }
 
+static void execute_prepare(Layer tile, nnx_task_t * const task) {
+    nnx_conv_set_strides(task, tile.input.channel, tile.input.width, tile.input.channel,
+                         tile.output.width, tile.output.channel);
+    nnx_conv_set_counters(task, tile.input.channel, tile.output.height, tile.output.width, tile.output.channel, tile.padding.bottom, tile.padding.right);
+
+    task->cfg.padding = (tile.padding.top << 28)
+        | (tile.padding.right << 24)
+        | (tile.padding.bottom << 20)
+        | (tile.padding.left << 16)
+        | 0;
+
+    task->infeat_ptr = padded_input_ptr(tile.addr.input, tile.padding.top,
+                                        tile.padding.left, tile.input.width,
+                                        tile.input.channel, 8);
+    task->weights_ptr = tile.addr.weights;
+    task->scale_ptr = tile.addr.scale;
+    task->scale_bias_ptr = tile.addr.bias;
+    task->scale_shift_ptr = 0;
+    task->outfeat_ptr = tile.addr.output;
+}
+
+static int execute_async(nnx_task_t task) {
+    int last_job_id = nnx_acquire_blocking();
+    nnx_offload(&task);
+    nnx_run_async();
+    return last_job_id;
+}
+
 static void execute_stride2x2_prepare(Layer tile, Kernel kernel, nnx_task_t * const task) {
     const int stride = 2;
 
     nnx_conv_set_strides(task, tile.input.channel, tile.input.width, tile.input.channel,
                          tile.output.width, tile.output.channel);
-    nnx_conv_set_counters(task, tile.input.channel, 3, 3, tile.output.channel);
+    nnx_conv_set_counters(task, tile.input.channel, 3, 3, tile.output.channel, 0, 0);
 
     tile.padding.bottom = (tile.input.height + tile.padding.top - kernel.shape.height) % stride == 0 ? 0 : tile.padding.bottom;
     tile.padding.right = (tile.input.width + tile.padding.left - kernel.shape.width) % stride == 0 ? 0 : tile.padding.right;
@@ -107,9 +133,9 @@ static int execute_stride2x2_blocking(nnx_task_t task, Layer tile, Kernel kernel
     return last_job_id;
 }
 
-static void execute_stride2x2_wait() {
-    nnx_wait_empty();
+static void execute_wait(int id) {
+    nnx_wait_on_id(id);
 }
 
 
-#endif  // __EXECUTE_STRIDE2x2_H__
+#endif  // __EXECUTE_H__

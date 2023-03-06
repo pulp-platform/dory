@@ -90,6 +90,10 @@ void network_terminate() {
 void layer(void *args) {
   layer_args_t *layer_args = (layer_args_t *)args;
   layer_args->L1_buffer = pi_cl_l1_malloc(NULL, ${l1_buffer});
+  if (layer_args->L1_buffer == 0) {
+    printf("Error allocating memory for L1 buffer. Exiting...\n");
+    return;
+  }
 
   switch (layer_args->layer_id)
   {
@@ -145,6 +149,7 @@ int network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output)
 /* ---------------------------------- */
 
   directional_allocator_init(l2_buffer, l2_buffer_size);
+  L2_input = dmalloc(activations_size[0], dir);
 
 /* ---------------------------------- */
 /* --------- SECTION 1 END ---------- */
@@ -181,15 +186,15 @@ int network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output)
 
 % if 'Check_all' in verbose_level:
 #ifdef VERBOSE
+    if (allocate_layer[i] == 1)
+      checksum("L2 weights", L2_weights, weights_size[i], weights_checksum[i]);
+    else
+      printf("Weights in L3\n");
+
     if (L3_input_layers[i] == 1)
       printf("Input in L3\n");
-    else if (i == 0 || branch_change[i-1] == 0) {
+    else if (i == 0 || branch_change[i-1] == 0)
       checksum("L2 input", L2_input, activations_size[i], activations_checksum[i]);
-      if (allocate_layer[i] == 1)
-        checksum("L2 weights", L2_weights, weights_size[i], weights_checksum[i]);
-      else
-        printf("Weights in L3\n");
-    }
     else
       printf("Switching branch, already checked activation\n");
 #endif
@@ -229,7 +234,7 @@ int network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output)
     task.slave_stack_size = ${slave_stack};
     % endif
 
-    task.slave_stack_size = 2048;
+    task.slave_stack_size = 1024;
 
     pi_cluster_send_task_to_cl(&cl_dev, &task);
 
