@@ -110,6 +110,7 @@ static void dory_dma_free(DMA_copy *copy) {
 
 static void dory_dma_barrier(DMA_copy *copy) {
   mchan_transfer_wait(copy->tid);
+  mchan_transfer_free(copy->tid);
 }
 
 #endif  // __DORY_DMA_H__
