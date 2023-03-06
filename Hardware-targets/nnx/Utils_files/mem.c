@@ -83,7 +83,19 @@ void ram_free(void *ptr, size_t size) {
 }
 
 void ram_read(void *dest, void *src, const size_t size) {
-  pi_ram_read(&ram, src, dest, size);
+  if (size > 1 << 19) {
+    int n_reads = size >> 19;
+    int read_size = 1 << 19;
+    int read_rem = size & ((1 << 19) - 1);
+    for (int i = 0; i < n_reads; i++) {
+      pi_ram_read(&ram, src, dest, 1 << 19);
+      src += read_size;
+      dest += read_size;
+    }
+    pi_ram_read(&ram, src, dest, read_rem);
+  } else {
+    pi_ram_read(&ram, src, dest, size);
+  }
 }
 
 void ram_write(void *dest, void *src, const size_t size) {
