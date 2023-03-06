@@ -191,7 +191,65 @@ class HW_node(DORY_node):
         self.check_sum_in = file_checksum('input.txt' if i_node == 0 else f'out_layer{i_node - 1}.txt', self.input_activation_bits)
         self.check_sum_out = file_checksum(f'out_layer{i_node}.txt', self.output_activation_bits)
 
-    def tile_checksums(self, networkdir, index):
+    Dim = namedtuple("Dim", "start size tile_size")
+
+    def _tile_checksum(self, data, h: Dim, w: Dim, c: Dim, padding, kernel_shape, stride=(1, 1)):
+        overlap = (kernel_shape[0] - stride[0], kernel_shape[1] - stride[1])
+        i_tile = 0
+        for c_tile_start in range(c.start, c.start + c.size, c.tile_size):
+            for h_tile_start in range(h.start, h.start + h.size - overlap[0], h.tile_size - overlap[0]):
+                if h_tile_start > 0:
+                    h_tile_start -= padding[0]
+                for w_tile_start in range(w.start, w.start + w.size - overlap[1], w.tile_size - overlap[1]):
+                    if w_tile_start > 0:
+                        w_tile_start -= padding[3]
+                    data_tile = data[h_tile_start:h_tile_start + h.tile_size,
+                                     w_tile_start:w_tile_start + w.tile_size,
+                                     c_tile_start:c_tile_start + c.tile_size]
+                    checksum_tile = data_tile.sum()
+                    print(f'[{i_tile}] Checksum: {checksum_tile}')
+                    i_tile += 1
+
+                    #if stride[0] != 1 or stride[1] != 1:
+                    #    self._tile_checksum(data,
+                    #                        Dim(h_tile_start, h.tile_size, stride[0]),
+                    #                        Dim(w_tile_start, w.tile_size, stride[1]),
+                    #                        Dim(c_tile_start, c.tile_size, c.tile_size))
+
+    def _load_data(self, networkdir, filename):
+        filepath = os.path.join(networkdir, filename)
+
+        try:
+            return loadtxt(filepath, dtype=np.int64)
+        except ValueError:
+            return loadtxt(filepath, dtype=np.float)
+        except FileNotFoundError:
+            print(f"File {filename} doesn't exist. Exiting DORY...")
+            sys.exit(-1)
+
+    def tile_input_checksum(self, networkdir, index):
+        filename = f'out_layer{index-1}.txt' if index > 0 else 'input.txt'
+        data = self._load_data(networkdir, filename)
+
+        if self.output_activation_bits <= 8:
+            data = self.__compress(data.ravel(), self.output_activation_bits)
+
+        data = data.reshape((self.input_dimensions[0], self.input_dimensions[1], self.input_channels))
+
+        # TODO: extend to L2 mem, for now only L1, so when there is L3-L2 tiling it will probably be wrong
+
+        h, w, c = self.input_dimensions + [self.input_channels]
+        c_tile, h_tile, w_tile = self.tiling_dimensions["L1"]["input_dimensions"]
+
+        self._tile_checksum(data,
+                            self.Dim(0, h, h_tile),
+                            self.Dim(0, w, w_tile),
+                            self.Dim(0, c, c_tile),
+                            padding=self.pads,
+                            kernel_shape=self.kernel_shape,
+                            stride=self.strides)
+
+    def tile_output_checksum(self, networkdir, index):
         filename = f'out_layer{index}.txt'
         filepath = os.path.join(networkdir, filename)
 
@@ -213,13 +271,9 @@ class HW_node(DORY_node):
         h, w, c = self.output_dimensions + [self.output_channels]
         c_tile, h_tile, w_tile = self.tiling_dimensions["L1"]["output_dimensions"]
 
-        def tile_order(dim_tile, dim_layer, is_reversed=False):
-            order = range(0, dim_layer, dim_tile)
-            return reversed(order) if is_reversed else order
-
         Dim = namedtuple("Dim", "start size tile_size")
 
-        def tile_checksum(h:Dim, w:Dim, c:Dim, stride=(1, 1)):
+        def tile_checksum(h: Dim, w: Dim, c: Dim, stride=(1, 1)):
             i_tile = 0
             for c_tile_start in range(c.start, c.start + c.size, c.tile_size):
                 for h_tile_start in range(h.start, h.start + h.size, h.tile_size):
