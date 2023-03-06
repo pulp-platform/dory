@@ -58,9 +58,10 @@ class Tiler_Pool2D_PULP():
         s = self.HW_node.strides
         p = self.HW_node.pads
 
-        if self.previous_HW_node.tiling_dimensions["L3"]["output_dimensions"] != self.previous_HW_node.tiling_dimensions["L3"]["output_dimensions"]:
+        if self.previous_HW_node.tiling_dimensions["L2"]["output_dimensions"] != self.previous_HW_node.tiling_dimensions["L3"]["output_dimensions"]:
             input_L3 = 1
-            input_dim_constraint = self.previous_HW_node.tiling_dimensions["L2"]["output_activation_memory"]
+            self.HW_node.L3_input = 1
+            input_dim_constraint = int(self.previous_HW_node.tiling_dimensions["L2"]["output_activation_memory"])
         else:
             input_L3 = 0
         buffer_total = self.HW_node.input_activation_memory + self.HW_node.output_activation_memory + self.HW_node.constants_memory
@@ -99,7 +100,7 @@ class Tiler_Pool2D_PULP():
                 if name in ["l","k"]:
                     constants+=1
             if constants > 0:
-                constants_tile_dimension = db_W * out_ch * constants  * self.HW_node.constant_bits / 8
+                constants_tile_dimension = out_ch * constants  * self.HW_node.constant_bits / 8
             else:
                 constants_tile_dimension = 0
             constraint_all = input_tile_dimension + output_tile_dimension + constants_tile_dimension
