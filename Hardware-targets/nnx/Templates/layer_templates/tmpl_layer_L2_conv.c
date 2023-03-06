@@ -458,33 +458,6 @@ void ${func_name}(
   // NNX task defaults //
   ///////////////////////
 
-  nnx_weights_t nnx_weights = {
-    .data = db[i_db_w].w,
-    .height = ${fs1},
-    .width = ${fs2},
-    .depth = ${W_tile_size_nif},
-    .n_weights = ${W_tile_size_nof},
-    .bitwidth = ${W_data_size},
-    .offset_factor = ${-(2**(W_data_size-1))},
-    .offset_mode = weightOffsetModeLayerWise
-  };
-
-  nnx_feature_t nnx_input = {
-    .data = db[i_db_x].x,
-    .height = ${x_tile_size_h},
-    .width = ${x_tile_size_w},
-    .depth = ${x_tile_size_nif},
-    .bitwidth = featureBitwidth8Bit
-  };
-
-  nnx_feature_t nnx_output = {
-    .data = db[i_db_y].y,
-    .height = ${y_tile_size_h},
-    .width = ${y_tile_size_w},
-    .depth = ${y_tile_size_nof},
-    .bitwidth = featureBitwidth8Bit
-  };
-
   const nnx_norm_t norm = {
     .mode  = ${"normMode32Bit" if act_dim_bit == 32 else "normMode8Bit" if act_dim_bit == 8 else "FLAG_UNUSED"},
     .flag_bias  = FLAG_USED,
@@ -521,15 +494,16 @@ void ${func_name}(
   nnx_task_t nnx_tasks[NNX_TASK_COUNT];
 
   for (int i = 0; i < MIN(NNX_TASK_COUNT, total_tiles); i++) {
-    nnx_task_init(&nnx_tasks[i]);
-    //nnx_conv_${fs1}x${fs2}${'_dw' if flag_DW else ''}(&(nnx_tasks[i].cfg), nnx_weights, nnx_input, nnx_output, tile_padding, stride);
-    nnx_conv_configure(&nnx_tasks[i], ${fs1}, ${int(flag_DW)}, \
-                       8, 8, ${W_data_size}, weightOffsetModeLayerWise, ${-(2**(W_data_size-1))}, stride);
-    nnx_conv_set_strides(&nnx_tasks[i], ${x_tile_size_nif}, \
+    nnx_tasks[i] = nnx_task_create(${fs1}, ${int(flag_DW)},
+                                   8, 8, ${W_data_size},
+                                   weightOffsetModeLayerWise, ${-(2**(W_data_size-1))},
+                                   quant, norm,
+                                   stride);
+    nnx_conv_set_strides(&nnx_tasks[i], ${x_tile_size_nif},
                          ${x_tile_size_w}, ${x_tile_size_nif}, ${y_tile_size_w}, ${y_tile_size_nof});
-    nnx_conv_set_counters(&nnx_tasks[i], ${x_tile_size_nif}, \
-                          ${y_tile_size_h}, ${y_tile_size_w}, ${y_tile_size_nof});
-    nnx_norm_quant(&(nnx_tasks[i].cfg), norm, quant);
+    nnx_conv_set_counters(&nnx_tasks[i], ${x_tile_size_nif},
+                          ${y_tile_size_h}, ${y_tile_size_w}, ${y_tile_size_nof},
+                          tile_padding.bottom, tile_padding.right);
     nnx_pad_input(&(nnx_tasks[i].cfg), tile_padding);
 
     const int x_tile_ptr_w_padding = db[i_db_x].x - (tile_padding.top * x_tile_size_w + tile_padding.left) * ${x_tile_size_nif};
@@ -932,10 +906,11 @@ void ${func_name}(
     tile_padding.left   = i_w == 0 ? padding.left : DONT_PAD;
 
     if (is_border_tile) {
-      nnx_conv_set_strides(nnx_task_to_offload, ${x_tile_size_nif}, \
+      nnx_conv_set_strides(nnx_task_to_offload, ${x_tile_size_nif},
                            x_tile_size_w, ${x_tile_size_nif}, y_tile_size_w, W_tile_size_nof);
-      nnx_conv_set_counters(nnx_task_to_offload, ${x_tile_size_nif}, \
-                            y_tile_size_h, y_tile_size_w, W_tile_size_nof);
+      nnx_conv_set_counters(nnx_task_to_offload, ${x_tile_size_nif},
+                            y_tile_size_h, y_tile_size_w, W_tile_size_nof,
+                            tile_padding.bottom, tile_padding.right);
     }
 
     nnx_pad_input(&(nnx_task_to_offload->cfg), tile_padding);
