@@ -155,7 +155,7 @@ static int buffer_index_get_next(int current, int is_transfer_next) {
     return is_transfer_next ? !current : current;
 }
 
-TileStatus tile_status_get_next(TileStatus current, TileIndex end_index) {
+static TileStatus tile_status_get_next(TileStatus current, TileIndex end_index) {
     TileStatus next = { 0 };
 
     next.index = tile_index_get_next(current.index, end_index);

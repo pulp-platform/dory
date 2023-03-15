@@ -164,7 +164,7 @@ static void load_async(Layer tile, TileStatus * const status, Layer body, Layer 
     }
 }
 
-int inc(int index, int end) {
+static int inc(int index, int end) {
     return index + 1 < end ? index + 1 : 0;
 }
 
