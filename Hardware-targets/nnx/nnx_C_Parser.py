@@ -145,6 +145,8 @@ class nnx_C_Parser(Parser_HW_to_C):
                 tmplfiles.append('tmpl_layer_L2_add.c')
             elif 'Pool' in node.name:
                 tmplfiles.append('tmpl_layer_L2_pool.c')
+            elif 'DepthwisePointwise' in node.name:
+                tmplfiles.append('tmpl_layer_L2_dw_pw.c')
             elif 'Conv' in node.name or 'FullyConnected' in node.name:
                 if node.strides == [2, 2]:
                     tmplfiles.append('tmpl_layer_L2_conv_stride2x2_multicore.c')
@@ -166,7 +168,7 @@ class nnx_C_Parser(Parser_HW_to_C):
             templateWriter.set_var(f'{mem_name.lower()}_{name}', val)
 
         flag_depthwise = node.group > 1
-        flag_batchnorm = 'k' in node.constant_names
+        flag_batchnorm = 'k' in node.constant_names or 'k0' in node.constant_names
         flag_bias = len([1 for name in node.constant_names if 'bias' in name]) > 0
 
         input_tile_shape = node.tiling_dimensions[mem_name]['input_dimensions']
@@ -257,7 +259,7 @@ class nnx_C_Parser(Parser_HW_to_C):
         #self.__mem_tmpl_vars(templateWriter, node, mem_level=2) # TODO: make uniform offsets for L1/L2/Lx mems
 
         flag_depthwise = node.group > 1
-        flag_batchnorm = 'k' in node.constant_names
+        flag_batchnorm = 'k' in node.constant_names or 'k0' in node.constant_names
 
         ko, ki = node.tiling_dimensions['L2']['weights_dimensions']
         weights_size = self.acc.weights_size(ko, ki, node.kernel_shape, node.weight_bits, flag_depthwise)

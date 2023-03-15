@@ -1,4 +1,33 @@
 {
+	"DepthwisePointwise": {
+		"number_of_nodes": 2,
+		"nodes_name": ["Convolution", "BNRelu", "Convolution", "BNRelu"],
+		"dependencies": {
+			"0": {
+				"inputs": [],
+				"outputs": [ "1" ]
+			},
+			"1": {
+				"inputs": [ "0" ],
+				"outputs": [ "2" ]
+			},
+			"2": {
+				"inputs": [ "1" ],
+				"outputs": [ "3" ]
+			},
+			"3": {
+				"inputs": [ "2" ],
+				"outputs": []
+			}
+		},
+		"attributes": [
+			{ },
+			{ },
+			{ "kernel_shape": [1, 1] },
+			{ }
+		],
+		"depthwise": [ true, false, false, false ]
+	},
 	"ConvolutionBNRelu": {
 		"number_of_nodes": 2,
 		"nodes_name": ["Convolution","BNRelu"],

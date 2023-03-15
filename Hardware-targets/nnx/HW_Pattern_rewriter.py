@@ -20,6 +20,9 @@
 # limitations under the License.
 
 
+from copy import deepcopy
+
+
 class Pattern_rewriter:
     def __init__(self, graph):
         self.graph = graph
@@ -31,7 +34,58 @@ class Pattern_rewriter:
             self.NodeRequant_pattern_rewriter(i)
         if rule in ["ConvolutionRelu", "FullyConnectedRelu", "AdditionRelu", "QAdditionRelu", "PoolingRelu"]:
             self.NodeRelu_pattern_rewriter(i)
+        if rule in ["DepthwisePointwise"]:
+            self.NodeDepthwisePointwise_pattern_rewriter(i)
         return self.graph
+
+    def NodeDepthwisePointwise_pattern_rewriter(self, indexes):
+        convs = [self.graph[indexes[0]], self.graph[indexes[2]]]
+        bnrelus = [self.graph[indexes[1]], self.graph[indexes[3]]]
+        node = deepcopy(self.graph[indexes[0]])
+
+        assert convs[1].strides == [1, 1]
+        assert convs[1].pads == [0, 0, 0, 0]
+        assert convs[1].group == 1
+        assert convs[0].weight_bits == convs[1].weight_bits
+
+        node.name = "BNRelu" + convs[0].name + "DepthwisePointwise"
+        node.op_type = "BNRelu" + convs[0].op_type
+        node.output_index = self.graph[indexes[3]].output_index
+        node.output_channels = convs[1].output_channels
+
+        # delete consts
+        for const in node.constant_names:
+            delattr(node, const)
+        node.constant_names = []
+
+        # add renamed consts
+        for node_group in [convs, bnrelus]:
+            for i, old_node in enumerate(node_group):
+                for const in old_node.constant_names:
+                    new_const = const + str(i)
+                    node.constant_names.append(new_const)
+                    setattr(node, new_const, getattr(old_node, const))
+
+        # add weight names
+        node.weights_names = []
+        for i, conv in enumerate(convs):
+            for const in conv.constant_names:
+                node.weights_names.append(const + str(i))
+
+        def copy_attr(attr):
+            assert getattr(bnrelus[0], attr) == getattr(bnrelus[1], attr)
+            setattr(node, attr, getattr(bnrelus[0], attr))
+
+        copy_attr("constant_bits")
+        copy_attr("min")
+        copy_attr("max")
+        copy_attr("output_activation_bits")
+        copy_attr("output_activation_type")
+
+        for i in sorted(indexes, reverse = True):
+            del self.graph[i]
+
+        self.graph.insert(indexes[0], node)
 
     def NodeBNRelu_pattern_rewriter(self, i):
         DORY_BNRelu_node = self.graph[i[0]]

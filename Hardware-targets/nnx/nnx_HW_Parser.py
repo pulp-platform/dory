@@ -34,7 +34,8 @@ from .Tiler.tiler import Tiler
 class nnx_HW_Parser(Parser_DORY_to_HW):
     # Used to manage the ONNX files. By now, supported Convolutions (PW and DW), Pooling, Fully Connected and Relu.
     def __init__(self, graph, conf, confdir, accelerator, hw_desc_path):
-        supported_layers = ["Convolution", "ReluConvolution", "BNReluConvolution", "RequantPooling", "Addition", "FullyConnected"]
+        supported_layers = ["Convolution", "ReluConvolution", "BNReluConvolution", "RequantPooling", "Addition", "FullyConnected",
+                            "BNReluConvolutionDepthwisePointwise"]
         self.nnxdir = os.path.dirname(__file__)
         with open(os.path.join(self.nnxdir, "pattern_rules.json")) as f:
             rules = json.load(f)
@@ -51,7 +52,20 @@ class nnx_HW_Parser(Parser_DORY_to_HW):
     def adjust_data_layout(self):
         print("\nNNX Backend: Adjusting Feature Data Layout to HWC and Weights Data Layout to accelerator specific")
         for i, node in enumerate(self.DORY_Graph):
-            if 'Convolution' in node.name or 'FullyConnected' in node.name:
+            if 'DepthwisePointwise' in node.name:
+                weights_name_dw = node.weights_names[0]
+                weights_dw = getattr(node, weights_name_dw)
+                weights_dw["value"] = self.acc.conv_unroll(weights_dw["value"].astype(np.int32),
+                                                           node.weight_bits, weights_dw["layout"],
+                                                           dw=True)
+
+                weights_name_pw = node.weights_names[1]
+                weights_pw = getattr(node, weights_name_pw)
+                weights_pw["value"] = self.acc.conv_unroll(weights_pw["value"].astype(np.int32),
+                                                           node.weight_bits, weights_pw["layout"],
+                                                           dw=False)
+
+            elif 'Convolution' in node.name or 'FullyConnected' in node.name:
                 for name in node.constant_names:
                     if name not in ["l", "k", "outshift", "outmult"] and "bias" not in name:
                         weights_name = name
