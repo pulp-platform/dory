@@ -161,6 +161,7 @@ class TemplateWriter2D_L2(TemplateWriter):
         self.tk['padding_right'] = padding_right
         self.tk['stride'] = s[0]
         self.tk['s'] = s
+        self.tk['node'] = node
 
         ################## NEED A REWRITING IN THIS TEMPLATE PART ######################
         #### VARIABLE CREATION FOR COMPATIBILITY WITH THE SECTION AFTER ################
