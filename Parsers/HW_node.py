@@ -70,6 +70,7 @@ class HW_node(DORY_node):
         self.check_sum_w = None
         self.check_sum_in = None
         self.check_sum_out = None
+        self.hex_weights_size = None
 
     def create_tiling_dimensions(self, prev_node, config):
         #  ATTENTION MEMORY L3 --> TILE MEMORY DIMENSION --> Decide how to set. Re-init the whole memory?

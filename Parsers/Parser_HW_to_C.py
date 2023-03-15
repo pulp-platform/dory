@@ -133,6 +133,8 @@ class Parser_HW_to_C:
             if len(weights) % 4 != 0:
                 weights += bytearray([0] * (4 - len(weights) % 4))
 
+            node.hex_weights_size = len(weights)
+
             filepath = os.path.join(self.hexdir, node.name + "_weights.hex")
             with open(filepath, 'wb') as file:
                 file.write(weights)
@@ -156,10 +158,10 @@ class Parser_HW_to_C:
         print("## FINAL RAPRESENTATION: COMPILABLE C PROJECT      ##")
         print("#####################################################")
         self.adding_numbers_to_layers()
+        self.create_hex_weights()
+        self.create_hex_input()
         self.map_misc()
         self.map_layers()
         self.copy_backend()
         self.copy_utils()
-        self.create_hex_weights()
-        self.create_hex_input()
 

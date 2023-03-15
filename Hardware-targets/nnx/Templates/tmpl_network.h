@@ -125,7 +125,7 @@ ${node.check_sum_w}${'' if loop.last else ', '}\
 };
 static int weights_size[${len(DORY_HW_graph)}] = {\
 % for node in DORY_HW_graph:
-${int((node.tiling_dimensions["L2"]["weight_memory"] + node.tiling_dimensions["L2"]["constants_memory"] + node.tiling_dimensions["L2"]["bias_memory"]) * (1 + int(node.tiling_dimensions["L3"]["weights_dimensions"] != node.tiling_dimensions["L2"]["weights_dimensions"])))}${'' if loop.last else ', '}\
+${int(node.hex_weights_size * (1 + int(node.tiling_dimensions["L3"]["weights_dimensions"] != node.tiling_dimensions["L2"]["weights_dimensions"])))}${'' if loop.last else ', '}\
 % endfor
 };
 static int activations_checksum[${len(DORY_HW_graph)}] = {\
