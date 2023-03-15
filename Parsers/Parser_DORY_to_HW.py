@@ -59,6 +59,28 @@ class Parser_DORY_to_HW:
     def check_parameters(self):
         print("\nTo be implemented in the target backend")
 
+    def _match_attr(self, node, attr):
+        if attr is None:
+            return True
+
+        match = True
+        for key in attr:
+            if not hasattr(node, key):
+                print(f"[WARNING] Key {key} from attributes list not in nodes attribute list.")
+                match = False
+                break
+            elif getattr(node, key) != attr[key]:
+                match = False
+                break
+        return match
+
+    def _match_node(self, node, index, rule, node_names):
+        attr = rule["attributes"][index] if "attributes" in rule else None
+        depthwise = rule["depthwise"][index] if "depthwise" in rule else None
+        return node.name == node_names[index] and \
+               self._match_attr(node, attr) and \
+               (depthwise is None or not hasattr(node, "group") or depthwise == (node.group > 1))
+
     def pattern_matching(self, input_node, input_index):
         number_of_nodes = 0
         rule_found = False
@@ -66,12 +88,13 @@ class Parser_DORY_to_HW:
         for key, rule in self.rules.items():
             DORY_node_indexes = []
             DORY_node_indexes.append(input_index)
+            nodes = copy.deepcopy(rule["nodes_name"])
+
             if rule["number_of_nodes"] == 1 and input_node.name in rule["nodes_name"]:
                 rule_found = key
-            elif input_node.name in rule["nodes_name"]:
+            elif self._match_node(input_node, 0, rule, nodes):
                 node = input_node
                 match = 1
-                nodes = copy.deepcopy(rule["nodes_name"])
                 index = nodes.index(node.name)
                 nodes[index] = "Match"
                 while match == 1:
@@ -80,27 +103,28 @@ class Parser_DORY_to_HW:
                     outputs = rule["dependencies"][str(index)]["outputs"]
                     for nodes_index in inputs:
                         int_index = node.input_indexes
-                        node_to_search = nodes[int(nodes_index)]
-                        for i,node_i in enumerate(self.DORY_Graph):
-                            if node_i.output_index in int_index and node_i.name == node_to_search:
+                        for i, node_i in enumerate(self.DORY_Graph):
+                            if node_i.output_index in int_index and self._match_node(node_i, int(nodes_index), rule, nodes):
                                 nodes[int(nodes_index)] = "Match"
                                 match = 1
                                 DORY_node_indexes.append(i)
+                                break
                     for nodes_index in outputs:
                         out_index = node.output_index
-                        node_to_search = nodes[int(nodes_index)]
-                        for i,node_i in enumerate(self.DORY_Graph):
-                            if out_index in node_i.input_indexes and node_i.name == node_to_search:
+                        for i, node_i in enumerate(self.DORY_Graph):
+                            if out_index in node_i.input_indexes and self._match_node(node_i, int(nodes_index), rule, nodes):
                                 nodes[int(nodes_index)] = "Match"
                                 match = 1
                                 DORY_node_indexes.append(i)
                                 node = node_i
                                 index = int(nodes_index)
-                if sum(x=="Match" for x in nodes) == len(nodes):
+                                break
+                if sum(x == "Match" for x in nodes) == len(nodes):
                     if number_of_nodes < rule["number_of_nodes"]:
                         rule_found = key
                         number_of_nodes = rule["number_of_nodes"]
                         DORY_node_indexes_to_export = DORY_node_indexes
+                        break
         return rule_found, DORY_node_indexes_to_export
 
     def update_branches_graph(self):
@@ -220,8 +244,8 @@ class Parser_DORY_to_HW:
         self.Printer_Frontend.print_json_from_DORY_graph("04_DORY_HW_graph_added_tensors_dim", self.DORY_Graph)
         self.Printer_Frontend.print_onnx_from_DORY_graph("04_DORY_HW_graph_added_tensors_dim", self.DORY_Graph)
         self.tiling()
-        self.tile_input_checksums()
-        self.tile_output_checksums()
+        #self.tile_input_checksums()
+        #self.tile_output_checksums()
         self.Printer_Frontend.print_json_from_DORY_graph("06_DORY_HW_tiled_graph", self.DORY_Graph)
         self.Printer_Frontend.print_onnx_from_DORY_graph("06_DORY_HW_tiled_graph", self.DORY_Graph)
         self.renaming_weights()
