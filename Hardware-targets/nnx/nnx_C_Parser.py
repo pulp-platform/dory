@@ -254,19 +254,155 @@ class nnx_C_Parser(Parser_HW_to_C):
             set_tmpl_var('y_dma_stride_1d', y_dma_stride_1d)
             set_tmpl_var('y_dma_stride_2d', y_dma_stride_2d)
 
-    def __nnx_vars(self, templateWriter, node):
-        self.__mem_tmpl_vars(templateWriter, node, mem_level=1)
-        #self.__mem_tmpl_vars(templateWriter, node, mem_level=2) # TODO: make uniform offsets for L1/L2/Lx mems
+    def _dw_pw_mem_tmpl_vars(self, templateWriter, node, mem_level):
+        mem_name = f'L{mem_level}'
+        upper_mem_name = f'L{mem_level + 1}'
+
+        def set_tmpl_var(name, val):
+            templateWriter.set_var(f'{mem_name.lower()}_{name}', val)
 
         flag_depthwise = node.group > 1
-        flag_batchnorm = 'k' in node.constant_names or 'k0' in node.constant_names
 
-        ko, ki = node.tiling_dimensions['L2']['weights_dimensions']
-        weights_size = self.acc.weights_size(ko, ki, node.kernel_shape, node.weight_bits, flag_depthwise)
+        input_tile_shape = node.tiling_dimensions[mem_name]['input_dimensions']
+        output_tile_shape = node.tiling_dimensions[mem_name]['output_dimensions']
+        dw_output_tile_shape = [input_tile_shape[0]] + output_tile_shape[1:]
+        weights_tile_shape = node.tiling_dimensions[mem_name]['weights_dimensions']
 
-        if flag_batchnorm:
-            templateWriter.set_var('l2_k_offset', weights_size)
-            tile_ko = ki if flag_depthwise else ko
-            templateWriter.set_var('l2_lambda_offset', weights_size + tile_ko * (node.constant_bits // 8))
+        weights_tile_ko, weights_tile_ki = weights_tile_shape
+
+        weights_tile_size = self.acc.weights_size(weights_tile_ko, weights_tile_ki, node.kernel_shape, node.weight_bits, dw=True) + \
+                            self.acc.weights_size(weights_tile_ko, weights_tile_ki, [1, 1], node.weight_bits, dw=False)
+        set_tmpl_var('W_size', weights_tile_size)
+
+        input_el_size = div_and_ceil(node.input_activation_bits, 8)
+        output_el_size = div_and_ceil(node.output_activation_bits, 8)
+
+        dw_weights_tile_ko_len = self.acc.weights_ko_len(weights_tile_ki, dw=True)
+        dw_weights_tile_ki_size = self.acc.weights_ki_size(weights_tile_ki, node.kernel_shape, node.weight_bits, dw=True)
+
+        pw_weights_tile_ko_len = self.acc.weights_ko_len(weights_tile_ko, dw=False)
+        pw_weights_tile_ki_size = self.acc.weights_ki_size(weights_tile_ki, [1, 1], node.weight_bits, dw=False)
+
+        def feature_len(shape):
+            return shape[0] * shape[1] * shape[2]
+
+        n_buffers = {
+            'x': node.tiling_dimensions[mem_name]['db_x'],
+            'y_dw': node.tiling_dimensions[mem_name]['db_x'],
+            'y': node.tiling_dimensions[mem_name]['db_y'],
+        }
+
+        tile_sizes = {
+            'x': feature_len(input_tile_shape) * input_el_size,
+            'y_dw': feature_len(dw_output_tile_shape) * output_el_size,
+            'y': feature_len(output_tile_shape) * output_el_size,
+        }
+
+        data_arrays = ['x', 'y_dw', 'y']
+
+        def add_batchnorm_param(name, bits, length):
+            if name in node.constant_names:
+                el_size = div_and_ceil(bits, 8)
+                n_buffers[name] = node.tiling_dimensions[mem_name]['db_w']
+                tile_sizes[name] = length * el_size
+                data_arrays.append(name)
+
+        n_buffers['W0'] = node.tiling_dimensions[mem_name]['db_w']
+        tile_sizes['W0'] = dw_weights_tile_ko_len * dw_weights_tile_ki_size
+        data_arrays.append('W0')
+
+        add_batchnorm_param('k0', node.constant_bits, weights_tile_ki)
+        add_batchnorm_param('l0', node.bias_bits, weights_tile_ki)
+
+        n_buffers['W1'] = node.tiling_dimensions[mem_name]['db_w']
+        tile_sizes['W1'] = pw_weights_tile_ko_len * pw_weights_tile_ki_size
+        data_arrays.append('W1')
+
+        add_batchnorm_param('k1', node.constant_bits, weights_tile_ko)
+        add_batchnorm_param('l1', node.bias_bits, weights_tile_ko)
+
+        buffer_sizes = {data_array: tile_sizes[data_array] * n_buffers[data_array] for data_array in data_arrays}
+
+        offset = 0
+
+        for data_array in data_arrays:
+            set_tmpl_var(f'{data_array}_offset', offset)
+            set_tmpl_var(f'{data_array}_tile_size', tile_sizes[data_array])
+            offset += buffer_sizes[data_array]
+
+        if upper_mem_name in node.tiling_dimensions.keys():
+            input_shape = node.tiling_dimensions[upper_mem_name]['input_dimensions']
+            output_shape = node.tiling_dimensions[upper_mem_name]['output_dimensions']
+            weights_shape = node.tiling_dimensions[upper_mem_name]['weights_dimensions']
+
+            input_depth, input_height, input_width = input_shape
+            output_depth, output_height, output_width = output_shape
+            weights_ko, weights_ki = weights_shape
+
+            dw_weights_ko_len = self.acc.weights_ko_len(weights_ki, dw=True)
+            set_tmpl_var('W0_tile_ko_len', dw_weights_tile_ko_len)
+            set_tmpl_var('W0_tile_ko_len_last', rem(dw_weights_ko_len, dw_weights_tile_ko_len))
+            set_tmpl_var('W0_tile_ki_size', dw_weights_tile_ki_size)
+
+            pw_weights_ko_len = self.acc.weights_ko_len(weights_ko, dw=False)
+            set_tmpl_var('W1_tile_ko_len', pw_weights_tile_ko_len)
+            set_tmpl_var('W1_tile_ko_len_last', rem(pw_weights_ko_len, pw_weights_tile_ko_len))
+            set_tmpl_var('W1_tile_ki_size', pw_weights_tile_ki_size)
+
+            x_dma_stride_1d = input_depth * input_el_size
+            x_dma_stride_2d = input_width * x_dma_stride_1d
+            set_tmpl_var('x_dma_stride_1d', x_dma_stride_1d)
+            set_tmpl_var('x_dma_stride_2d', x_dma_stride_2d)
+
+            y_dma_stride_1d = output_depth * output_el_size
+            y_dma_stride_2d = output_width * y_dma_stride_1d
+            set_tmpl_var('y_dma_stride_1d', y_dma_stride_1d)
+            set_tmpl_var('y_dma_stride_2d', y_dma_stride_2d)
+
+    def __nnx_vars(self, templateWriter, node):
+        if "DepthwisePointwise" in node.name:
+            self._dw_pw_mem_tmpl_vars(templateWriter, node, mem_level=1)
+
+            ko, ki = node.tiling_dimensions['L2']['weights_dimensions']
+            dw_weights_size = self.acc.weights_size(ko, ki, node.kernel_shape, node.weight_bits, dw=True)
+            pw_weights_size = self.acc.weights_size(ko, ki, [1, 1], node.weight_bits, dw=False)
+
+            offset = 0
+
+            templateWriter.set_var('l2_W0_offset', offset)
+            offset += dw_weights_size
+
+            if 'k0' in node.constant_names:
+                templateWriter.set_var('l2_k0_offset', offset)
+                offset += ki * (node.constant_bits // 8)
+
+            if 'l0' in node.constant_names:
+                templateWriter.set_var('l2_l0_offset', offset)
+                offset += ki * (node.bias_bits // 8)
+
+            templateWriter.set_var('l2_W1_offset', offset)
+            offset += pw_weights_size
+
+            if 'k1' in node.constant_names:
+                templateWriter.set_var('l2_k1_offset', offset)
+                offset += ko * (node.constant_bits // 8)
+
+            if 'l1' in node.constant_names:
+                templateWriter.set_var('l2_l1_offset', offset)
+                offset += ko * (node.bias_bits // 8)
+        else:
+            self.__mem_tmpl_vars(templateWriter, node, mem_level=1)
+            #self.__mem_tmpl_vars(templateWriter, node, mem_level=2) # TODO: make uniform offsets for L1/L2/Lx mems
+
+            flag_depthwise = node.group > 1
+            flag_batchnorm = 'k' in node.constant_names or 'k0' in node.constant_names
+
+            ko, ki = node.tiling_dimensions['L2']['weights_dimensions']
+            weights_size = self.acc.weights_size(ko, ki, node.kernel_shape, node.weight_bits, flag_depthwise)
+
+            if flag_batchnorm:
+                templateWriter.set_var('l2_k_offset', weights_size)
+                tile_ko = ki if flag_depthwise else ko
+                templateWriter.set_var('l2_lambda_offset', weights_size + tile_ko * (node.constant_bits // 8))
 
         return templateWriter

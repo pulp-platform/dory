@@ -133,7 +133,7 @@ static void load_input_prepare(Layer tile, Layer body, Layer layer, TileIndex in
     conf->dir = 1;
 }
 
-static void load_weights_prepare(Layer tile, Kernel kernel,
+static void load_weights_prepare(Layer tile, Kernel kernel, int weights_ki_size,
                                  MemoryStatus status_weights,
                                  MemoryStatus status_scale,
                                  MemoryStatus status_bias,
@@ -142,7 +142,7 @@ static void load_weights_prepare(Layer tile, Kernel kernel,
                                  DmaTransferConf * const conf_bias
                                  ) {
     // Special because of accelerators special memory layout
-    const int size_weights = (kernel.groups > 1 ? DIVNCEIL(tile.output.channel, 16) : tile.output.channel) * ${l1_W_tile_ki_size};
+    const int size_weights = (kernel.groups > 1 ? DIVNCEIL(tile.output.channel, 16) : tile.output.channel) * weights_ki_size;
     const int size_scale = tile.output.channel * ${int(act_dim_bit/8)};
     const int size_bias = tile.output.channel * ${int(bias_bits/8)};
 
@@ -182,11 +182,11 @@ static void load_input_async(Layer tile, TileStatus status, Layer body, Layer la
     }
 }
 
-static void load_weights_async(Layer tile, TileStatus * const status, Kernel kernel) {
+static void load_weights_async(Layer tile, TileStatus * const status, Kernel kernel, int weights_ki_size) {
     if (status->weights.is_transfer) {
         DmaTransferConf conf_weights, conf_scale, conf_bias;
 
-        load_weights_prepare(tile, kernel,
+        load_weights_prepare(tile, kernel, weights_ki_size,
                              status->weights,
                              status->scale,
                              status->bias,
@@ -218,9 +218,9 @@ void ${func_name}(void *args) {
     Layer layer_dw = {
         .addr = {
             .input = layer_args->L2_input,
-            .weights = layer_args->L2_weights,
-            .scale = layer_args->L2_weights + ${l2_k_offset},
-            .bias = layer_args->L2_weights + ${l2_lambda_offset},
+            .weights = layer_args->L2_weights + ${l2_W0_offset},
+            .scale = layer_args->L2_weights + ${l2_k0_offset},
+            .bias = layer_args->L2_weights + ${l2_l0_offset},
             .output = layer_args->L2_output
         },
         .padding = {
@@ -234,16 +234,16 @@ void ${func_name}(void *args) {
     Layer layer_pw = {
         .addr = {
             .input = layer_args->L2_input,
-            .weights = layer_args->L2_weights,
-            .scale = layer_args->L2_weights + ${l2_k_offset},
-            .bias = layer_args->L2_weights + ${l2_lambda_offset},
+            .weights = layer_args->L2_weights + ${l2_W1_offset},
+            .scale = layer_args->L2_weights + ${l2_k1_offset},
+            .bias = layer_args->L2_weights + ${l2_l1_offset},
             .output = layer_args->L2_output
         },
         .padding = {
-            .top    = layer_args->padding & PAD_TOP ? ${padding_top} : DONT_PAD,
-            .right  = ${padding_right},
-            .bottom = layer_args->padding & PAD_BOTTOM ? ${padding_bottom} : DONT_PAD,
-            .left   = ${padding_left}
+            .top    = 0,
+            .right  = 0,
+            .bottom = 0,
+            .left   = 0
         }
     };
 
@@ -253,41 +253,45 @@ void ${func_name}(void *args) {
 
     const unsigned int l1_buffer = layer_args->L1_buffer;
     const int l1_buffer_input = l1_buffer + ${l1_x_offset};
+    const int l1_buffer_dw_output = l1_buffer + ${l1_y_dw_offset};
     const int l1_buffer_output = l1_buffer + ${l1_y_offset};
-    const int l1_buffer_weights = l1_buffer + ${l1_W_offset};
-    const int l1_buffer_scale = l1_buffer + ${l1_k_offset};
-    const int l1_buffer_bias = l1_buffer + ${l1_lambda_offset};
+    const int l1_buffer_dw_weights = l1_buffer + ${l1_W0_offset};
+    const int l1_buffer_dw_scale = l1_buffer + ${l1_k0_offset};
+    const int l1_buffer_dw_bias = l1_buffer + ${l1_l0_offset};
+    const int l1_buffer_pw_weights = l1_buffer + ${l1_W1_offset};
+    const int l1_buffer_pw_scale = l1_buffer + ${l1_k1_offset};
+    const int l1_buffer_pw_bias = l1_buffer + ${l1_l1_offset};
 
     Address buffer_addresses_dw[2] = {
         {
             .input = l1_buffer_input,
-            .weights = l1_buffer_weights,
-            .scale = l1_buffer_scale,
-            .bias = l1_buffer_bias,
-            .output = l1_buffer_output
+            .weights = l1_buffer_dw_weights,
+            .scale = l1_buffer_dw_scale,
+            .bias = l1_buffer_dw_bias,
+            .output = l1_buffer_dw_output
         },
         {
             .input = l1_buffer_input + ${l1_x_tile_size},
-            .weights = l1_buffer_weights + ${l1_W_tile_size},
-            .scale = l1_buffer_scale + ${l1_k_tile_size},
-            .bias = l1_buffer_bias + ${l1_lambda_tile_size},
-            .output = l1_buffer_output + ${l1_y_tile_size}
+            .weights = l1_buffer_dw_weights + ${l1_W0_tile_size},
+            .scale = l1_buffer_dw_scale + ${l1_k0_tile_size},
+            .bias = l1_buffer_dw_bias + ${l1_l0_tile_size},
+            .output = l1_buffer_dw_output + ${l1_y_dw_tile_size}
         }
     };
 
     Address buffer_addresses_pw[2] = {
         {
-            .input = l1_buffer_input,
-            .weights = l1_buffer_weights,
-            .scale = l1_buffer_scale,
-            .bias = l1_buffer_bias,
+            .input = l1_buffer_dw_output,
+            .weights = l1_buffer_pw_weights,
+            .scale = l1_buffer_pw_scale,
+            .bias = l1_buffer_pw_bias,
             .output = l1_buffer_output
         },
         {
-            .input = l1_buffer_input + ${l1_x_tile_size},
-            .weights = l1_buffer_weights + ${l1_W_tile_size},
-            .scale = l1_buffer_scale + ${l1_k_tile_size},
-            .bias = l1_buffer_bias + ${l1_lambda_tile_size},
+            .input = l1_buffer_dw_output + ${l1_y_dw_tile_size},
+            .weights = l1_buffer_pw_weights + ${l1_W1_tile_size},
+            .scale = l1_buffer_pw_scale + ${l1_k1_tile_size},
+            .bias = l1_buffer_pw_bias + ${l1_l1_tile_size},
             .output = l1_buffer_output + ${l1_y_tile_size}
         }
     };
@@ -298,7 +302,7 @@ void ${func_name}(void *args) {
             ${x_data_size_byte}, ${y_data_size_byte}, ${W_data_size},
             weightOffsetModeLayerWise, ${-(2**(W_data_size-1))},
             (nnx_quant_t) {
-                .shift_amount = layer_args->out_shift,
+                .shift_amount = ${node.outshift0['value']},
                 .mode = quantMode8Bit,
                 .function = quantFunctionRelu,
                 .flag_rounding = FLAG_UNUSED
@@ -313,7 +317,7 @@ void ${func_name}(void *args) {
             ${x_data_size_byte}, ${y_data_size_byte}, ${W_data_size},
             weightOffsetModeLayerWise, ${-(2**(W_data_size-1))},
             (nnx_quant_t) {
-                .shift_amount = layer_args->out_shift,
+                .shift_amount = ${node.outshift1['value']},
                 .mode = quantMode8Bit,
                 .function = quantFunctionRelu,
                 .flag_rounding = FLAG_UNUSED
@@ -360,8 +364,8 @@ void ${func_name}(void *args) {
 
         DmaTransfer transfer = dma_transfer_create();
         load_input_async(tile_dw, tile_status_dw, body_dw, layer_dw);
-        load_weights_async(tile_dw, &tile_status_dw, kernel_dw);
-        load_weights_async(tile_pw, &tile_status_pw, kernel_pw);
+        load_weights_async(tile_dw, &tile_status_dw, kernel_dw, ${l1_W0_tile_ki_size});
+        load_weights_async(tile_pw, &tile_status_pw, kernel_pw, ${l1_W1_tile_ki_size});
         dma_transfer_wait(transfer);
 
         execute_prepare(tile_dw, &nnx_task_dw);
