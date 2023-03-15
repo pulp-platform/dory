@@ -177,7 +177,7 @@ class DORY_node:
         node_dict["output"] = [self.output_index]
         node_dict["op_type"] = self.op_type
         node_dict["attribute"] = []
-        added_parameters = ["name", "input_indexes", "constant_names", "output_index", "op_type"]
+        added_parameters = ["name", "input_indexes", "constant_names", "output_index", "op_type", "weights_names"]
         for key, value in self.__dict__.items():
             if not isinstance(value, np.ndarray) and not isinstance(value,str) and not isinstance(value,dict) and not isinstance(value,type(None)) and key not in added_parameters:
                 node_dict["attribute"].append({"name": key, "ints": ([str(value)] if not isinstance(value,list) else [str(v) for v in value])})
