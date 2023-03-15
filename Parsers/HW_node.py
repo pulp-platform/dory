@@ -99,8 +99,7 @@ class HW_node(DORY_node):
             self.tiling_dimensions[mem]["output_activation_memory"] = np.prod(self.tiling_dimensions[mem]["output_dimensions"])*self.output_activation_bits/8
 
     def rename_weights(self):
-        weight_name = ""
-        if "Convolution" in self.name or "FullyConnected" in self.name:
+        if (not "DepthwisePointwise" in self.name and "Convolution" in self.name) or "FullyConnected" in self.name:
             for i, name in enumerate(self.constant_names):
                 if name not in ["l", "k", "outshift", "outmul", "outadd"]:
                     if "bias" not in name:
@@ -108,7 +107,7 @@ class HW_node(DORY_node):
                             self.__dict__["weights"] = self.__dict__.pop(name)
                             self.constant_names[i] = "weights"
 
-    def __compress(self, x, bits):
+    def _compress(self, x, bits):
         compressed = []
         n_elements_in_byte = 8 // bits
         i_element_in_byte = 0
@@ -125,10 +124,39 @@ class HW_node(DORY_node):
                 i_element_in_byte = 0
         return np.asarray(compressed, dtype=np.uint8)
 
+    def _get_weights_into_shape(self, weights):
+        if self.weight_bits < 8 and self.group > 1:
+            ko = weights["value"].shape[0]
+            shape = (ko // 2, 2) + weights["value"].shape[1:]
+            weights["value"] = weights["value"].reshape(shape).transpose(0, 2, 3, 1, 4)
+        weights["value"] = self._compress(weights["value"].ravel().astype(np.uint8), self.weight_bits)
+
+    def _to_byte(self, x, bits):
+        x = x.ravel().astype(np.int64 if bits > 32 else np.int32)
+        #### TO CHECK ORDER OF BIASES
+        byte = [(el >> shift) & 255 for el in x for shift in range(0, bits, 8)]
+        return np.asarray(byte, dtype=np.uint8)
+
     def add_checksum_w_integer(self):
         self.check_sum_w = 0
         bias_name = ""
         weights_name = ""
+
+        # Hack DepthwisePointwise into this as a separate case
+        if "DepthwisePointwise" in self.name:
+            for const_name in self.constant_names:
+                if "out" in const_name:
+                    continue
+                elif "weights" in const_name:
+                    weights = getattr(self, const_name)
+                    self._get_weights_into_shape(weights)
+                    self.check_sum_w += sum(weights["value"])
+                else:
+                    const = getattr(self, const_name)
+                    const["value"] = self._to_byte(const["value"], self.constant_bits if "k" in const_name
+                                                             else self.bias_bits)
+                    self.check_sum_w += sum(const["value"])
+            return
 
         if "Convolution" in self.name or "FullyConnected" in self.name:
             for name in self.constant_names:
@@ -142,30 +170,20 @@ class HW_node(DORY_node):
 
         if hasattr(self, weights_name):
             weights = getattr(self, weights_name)
-            if self.weight_bits < 8 and self.group > 1:
-                ko = weights["value"].shape[0]
-                shape = (ko // 2, 2) + weights["value"].shape[1:]
-                weights["value"] = weights["value"].reshape(shape).transpose(0, 2, 3, 1, 4)
-            weights["value"] = self.__compress(weights["value"].ravel().astype(np.uint8), self.weight_bits)
+            self._get_weights_into_shape(weights)
             self.check_sum_w += sum(weights["value"])
-
-        def to_byte(x, bits):
-            x = x.ravel().astype(np.int64 if bits > 32 else np.int32)
-            #### TO CHECK ORDER OF BIASES
-            byte = [(el >> shift) & 255 for el in x for shift in range(0, bits, 8)]
-            return np.asarray(byte, dtype=np.uint8)
 
         if hasattr(self, bias_name):
             bias = getattr(self, bias_name)
-            bias["value"] = to_byte(bias["value"], self.bias_bits)
+            bias["value"] = self._to_byte(bias["value"], self.bias_bits)
             self.check_sum_w += sum(bias["value"])
 
         if hasattr(self, 'k'):
-            self.k["value"] = to_byte(self.k["value"], self.constant_bits)
+            self.k["value"] = self._to_byte(self.k["value"], self.constant_bits)
             self.check_sum_w += sum(self.k["value"])
 
         if hasattr(self, 'l'):
-            self.l["value"] = to_byte(self.l["value"], self.bias_bits)
+            self.l["value"] = self._to_byte(self.l["value"], self.bias_bits)
             self.check_sum_w += sum(self.l["value"])
 
     def add_checksum_activations_integer(self, load_directory, i_node):
@@ -184,7 +202,7 @@ class HW_node(DORY_node):
                 sys.exit(-1)
 
             if bits <= 8:
-                data = self.__compress(data.ravel(), bits)
+                data = self._compress(data.ravel(), bits)
 
             return data.sum().item()
 
@@ -232,7 +250,7 @@ class HW_node(DORY_node):
         data = self._load_data(networkdir, filename)
 
         if self.output_activation_bits <= 8:
-            data = self.__compress(data.ravel(), self.output_activation_bits)
+            data = self._compress(data.ravel(), self.output_activation_bits)
 
         data = data.reshape((self.input_dimensions[0], self.input_dimensions[1], self.input_channels))
 
@@ -262,7 +280,7 @@ class HW_node(DORY_node):
             sys.exit(-1)
 
         if self.output_activation_bits <= 8:
-            data = self.__compress(data.ravel(), self.output_activation_bits)
+            data = self._compress(data.ravel(), self.output_activation_bits)
 
         data = data.reshape((self.output_dimensions[0], self.output_dimensions[1], self.output_channels))
 

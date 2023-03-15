@@ -106,21 +106,26 @@ class Parser_HW_to_C:
         print("\nGenerating .hex weight files.")
 
         for node in self.graph:
-            constants = [0, 0, 0, 0]
-            for name in node.constant_names:
-                if "weight" in name:
-                    constants[0] = name
-                elif "bias" in name:
-                    constants[1] = name
-                elif "k" == name:
-                    constants[2] = name
-                elif "l" == name:
-                    constants[3] = name
+            # Hack DepthwisePointwise
+            if "DepthwisePointwise" in node.name:
+                constants = [ ["weights0", "k0", "l0"], ["weights1", "k1", "l1"] ]
+            else:
+                constants = [ [0, 0, 0, 0] ]
+                for name in node.constant_names:
+                    if "weight" in name:
+                        constants[0][0] = name
+                    elif "bias" in name:
+                        constants[0][1] = name
+                    elif "k" == name:
+                        constants[0][2] = name
+                    elif "l" == name:
+                        constants[0][3] = name
 
             weights = bytearray()
-            for const in constants:
-                if const != 0:
-                    weights += getattr(node, const)['value'].tobytes()
+            for const_group in constants:
+                for const in const_group:
+                    if const != 0:
+                        weights += getattr(node, const)['value'].tobytes()
 
             if len(weights) == 0:
                 continue
