@@ -175,9 +175,9 @@ static void store_prepare(Layer tile, Layer body, Layer layer, TileIndex index, 
 }
 
 static void load_input_async(Layer tile, TileStatus status, Layer body, Layer layer) {
-    if (status->input.is_transfer) {
+    if (status.input.is_transfer) {
         DmaTransferConf conf_input;
-        load_input_prepare(tile, body, layer, status->index, &conf_input);
+        load_input_prepare(tile, body, layer, status.index, &conf_input);
         dma_transfer_async(conf_input);
     }
 }
@@ -293,7 +293,7 @@ void ${func_name}(void *args) {
     };
 
     // Init nnx tasks
-    nnx_task_t nnx_task = nnx_task_create(
+    nnx_task_t nnx_task_dw = nnx_task_create(
             ${fs1}, ${int(flag_DW)},
             ${x_data_size_byte}, ${y_data_size_byte}, ${W_data_size},
             weightOffsetModeLayerWise, ${-(2**(W_data_size-1))},
@@ -308,7 +308,7 @@ void ${func_name}(void *args) {
                 .flag_shift = FLAG_UNUSED
             }, ${stride});
 
-    nnx_task_t nnx_task = nnx_task_create(
+    nnx_task_t nnx_task_pw = nnx_task_create(
             1, 0,
             ${x_data_size_byte}, ${y_data_size_byte}, ${W_data_size},
             weightOffsetModeLayerWise, ${-(2**(W_data_size-1))},
