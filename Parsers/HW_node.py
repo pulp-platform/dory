@@ -207,8 +207,10 @@ class HW_node(DORY_node):
 
             return data.sum().item()
 
-        self.check_sum_in = file_checksum('input.txt' if i_node == 0 else f'out_layer{i_node - 1}.txt', self.input_activation_bits)
-        self.check_sum_out = file_checksum(f'out_layer{i_node}.txt', self.output_activation_bits)
+        input_index = self.input_indexes[0] if len(self.input_indexes) == 1 else None
+
+        self.check_sum_in = file_checksum('input.txt' if i_node == 0 else f'out_layer{input_index}.txt', self.input_activation_bits)
+        self.check_sum_out = file_checksum(f'out_layer{self.output_index}.txt', self.output_activation_bits)
 
     Dim = namedtuple("Dim", "start size tile_size")
 
