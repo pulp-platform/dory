@@ -368,8 +368,13 @@ void ${func_name}(void *args) {
         load_weights_async(tile_pw, &tile_status_pw, kernel_pw, ${l1_W1_tile_ki_size});
         dma_transfer_wait(transfer);
 
+        % if stride == 2:
+        execute_stride2x2_prepare(tile_dw, kernel_dw, &nnx_task_dw);
+        execute_wait(execute_stride2x2_blocking(nnx_task_dw, tile_dw, kernel_dw));
+        % else:
         execute_prepare(tile_dw, &nnx_task_dw);
         execute_wait(execute_async(nnx_task_dw));
+        % endif
 
         execute_prepare(tile_pw, &nnx_task_pw);
         execute_wait(execute_async(nnx_task_pw));
