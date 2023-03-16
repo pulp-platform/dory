@@ -364,13 +364,11 @@ class nnx_C_Parser(Parser_HW_to_C):
             self._dw_pw_mem_tmpl_vars(templateWriter, node, mem_level=1)
 
             ko, ki = node.tiling_dimensions['L2']['weights_dimensions']
-            dw_weights_size = self.acc.weights_size(ko, ki, node.kernel_shape, node.weight_bits, dw=True)
-            pw_weights_size = self.acc.weights_size(ko, ki, [1, 1], node.weight_bits, dw=False)
 
             offset = 0
 
             templateWriter.set_var('l2_W0_offset', offset)
-            offset += dw_weights_size
+            offset += self.acc.weights_size(ki, ki, node.kernel_shape, node.weight_bits, dw=True)
 
             if 'k0' in node.constant_names:
                 templateWriter.set_var('l2_k0_offset', offset)
@@ -381,7 +379,7 @@ class nnx_C_Parser(Parser_HW_to_C):
                 offset += ki * (node.bias_bits // 8)
 
             templateWriter.set_var('l2_W1_offset', offset)
-            offset += pw_weights_size
+            offset += self.acc.weights_size(ko, ki, [1, 1], node.weight_bits, dw=False)
 
             if 'k1' in node.constant_names:
                 templateWriter.set_var('l2_k1_offset', offset)
