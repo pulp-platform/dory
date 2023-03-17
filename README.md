@@ -133,8 +133,8 @@ Execute the following commands to clone DORY and pulp-nn backend:
 git clone https://github.com/pulp-platform/dory
 cd dory
 git submodule update --remote --init dory/dory_examples
-git submodule update --remote --init dory/Hardware_targets/GAP8/Backend_Kernels/pulp-nn
-git submodule update --remote --init dory/Hardware_targets/GAP8/Backend_Kernels/pulp-nn-mixed
+git submodule update --remote --init dory/Hardware_targets/PULP/Backend_Kernels/pulp-nn
+git submodule update --remote --init dory/Hardware_targets/PULP/Backend_Kernels/pulp-nn-mixed
 python3 -m pip install -e .
 ```
 
@@ -143,9 +143,9 @@ Examples
 To download the examples built on DORY, clone the internal dory_example submodule (it should be automatically previously downloaded).
 Then, you can run one example from the library with the following command:
 ```
-python3 network_generate.py NEMO GAP8.GAP8_gvsoc ./dory/dory_examples/config_files/config_NEMO_MV1.json --app_dir ./application/
+python3 network_generate.py NEMO PULP.PULP_gvsoc ./dory/dory_examples/config_files/config_NEMO_MV1.json --app_dir ./application/
 ```
-Where NEMO is the Frontened used, GAP8.GAP8_gvsoc the backend, ./dory/dory_examples/config_files/config_NEMO_MV1.json the config file.
+Where NEMO is the Frontened used, PULP.PULP_gvsoc the backend (supported by GAP8), ./dory/dory_examples/config_files/config_NEMO_MV1.json the config file.
 Note that in the folder logs/, all the intermediate .json and .onnx are generated.
 
 The power profiling on a GAP8 v3 of a 1.0-MobilenetV1-128 is reported in Fig.2.
