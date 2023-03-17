@@ -106,7 +106,10 @@ class Layer_node(DORY_node):
         self.add_existing_dict_parameter(Layer_parameters)
 
     def add_memory_and_MACs(self):
-        if "Convolution" in self.name or "FullyConnected" in self.name:
+        if "DepthwisePointwise" in self.name:
+            # Do nothing
+            pass
+        elif "Convolution" in self.name or "FullyConnected" in self.name:
             self.add_existing_parameter("MACs", int(np.prod(self.output_dimensions)*self.output_channels*self.input_channels*np.prod(self.kernel_shape)/self.group))
             self.add_existing_parameter("weight_memory", int(self.output_channels*self.input_channels*np.prod(self.kernel_shape)/self.group*self.weight_bits/8))
         else:
