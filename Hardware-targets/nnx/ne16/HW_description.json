@@ -37,7 +37,7 @@
 	"accelerator frequency": 100000000,
 	"HW specific parameters":{
 		"accelerator core0 stack": 2048,
-		"accelerator core1-7 stack": 1024,
+		"accelerator core1-7 stack": 4,
 		"code reserved space": 152000
 	}
 

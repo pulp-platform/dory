@@ -229,12 +229,11 @@ int network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output)
 
     
     pi_cluster_task(&task, layer, &args);
+
     % if sdk == 'pulp-sdk':
     task.stack_size = ${master_stack};
-    task.slave_stack_size = ${slave_stack};
     % endif
-
-    task.slave_stack_size = 1024;
+    task.slave_stack_size = ${slave_stack};
 
     pi_cluster_send_task_to_cl(&cl_dev, &task);
 
