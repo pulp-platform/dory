@@ -261,8 +261,6 @@ class nnx_C_Parser(Parser_HW_to_C):
         def set_tmpl_var(name, val):
             templateWriter.set_var(f'{mem_name.lower()}_{name}', val)
 
-        flag_depthwise = node.group > 1
-
         input_tile_shape = node.tiling_dimensions[mem_name]['input_dimensions']
         output_tile_shape = node.tiling_dimensions[mem_name]['output_dimensions']
         dw_output_tile_shape = [input_tile_shape[0]] + output_tile_shape[1:]

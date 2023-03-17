@@ -115,13 +115,26 @@ class Tiler_Conv2D:
             # size constraint
             input_tile_dimension = db_x * n_in * tile_h_in * in_dim[1] * (self.node.input_activation_bits // 8)
             output_tile_dimension = tile_h_out * db_o * n_out * out_dim[1] * (self.node.output_activation_bits // 8)
-            weight_tile_dimension = db_w * self.acc.weights_size(tile_n_out, tile_n_in, ks, self.node.weight_bits, depthwise)
 
-            constants_tile_dimension = 0
-            if 'k' in self.node.constant_names:
-                constants_tile_dimension += tile_n_out * db_w * (self.node.constant_bits // 8)
-            if 'l' in self.node.constant_names:
-                constants_tile_dimension += tile_n_out * db_w * (self.node.bias_bits // 8)
+            if "DepthwisePointwise" in self.node.name:
+                weight_tile_dimension = db_w * (self.acc.weights_size(tile_n_in, tile_n_in, ks, self.node.weight_bits, dw=True) +
+                                                self.acc.weights_size(tile_n_out, tile_n_in, [1, 1], self.node.weight_bits, dw=False))
+                constants_tile_dimension = 0
+                if 'k0' in self.node.constant_names:
+                    constants_tile_dimension += tile_n_in * db_w * (self.node.constant_bits // 8)
+                if 'l0' in self.node.constant_names:
+                    constants_tile_dimension += tile_n_in * db_w * (self.node.bias_bits // 8)
+                if 'k1' in self.node.constant_names:
+                    constants_tile_dimension += tile_n_out * db_w * (self.node.constant_bits // 8)
+                if 'l1' in self.node.constant_names:
+                    constants_tile_dimension += tile_n_out * db_w * (self.node.bias_bits // 8)
+            else:
+                weight_tile_dimension = db_w * self.acc.weights_size(tile_n_out, tile_n_in, ks, self.node.weight_bits, depthwise)
+                constants_tile_dimension = 0
+                if 'k' in self.node.constant_names:
+                    constants_tile_dimension += tile_n_out * db_w * (self.node.constant_bits // 8)
+                if 'l' in self.node.constant_names:
+                    constants_tile_dimension += tile_n_out * db_w * (self.node.bias_bits // 8)
 
             total_size = input_tile_dimension + output_tile_dimension + weight_tile_dimension + constants_tile_dimension
 
@@ -219,6 +232,10 @@ class Tiler_Conv2D:
             out_mem = int(self.node.tiling_dimensions["L2"]["output_activation_memory"] / self.node.tiling_dimensions["L2"]["output_dimensions"][0] * self.node.tiling_dimensions["L2"]["weights_dimensions"][0])
         buffer_total = self.node.tiling_dimensions["L2"]["weight_memory"] + self.node.tiling_dimensions["L2"]["constants_memory"] + self.node.tiling_dimensions["L2"]["bias_memory"] + in_mem + out_mem
 
+        # Add intermediate buffer
+        if "DepthwisePointwise" in self.node.name:
+            buffer_total += h_out * self.node.tiling_dimensions["L2"]["output_dimensions"][2] * self.node.tiling_dimensions["L2"]["output_dimensions"][0]
+
         self.node.tiling_dimensions["L1"]["db_x"] = 1
         self.node.tiling_dimensions["L1"]["db_y"] = 1
         self.node.tiling_dimensions["L1"]["db_w"] = 1
@@ -293,10 +310,13 @@ class Tiler_Conv2D:
         solver.Add(tile_h_out * s[0] == (tile_h_in - (ks[0] - 1) + (s[0] - 1)))
         solver.Add(tile_w_out * s[1] == (tile_w_in - (ks[1] - 1) + (s[1] - 1)))
 
-        if depthwise:
-            solver.Add(tile_n_in == tile_n_out)
-        else:
+        if "DepthwisePointwise" in self.node.name:
             solver.Add(tile_n_in == n_in)
+        else:
+            if depthwise:
+                solver.Add(tile_n_in == tile_n_out)
+            else:
+                solver.Add(tile_n_in == n_in)
 
         ###############################################
         ##### CONSTRAINTS FOR DIMENSION ###############
@@ -311,15 +331,31 @@ class Tiler_Conv2D:
         #      -> To solve this problem, they do multiple rounds of tiling in L3 tiling
         input_tile_dimension = db * tile_n_in * tile_h_in * tile_w_in * (self.node.input_activation_bits // 8)
         output_tile_dimension = db * tile_n_out * tile_h_out * tile_w_out * (self.node.output_activation_bits // 8)
-        weight_tile_dimension = db * self.acc.weights_size(tile_n_out, tile_n_in, ks, self.node.weight_bits, depthwise)
-
-        constants_tile_dimension = 0
-        if 'k' in self.node.constant_names:
-            constants_tile_dimension += db * tile_n_out * (self.node.constant_bits // 8)
-        if 'l' in self.node.constant_names:
-            constants_tile_dimension += db * tile_n_out * (self.node.bias_bits // 8)
+        if "DepthwisePointwise" in self.node.name:
+            weight_tile_dimension = db * (self.acc.weights_size(tile_n_in, tile_n_in, ks, self.node.weight_bits, dw=True) + \
+                                          self.acc.weights_size(tile_n_out, tile_n_in, [1, 1], self.node.weight_bits, dw=False))
+            constants_tile_dimension = 0
+            if 'k0' in self.node.constant_names:
+                constants_tile_dimension += db * tile_n_in * (self.node.constant_bits // 8)
+            if 'l0' in self.node.constant_names:
+                constants_tile_dimension += db * tile_n_in * (self.node.bias_bits // 8)
+            if 'k1' in self.node.constant_names:
+                constants_tile_dimension += db * tile_n_out * (self.node.constant_bits // 8)
+            if 'l1' in self.node.constant_names:
+                constants_tile_dimension += db * tile_n_out * (self.node.bias_bits // 8)
+        else:
+            weight_tile_dimension = db * self.acc.weights_size(tile_n_out, tile_n_in, ks, self.node.weight_bits, depthwise)
+            constants_tile_dimension = 0
+            if 'k' in self.node.constant_names:
+                constants_tile_dimension += db * tile_n_out * (self.node.constant_bits // 8)
+            if 'l' in self.node.constant_names:
+                constants_tile_dimension += db * tile_n_out * (self.node.bias_bits // 8)
 
         total_size = input_tile_dimension + output_tile_dimension + weight_tile_dimension + constants_tile_dimension
+
+        # Add intermediate buffer
+        if "DepthwisePointwise" in self.node.name:
+            total_size += db * tile_n_in * tile_h_out * tile_w_out * (self.node.output_activation_bits // 8)
 
         solver.Add(total_size <= L1_memory)
 

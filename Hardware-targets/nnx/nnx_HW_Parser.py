@@ -42,12 +42,17 @@ class nnx_HW_Parser(Parser_DORY_to_HW):
         with open(hw_desc_path, 'r') as f:
             hw_desc = json.load(f)
         self.acc = accelerator
-        weights_size = self.acc.weights_size
+        acc_weights_size = self.acc.weights_size
+        def weights_size(self, dim):
+            if "DepthwisePointwise" in self.name:
+                return acc_weights_size(dim[1], dim[1], self.kernel_shape, self.weight_bits, dw=True) + \
+                       acc_weights_size(dim[0], dim[1], [1, 1], self.weight_bits, dw=False)
+            else:
+                return acc_weights_size(dim[0], dim[1], self.kernel_shape, self.weight_bits, self.group > 1)
         Tiler.acc = self.acc
         super().__init__(graph, rules, Pattern_rewriter, supported_layers, hw_desc,
                          os.path.join(confdir, os.path.dirname(conf["onnx_file"])), conf, Tiler,
-                         weights_size=lambda self, dim:
-                         weights_size(dim[0], dim[1], self.kernel_shape, self.weight_bits, self.group > 1))
+                         weights_size=weights_size)
 
     def adjust_data_layout(self):
         print("\nNNX Backend: Adjusting Feature Data Layout to HWC and Weights Data Layout to accelerator specific")
