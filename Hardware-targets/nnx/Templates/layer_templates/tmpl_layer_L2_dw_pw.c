@@ -54,7 +54,16 @@ static const Kernel kernel_pw = {
     .groups = 1
 };
 
-static const TileIndex end_index = {
+static const weights_ki_size_dw = ${l1_W0_tile_ki_size};
+static const weights_ki_size_pw = ${l1_W1_tile_ki_size};
+
+static const TileIndex end_index_dw = {
+    .height = ${tile_dim_h},
+    .width = ${tile_dim_w},
+    .output_channel = 1
+};
+
+static const TileIndex end_index_pw = {
     .height = ${tile_dim_h},
     .width = ${tile_dim_w},
     .output_channel = ${tile_dim_nof}
@@ -216,11 +225,9 @@ static int inc(int index, int end) {
 #define BUFFER_SIZE (2)
 
 static Layer tiles_dw[BUFFER_SIZE];
-static Layer tiles_pw[BUFFER_SIZE];
 static nnx_task_t nnx_tasks_dw[BUFFER_SIZE];
 static nnx_task_t nnx_tasks_pw[BUFFER_SIZE];
 static DmaTransferConf store_conf[BUFFER_SIZE];
-static int nnx_job_ids_dw[BUFFER_SIZE];
 static int nnx_job_ids_pw[BUFFER_SIZE];
 
 static struct {
@@ -228,13 +235,36 @@ static struct {
 } monitor;
 
 static void layer_task_fork(void *args) {
-    const int total_tiles = end_index.height * end_index.width * end_index.output_channel;
+    layer_args_t const * const layer_args = (layer_args_t *)args;
+
+    const int total_tiles_dw = end_index_dw.height * end_index_dw.width * end_index_dw.output_channel;
+    const int total_tiles_pw = end_index_pw.output_channel;
+    const int total_tiles_output = end_index_pw.height * end_index_pw.width * end_index_pw.output_channel;
+
+    // Double buffer address init
+
+    const unsigned int l1_buffer = layer_args->L1_buffer;
+    const int l1_buffer_input = l1_buffer + ${l1_x_offset};
+    const int l1_buffer_dw_output = l1_buffer + ${l1_y_dw_offset};
+    const int l1_buffer_output = l1_buffer + ${l1_y_offset};
+    const int l1_buffer_dw_weights = l1_buffer + ${l1_W0_offset};
+    const int l1_buffer_dw_scale = l1_buffer + ${l1_k0_offset};
+    const int l1_buffer_dw_bias = l1_buffer + ${l1_l0_offset};
+    const int l1_buffer_pw_weights = l1_buffer + ${l1_W1_offset};
+    const int l1_buffer_pw_scale = l1_buffer + ${l1_k1_offset};
+    const int l1_buffer_pw_bias = l1_buffer + ${l1_l1_offset};
+
+    #define MEMORY_STATUS_INIT(layer, name) ${"\\"}
+        .name = {                           ${"\\"}
+            .addr_ext = layer.addr.name,    ${"\\"}
+            .is_transfer = 1,               ${"\\"}
+            .buffer_index = 0               ${"\\"}
+        }
+
 
     // Loader
 
     if (pi_core_id() == LOADER_ID) {
-        layer_args_t *layer_args = (layer_args_t *)args;
-
         Layer layer_dw = {
             .addr = {
                 .input = layer_args->L2_input,
@@ -251,35 +281,6 @@ static void layer_task_fork(void *args) {
             }
         };
 
-        Layer layer_pw = {
-            .addr = {
-                .input = layer_args->L2_input,
-                .weights = layer_args->L2_weights + ${l2_W1_offset},
-                .scale = layer_args->L2_weights + ${l2_k1_offset},
-                .bias = layer_args->L2_weights + ${l2_l1_offset},
-                .output = layer_args->L2_output
-            },
-            .padding = {
-                .top    = 0,
-                .right  = 0,
-                .bottom = 0,
-                .left   = 0
-            }
-        };
-
-        // Double buffer address init
-
-        const unsigned int l1_buffer = layer_args->L1_buffer;
-        const int l1_buffer_input = l1_buffer + ${l1_x_offset};
-        const int l1_buffer_dw_output = l1_buffer + ${l1_y_dw_offset};
-        const int l1_buffer_output = l1_buffer + ${l1_y_offset};
-        const int l1_buffer_dw_weights = l1_buffer + ${l1_W0_offset};
-        const int l1_buffer_dw_scale = l1_buffer + ${l1_k0_offset};
-        const int l1_buffer_dw_bias = l1_buffer + ${l1_l0_offset};
-        const int l1_buffer_pw_weights = l1_buffer + ${l1_W1_offset};
-        const int l1_buffer_pw_scale = l1_buffer + ${l1_k1_offset};
-        const int l1_buffer_pw_bias = l1_buffer + ${l1_l1_offset};
-
         Address buffer_addresses_dw[2] = {
             {
                 .input = l1_buffer_input,
@@ -294,6 +295,67 @@ static void layer_task_fork(void *args) {
                 .scale = l1_buffer_dw_scale + ${l1_k0_tile_size},
                 .bias = l1_buffer_dw_bias + ${l1_l0_tile_size},
                 .output = l1_buffer_dw_output
+            }
+        };
+
+        TileStatus tile_status_dw = {
+            .index = { 0 },
+            MEMORY_STATUS_INIT(layer_dw, input),
+            MEMORY_STATUS_INIT(layer_dw, weights),
+            MEMORY_STATUS_INIT(layer_dw, scale),
+            MEMORY_STATUS_INIT(layer_dw, bias),
+            MEMORY_STATUS_INIT(layer_dw, output)
+        };
+
+        int i_buff = 0;
+
+        for (int i_tile = 0; i_tile < total_tiles_dw; i_tile++) {
+            Layer tile_dw = tile_create(tile_status_dw.index, end_index_dw, body_dw, border_dw, layer_dw,
+                                     tile_status_get_addr(tile_status_dw, buffer_addresses_dw));
+
+            monitor_produce_begin(monitor.input);
+
+            tiles_dw[i_buff] = tile_dw;
+
+            dma_mutex_lock();
+            DmaTransfer transfer = dma_transfer_create();
+            load_input_async(tile_dw, tile_status_dw, body_dw, layer_dw);
+            load_weights_async(tile_dw, &tile_status_dw, kernel_dw, ${l1_W0_tile_ki_size});
+            dma_mutex_unlock();
+
+            % if stride == 2:
+            execute_stride2x2_prepare(tile_dw, kernel_dw, &nnx_tasks_dw[i_buff]);
+            % else:
+            execute_prepare(tile_dw, &nnx_tasks_dw[i_buff]);
+            % endif
+
+            dma_mutex_lock();
+            dma_transfer_wait(transfer);
+            dma_mutex_unlock();
+
+            monitor_produce_end(monitor.input);
+
+            i_buff = inc(i_buff, BUFFER_SIZE);
+            tile_status_dw = tile_status_get_next(tile_status_dw, end_index_dw);
+        }
+    }
+
+    // Executer
+
+    if (pi_core_id() == EXECUTER_ID) {
+        Layer layer_pw = {
+            .addr = {
+                .input = layer_args->L2_input,
+                .weights = layer_args->L2_weights + ${l2_W1_offset},
+                .scale = layer_args->L2_weights + ${l2_k1_offset},
+                .bias = layer_args->L2_weights + ${l2_l1_offset},
+                .output = layer_args->L2_output
+            },
+            .padding = {
+                .top    = 0,
+                .right  = 0,
+                .bottom = 0,
+                .left   = 0
             }
         };
 
@@ -314,22 +376,6 @@ static void layer_task_fork(void *args) {
             }
         };
 
-        #define MEMORY_STATUS_INIT(layer, name) ${"\\"}
-            .name = {                           ${"\\"}
-                .addr_ext = layer.addr.name,    ${"\\"}
-                .is_transfer = 1,               ${"\\"}
-                .buffer_index = 0               ${"\\"}
-            }
-
-        TileStatus tile_status_dw = {
-            .index = { 0 },
-            MEMORY_STATUS_INIT(layer_dw, input),
-            MEMORY_STATUS_INIT(layer_dw, weights),
-            MEMORY_STATUS_INIT(layer_dw, scale),
-            MEMORY_STATUS_INIT(layer_dw, bias),
-            MEMORY_STATUS_INIT(layer_dw, output)
-        };
-
         TileStatus tile_status_pw = {
             .index = { 0 },
             MEMORY_STATUS_INIT(layer_pw, input),
@@ -341,66 +387,38 @@ static void layer_task_fork(void *args) {
 
         int i_buff = 0;
 
-        for (int i_tile = 0; i_tile < total_tiles; i_tile++) {
-            Layer tile_dw = tile_create(tile_status_dw.index, end_index, body_dw, border_dw, layer_dw,
-                                     tile_status_get_addr(tile_status_dw, buffer_addresses_dw));
-            Layer tile_pw = tile_create(tile_status_pw.index, end_index, body_pw, border_pw, layer_pw,
-                                     tile_status_get_addr(tile_status_pw, buffer_addresses_pw));
-
-            monitor_produce_begin(monitor.input);
-
-            tiles_dw[i_buff] = tile_dw;
-            tiles_pw[i_buff] = tile_pw;
-
-            dma_mutex_lock();
-            DmaTransfer transfer = dma_transfer_create();
-            load_input_async(tile_dw, tile_status_dw, body_dw, layer_dw);
-            load_weights_async(tile_dw, &tile_status_dw, kernel_dw, ${l1_W0_tile_ki_size});
-            load_weights_async(tile_pw, &tile_status_pw, kernel_pw, ${l1_W1_tile_ki_size});
-            dma_mutex_unlock();
-
-            % if stride == 2:
-            execute_stride2x2_prepare(tile_dw, kernel_dw, &nnx_tasks_dw[i_buff]);
-            % else:
-            execute_prepare(tile_dw, &nnx_tasks_dw[i_buff]);
-            % endif
-            execute_prepare(tile_pw, &nnx_tasks_pw[i_buff]);
-
-            dma_mutex_lock();
-            dma_transfer_wait(transfer);
-            dma_mutex_unlock();
-
-            monitor_produce_end(monitor.input);
-
-            monitor_produce_begin(monitor.store_conf);
-            store_prepare(tiles_pw[i_buff], body_pw, layer_pw, tile_status_pw.index, &store_conf[i_buff]);
-            monitor_produce_end(monitor.store_conf);
-
-            i_buff = inc(i_buff, BUFFER_SIZE);
-            tile_status_dw = tile_status_get_next(tile_status_dw, end_index);
-            tile_status_pw = tile_status_get_next(tile_status_pw, end_index);
-        }
-    }
-
-    // Executer
-
-    if (pi_core_id() == EXECUTER_ID) {
-        int i_buff = 0;
-        for (int i_tile = 0; i_tile < total_tiles; i_tile++) {
+        for (int i_tile = 0; i_tile < total_tiles_dw; i_tile++) {
             monitor_consume_begin(monitor.input);
-            monitor_produce_begin(monitor.output);
 
             % if stride == 2:
-            nnx_job_ids_dw[i_buff] = execute_stride2x2_blocking(nnx_tasks_dw[i_buff], tiles_dw[i_buff], kernel_dw);
+            int nnx_job_id_dw = execute_stride2x2_blocking(nnx_tasks_dw[i_buff], tiles_dw[i_buff], kernel_dw);
             % else:
-            nnx_job_ids_dw[i_buff] = execute_async(nnx_tasks_dw[i_buff]);
+            int nnx_job_id_dw = execute_async(nnx_tasks_dw[i_buff]);
             % endif
 
-            execute_wait(nnx_job_ids_dw[i_buff]);
+            for (int i_tile_pw = 0; i_tile_pw < total_tiles_pw; i_tile_pw++) {
+                Layer tile_pw = tile_create(tile_status_pw.index, end_index_pw, body_pw, border_pw, layer_pw,
+                                            tile_status_get_addr(tile_status_pw, buffer_addresses_pw));
 
-            nnx_job_ids_pw[i_buff] = execute_async(nnx_tasks_pw[i_buff]);
+                DmaTransfer transfer_pw = dma_transfer_create();
+                load_weights_async(tile_pw, &tile_status_pw, kernel_pw, weights_ki_size_pw);
 
-            monitor_produce_end(monitor.output);
+                execute_prepare(tile_pw, &nnx_tasks_pw[i_buff]);
+
+                if (i_tile_pw == 0) {
+                    execute_wait(nnx_job_id_dw);
+                    monitor_consume_end(monitor.input);
+                }
+
+                dma_transfer_wait(transfer_pw);
+
+                monitor_produce_begin(monitor.output);
+                nnx_job_ids_pw[i_buff] = execute_async(nnx_tasks_pw[i_buff]);
+                store_prepare(tile_pw, body_pw, layer_pw, tile_status_pw.index, &store_conf[i_buff]);
+                monitor_produce_end(monitor.output);
+
+                tile_status_pw = tile_status_get_next(tile_status_pw, end_index_pw);
+            }
 
             i_buff = inc(i_buff, BUFFER_SIZE);
         }
@@ -410,12 +428,10 @@ static void layer_task_fork(void *args) {
 
     if (pi_core_id() == STORER_ID) {
         int i_buff = 0;
-        for (int i_tile = 0; i_tile < total_tiles; i_tile++) {
-            monitor_consume_begin(monitor.store_conf);
+        for (int i_tile = 0; i_tile < total_tiles_output; i_tile++) {
             monitor_consume_begin(monitor.output);
 
             execute_wait(nnx_job_ids_pw[i_buff]);
-            monitor_consume_end(monitor.input);
 
             dma_mutex_lock();
             DmaTransfer transfer = dma_transfer_create();
@@ -426,7 +442,6 @@ static void layer_task_fork(void *args) {
             dma_transfer_wait(transfer);
             dma_mutex_unlock();
 
-            monitor_consume_end(monitor.store_conf);
             monitor_consume_end(monitor.output);
 
             i_buff = inc(i_buff, BUFFER_SIZE);
