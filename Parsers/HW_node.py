@@ -87,17 +87,28 @@ class HW_node(DORY_node):
 
             constants_memory = 0
             bias_memory = 0
-            for name in self.constant_names:
-                if name == 'k':
+
+            if "DepthwisePointwise" in self.name:
+                if 'k0' in self.constant_names:
+                    constants_memory += weights_dim[1] * self.constant_bits / 8
+                if 'l0' in self.constant_names:
+                    constants_memory += weights_dim[1] * self.bias_bits / 8
+                if 'k1' in self.constant_names:
                     constants_memory += weights_dim[0] * self.constant_bits / 8
-                if name == 'l':
+                if 'l1' in self.constant_names:
                     constants_memory += weights_dim[0] * self.bias_bits / 8
-                if "bias" in name:
+            else:
+                if 'k' in self.constant_names:
+                    constants_memory += weights_dim[0] * self.constant_bits / 8
+                if 'l' in self.constant_names:
+                    constants_memory += weights_dim[0] * self.bias_bits / 8
+                if 'bias' in self.constant_names:
                     bias_memory += weights_dim[0] * self.bias_bits / 8
+
             self.tiling_dimensions[mem]["bias_memory"] = int(bias_memory)
             self.tiling_dimensions[mem]["constants_memory"] = int(constants_memory)
-            self.tiling_dimensions[mem]["input_activation_memory"] = np.prod(self.tiling_dimensions[mem]["input_dimensions"])*self.input_activation_bits/8
-            self.tiling_dimensions[mem]["output_activation_memory"] = np.prod(self.tiling_dimensions[mem]["output_dimensions"])*self.output_activation_bits/8
+            self.tiling_dimensions[mem]["input_activation_memory"] = int(np.prod(self.tiling_dimensions[mem]["input_dimensions"])*self.input_activation_bits/8)
+            self.tiling_dimensions[mem]["output_activation_memory"] = int(np.prod(self.tiling_dimensions[mem]["output_dimensions"])*self.output_activation_bits/8)
 
     def rename_weights(self):
         if (not "DepthwisePointwise" in self.name and "Convolution" in self.name) or "FullyConnected" in self.name:
