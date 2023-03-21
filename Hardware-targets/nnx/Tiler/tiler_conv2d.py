@@ -399,8 +399,10 @@ class Tiler_Conv2D:
             tile_n_in = collector.Value(best_solution, tile_n_in)
             tile_n_out = collector.Value(best_solution, tile_n_out)
             tile_h_in = collector.Value(best_solution, tile_h_in)
+            tile_h_in = tile_h_in if tile_h_in < h_in else h_in
             tile_h_out = collector.Value(best_solution, tile_h_out)
             tile_w_in = collector.Value(best_solution, tile_w_in)
+            tile_w_in = tile_w_in if tile_w_in < w_in else w_in
             tile_w_out = collector.Value(best_solution, tile_w_out)
             return [tile_n_out, tile_n_in], [tile_n_in, tile_h_in, tile_w_in], [tile_n_out, tile_h_out, tile_w_out]
 
