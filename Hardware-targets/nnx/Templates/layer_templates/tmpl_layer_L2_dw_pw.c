@@ -293,7 +293,7 @@ static void layer_task_fork(void *args) {
                 .weights = l1_buffer_dw_weights + ${l1_W0_tile_size},
                 .scale = l1_buffer_dw_scale + ${l1_k0_tile_size},
                 .bias = l1_buffer_dw_bias + ${l1_l0_tile_size},
-                .output = l1_buffer_dw_output + ${l1_y_dw_tile_size}
+                .output = l1_buffer_dw_output
             }
         };
 
@@ -306,7 +306,7 @@ static void layer_task_fork(void *args) {
                 .output = l1_buffer_output
             },
             {
-                .input = l1_buffer_dw_output + ${l1_y_dw_tile_size},
+                .input = l1_buffer_dw_output,
                 .weights = l1_buffer_pw_weights + ${l1_W1_tile_size},
                 .scale = l1_buffer_pw_scale + ${l1_k1_tile_size},
                 .bias = l1_buffer_pw_bias + ${l1_l1_tile_size},

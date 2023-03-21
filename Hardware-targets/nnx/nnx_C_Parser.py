@@ -286,7 +286,7 @@ class nnx_C_Parser(Parser_HW_to_C):
 
         n_buffers = {
             'x': node.tiling_dimensions[mem_name]['db_x'],
-            'y_dw': node.tiling_dimensions[mem_name]['db_x'],
+            'y_dw': 1,
             'y': node.tiling_dimensions[mem_name]['db_y'],
         }
 

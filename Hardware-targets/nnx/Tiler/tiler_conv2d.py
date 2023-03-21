@@ -355,7 +355,7 @@ class Tiler_Conv2D:
 
         # Add intermediate buffer
         if "DepthwisePointwise" in self.node.name:
-            total_size += db * tile_n_in * tile_h_out * tile_w_out * (self.node.output_activation_bits // 8)
+            total_size += tile_n_in * tile_h_out * tile_w_out * (self.node.output_activation_bits // 8)
 
         solver.Add(total_size <= L1_memory)
 
