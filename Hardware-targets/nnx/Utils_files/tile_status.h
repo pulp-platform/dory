@@ -129,8 +129,8 @@ static Layer tile_create(TileIndex index, TileIndex end_index, Layer body, Layer
         .padding = {
             .top = index.height == 0 ? layer.padding.top : 0,
             .bottom = index.height + 1 == end_index.height ? layer.padding.bottom : 0,
-            .left = index.width == 0 ? layer.padding.left : 0,
-            .right = index.width + 1 == end_index.width ? layer.padding.right : 0
+            .right = index.width + 1 == end_index.width ? layer.padding.right : 0,
+            .left = index.width == 0 ? layer.padding.left : 0
         }
     };
 }
@@ -151,14 +151,40 @@ static TileIndex tile_index_get_next(TileIndex index, TileIndex end) {
     return index;
 }
 
+static TileIndex tile_index_get_next_reverse(TileIndex index, TileIndex end) {
+    index.output_channel += 1;
+    if (index.output_channel >= end.output_channel) {
+        index.output_channel = 0;
+        index.width += 1;
+        if (index.width >= end.width) {
+            index.width = 0;
+            index.height += 1;
+            if (index.height >= end.height) {
+                index.height = 0;
+            }
+        }
+    }
+    return index;
+}
+
 static int buffer_index_get_next(int current, int is_transfer_next) {
     return is_transfer_next ? !current : current;
 }
 
-static TileStatus tile_status_get_next(TileStatus current, TileIndex end_index) {
+/** tile_status_get_next
+*
+* is_reverse_index - 0 (False): output_channel -> height -> width, 1 (True) height -> width -> output_channel.
+*                    Normal (0) is the usual ordering. The reverse has the spatial (height, width) dimensions
+*                    in the same order, but looped over first.
+*/
+static TileStatus tile_status_get_next(TileStatus current, TileIndex end_index, Layer layer, int is_reverse_index) {
     TileStatus next = { 0 };
 
-    next.index = tile_index_get_next(current.index, end_index);
+    if (!is_reverse_index) {
+        next.index = tile_index_get_next(current.index, end_index);
+    } else {
+        next.index = tile_index_get_next_reverse(current.index, end_index);
+    }
 
     // Leans on tile loop going from outermost to innermost OUT_CH->H->W
     int is_first_input_again = next.index.height == 0 && next.index.width == 0 && next.index.output_channel == 0;
@@ -167,16 +193,16 @@ static TileStatus tile_status_get_next(TileStatus current, TileIndex end_index) 
 
     int is_last_weights = current.index.output_channel + 1 == end_index.output_channel;
     int is_change_weights = next.index.output_channel != current.index.output_channel;
-    next.weights.is_transfer = !is_last_weights && is_change_weights;
+    next.weights.is_transfer = !(is_last_weights && !is_reverse_index) && is_change_weights;
     next.scale.is_transfer = next.weights.is_transfer;
     next.bias.is_transfer  = next.weights.is_transfer;
 
     next.output.is_transfer = 1;
 
     next.input.addr_ext = current.input.addr_ext;
-    next.weights.addr_ext = current.weights.addr_ext;
-    next.scale.addr_ext = current.scale.addr_ext;
-    next.bias.addr_ext = current.bias.addr_ext;
+    next.weights.addr_ext = is_last_weights ? layer.addr.weights : current.weights.addr_ext;
+    next.scale.addr_ext = is_last_weights ? layer.addr.scale : current.scale.addr_ext;
+    next.bias.addr_ext = is_last_weights ? layer.addr.bias : current.bias.addr_ext;
     next.output.addr_ext = current.output.addr_ext;
 
 #define UPDATE_BUFFER_INDEX(name) \

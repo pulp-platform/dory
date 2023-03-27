@@ -156,10 +156,10 @@ static void load_weights_prepare(Layer tile, Kernel kernel, int weights_ki_size,
     const int size_scale = tile.output.channel * ${int(act_dim_bit/8)};
     const int size_bias = tile.output.channel * ${int(bias_bits/8)};
 
-    #define CONF_SET(name)                                     ${"\\"}
+    #define CONF_SET(name)                             ${"\\"}
         conf_ ## name->ext = status_ ## name.addr_ext; ${"\\"}
         conf_ ## name->loc = tile.addr.name;           ${"\\"}
-        conf_ ## name->length_1d_copy = size_ ## name;         ${"\\"}
+        conf_ ## name->length_1d_copy = size_ ## name; ${"\\"}
         conf_ ## name->dir = 1;
 
     CONF_SET(weights);
@@ -336,7 +336,7 @@ static void layer_task_fork(void *args) {
             monitor_produce_end(monitor.input);
 
             i_buff = inc(i_buff, BUFFER_SIZE);
-            tile_status_dw = tile_status_get_next(tile_status_dw, end_index_dw);
+            tile_status_dw = tile_status_get_next(tile_status_dw, end_index_dw, layer_dw, 0 /* normal loop order */);
         }
     }
 
@@ -417,7 +417,7 @@ static void layer_task_fork(void *args) {
                 store_prepare(tile_pw, body_pw, layer_pw, tile_status_pw.index, &store_conf[i_buff]);
                 monitor_produce_end(monitor.output);
 
-                tile_status_pw = tile_status_get_next(tile_status_pw, end_index_pw);
+                tile_status_pw = tile_status_get_next(tile_status_pw, end_index_pw, layer_pw, 1 /* reverse loop order */);
             }
 
             i_buff = inc(i_buff, BUFFER_SIZE);
