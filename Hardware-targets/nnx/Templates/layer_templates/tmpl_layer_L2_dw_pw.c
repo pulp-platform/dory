@@ -385,42 +385,48 @@ static void layer_task_fork(void *args) {
             MEMORY_STATUS_INIT(layer_pw, output)
         };
 
-        int i_buff = 0;
+        int i_buff_dw = 0;
+        int i_buff_pw = 0;
 
         for (int i_tile = 0; i_tile < total_tiles_dw; i_tile++) {
             monitor_consume_begin(monitor.input);
 
             % if stride == 2:
-            int nnx_job_id_dw = execute_stride2x2_blocking(nnx_tasks_dw[i_buff], tiles_dw[i_buff], kernel_dw);
+            int nnx_job_id_dw = execute_stride2x2_blocking(nnx_tasks_dw[i_buff_dw], tiles_dw[i_buff_dw], kernel_dw);
             % else:
-            int nnx_job_id_dw = execute_async(nnx_tasks_dw[i_buff]);
+            int nnx_job_id_dw = execute_async(nnx_tasks_dw[i_buff_dw]);
             % endif
 
             for (int i_tile_pw = 0; i_tile_pw < total_tiles_pw; i_tile_pw++) {
                 Layer tile_pw = tile_create(tile_status_pw.index, end_index_pw, body_pw, border_pw, layer_pw,
                                             tile_status_get_addr(tile_status_pw, buffer_addresses_pw));
 
+                monitor_produce_begin(monitor.output);
+                dma_mutex_lock();
                 DmaTransfer transfer_pw = dma_transfer_create();
                 load_weights_async(tile_pw, &tile_status_pw, kernel_pw, weights_ki_size_pw);
+                dma_mutex_unlock();
 
-                execute_prepare(tile_pw, &nnx_tasks_pw[i_buff]);
+                execute_prepare(tile_pw, &nnx_tasks_pw[i_buff_pw]);
 
                 if (i_tile_pw == 0) {
                     execute_wait(nnx_job_id_dw);
                     monitor_consume_end(monitor.input);
                 }
 
+                dma_mutex_lock();
                 dma_transfer_wait(transfer_pw);
+                dma_mutex_unlock();
 
-                monitor_produce_begin(monitor.output);
-                nnx_job_ids_pw[i_buff] = execute_async(nnx_tasks_pw[i_buff]);
-                store_prepare(tile_pw, body_pw, layer_pw, tile_status_pw.index, &store_conf[i_buff]);
+                nnx_job_ids_pw[i_buff_pw] = execute_async(nnx_tasks_pw[i_buff_pw]);
+                store_prepare(tile_pw, body_pw, layer_pw, tile_status_pw.index, &store_conf[i_buff_pw]);
                 monitor_produce_end(monitor.output);
 
                 tile_status_pw = tile_status_get_next(tile_status_pw, end_index_pw, layer_pw, 1 /* reverse loop order */);
+                i_buff_pw = inc(i_buff_pw, BUFFER_SIZE);
             }
 
-            i_buff = inc(i_buff, BUFFER_SIZE);
+            i_buff_dw = inc(i_buff_dw, BUFFER_SIZE);
         }
     }
 
