@@ -45,6 +45,12 @@ static ram_conf_t ram_conf;
 
 void mem_init() {
   flash_conf_init(&flash_conf);
+#ifdef USE_MRAM
+  if (pi_pmu_voltage_get(PI_PMU_VOLTAGE_DOMAIN_CHIP) == 800)
+    flash_conf.baudrate = 37000000;
+  else
+    flash_conf.baudrate = 34000000;
+#endif
   pi_open_from_conf(&flash, &flash_conf);
   if (pi_flash_open(&flash)) {
     printf("ERROR: Cannot open flash! Exiting...\n");
