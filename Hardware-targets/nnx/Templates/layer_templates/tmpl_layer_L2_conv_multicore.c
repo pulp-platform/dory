@@ -74,14 +74,14 @@ static const Layer border = {
     }
 };
 
-static void load_input_prepare(Layer tile, Layer body, Layer layer, TileIndex index, DmaTransferConf * const conf) {
+static void load_input_prepare(Layer tile, Layer body, Layer layer, TileIndex index, DmaTransferConf * const conf, Kernel kernel) {
     // additionally overlap by padding for the first tile after a border one
     // this because in the first tile we use less pixels from x_buffer, since we have the ones of padding
     const int x_offset_h = index.height > 0 ? layer.padding.top : 0;
     const int x_offset_w = index.width > 0 ? layer.padding.left : 0;
 
     conf->ext = dory_get_tile_3d(layer.addr.input,
-                                   index.height, index.width, 0,
+                                   index.height, index.width, kernel.groups > 1 ? index.output_channel : 0,
                                    body.input.height, body.input.width, body.input.channel,
                                    ${x_w}, ${nif*g},
                                    ${conv_overlap1}, ${conv_overlap2}, 0,
@@ -142,7 +142,7 @@ static void load_async(Layer tile, TileStatus * const status, Layer body, Layer 
     DmaTransferConf conf_input, conf_weights, conf_scale, conf_bias;
 
     if (status->input.is_transfer) {
-        load_input_prepare(tile, body, layer, status->index, &conf_input);
+        load_input_prepare(tile, body, layer, status->index, &conf_input, kernel);
         dma_transfer_async(conf_input);
     }
 
@@ -273,7 +273,7 @@ static void layer_task_fork(void *args) {
             monitor_produce_end(monitor.store_conf);
 
             i_buff = inc(i_buff, BUFFER_SIZE);
-            tile_status = tile_status_get_next(tile_status, end_index);
+            tile_status = tile_status_get_next(tile_status, end_index, layer, 0, kernel);
         }
     }
 

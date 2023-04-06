@@ -119,7 +119,7 @@ static Layer tile_create(TileIndex index, TileIndex end_index, Layer body, Layer
         .input = {
             SET_DIM(input, height, height),
             SET_DIM(input, width, width),
-            .channel = body.input.channel
+            SET_DIM(input, channel, output_channel)
         },
         .output = {
             SET_DIM(output, height, height),
@@ -177,7 +177,7 @@ static int buffer_index_get_next(int current, int is_transfer_next) {
 *                    Normal (0) is the usual ordering. The reverse has the spatial (height, width) dimensions
 *                    in the same order, but looped over first.
 */
-static TileStatus tile_status_get_next(TileStatus current, TileIndex end_index, Layer layer, int is_reverse_index) {
+static TileStatus tile_status_get_next(TileStatus current, TileIndex end_index, Layer layer, int is_reverse_index, Kernel kernel) {
     TileStatus next = { 0 };
 
     if (!is_reverse_index) {
@@ -188,7 +188,8 @@ static TileStatus tile_status_get_next(TileStatus current, TileIndex end_index, 
 
     // Leans on tile loop going from outermost to innermost OUT_CH->H->W
     int is_first_input_again = next.index.height == 0 && next.index.width == 0 && next.index.output_channel == 0;
-    int is_change_input = next.index.height != current.index.height || next.index.width != current.index.width;
+    int is_change_input = next.index.height != current.index.height || next.index.width != current.index.width
+                          || (kernel.groups > 1 && next.index.output_channel != current.index.output_channel);
     next.input.is_transfer = !is_first_input_again && is_change_input;
 
     int is_last_weights = current.index.output_channel + 1 == end_index.output_channel;

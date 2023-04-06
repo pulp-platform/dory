@@ -64,6 +64,8 @@ class Ne16(Accelerator):
                              2 if s == [2, 2] else self.OUTPUT_BUFFER_SHAPE[1],
                              self.OUTPUT_BUFFER_SHAPE[2])
 
+        subtile_in_shape = (self.INPUT_BUFFER_H, self.INPUT_BUFFER_W, self.TP_IN)
+
         cin = layer_in_shape[2]
 
         return [
@@ -73,6 +75,10 @@ class Ne16(Accelerator):
 
             maximize_divisibility_or_max_w_prio(tile_out_shape[1], subtile_out_shape[1],
                                                 max=layer_out_shape[1], prio=5),
+
+            # Input channel has to be divisible with subtile shape and has higher priority then output channel
+            maximize_divisibility_or_max_w_prio(tile_in_shape[2], subtile_in_shape[2],
+                                                max=layer_in_shape[2], prio=3),
 
             maximize_divisibility_or_max_w_prio(tile_out_shape[2], subtile_out_shape[2],
                                                 max=layer_out_shape[2], prio=1),
