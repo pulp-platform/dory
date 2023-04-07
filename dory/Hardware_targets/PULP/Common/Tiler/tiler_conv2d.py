@@ -27,6 +27,8 @@ import os
 import sys
 from ortools.constraint_solver import pywrapcp
 from ortools.constraint_solver import solver_parameters_pb2
+CORES = 4
+
 
 class Tiler_Conv2D_PULP():
     # Class to generate the Tiling of the layer.
@@ -154,11 +156,11 @@ class Tiler_Conv2D_PULP():
             output_tile_dimension_L1 = tile_n_out * tile_h_out * out_dim[1] * self.HW_node.output_activation_bits // 8
             if g == 1:
                 weight_tile_dimension_L1 = in_ch * tile_n_out * np.prod(ks) * self.HW_node.weight_bits // 8
-                im2col_dimension_L1 = 2 * 8 * np.prod(ks) * in_ch
+                im2col_dimension_L1 = 2 * CORES * np.prod(ks) * in_ch
                 weight_full_prec_dimension_L1 = 0
             else:
                 weight_tile_dimension_L1 = in_ch * np.prod(ks) * self.HW_node.weight_bits // 8
-                im2col_dimension_L1 = 8 * (ks[0] * (in_ch + p[0] + p[2]) + ks[0]) * int( 8 / min(self.HW_node.input_activation_bits, self.HW_node.output_activation_bits, self.HW_node.weight_bits))
+                im2col_dimension_L1 = CORES * (ks[0] * (in_ch + p[0] + p[2]) + ks[0]) * int( 8 / min(self.HW_node.input_activation_bits, self.HW_node.output_activation_bits, self.HW_node.weight_bits))
                 weight_full_prec_dimension_L1 = 0
                 if self.HW_node.weight_bits != 8:
                     weight_full_prec_dimension_L1 = 32 * 8 * 8 * np.prod(ks) * int( 8 / min(self.HW_node.input_activation_bits, self.HW_node.output_activation_bits, self.HW_node.weight_bits))
@@ -238,10 +240,10 @@ class Tiler_Conv2D_PULP():
         ###############################################
 
         if g == 1:
-            im2col_dim = 2 * 8 * np.prod(ks) * in_ch * self.HW_node.input_activation_bits/8
+            im2col_dim = 2 * CORES * np.prod(ks) * in_ch * self.HW_node.input_activation_bits/8
             weight_full_prec_dim = 0
         else:
-            im2col_dim = 8 * (ks[0] * (inp_dim[0] + p[0] + p[2]) + ks[0]) * int( 8 / min(self.HW_node.input_activation_bits, self.HW_node.output_activation_bits, self.HW_node.weight_bits))
+            im2col_dim = CORES * (ks[0] * (inp_dim[0] + p[0] + p[2]) + ks[0]) * int( 8 / min(self.HW_node.input_activation_bits, self.HW_node.output_activation_bits, self.HW_node.weight_bits))
             weight_full_prec_dim = 8 * np.prod(ks) * int( 8 / min(self.HW_node.input_activation_bits, self.HW_node.output_activation_bits, self.HW_node.weight_bits))
             if self.HW_node.weight_bits == 8:
                  weight_full_prec_dim = 0
@@ -327,11 +329,11 @@ class Tiler_Conv2D_PULP():
         output_tile_dimension = db * (tile_n_out * tile_h_out * tile_w_out * self.HW_node.output_activation_bits) // 8
         if g == 1:
             weight_tile_dimension = db * tile_n_in * tile_n_out * np.prod(ks) * self.HW_node.weight_bits // 8
-            im2col_dimension = 2 * 8 * np.prod(ks) * tile_n_in
+            im2col_dimension = 2 * CORES * np.prod(ks) * tile_n_in
             weight_full_prec_dimension = 0
         else:
             weight_tile_dimension = (db * tile_n_in * np.prod(ks) * self.HW_node.weight_bits) // 8
-            im2col_dimension = 8 * (ks[0] * (tile_n_in + p[0] + p[2]) + ks[0]) * int( 8 / min(self.HW_node.input_activation_bits, self.HW_node.output_activation_bits, self.HW_node.weight_bits))
+            im2col_dimension = CORES * (ks[0] * (tile_n_in + p[0] + p[2]) + ks[0]) * int( 8 / min(self.HW_node.input_activation_bits, self.HW_node.output_activation_bits, self.HW_node.weight_bits))
             weight_full_prec_dimension = 0
             if self.HW_node.weight_bits != 8:
                 weight_full_prec_dimension = db * 8 * 8 * np.prod(ks) * int( 8 / min(self.HW_node.input_activation_bits, self.HW_node.output_activation_bits, self.HW_node.weight_bits))

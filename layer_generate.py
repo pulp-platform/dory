@@ -275,7 +275,6 @@ def create_layer(i_layer, layer_node, dory_node, network_dir, input=None, weight
         'layout': ''
     }
         y = y >> dory_node.outshift['value']
-        import ipdb; ipdb.set_trace()
         y = clip(y, dory_node.output_activation_bits, y_signed)
     else:
         layer_node.constant_names.append('outmul')
@@ -330,6 +329,8 @@ def create_graph(params, network_dir):
     params_out['input_bits'] = params['output_bits']
     params_out['weight_bits'] = 2
     params_out['output_channels'] = 8
+    params_out['stride'] = [1,1]
+    params_out['kernel_shape'] = [1,1]
     params_out['input_channels'] = params['output_channels'] # params['output_channels'] *
     # layer_node.output_dimensions[0] * layer_node.output_dimensions[1] # this
     # will give tiling issues...
@@ -344,7 +345,7 @@ def create_graph(params, network_dir):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('hardware_target', type=str, choices=["GAP8.PULP_gvsoc","GAP8.GAP8", "nnx", "Occamy", "Diana"],
+    parser.add_argument('hardware_target', type=str, choices=["PULP.PULP_gvsoc","PULP.GAP8", "nnx", "Occamy", "Diana"],
                         help='Hardware platform for which the code is optimized')
     parser.add_argument('--config_file', default='dory/dory_examples/config_files/config_single_layer.json', type=str,
                         help='Path to the JSON file that specifies the ONNX file of the network and other information. Default: config_files/config_single_layer.json')
@@ -353,7 +354,7 @@ if __name__ == '__main__':
     parser.add_argument('--perf_layer', default='Yes', help='Yes: MAC/cycles per layer. No: No perf per layer.')
     parser.add_argument('--verbose_level', default='Check_all+Perf_final',
                         help="None: No_printf.\nPerf_final: only total performance\nCheck_all+Perf_final: all check + final performances \nLast+Perf_final: all check + final performances \nExtract the parameters from the onnx model")
-    parser.add_argument('--optional', default='mixed-sw',
+    parser.add_argument('--optional', default='8bit',
                         help='auto (based on layer precision, 8bits or mixed-sw), 8bit, mixed-hw, mixed-sw')
     args = parser.parse_args()
 
