@@ -311,7 +311,7 @@ class Tiler_Conv2D:
         solver.Add(tile_w_out * s[1] == (tile_w_in - (ks[1] - 1) + (s[1] - 1)))
 
         if "DepthwisePointwise" in self.node.name:
-            solver.Add(tile_n_in == n_in)
+            pass  # no constraint on tile_n_in
         else:
             if depthwise:
                 solver.Add(tile_n_in == tile_n_out)
@@ -333,7 +333,7 @@ class Tiler_Conv2D:
         output_tile_dimension = db * tile_n_out * tile_h_out * tile_w_out * (self.node.output_activation_bits // 8)
         if "DepthwisePointwise" in self.node.name:
             weight_tile_dimension = db * (self.acc.weights_size(tile_n_in, tile_n_in, ks, self.node.weight_bits, dw=True) + \
-                                          self.acc.weights_size(tile_n_out, tile_n_in, [1, 1], self.node.weight_bits, dw=False))
+                                          self.acc.weights_size(tile_n_out, n_in, [1, 1], self.node.weight_bits, dw=False))
             constants_tile_dimension = 0
             if 'k0' in self.node.constant_names:
                 constants_tile_dimension += db * tile_n_in * (self.node.constant_bits // 8)
@@ -355,7 +355,7 @@ class Tiler_Conv2D:
 
         # Add intermediate buffer
         if "DepthwisePointwise" in self.node.name:
-            total_size += tile_n_in * tile_h_out * tile_w_out * (self.node.output_activation_bits // 8)
+            total_size += n_in * tile_h_out * tile_w_out * (self.node.output_activation_bits // 8)
 
         solver.Add(total_size <= L1_memory)
 

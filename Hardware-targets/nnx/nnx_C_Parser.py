@@ -263,13 +263,13 @@ class nnx_C_Parser(Parser_HW_to_C):
 
         input_tile_shape = node.tiling_dimensions[mem_name]['input_dimensions']
         output_tile_shape = node.tiling_dimensions[mem_name]['output_dimensions']
-        dw_output_tile_shape = [input_tile_shape[0]] + output_tile_shape[1:]
+        dw_output_tile_shape = [node.input_channels] + output_tile_shape[1:]
         weights_tile_shape = node.tiling_dimensions[mem_name]['weights_dimensions']
 
         weights_tile_ko, weights_tile_ki = weights_tile_shape
 
-        weights_tile_size = self.acc.weights_size(weights_tile_ko, weights_tile_ki, node.kernel_shape, node.weight_bits, dw=True) + \
-                            self.acc.weights_size(weights_tile_ko, weights_tile_ki, [1, 1], node.weight_bits, dw=False)
+        weights_tile_size = self.acc.weights_size(weights_tile_ki, weights_tile_ki, node.kernel_shape, node.weight_bits, dw=True) + \
+                            self.acc.weights_size(weights_tile_ko, node.input_channels, [1, 1], node.weight_bits, dw=False)
         set_tmpl_var('W_size', weights_tile_size)
 
         input_el_size = div_and_ceil(node.input_activation_bits, 8)
@@ -279,7 +279,7 @@ class nnx_C_Parser(Parser_HW_to_C):
         dw_weights_tile_ki_size = self.acc.weights_ki_size(weights_tile_ki, node.kernel_shape, node.weight_bits, dw=True)
 
         pw_weights_tile_ko_len = self.acc.weights_ko_len(weights_tile_ko, dw=False)
-        pw_weights_tile_ki_size = self.acc.weights_ki_size(weights_tile_ki, [1, 1], node.weight_bits, dw=False)
+        pw_weights_tile_ki_size = self.acc.weights_ki_size(node.input_channels, [1, 1], node.weight_bits, dw=False)
 
         def feature_len(shape):
             return shape[0] * shape[1] * shape[2]
