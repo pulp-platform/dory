@@ -60,7 +60,7 @@ static const weights_ki_size_pw = ${l1_W1_tile_ki_size};
 static const TileIndex end_index_dw = {
     .height = ${tile_dim_h},
     .width = ${tile_dim_w},
-    .output_channel = 1
+    .output_channel = ${tile_dim_nif}
 };
 
 static const TileIndex end_index_pw = {
@@ -86,7 +86,7 @@ static const Layer body_pw = {
     .input = {
         .height = ${y_tile_size_h},
         .width = ${y_tile_size_w},
-        .channel = ${x_tile_size_nif}
+        .channel = ${nif*g} // TODO ?
     },
     .output = {
         .height = ${y_tile_size_h},
@@ -112,7 +112,7 @@ static const Layer border_pw = {
     .input = {
         .height = ${y_tile_size_h_last},
         .width = ${y_tile_size_w_last},
-        .channel = ${x_tile_size_nif_last}
+        .channel = ${nif*g}
     },
     .output = {
         .height = ${y_tile_size_h_last},
@@ -121,19 +121,19 @@ static const Layer border_pw = {
     }
 };
 
-static void load_input_prepare(Layer tile, Layer body, Layer layer, TileIndex index, DmaTransferConf * const conf) {
+static void load_input_prepare(Layer tile, Layer body, Layer layer, TileIndex index, DmaTransferConf * const conf, Kernel kernel) {
     // additionally overlap by padding for the first tile after a border one
     // this because in the first tile we use less pixels from x_buffer, since we have the ones of padding
     const int x_offset_h = index.height > 0 ? layer.padding.top : 0;
     const int x_offset_w = index.width > 0 ? layer.padding.left : 0;
 
     conf->ext = dory_get_tile_3d(layer.addr.input,
-                                   index.height, index.width, 0,
-                                   body.input.height, body.input.width, body.input.channel,
-                                   ${x_w}, ${nif*g},
-                                   ${conv_overlap1}, ${conv_overlap2}, 0,
-                                   x_offset_h, x_offset_w, 0,
-                                   ${x_data_size_byte});
+                                 index.height, index.width, kernel.groups > 1 ? index.output_channel : 0,
+                                 body.input.height, body.input.width, body.input.channel,
+                                 ${x_w}, ${nif*g},
+                                 ${conv_overlap1}, ${conv_overlap2}, 0,
+                                 x_offset_h, x_offset_w, 0,
+                                 ${x_data_size_byte});
     conf->loc = tile.addr.input;
     conf->number_of_2d_copies = tile.input.height;
     conf->number_of_1d_copies = tile.input.width;
@@ -184,10 +184,10 @@ static void store_prepare(Layer tile, Layer body, Layer layer, TileIndex index, 
     conf->dir = 0;
 }
 
-static void load_input_async(Layer tile, TileStatus status, Layer body, Layer layer) {
+static void load_input_async(Layer tile, TileStatus status, Layer body, Layer layer, Kernel kernel) {
     if (status.input.is_transfer) {
         DmaTransferConf conf_input;
-        load_input_prepare(tile, body, layer, status.index, &conf_input);
+        load_input_prepare(tile, body, layer, status.index, &conf_input, kernel);
         dma_transfer_async(conf_input);
     }
 }
@@ -217,16 +217,14 @@ static int inc(int index, int end) {
     return index + 1 < end ? index + 1 : 0;
 }
 
-#define LOADER_ID (0)
-#define EXECUTER_ID (1)
-#define STORER_ID (2)
-#define CORES (3)
+#define EXECUTER_ID (0)
+#define STORER_ID (1)
+#define CORES (2)
 
 #define BUFFER_SIZE (2)
 
-static Layer tiles_dw[BUFFER_SIZE];
-static nnx_task_t nnx_tasks_dw[BUFFER_SIZE];
-static nnx_task_t nnx_tasks_pw[BUFFER_SIZE];
+static nnx_task_t nnx_task_dw;
+static nnx_task_t nnx_task_pw;
 static DmaTransferConf store_conf[BUFFER_SIZE];
 static int nnx_job_ids_pw[BUFFER_SIZE];
 
@@ -236,10 +234,6 @@ static struct {
 
 static void layer_task_fork(void *args) {
     layer_args_t const * const layer_args = (layer_args_t *)args;
-
-    const int total_tiles_dw = end_index_dw.height * end_index_dw.width * end_index_dw.output_channel;
-    const int total_tiles_pw = end_index_pw.output_channel;
-    const int total_tiles_output = end_index_pw.height * end_index_pw.width * end_index_pw.output_channel;
 
     // Double buffer address init
 
@@ -262,9 +256,9 @@ static void layer_task_fork(void *args) {
         }
 
 
-    // Loader
+    // Executer
 
-    if (pi_core_id() == LOADER_ID) {
+    if (pi_core_id() == EXECUTER_ID) {
         Layer layer_dw = {
             .addr = {
                 .input = layer_args->L2_input,
@@ -307,42 +301,6 @@ static void layer_task_fork(void *args) {
             MEMORY_STATUS_INIT(layer_dw, output)
         };
 
-        int i_buff = 0;
-
-        for (int i_tile = 0; i_tile < total_tiles_dw; i_tile++) {
-            Layer tile_dw = tile_create(tile_status_dw.index, end_index_dw, body_dw, border_dw, layer_dw,
-                                     tile_status_get_addr(tile_status_dw, buffer_addresses_dw));
-
-            monitor_produce_begin(monitor.input);
-
-            tiles_dw[i_buff] = tile_dw;
-
-            dma_mutex_lock();
-            DmaTransfer transfer = dma_transfer_create();
-            load_input_async(tile_dw, tile_status_dw, body_dw, layer_dw);
-            load_weights_async(tile_dw, &tile_status_dw, kernel_dw, ${l1_W0_tile_ki_size});
-            dma_mutex_unlock();
-
-            % if stride == 2:
-            execute_stride2x2_prepare(tile_dw, kernel_dw, &nnx_tasks_dw[i_buff]);
-            % else:
-            execute_prepare(tile_dw, &nnx_tasks_dw[i_buff]);
-            % endif
-
-            dma_mutex_lock();
-            dma_transfer_wait(transfer);
-            dma_mutex_unlock();
-
-            monitor_produce_end(monitor.input);
-
-            i_buff = inc(i_buff, BUFFER_SIZE);
-            tile_status_dw = tile_status_get_next(tile_status_dw, end_index_dw, layer_dw, 0 /* normal loop order */, kernel_dw);
-        }
-    }
-
-    // Executer
-
-    if (pi_core_id() == EXECUTER_ID) {
         Layer layer_pw = {
             .addr = {
                 .input = layer_args->L2_input,
@@ -388,16 +346,54 @@ static void layer_task_fork(void *args) {
         int i_buff_dw = 0;
         int i_buff_pw = 0;
 
-        for (int i_tile = 0; i_tile < total_tiles_dw; i_tile++) {
-            monitor_consume_begin(monitor.input);
+        for (int i_tile = 0; i_tile < end_index_dw.height * end_index_dw.width; i_tile++) {
+            int nnx_job_id_dw;
+            int dw_output_base = l1_buffer_dw_output;
 
-            % if stride == 2:
-            int nnx_job_id_dw = execute_stride2x2_blocking(nnx_tasks_dw[i_buff_dw], tiles_dw[i_buff_dw], kernel_dw);
-            % else:
-            int nnx_job_id_dw = execute_async(nnx_tasks_dw[i_buff_dw]);
-            % endif
+            for (int i_tile_dw = 0; i_tile_dw < end_index_dw.output_channel; i_tile_dw++) {
+                Layer tile_dw = tile_create(tile_status_dw.index, end_index_dw, body_dw, border_dw, layer_dw,
+                                         tile_status_get_addr(tile_status_dw, buffer_addresses_dw));
 
-            for (int i_tile_pw = 0; i_tile_pw < total_tiles_pw; i_tile_pw++) {
+                tile_dw.addr.output = dory_get_tile_3d(dw_output_base,
+                                                       0, 0, i_tile_dw,  // index
+                                                       body_dw.output.height, body_dw.output.width, body_dw.output.channel,  // size
+                                                       body_dw.output.width, body_pw.input.channel,  // stride
+                                                       0, 0, 0,  // overlap
+                                                       0, 0, 0,  // offset
+                                                       8);  // data size
+
+                nnx_wait_not_full();
+
+                dma_mutex_lock();
+                DmaTransfer transfer_dw = dma_transfer_create();
+                load_input_async(tile_dw, tile_status_dw, body_dw, layer_dw, kernel_dw);
+                load_weights_async(tile_dw, &tile_status_dw, kernel_dw, weights_ki_size_dw);
+                dma_mutex_unlock();
+
+                % if stride == 2:
+                execute_stride2x2_prepare(tile_dw, kernel_dw, &nnx_tasks_dw[i_buff]); // TODO
+                printf("WRONG: Strided 2x2 has to be reworked for L1 tiling!\n");
+                % else:
+                execute_prepare(tile_dw, &nnx_task_dw);
+                nnx_conv_set_strides(&nnx_task_dw, tile_dw.input.channel, tile_dw.input.width, tile_dw.input.channel,
+                                     tile_dw.output.width, body_pw.input.channel);
+                % endif
+
+                dma_mutex_lock();
+                dma_transfer_wait(transfer_dw);
+                dma_mutex_unlock();
+
+                % if stride == 2:
+                nnx_job_id_dw = execute_stride2x2_blocking(nnx_task_dw, tile_dw, kernel_dw);
+                % else:
+                nnx_job_id_dw = execute_async(nnx_task_dw);
+                % endif
+
+                tile_status_dw = tile_status_get_next(tile_status_dw, end_index_dw, layer_dw, 1 /* reverse loop order */, kernel_dw);
+                i_buff_dw = inc(i_buff_dw, BUFFER_SIZE);
+            }
+
+            for (int i_tile_pw = 0; i_tile_pw < end_index_pw.output_channel; i_tile_pw++) {
                 Layer tile_pw = tile_create(tile_status_pw.index, end_index_pw, body_pw, border_pw, layer_pw,
                                             tile_status_get_addr(tile_status_pw, buffer_addresses_pw));
 
@@ -407,26 +403,23 @@ static void layer_task_fork(void *args) {
                 load_weights_async(tile_pw, &tile_status_pw, kernel_pw, weights_ki_size_pw);
                 dma_mutex_unlock();
 
-                execute_prepare(tile_pw, &nnx_tasks_pw[i_buff_pw]);
+                execute_prepare(tile_pw, &nnx_task_pw);
 
                 if (i_tile_pw == 0) {
                     execute_wait(nnx_job_id_dw);
-                    monitor_consume_end(monitor.input);
                 }
 
                 dma_mutex_lock();
                 dma_transfer_wait(transfer_pw);
                 dma_mutex_unlock();
 
-                nnx_job_ids_pw[i_buff_pw] = execute_async(nnx_tasks_pw[i_buff_pw]);
+                nnx_job_ids_pw[i_buff_pw] = execute_async(nnx_task_pw);
                 store_prepare(tile_pw, body_pw, layer_pw, tile_status_pw.index, &store_conf[i_buff_pw]);
                 monitor_produce_end(monitor.output);
 
                 tile_status_pw = tile_status_get_next(tile_status_pw, end_index_pw, layer_pw, 1 /* reverse loop order */, kernel_pw);
                 i_buff_pw = inc(i_buff_pw, BUFFER_SIZE);
             }
-
-            i_buff_dw = inc(i_buff_dw, BUFFER_SIZE);
         }
     }
 
@@ -434,7 +427,7 @@ static void layer_task_fork(void *args) {
 
     if (pi_core_id() == STORER_ID) {
         int i_buff = 0;
-        for (int i_tile = 0; i_tile < total_tiles_output; i_tile++) {
+        for (int i_tile = 0; i_tile < end_index_pw.height * end_index_pw.width * end_index_pw.output_channel; i_tile++) {
             monitor_consume_begin(monitor.output);
 
             execute_wait(nnx_job_ids_pw[i_buff]);
@@ -467,56 +460,47 @@ void ${func_name}(void *args) {
 
     int err = 0;
 
-    if (err = monitor_init(&monitor.input, BUFFER_SIZE)) {
-        printf("Input monitor initialization failed with status %d.\n", err);
-        return;
-    }
-
     if (err = monitor_init(&monitor.output, BUFFER_SIZE)) {
         printf("Output monitor initialization failed with status %d.\n", err);
-        monitor_term(monitor.input);
         return;
     }
 
     if (err = monitor_init(&monitor.store_conf, BUFFER_SIZE)) {
         printf("Store conf monitor initialization failed with status %d.\n", err);
-        monitor_term(monitor.input);
         monitor_term(monitor.output);
         return;
     }
 
     // Init nnx tasks
-    for (int i = 0; i < BUFFER_SIZE; i++) {
-        nnx_tasks_dw[i] = nnx_task_create(
-                ${fs1}, ${int(flag_DW)},
-                ${x_data_size_byte}, ${y_data_size_byte}, ${W_data_size},
-                weightOffsetModeLayerWise, ${-(2**(W_data_size-1))},
-                (nnx_quant_t) {
-                    .shift_amount = ${node.outshift0['value']},
-                    .mode = quantMode8Bit,
-                    .function = quantFunctionRelu,
-                    .flag_rounding = FLAG_UNUSED
-                }, (nnx_norm_t) {
-                    .mode  = ${"normMode32Bit" if act_dim_bit == 32 else "normMode8Bit" if act_dim_bit == 8 else "FLAG_UNUSED"},
-                    .flag_bias  = FLAG_USED,
-                    .flag_shift = FLAG_UNUSED
-                }, ${stride});
+    nnx_task_dw = nnx_task_create(
+            ${fs1}, ${int(flag_DW)},
+            ${x_data_size_byte}, ${y_data_size_byte}, ${W_data_size},
+            weightOffsetModeLayerWise, ${-(2**(W_data_size-1))},
+            (nnx_quant_t) {
+                .shift_amount = ${node.outshift0['value']},
+                .mode = quantMode8Bit,
+                .function = quantFunctionRelu,
+                .flag_rounding = FLAG_UNUSED
+            }, (nnx_norm_t) {
+                .mode  = ${"normMode32Bit" if act_dim_bit == 32 else "normMode8Bit" if act_dim_bit == 8 else "FLAG_UNUSED"},
+                .flag_bias  = FLAG_USED,
+                .flag_shift = FLAG_UNUSED
+            }, ${stride});
 
-        nnx_tasks_pw[i] = nnx_task_create(
-                1, 0,
-                ${x_data_size_byte}, ${y_data_size_byte}, ${W_data_size},
-                weightOffsetModeLayerWise, ${-(2**(W_data_size-1))},
-                (nnx_quant_t) {
-                    .shift_amount = ${node.outshift1['value']},
-                    .mode = quantMode8Bit,
-                    .function = quantFunctionRelu,
-                    .flag_rounding = FLAG_UNUSED
-                }, (nnx_norm_t) {
-                    .mode  = ${"normMode32Bit" if act_dim_bit == 32 else "normMode8Bit" if act_dim_bit == 8 else "FLAG_UNUSED"},
-                    .flag_bias  = FLAG_USED,
-                    .flag_shift = FLAG_UNUSED
-                }, 1);
-    }
+    nnx_task_pw = nnx_task_create(
+            1, 0,
+            ${x_data_size_byte}, ${y_data_size_byte}, ${W_data_size},
+            weightOffsetModeLayerWise, ${-(2**(W_data_size-1))},
+            (nnx_quant_t) {
+                .shift_amount = ${node.outshift1['value']},
+                .mode = quantMode8Bit,
+                .function = quantFunctionRelu,
+                .flag_rounding = FLAG_UNUSED
+            }, (nnx_norm_t) {
+                .mode  = ${"normMode32Bit" if act_dim_bit == 32 else "normMode8Bit" if act_dim_bit == 8 else "FLAG_UNUSED"},
+                .flag_bias  = FLAG_USED,
+                .flag_shift = FLAG_UNUSED
+            }, 1);
 
     nnx_init();
     dma_mutex_init();
@@ -529,7 +513,6 @@ void ${func_name}(void *args) {
 
     // Terminate
 
-    monitor_term(monitor.input);
     monitor_term(monitor.output);
     monitor_term(monitor.store_conf);
     nnx_term();
