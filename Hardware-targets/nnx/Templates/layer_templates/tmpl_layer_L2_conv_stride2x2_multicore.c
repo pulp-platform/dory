@@ -273,7 +273,7 @@ static void layer_task_fork(void *args) {
             monitor_produce_end(monitor.store_conf);
 
             i_buff = inc(i_buff, BUFFER_SIZE);
-            tile_status = tile_status_get_next(tile_status, end_index);
+            tile_status = tile_status_get_next(tile_status, end_index, layer, 0, kernel);
         }
     }
 
