@@ -111,6 +111,12 @@ class Ne16(Accelerator):
             maximize_size_w_prio(total_size, max=mem_size, prio=1)
         ]
 
+    def heuristic_l1_pw_dw_pw(self, tile_n_out_pw0, n_out):
+        return [
+            maximize_divisibility_or_max_w_prio(tile_n_out_pw0, self.OUTPUT_BUFFER_SHAPE[2],
+                                                max=n_out, prio=1)
+        ]
+
     def heuristic_l1(self,
                      layer_in_shape, layer_out_shape,
                      tile_in_shape, tile_out_shape,

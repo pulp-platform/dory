@@ -58,7 +58,7 @@ class HW_node(DORY_node):
             if "Convolution" in self.name or "FullyConnected" in self.name:
                 weights_dim = [self.output_channels, self.input_channels]
                 self.tiling_dimensions["L{}".format(level+1)]["weights_dimensions"] = weights_dim
-                self.weight_memory = self.weights_size(weights_dim)
+                self.weight_memory = self.weights_size(weights_dim, self.output_channels_list[0]) if "PointwiseDepthwisePointwise" in self.name else self.weights_size(weights_dim)
         self.tiling_dimensions["L{}".format(level+1)]["input_dimensions"] = [self.input_channels] + self.input_dimensions
         self.tiling_dimensions["L{}".format(level+1)]["output_dimensions"] = [self.output_channels] + self.output_dimensions
         self.tiling_dimensions["L{}".format(level+1)]["weight_memory"] = self.weight_memory
@@ -76,19 +76,37 @@ class HW_node(DORY_node):
         #  ATTENTION MEMORY L3 --> TILE MEMORY DIMENSION --> Decide how to set. Re-init the whole memory?
         for level in range(self.hw_desc["memory"]["levels"], 1, -1):
             mem = f'L{level-1}'
-            (weights_dim, input_dims, output_dims) = self.Tiler(self, prev_node, config['code reserved space']).get_tiling(level)
+            if "PointwiseDepthwisePointwise" in self.name:
+                weights_dim, input_dims, output_dims, tile_n_out_pw0 = self.Tiler(self, prev_node, config['code reserved space']).get_tiling(level)
+                self.tiling_dimensions[mem]["tile_n_out_pw0"] = tile_n_out_pw0
+            else:
+                (weights_dim, input_dims, output_dims) = self.Tiler(self, prev_node, config['code reserved space']).get_tiling(level)
             self.tiling_dimensions[mem]["input_dimensions"] = input_dims
             self.tiling_dimensions[mem]["output_dimensions"] = output_dims
             if "Convolution" in self.name or "FullyConnected" in self.name:
                 self.tiling_dimensions[mem]["weights_dimensions"] = weights_dim
-                self.tiling_dimensions[mem]["weight_memory"] = self.weights_size(weights_dim)
+                self.tiling_dimensions[mem]["weight_memory"] = self.weights_size(weights_dim, tile_n_out_pw0) if "PointwiseDepthwisePointwise" in self.name else self.weights_size(weights_dim)
             else:
                 self.tiling_dimensions[mem]["weight_memory"] = 0
 
             constants_memory = 0
             bias_memory = 0
 
-            if "DepthwisePointwise" in self.name:
+            if "PointwiseDepthwisePointwise" in self.name:
+                n_out_pw0 = tile_n_out_pw0 if level == 2 else self.output_channels_list[0]
+                if 'k0' in self.constant_names:
+                    constants_memory += n_out_pw0 * self.constant_bits / 8
+                if 'l0' in self.constant_names:
+                    constants_memory += n_out_pw0 * self.bias_bits / 8
+                if 'k1' in self.constant_names:
+                    constants_memory += n_out_pw0 * self.constant_bits / 8
+                if 'l1' in self.constant_names:
+                    constants_memory += n_out_pw0 * self.bias_bits / 8
+                if 'k2' in self.constant_names:
+                    constants_memory += weights_dim[0] * self.constant_bits / 8
+                if 'l2' in self.constant_names:
+                    constants_memory += weights_dim[0] * self.bias_bits / 8
+            elif "DepthwisePointwise" in self.name:
                 if 'k0' in self.constant_names:
                     constants_memory += weights_dim[1] * self.constant_bits / 8
                 if 'l0' in self.constant_names:

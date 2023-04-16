@@ -35,7 +35,7 @@ class nnx_HW_Parser(Parser_DORY_to_HW):
     # Used to manage the ONNX files. By now, supported Convolutions (PW and DW), Pooling, Fully Connected and Relu.
     def __init__(self, graph, conf, confdir, accelerator, hw_desc_path):
         supported_layers = ["Convolution", "ReluConvolution", "BNReluConvolution", "RequantPooling", "Addition", "FullyConnected",
-                            "BNReluConvolutionDepthwisePointwise"]
+                            "BNReluConvolutionDepthwisePointwise", "BNReluConvolutionPointwiseDepthwisePointwise"]
         self.nnxdir = os.path.dirname(__file__)
         with open(os.path.join(self.nnxdir, "pattern_rules.json")) as f:
             rules = json.load(f)
@@ -43,8 +43,13 @@ class nnx_HW_Parser(Parser_DORY_to_HW):
             hw_desc = json.load(f)
         self.acc = accelerator
         acc_weights_size = self.acc.weights_size
-        def weights_size(self, dim):
-            if "DepthwisePointwise" in self.name:
+        def weights_size(self, dim, cout_pw0=None):
+            if "PointwiseDepthwisePointwise" in self.name:
+                cout_list = [cout_pw0, cout_pw0, dim[0]]
+                cin_list = [dim[1], cout_pw0, self.input_channels_list[2]]
+                return sum(acc_weights_size(cout, cin, ks, self.weight_bits, dw) for cout, cin, ks, dw in
+                           zip(cout_list, cin_list, [[1, 1], self.kernel_shape, [1, 1]], [False, True, False]))
+            elif "DepthwisePointwise" in self.name:
                 return acc_weights_size(dim[1], dim[1], self.kernel_shape, self.weight_bits, dw=True) + \
                        acc_weights_size(dim[0], dim[1], [1, 1], self.weight_bits, dw=False)
             else:
@@ -57,19 +62,28 @@ class nnx_HW_Parser(Parser_DORY_to_HW):
     def adjust_data_layout(self):
         print("\nNNX Backend: Adjusting Feature Data Layout to HWC and Weights Data Layout to accelerator specific")
         for i, node in enumerate(self.DORY_Graph):
-            if 'DepthwisePointwise' in node.name:
-                weights_name_dw = node.weights_names[0]
-                weights_dw = getattr(node, weights_name_dw)
-                weights_dw["value"] = self.acc.conv_unroll(weights_dw["value"].astype(np.int32),
-                                                           node.weight_bits, weights_dw["layout"],
-                                                           dw=True)
-
-                weights_name_pw = node.weights_names[1]
-                weights_pw = getattr(node, weights_name_pw)
+            if 'PointwiseDepthwisePointwise' in node.name:
+                weights_pw = getattr(node, node.weights_names[0])
                 weights_pw["value"] = self.acc.conv_unroll(weights_pw["value"].astype(np.int32),
                                                            node.weight_bits, weights_pw["layout"],
                                                            dw=False)
-
+                weights_dw = getattr(node, node.weights_names[1])
+                weights_dw["value"] = self.acc.conv_unroll(weights_dw["value"].astype(np.int32),
+                                                           node.weight_bits, weights_dw["layout"],
+                                                           dw=True)
+                weights_pw = getattr(node, node.weights_names[2])
+                weights_pw["value"] = self.acc.conv_unroll(weights_pw["value"].astype(np.int32),
+                                                           node.weight_bits, weights_pw["layout"],
+                                                           dw=False)
+            elif 'DepthwisePointwise' in node.name:
+                weights_dw = getattr(node, node.weights_names[0])
+                weights_dw["value"] = self.acc.conv_unroll(weights_dw["value"].astype(np.int32),
+                                                           node.weight_bits, weights_dw["layout"],
+                                                           dw=True)
+                weights_pw = getattr(node, node.weights_names[1])
+                weights_pw["value"] = self.acc.conv_unroll(weights_pw["value"].astype(np.int32),
+                                                           node.weight_bits, weights_pw["layout"],
+                                                           dw=False)
             elif 'Convolution' in node.name or 'FullyConnected' in node.name:
                 for name in node.constant_names:
                     if name not in ["l", "k", "outshift", "outmult"] and "bias" not in name:

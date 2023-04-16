@@ -70,10 +70,19 @@ class Tiler_Conv2D:
         # tiling for L3-L2 management
         buffer_total = self.node.input_activation_memory + self.node.output_activation_memory + self.node.weight_memory + self.node.bias_memory + self.node.constants_memory
         if (buffer_total <= L2_memory) and (input_in_l2 or is_first_node):
-            return ([self.node.output_channels, self.node.input_channels],
-                    [self.node.input_channels, self.node.input_dimensions[0], self.node.input_dimensions[1]],
-                    [self.node.output_channels, self.node.output_dimensions[0],
-                     self.node.output_dimensions[1]])
+            if "PointwiseDepthwisePointwise" in self.node.name:
+                return ([self.node.output_channels, self.node.input_channels],
+                        [self.node.input_channels, self.node.input_dimensions[0], self.node.input_dimensions[1]],
+                        [self.node.output_channels, self.node.output_dimensions[0],
+                        self.node.output_dimensions[1]], self.node.output_channels_list[0])
+            else:
+                return ([self.node.output_channels, self.node.input_channels],
+                        [self.node.input_channels, self.node.input_dimensions[0], self.node.input_dimensions[1]],
+                        [self.node.output_channels, self.node.output_dimensions[0],
+                        self.node.output_dimensions[1]])
+
+        # L3-L2 tiling not implemented
+        assert not "PointwiseDepthwisePointwise" in self.node.name
 
         ks = self.node.kernel_shape
         in_dim = self.node.input_dimensions
@@ -233,7 +242,10 @@ class Tiler_Conv2D:
         buffer_total = self.node.tiling_dimensions["L2"]["weight_memory"] + self.node.tiling_dimensions["L2"]["constants_memory"] + self.node.tiling_dimensions["L2"]["bias_memory"] + in_mem + out_mem
 
         # Add intermediate buffer
-        if "DepthwisePointwise" in self.node.name:
+        if "PointwiseDepthwisePointwise" in self.node.name:
+            buffer_total += h_in * self.node.tiling_dimensions["L2"]["input_dimensions"][2] * self.node.output_channels_list[0]
+            buffer_total += h_out * self.node.tiling_dimensions["L2"]["output_dimensions"][2] * self.node.output_channels_list[0]
+        elif "DepthwisePointwise" in self.node.name:
             buffer_total += h_out * self.node.tiling_dimensions["L2"]["output_dimensions"][2] * self.node.tiling_dimensions["L2"]["output_dimensions"][0]
 
         self.node.tiling_dimensions["L1"]["db_x"] = 1
@@ -281,6 +293,9 @@ class Tiler_Conv2D:
         tile_w_in = solver.IntVar(ks[1], in_dim[1] + p[1] + p[3], 'tile_w_in')
         tile_n_in = solver.IntVar(1, in_ch, 'tile_n_in')
         tile_in_shape = (tile_h_in, tile_w_in, tile_n_in)
+        if "PointwiseDepthwisePointwise" in self.node.name:
+            tile_n_out_pw0 = solver.IntVar(1, self.node.output_channels_list[0], 'tile_n_out_pw0')
+            n_in_pw1 = self.node.input_channels_list[2]
 
         def rem(a, b):
             """Remainder w/o 0
@@ -314,7 +329,9 @@ class Tiler_Conv2D:
         solver.Add(tile_h_in == solver.ConditionalExpression(tile_h_out < h_out, tile_h_out * s[0] + (ks[0] - 1) - (s[0] - 1), h_in))
         solver.Add(tile_w_in == solver.ConditionalExpression(tile_w_out < w_out, tile_w_out * s[1] - (ks[1] - 1) + (s[1] - 1), w_in))
 
-        if "DepthwisePointwise" in self.node.name:
+        if "PointwiseDepthwisePointwise" in self.node.name:
+            solver.Add(tile_n_in == n_in)
+        elif "DepthwisePointwise" in self.node.name:
             pass  # no constraint on tile_n_in
         else:
             if depthwise:
@@ -335,7 +352,24 @@ class Tiler_Conv2D:
         #      -> To solve this problem, they do multiple rounds of tiling in L3 tiling
         input_tile_dimension = db * tile_n_in * tile_h_in * tile_w_in * (self.node.input_activation_bits // 8)
         output_tile_dimension = db * tile_n_out * tile_h_out * tile_w_out * (self.node.output_activation_bits // 8)
-        if "DepthwisePointwise" in self.node.name:
+        if "PointwiseDepthwisePointwise" in self.node.name:
+            weight_tile_dimension = db * (self.acc.weights_size(tile_n_out_pw0, n_in, [1, 1], self.node.weight_bits, dw=False) + \
+                                          self.acc.weights_size(tile_n_out_pw0, tile_n_out_pw0, ks, self.node.weight_bits, dw=True) + \
+                                          self.acc.weights_size(tile_n_out, n_in_pw1, [1, 1], self.node.weight_bits, dw=False))
+            constants_tile_dimension = 0
+            if 'k0' in self.node.constant_names:
+                constants_tile_dimension += db * tile_n_out_pw0 * (self.node.constant_bits // 8)
+            if 'l0' in self.node.constant_names:
+                constants_tile_dimension += db * tile_n_out_pw0 * (self.node.bias_bits // 8)
+            if 'k1' in self.node.constant_names:
+                constants_tile_dimension += db * tile_n_out_pw0 * (self.node.constant_bits // 8)
+            if 'l1' in self.node.constant_names:
+                constants_tile_dimension += db * tile_n_out_pw0 * (self.node.bias_bits // 8)
+            if 'k2' in self.node.constant_names:
+                constants_tile_dimension += db * tile_n_out * (self.node.constant_bits // 8)
+            if 'l2' in self.node.constant_names:
+                constants_tile_dimension += db * tile_n_out * (self.node.bias_bits // 8)
+        elif "DepthwisePointwise" in self.node.name:
             weight_tile_dimension = db * (self.acc.weights_size(tile_n_in, tile_n_in, ks, self.node.weight_bits, dw=True) + \
                                           self.acc.weights_size(tile_n_out, n_in, [1, 1], self.node.weight_bits, dw=False))
             constants_tile_dimension = 0
@@ -358,7 +392,12 @@ class Tiler_Conv2D:
         total_size = input_tile_dimension + output_tile_dimension + weight_tile_dimension + constants_tile_dimension
 
         # Add intermediate buffer
-        if "DepthwisePointwise" in self.node.name:
+        if "PointwiseDepthwisePointwise" in self.node.name:
+            # Between PW0 and DW
+            total_size += tile_n_out_pw0 * tile_h_in * tile_w_in * (self.node.output_activation_bits // 8)
+            # Between DW and PW1
+            total_size += n_in_pw1 * tile_h_out * tile_w_out * (self.node.output_activation_bits // 8)
+        elif "DepthwisePointwise" in self.node.name:
             total_size += n_in * tile_h_out * tile_w_out * (self.node.output_activation_bits // 8)
 
         solver.Add(total_size <= L1_memory)
@@ -378,6 +417,9 @@ class Tiler_Conv2D:
                                border_tile_in_shape, border_tile_out_shape,
                                total_size, L1_memory, ks, g, s)
 
+        if "PointwiseDepthwisePointwise" in self.node.name:
+            heuristics += self.acc.heuristic_l1_pw_dw_pw(tile_n_out_pw0, self.node.output_channels_list[0])
+
         modifier = 1000000
         heuristics_sum = sum([int(modifier * h["prio"]) * h["value"] for h in heuristics])
 
@@ -385,7 +427,10 @@ class Tiler_Conv2D:
         objective = solver.Maximize(obj_expr, 1)
         #objective = solver.Minimize(obj_expr, 1)
 
-        decision_builder = solver.Phase([tile_n_in, tile_n_out, tile_h_in, tile_h_out, tile_w_in, tile_w_out],
+        solver_variables = [tile_n_in, tile_n_out, tile_h_in, tile_h_out, tile_w_in, tile_w_out]
+        if "PointwiseDepthwisePointwise" in self.node.name:
+            solver_variables.append(tile_n_out_pw0)
+        decision_builder = solver.Phase(solver_variables,
                                         solver.CHOOSE_FIRST_UNBOUND,
                                         solver.ASSIGN_MIN_VALUE)
 
@@ -399,6 +444,8 @@ class Tiler_Conv2D:
         collector.Add(tile_h_out)
         collector.Add(tile_w_in)
         collector.Add(tile_w_out)
+        if "PointwiseDepthwisePointwise" in self.node.name:
+            collector.Add(tile_n_out_pw0)
 
         # Add the objective.
         collector.AddObjective(obj_expr)
@@ -413,6 +460,9 @@ class Tiler_Conv2D:
             tile_w_in = collector.Value(best_solution, tile_w_in)
             tile_w_in = tile_w_in if tile_w_in < w_in else w_in
             tile_w_out = collector.Value(best_solution, tile_w_out)
+            if "PointwiseDepthwisePointwise" in self.node.name:
+                tile_n_out_pw0 = collector.Value(best_solution, tile_n_out_pw0)
+                return [tile_n_out, tile_n_in], [tile_n_in, tile_h_in, tile_w_in], [tile_n_out, tile_h_out, tile_w_out], tile_n_out_pw0
             return [tile_n_out, tile_n_in], [tile_n_in, tile_h_in, tile_w_in], [tile_n_out, tile_h_out, tile_w_out]
 
         print("  Conv2d ERROR: no L2-L1 tiling found. Exiting...")

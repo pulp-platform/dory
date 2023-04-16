@@ -352,6 +352,14 @@ class TemplateWriter2D_L2(TemplateWriter):
                 self.tk['bias_tile_size_byte'] = 0
                 self.tk['b_size_byte'] = 0
 
+        if "PointwiseDepthwisePointwise" in node.name:
+            tile_n_intermediate = node.tiling_dimensions['L1']['tile_n_out_pw0']
+            n_intermediate = node.input_channels_list[2]
+            self.tk['tile_dim_nof_pw0'] = max(int(math.ceil(float(n_intermediate) / float(tile_n_intermediate))), 1)
+            self.tk['y_tile_size_nof_pw0'] = tile_n_intermediate
+            self.tk['y_tile_size_nof_pw0_last'] = n_intermediate % tile_n_intermediate if (n_intermediate % tile_n_intermediate) > 0 else tile_n_intermediate
+            self.tk['x_tile_size_nif_pw1'] = n_intermediate
+
         # l1 parameters
         self.tk['l1_x_offset'] = 0
         self.tk['l1_y_offset'] = x_buffer_size + 8

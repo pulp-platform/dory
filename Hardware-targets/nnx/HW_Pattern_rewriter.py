@@ -36,7 +36,71 @@ class Pattern_rewriter:
             self.NodeRelu_pattern_rewriter(i)
         if rule in ["DepthwisePointwise"]:
             self.NodeDepthwisePointwise_pattern_rewriter(i)
+        if rule in ["PointwiseDepthwisePointwise"]:
+            self.NodePointwiseDepthwisePointwise_pattern_rewriter(i)
         return self.graph
+
+    def NodePointwiseDepthwisePointwise_pattern_rewriter(self, indexes):
+        convs = [self.graph[indexes[0]], self.graph[indexes[2]], self.graph[indexes[4]]]
+        bnrelus = [self.graph[indexes[1]], self.graph[indexes[3]], self.graph[indexes[5]]]
+        node = deepcopy(self.graph[indexes[0]])
+
+        # Limitations
+        assert convs[0].strides == [1, 1]
+        assert convs[0].pads == [0, 0, 0, 0]
+        assert convs[0].group == 1
+        assert convs[2].strides == [1, 1]
+        assert convs[2].pads == [0, 0, 0, 0]
+        assert convs[2].group == 1
+        assert convs[0].weight_bits == convs[1].weight_bits
+        assert convs[1].weight_bits == convs[2].weight_bits
+
+        node.name = "BNRelu" + convs[0].name + "PointwiseDepthwisePointwise"
+        node.op_type = "BNRelu" + convs[0].op_type
+        node.output_index = self.graph[indexes[-1]].output_index
+        node.output_channels = convs[-1].output_channels
+        node.input_channels_list = [conv.input_channels for conv in convs]
+        node.output_channels_list = [conv.output_channels for conv in convs]
+        node.MACs = sum([conv.MACs for conv in convs])
+        node.kernel_shape = convs[1].kernel_shape
+        node.strides = convs[1].strides
+        node.pads = convs[1].pads
+        node.group = convs[1].group
+
+        # delete consts
+        for const in node.constant_names:
+            delattr(node, const)
+        node.constant_names = []
+
+        # add renamed consts
+        for node_group in [convs, bnrelus]:
+            for i, old_node in enumerate(node_group):
+                for const in old_node.constant_names:
+                    new_const = const + str(i)
+                    node.constant_names.append(new_const)
+                    setattr(node, new_const, getattr(old_node, const))
+
+        # add weight names
+        node.weights_names = []
+        for i, conv in enumerate(convs):
+            for const in conv.constant_names:
+                node.weights_names.append(const + str(i))
+
+        def copy_attr(attr):
+            for prev, next in zip(bnrelus[:-1], bnrelus[1:]):
+                assert getattr(prev, attr) == getattr(next, attr)
+            setattr(node, attr, getattr(bnrelus[0], attr))
+
+        copy_attr("constant_bits")
+        copy_attr("min")
+        copy_attr("max")
+        copy_attr("output_activation_bits")
+        copy_attr("output_activation_type")
+
+        for i in sorted(indexes, reverse = True):
+            del self.graph[i]
+
+        self.graph.insert(indexes[0], node)
 
     def NodeDepthwisePointwise_pattern_rewriter(self, indexes):
         convs = [self.graph[indexes[0]], self.graph[indexes[2]]]
@@ -50,8 +114,8 @@ class Pattern_rewriter:
 
         node.name = "BNRelu" + convs[0].name + "DepthwisePointwise"
         node.op_type = "BNRelu" + convs[0].op_type
-        node.output_index = self.graph[indexes[3]].output_index
-        node.output_channels = convs[1].output_channels
+        node.output_index = self.graph[indexes[-1]].output_index
+        node.output_channels = convs[-1].output_channels
         node.MACs = sum([conv.MACs for conv in convs])
 
         # delete consts

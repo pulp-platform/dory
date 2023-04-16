@@ -107,7 +107,9 @@ class Parser_HW_to_C:
 
         for node in self.graph:
             # Hack DepthwisePointwise
-            if "DepthwisePointwise" in node.name:
+            if "PointwiseDepthwisePointwise" in node.name:
+                constants = [ ["weights0", "k0", "l0"], ["weights1", "k1", "l1"], ["weights2", "k2", "l2"] ]
+            elif "DepthwisePointwise" in node.name:
                 constants = [ ["weights0", "k0", "l0"], ["weights1", "k1", "l1"] ]
             else:
                 constants = [ [0, 0, 0, 0] ]
