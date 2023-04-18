@@ -371,13 +371,12 @@ static void layer_task_fork(void *args) {
                 dma_mutex_unlock();
 
                 % if stride == 2:
-                execute_stride2x2_prepare(tile_dw, kernel_dw, &nnx_tasks_dw[i_buff]); // TODO
-                printf("WRONG: Strided 2x2 has to be reworked for L1 tiling!\n");
+                execute_stride2x2_prepare(tile_dw, kernel_dw, &nnx_task_dw); // TODO
                 % else:
                 execute_prepare(tile_dw, &nnx_task_dw);
+                % endif
                 nnx_conv_set_strides(&nnx_task_dw, tile_dw.input.channel, tile_dw.input.width, tile_dw.input.channel,
                                      tile_dw.output.width, body_pw.input.channel);
-                % endif
 
                 dma_mutex_lock();
                 dma_transfer_wait(transfer_dw);
@@ -404,10 +403,6 @@ static void layer_task_fork(void *args) {
                 dma_mutex_unlock();
 
                 execute_prepare(tile_pw, &nnx_task_pw);
-
-                if (i_tile_pw == 0) {
-                    execute_wait(nnx_job_id_dw);
-                }
 
                 dma_mutex_lock();
                 dma_transfer_wait(transfer_pw);
@@ -451,7 +446,7 @@ static void layer_task_fork(void *args) {
 void ${func_name}(void *args) {
 
     #ifdef DEBUG_GVSOC
-    nnx_activate_gvsoc_logging(GVSOC_LOGGING_FORMAT_DECIMAL);
+    nnx_activate_gvsoc_logging(GVSOC_LOG_LEVEL_CONFIG, GVSOC_LOGGING_FORMAT_DECIMAL);
     #endif
 
     layer_args_t *layer_args = (layer_args_t *)args;

@@ -326,7 +326,7 @@ static void layer_task_fork(void *args) {
 void ${func_name}(void *args) {
 
     #ifdef DEBUG_GVSOC
-    nnx_activate_gvsoc_logging(GVSOC_LOGGING_FORMAT_DECIMAL);
+    nnx_activate_gvsoc_logging(GVSOC_LOG_LEVEL_CONFIG, GVSOC_LOGGING_FORMAT_DECIMAL);
     #endif
 
     layer_args_t *layer_args = (layer_args_t *)args;
