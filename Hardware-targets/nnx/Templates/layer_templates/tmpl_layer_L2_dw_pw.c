@@ -347,7 +347,6 @@ static void layer_task_fork(void *args) {
         int i_buff_pw = 0;
 
         for (int i_tile = 0; i_tile < end_index_dw.height * end_index_dw.width; i_tile++) {
-            int nnx_job_id_dw;
             int dw_output_base = l1_buffer_dw_output;
 
             for (int i_tile_dw = 0; i_tile_dw < end_index_dw.output_channel; i_tile_dw++) {
@@ -383,9 +382,9 @@ static void layer_task_fork(void *args) {
                 dma_mutex_unlock();
 
                 % if stride == 2:
-                nnx_job_id_dw = execute_stride2x2_blocking(nnx_task_dw, tile_dw, kernel_dw);
+                execute_stride2x2_blocking(nnx_task_dw, tile_dw, kernel_dw, body_pw.input.channel);
                 % else:
-                nnx_job_id_dw = execute_async(nnx_task_dw);
+                execute_async(nnx_task_dw);
                 % endif
 
                 tile_status_dw = tile_status_get_next(tile_status_dw, end_index_dw, layer_dw, 1 /* reverse loop order */, kernel_dw);

@@ -79,7 +79,7 @@ static void execute_stride2x2_prepare(Layer tile, Kernel kernel, nnx_task_t * co
     task->data.outfeat_ptr = tile.addr.output;
 }
 
-static int execute_stride2x2_blocking(nnx_task_t task, Layer tile, Kernel kernel) {
+static int execute_stride2x2_blocking(nnx_task_t task, Layer tile, Kernel kernel, int output_channel_stride) {
     const int stride = 2;
     int last_job_id = -1;
 
@@ -108,7 +108,7 @@ static int execute_stride2x2_blocking(nnx_task_t task, Layer tile, Kernel kernel
             task.data.outfeat_ptr = dory_get_tile_3d(output_base,
                                                 i, j, 0,                      /* index */
                                                 2, 2, tile.output.channel,         /* size */
-                                                tile.output.width, tile.output.channel, /* stride */
+                                                tile.output.width, output_channel_stride, /* stride */
                                                 0, 0, 0,                      /* overlap */
                                                 i == 0 ? 0 : output_height_offset, j == 0 ? 0 : output_width_offset, 0, /* offset */
                                                 8 /* data size */

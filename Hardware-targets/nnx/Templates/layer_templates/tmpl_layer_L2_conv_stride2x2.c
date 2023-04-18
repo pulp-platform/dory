@@ -339,7 +339,7 @@ void ${func_name}(void *args) {
 
         tile_memory_wait(&tile_status);
 
-        execute_stride2x2_blocking(task, tile, kernel);
+        execute_stride2x2_blocking(task, tile, kernel, tile.output.channel);
 
         store_output_prepare(tile, body, layer, tile_status.index, &conf_output);
 

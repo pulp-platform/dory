@@ -286,7 +286,7 @@ static void layer_task_fork(void *args) {
             monitor_consume_begin(monitor.input);
             monitor_produce_begin(monitor.output);
 
-            nnx_job_ids[i_buff] = execute_stride2x2_blocking(nnx_tasks[i_buff], tiles[i_buff], kernel);
+            nnx_job_ids[i_buff] = execute_stride2x2_blocking(nnx_tasks[i_buff], tiles[i_buff], kernel, tiles[i_buff].output.channel);
 
             monitor_produce_end(monitor.output);
 
