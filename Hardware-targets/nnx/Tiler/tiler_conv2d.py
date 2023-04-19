@@ -364,10 +364,15 @@ class Tiler_Conv2D:
         ###############################################
         obj_expr = solver.IntVar(0, 1000000000000, "obj_expr")
 
-        heuristics = self.acc.heuristic_l1(layer_in_shape, layer_out_shape,
-                                           tile_in_shape, tile_out_shape,
-                                           border_tile_in_shape, border_tile_out_shape,
-                                           total_size, L1_memory, ks, g, s)
+        if "DepthwisePointwise" in self.node.name:
+            heuristic = self.acc.heuristic_l1_dw_pw
+        else:
+            heuristic = self.acc.heuristic_l1
+
+        heuristics = heuristic(layer_in_shape, layer_out_shape,
+                               tile_in_shape, tile_out_shape,
+                               border_tile_in_shape, border_tile_out_shape,
+                               total_size, L1_memory, ks, g, s)
 
         modifier = 1000000
         heuristics_sum = sum([int(modifier * h["prio"]) * h["value"] for h in heuristics])

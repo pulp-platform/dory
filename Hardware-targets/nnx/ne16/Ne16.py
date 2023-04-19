@@ -44,6 +44,73 @@ class Ne16(Accelerator):
 
         return sum([int(modifier * h["prio"]) * h["value"] for h in heuristics])
 
+    def heuristic_l1_dw_pw(self,
+                           layer_in_shape, layer_out_shape,
+                           tile_in_shape, tile_out_shape,
+                           border_tile_in_shape, border_tile_out_shape,
+                           total_size, mem_size, ks, g, s):
+        layer_latency = 0
+        tile_latency = 0
+        ne16_model_dw = Ne16PerfModel('conv', ks, depthwise=g>1, nq_bias=True)
+        ne16_model_dw.set_layer(layer_out_shape[0:2] + (layer_in_shape[2], layer_in_shape[2]))
+        layer_latency += ne16_model_dw.latency
+        ne16_model_dw.set_layer(tile_out_shape[0:2] + (tile_in_shape[2], tile_in_shape[2]))
+        tile_latency += ne16_model_dw.latency
+
+        ne16_model_pw = Ne16PerfModel('conv', [1, 1], depthwise=False, nq_bias=True)
+        ne16_model_pw.set_layer(layer_out_shape + (layer_in_shape[2], ))
+        layer_latency += ne16_model_pw.latency
+        ne16_model_pw.set_layer(tile_out_shape + (layer_in_shape[2], ))
+        tile_latency += ne16_model_pw.latency
+
+        def mem_occupancy(in_shape, out_shape):
+            def size(shape):
+                return shape[0] * shape[1] * shape[2]
+
+            return size(in_shape) + size(out_shape) + \
+                    self.weights_size(out_shape[2], in_shape[2], ks, 8, True) + \
+                    self.weights_size(out_shape[2], in_shape[2], [1, 1], 8, False)
+
+        layer_size = mem_occupancy(layer_in_shape, layer_out_shape)
+        tile_size = mem_occupancy(tile_in_shape, tile_out_shape)
+        border_tile_size = mem_occupancy(border_tile_in_shape, border_tile_out_shape)
+
+        subtile_out_shape = (6 if s == [2, 2] else self.OUTPUT_BUFFER_SHAPE[0],
+                             6 if s == [2, 2] else self.OUTPUT_BUFFER_SHAPE[1],
+                             self.OUTPUT_BUFFER_SHAPE[2])
+
+        subtile_in_shape = (self.INPUT_BUFFER_H, self.INPUT_BUFFER_W, self.TP_IN)
+
+        return [
+            # TODO: Add heuristic that prefers more width tiles then height - less switching on borders
+            maximize_divisibility_or_max_w_prio(tile_out_shape[0], subtile_out_shape[0],
+                                                max=layer_out_shape[0], prio=5),
+
+            maximize_divisibility_or_max_w_prio(tile_out_shape[1], subtile_out_shape[1],
+                                                max=layer_out_shape[1], prio=5),
+
+            # Input channel has to be divisible with subtile shape and has higher priority then output channel
+            maximize_divisibility_or_max_w_prio(tile_in_shape[2], subtile_in_shape[2],
+                                                max=layer_in_shape[2], prio=3),
+
+            maximize_divisibility_or_max_w_prio(tile_out_shape[2], subtile_out_shape[2],
+                                                max=layer_out_shape[2], prio=1),
+
+            # Balance out body and border tile size
+            minimize_size_w_prio(tile_size - border_tile_size, max=layer_size, prio=4),
+
+            # Make tiled input channel same as border input channel, usefull only for DW tiles
+            #maximize_condition(tile_in_shape[2] == border_tile_in_shape[2], prio=1),
+
+            maximize_size_w_prio(tile_in_shape[2], layer_in_shape[2], prio=0.5),
+
+            # Bigger latency -> more time to fetch data
+            maximize_size_w_prio(tile_latency, max=layer_latency, prio=1),
+
+            # Bigger tile size
+            maximize_size_w_prio(total_size, max=mem_size, prio=1)
+        ]
+
     def heuristic_l1(self,
                      layer_in_shape, layer_out_shape,
                      tile_in_shape, tile_out_shape,
