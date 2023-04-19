@@ -307,8 +307,12 @@ class Tiler_Conv2D:
         #     solver.Add(tile_w_in == in_dim[1])
         #     solver.Add(tile_w_out == out_dim[1])
 
-        solver.Add(tile_h_out * s[0] == (tile_h_in - (ks[0] - 1) + (s[0] - 1)))
-        solver.Add(tile_w_out * s[1] == (tile_w_in - (ks[1] - 1) + (s[1] - 1)))
+        #solver.Add(tile_h_out * s[0] == (tile_h_in - (ks[0] - 1) + (s[0] - 1)))
+        #solver.Add(tile_w_out * s[1] == (tile_w_in - (ks[1] - 1) + (s[1] - 1)))
+        #solver.Add(tile_h_out * s[0] + (ks[0] - 1) - (s[0] - 1) == tile_h_in)
+        #solver.Add(tile_w_out * s[1] - (ks[1] - 1) + (s[1] - 1) == tile_w_in)
+        solver.Add(tile_h_in == solver.ConditionalExpression(tile_h_out < h_out, tile_h_out * s[0] + (ks[0] - 1) - (s[0] - 1), h_in))
+        solver.Add(tile_w_in == solver.ConditionalExpression(tile_w_out < w_out, tile_w_out * s[1] - (ks[1] - 1) + (s[1] - 1), w_in))
 
         if "DepthwisePointwise" in self.node.name:
             pass  # no constraint on tile_n_in
