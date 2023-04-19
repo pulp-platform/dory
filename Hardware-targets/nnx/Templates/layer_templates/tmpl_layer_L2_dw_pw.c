@@ -217,19 +217,22 @@ static int inc(int index, int end) {
     return index + 1 < end ? index + 1 : 0;
 }
 
-#define EXECUTER_ID (0)
-#define STORER_ID (1)
-#define CORES (2)
+#define LOADER_ID (0)
+#define EXECUTER_ID (1)
+#define STORER_ID (2)
+#define CORES (3)
 
 #define BUFFER_SIZE (2)
 
-static nnx_task_t nnx_task_dw;
-static nnx_task_t nnx_task_pw;
+static Layer tiles_dw[BUFFER_SIZE];
+static nnx_task_t nnx_tasks_dw[BUFFER_SIZE];
+static nnx_task_t nnx_tasks_pw[BUFFER_SIZE];
 static DmaTransferConf store_conf[BUFFER_SIZE];
+static int nnx_job_ids_dw[BUFFER_SIZE];
 static int nnx_job_ids_pw[BUFFER_SIZE];
 
 static struct {
-    Monitor input, output, store_conf;
+    Monitor input, output, weights_pw, store_conf, job_dw;
 } monitor;
 
 static void layer_task_fork(void *args) {
@@ -255,10 +258,9 @@ static void layer_task_fork(void *args) {
             .buffer_index = 0               ${"\\"}
         }
 
+    // Loader
 
-    // Executer
-
-    if (pi_core_id() == EXECUTER_ID) {
+    if (pi_core_id() == LOADER_ID) {
         Layer layer_dw = {
             .addr = {
                 .input = layer_args->L2_input,
@@ -360,8 +362,10 @@ static void layer_task_fork(void *args) {
                                                        0, 0, 0,  // overlap
                                                        0, 0, 0,  // offset
                                                        8);  // data size
+                
+                monitor_produce_begin(monitor.input);
 
-                nnx_wait_not_full();
+                tiles_dw[i_buff_dw] = tile_dw;
 
                 dma_mutex_lock();
                 DmaTransfer transfer_dw = dma_transfer_create();
@@ -369,23 +373,15 @@ static void layer_task_fork(void *args) {
                 load_weights_async(tile_dw, &tile_status_dw, kernel_dw, weights_ki_size_dw);
                 dma_mutex_unlock();
 
-                % if stride == 2:
-                execute_stride2x2_prepare(tile_dw, kernel_dw, &nnx_task_dw); // TODO
-                % else:
-                execute_prepare(tile_dw, &nnx_task_dw);
-                % endif
-                nnx_conv_set_strides(&nnx_task_dw, tile_dw.input.channel, tile_dw.input.width, tile_dw.input.channel,
+                execute_stride2x2_prepare(tile_dw, kernel_dw, &nnx_tasks_dw[i_buff_dw]); // TODO
+                nnx_conv_set_strides(&nnx_tasks_dw[i_buff_dw], tile_dw.input.channel, tile_dw.input.width, tile_dw.input.channel,
                                      tile_dw.output.width, body_pw.input.channel);
 
                 dma_mutex_lock();
                 dma_transfer_wait(transfer_dw);
                 dma_mutex_unlock();
 
-                % if stride == 2:
-                execute_stride2x2_blocking(nnx_task_dw, tile_dw, kernel_dw, body_pw.input.channel);
-                % else:
-                execute_async(nnx_task_dw);
-                % endif
+                monitor_produce_end(monitor.input);
 
                 tile_status_dw = tile_status_get_next(tile_status_dw, end_index_dw, layer_dw, 1 /* reverse loop order */, kernel_dw);
                 i_buff_dw = inc(i_buff_dw, BUFFER_SIZE);
@@ -395,23 +391,52 @@ static void layer_task_fork(void *args) {
                 Layer tile_pw = tile_create(tile_status_pw.index, end_index_pw, body_pw, border_pw, layer_pw,
                                             tile_status_get_addr(tile_status_pw, buffer_addresses_pw));
 
-                monitor_produce_begin(monitor.output);
+                monitor_produce_begin(monitor.weights_pw);
                 dma_mutex_lock();
                 DmaTransfer transfer_pw = dma_transfer_create();
                 load_weights_async(tile_pw, &tile_status_pw, kernel_pw, weights_ki_size_pw);
                 dma_mutex_unlock();
 
-                execute_prepare(tile_pw, &nnx_task_pw);
+                execute_prepare(tile_pw, &nnx_tasks_pw[i_buff_pw]);
 
                 dma_mutex_lock();
                 dma_transfer_wait(transfer_pw);
                 dma_mutex_unlock();
+                monitor_produce_end(monitor.weights_pw);
 
-                nnx_job_ids_pw[i_buff_pw] = execute_async(nnx_task_pw);
+                monitor_produce_begin(monitor.store_conf);
                 store_prepare(tile_pw, body_pw, layer_pw, tile_status_pw.index, &store_conf[i_buff_pw]);
-                monitor_produce_end(monitor.output);
+                monitor_produce_end(monitor.store_conf);
 
                 tile_status_pw = tile_status_get_next(tile_status_pw, end_index_pw, layer_pw, 1 /* reverse loop order */, kernel_pw);
+                i_buff_pw = inc(i_buff_pw, BUFFER_SIZE);
+            }
+        }
+    }
+
+    // Executer
+
+    if (pi_core_id() == EXECUTER_ID) {
+        int i_buff_dw = 0;
+        int i_buff_pw = 0;
+
+        for (int i_tile = 0; i_tile < end_index_dw.height * end_index_dw.width; i_tile++) {
+
+            for (int i_tile_dw = 0; i_tile_dw < end_index_dw.output_channel; i_tile_dw++) {
+                monitor_consume_begin(monitor.input);
+                monitor_produce_begin(monitor.job_dw);
+                nnx_job_ids_dw[i_buff_dw] = 
+                    execute_stride2x2_blocking(nnx_tasks_dw[i_buff_dw], tiles_dw[i_buff_dw], kernel_dw, body_pw.input.channel);
+                monitor_produce_end(monitor.job_dw);
+                i_buff_dw = inc(i_buff_dw, BUFFER_SIZE);
+            }
+
+            for (int i_tile_pw = 0; i_tile_pw < end_index_pw.output_channel; i_tile_pw++) {
+                monitor_consume_begin(monitor.weights_pw);
+                monitor_produce_begin(monitor.output);
+                nnx_job_ids_pw[i_buff_pw] = execute_async(nnx_tasks_pw[i_buff_pw]);
+                monitor_produce_end(monitor.output);
+
                 i_buff_pw = inc(i_buff_pw, BUFFER_SIZE);
             }
         }
@@ -420,24 +445,39 @@ static void layer_task_fork(void *args) {
     // Storer
 
     if (pi_core_id() == STORER_ID) {
-        int i_buff = 0;
-        for (int i_tile = 0; i_tile < end_index_pw.height * end_index_pw.width * end_index_pw.output_channel; i_tile++) {
-            monitor_consume_begin(monitor.output);
+        int i_buff_dw = 0;
+        int i_buff_pw = 0;
 
-            execute_wait(nnx_job_ids_pw[i_buff]);
+        for (int i_tile = 0; i_tile < end_index_dw.height * end_index_dw.width; i_tile++) {
+            for (int i_tile_dw = 0; i_tile_dw < end_index_dw.output_channel; i_tile_dw++) {
+                monitor_consume_begin(monitor.job_dw);
+                execute_wait(nnx_job_ids_dw[i_buff_dw]);
+                monitor_consume_end(monitor.job_dw);
+                monitor_consume_end(monitor.input);
+                i_buff_dw = inc(i_buff_dw, BUFFER_SIZE);
+            }
 
-            dma_mutex_lock();
-            DmaTransfer transfer = dma_transfer_create();
-            dma_transfer_async(store_conf[i_buff]);
-            dma_mutex_unlock();
+            for (int i_tile_pw = 0; i_tile_pw < end_index_pw.output_channel; i_tile_pw++) {
+                monitor_consume_begin(monitor.store_conf);
+                monitor_consume_begin(monitor.output);
 
-            dma_mutex_lock();
-            dma_transfer_wait(transfer);
-            dma_mutex_unlock();
+                execute_wait(nnx_job_ids_pw[i_buff_pw]);
+                monitor_consume_end(monitor.weights_pw);
 
-            monitor_consume_end(monitor.output);
+                dma_mutex_lock();
+                DmaTransfer transfer = dma_transfer_create();
+                dma_transfer_async(store_conf[i_buff_pw]);
+                dma_mutex_unlock();
 
-            i_buff = inc(i_buff, BUFFER_SIZE);
+                dma_mutex_lock();
+                dma_transfer_wait(transfer);
+                dma_mutex_unlock();
+
+                monitor_consume_end(monitor.output);
+                monitor_consume_end(monitor.store_conf);
+
+                i_buff_pw = inc(i_buff_pw, BUFFER_SIZE);
+            }
         }
     }
 }
@@ -454,8 +494,23 @@ void ${func_name}(void *args) {
 
     int err = 0;
 
+    if (err = monitor_init(&monitor.input, BUFFER_SIZE)) {
+        printf("Input monitor initialization failed with status %d.\n", err);
+        return;
+    }
+
+    if (err = monitor_init(&monitor.job_dw, BUFFER_SIZE)) {
+        printf("Job dw monitor initialization failed with status %d.\n", err);
+        return;
+    }
+
     if (err = monitor_init(&monitor.output, BUFFER_SIZE)) {
         printf("Output monitor initialization failed with status %d.\n", err);
+        return;
+    }
+
+    if (err = monitor_init(&monitor.weights_pw, BUFFER_SIZE)) {
+        printf("Weights_pw monitor initialization failed with status %d.\n", err);
         return;
     }
 
@@ -466,35 +521,37 @@ void ${func_name}(void *args) {
     }
 
     // Init nnx tasks
-    nnx_task_dw = nnx_task_create(
-            ${fs1}, ${int(flag_DW)},
-            ${x_data_size_byte}, ${y_data_size_byte}, ${W_data_size},
-            weightOffsetModeLayerWise, ${-(2**(W_data_size-1))},
-            (nnx_quant_t) {
-                .shift_amount = ${node.outshift0['value']},
-                .mode = quantMode8Bit,
-                .function = quantFunctionRelu,
-                .flag_rounding = FLAG_UNUSED
-            }, (nnx_norm_t) {
-                .mode  = ${"normMode32Bit" if act_dim_bit == 32 else "normMode8Bit" if act_dim_bit == 8 else "FLAG_UNUSED"},
-                .flag_bias  = FLAG_USED,
-                .flag_shift = FLAG_UNUSED
-            }, ${stride});
+    for (int i = 0; i < BUFFER_SIZE; i++) {
+        nnx_tasks_dw[i] = nnx_task_create(
+                ${fs1}, ${int(flag_DW)},
+                ${x_data_size_byte}, ${y_data_size_byte}, ${W_data_size},
+                weightOffsetModeLayerWise, ${-(2**(W_data_size-1))},
+                (nnx_quant_t) {
+                    .shift_amount = ${node.outshift0['value']},
+                    .mode = quantMode8Bit,
+                    .function = quantFunctionRelu,
+                    .flag_rounding = FLAG_UNUSED
+                }, (nnx_norm_t) {
+                    .mode  = ${"normMode32Bit" if act_dim_bit == 32 else "normMode8Bit" if act_dim_bit == 8 else "FLAG_UNUSED"},
+                    .flag_bias  = FLAG_USED,
+                    .flag_shift = FLAG_UNUSED
+                }, ${stride});
 
-    nnx_task_pw = nnx_task_create(
-            1, 0,
-            ${x_data_size_byte}, ${y_data_size_byte}, ${W_data_size},
-            weightOffsetModeLayerWise, ${-(2**(W_data_size-1))},
-            (nnx_quant_t) {
-                .shift_amount = ${node.outshift1['value']},
-                .mode = quantMode8Bit,
-                .function = quantFunctionRelu,
-                .flag_rounding = FLAG_UNUSED
-            }, (nnx_norm_t) {
-                .mode  = ${"normMode32Bit" if act_dim_bit == 32 else "normMode8Bit" if act_dim_bit == 8 else "FLAG_UNUSED"},
-                .flag_bias  = FLAG_USED,
-                .flag_shift = FLAG_UNUSED
-            }, 1);
+        nnx_tasks_pw[i] = nnx_task_create(
+                1, 0,
+                ${x_data_size_byte}, ${y_data_size_byte}, ${W_data_size},
+                weightOffsetModeLayerWise, ${-(2**(W_data_size-1))},
+                (nnx_quant_t) {
+                    .shift_amount = ${node.outshift1['value']},
+                    .mode = quantMode8Bit,
+                    .function = quantFunctionRelu,
+                    .flag_rounding = FLAG_UNUSED
+                }, (nnx_norm_t) {
+                    .mode  = ${"normMode32Bit" if act_dim_bit == 32 else "normMode8Bit" if act_dim_bit == 8 else "FLAG_UNUSED"},
+                    .flag_bias  = FLAG_USED,
+                    .flag_shift = FLAG_UNUSED
+                }, 1);
+    }
 
     nnx_init();
     dma_mutex_init();
@@ -507,7 +564,10 @@ void ${func_name}(void *args) {
 
     // Terminate
 
+    monitor_term(monitor.input);
+    monitor_term(monitor.job_dw);
     monitor_term(monitor.output);
+    monitor_term(monitor.weights_pw);
     monitor_term(monitor.store_conf);
     nnx_term();
 }
