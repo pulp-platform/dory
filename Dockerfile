@@ -2,6 +2,7 @@ FROM    ubuntu:bionic
 SHELL   ["/bin/bash", "-c"]
 RUN     apt-get update && \
         apt-get install -y software-properties-common && \
+		apt-get -y install sudo && \
         apt-add-repository universe && \
         apt-get update && \
         apt-get install -y python3.8 && \
@@ -22,8 +23,9 @@ RUN     python3 -m venv /dory_env && \
        ./bootstrap && \
         ./configure --program-prefix=gap8- --prefix=/usr --datarootdir=/usr/share/gap8-openocd && \
         make -j && \
-        make -j install && \
-        cd / && \
+        make -j install
+RUN     source /dory_env/bin/activate && \
+		cd / && \
         git clone https://github.com/GreenWaves-Technologies/gap_riscv_toolchain_ubuntu_18.git && \
         cd /gap_riscv_toolchain_ubuntu_18 && \
         ./install.sh /usr/lib/gap_riscv_toolchain && \

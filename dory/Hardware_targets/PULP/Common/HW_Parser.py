@@ -30,7 +30,8 @@ from functools import partial
 
 
 
-class onnx_manager_PULP(Parser_DORY_to_HW):
+class onnx_manager_PULP(Parser_DORY_to_HW):
+
     # Used to manage the ONNX files. By now, supported Convolutions (PW and DW), Pooling, Fully Connected and Relu.
     def __init__(self, graph, config_file, config_file_dir, n_inputs=1):
         layers_supported_by_HW_Backend_IR = ["Convolution", "Pooling", "FullyConnected", "Addition", "QAddition"]
@@ -47,7 +48,8 @@ class onnx_manager_PULP(Parser_DORY_to_HW):
         try:
             db = HW_description['double_buffering']
         except KeyError:
-            print("onnx_manager_PULP: Key 'double_buffering' not found in HW_description.json - setting to 2")
+            print("onnx_manager_PULP: Key 'double_buffering' not found in HW_description.json - setting to 2")
+
             db = 2
 
         self.double_buffering = db
@@ -72,7 +74,8 @@ class onnx_manager_PULP(Parser_DORY_to_HW):
         raise NotImplementedError("To be implemented by child class!")
 
     def adjust_data_layout(self):
-        print("\nGAP8 Backend: Adjusting Data Layout to HWC and CoutKCin.")
+        print("\nGAP8 Backend: Adjusting Data Layout to HWC and CoutKCin.")
+
         for i, node in enumerate(self.DORY_Graph):
             if "FullyConnected" in node.name:
                 for name in node.constant_names:
