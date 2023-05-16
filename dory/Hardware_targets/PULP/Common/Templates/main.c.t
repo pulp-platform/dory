@@ -41,19 +41,7 @@ unsigned int PMU_set_voltage(unsigned int Voltage, unsigned int CheckFrequencies
 % endif
 
 
-int main () {
-  PMU_set_voltage(1000, 0);
-  pi_time_wait_us(10000);
-  pi_freq_set(PI_FREQ_DOMAIN_FC, ${fc_frequency});
-  pi_time_wait_us(10000);
-  pi_freq_set(PI_FREQ_DOMAIN_CL, ${cl_frequency});
-  pi_time_wait_us(10000);
-% if sdk == 'pulp-sdk':
-  #if __PLATFORM__ == ARCHI_PLATFORM_FPGA
-    *(int*)(ICACHE_PREFETCH) = 0xFFFF;
-  #endif
-% endif
-
+void application(void * arg) {
 /*
     Opening of Filesystem and Ram
 */
@@ -65,8 +53,14 @@ int main () {
     Allocating space for input
   */
   void *l2_buffer = pi_l2_malloc(${l2_buffer_size});
+  if (NULL == l2_buffer) {
 #ifdef VERBOSE
-  printf("\nL2 Buffer alloc initial\t@ 0x%08x:\t%s\n", (unsigned int)l2_buffer, l2_buffer?"Ok":"Failed");
+    printf("ERROR: L2 buffer allocation failed.");
+#endif
+    pmsis_exit(-1);
+  }
+#ifdef VERBOSE
+  printf("\nL2 Buffer alloc initial\t@ 0x%08x:\tOk\n", (unsigned int)l2_buffer);
 #endif
   size_t l2_input_size = ${int(DORY_HW_graph[0].tiling_dimensions["L2"]["input_activation_memory"])};
   size_t input_size = 1000000;
@@ -95,4 +89,24 @@ int main () {
   ${prefix}network_terminate();
   % endif
   pi_l2_free(l2_buffer, ${l2_buffer_size});
+}
+
+int main () {
+#ifndef TARGET_CHIP_FAMILY_GAP9
+  PMU_set_voltage(1000, 0);
+  pi_time_wait_us(10000);
+  pi_freq_set(PI_FREQ_DOMAIN_FC, ${fc_frequency});
+  pi_time_wait_us(10000);
+  pi_freq_set(PI_FREQ_DOMAIN_CL, ${cl_frequency});
+  pi_time_wait_us(10000);
+#endif
+
+% if sdk == 'pulp-sdk':
+  #if __PLATFORM__ == ARCHI_PLATFORM_FPGA
+    *(int*)(ICACHE_PREFETCH) = 0xFFFF;
+  #endif
+% endif
+
+  pmsis_kickoff((void*)application);
+  return 0;
 }

@@ -72,7 +72,7 @@ def network_generate(frontend, target, conf_file, verbose_level='Check_all+Perf_
 
 if __name__ == '__main__':
     Frontends = ["NEMO", "Quantlab"]
-    Hardware_targets = ["PULP.GAP8", "PULP.GAP8_L2", "PULP.PULP_gvsoc", "nnx.ne16", "Occamy", "Diana.Diana_TVM", "Diana.Diana_SoC"]
+    Hardware_targets = ["PULP.GAP8", "PULP.GAP8_L2", "PULP.PULP_gvsoc", "PULP.GAP9", "nnx.ne16", "Occamy", "Diana.Diana_TVM", "Diana.Diana_SoC"]
 
     parser = argparse.ArgumentParser(formatter_class=RawTextHelpFormatter)
     parser.add_argument('frontend', type=str, choices=Frontends, help='Frontend from which the onnx is produced and from which the network has been trained')
