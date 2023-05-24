@@ -25,10 +25,150 @@
 #include "dory_get_tile.h"
 #include "dory_dma.h"
 #include "pulp_nn_kernels.h"
+#include "tile_index.h"
+#include "layer.h"
+
 % if ULTRA_VERBOSE:
 #define VERBOSE_PRINT(...) printf(__VA_ARGS__)
 % endif
-void ${func_name}(
+
+
+static const TileIndex index_end = {
+  .height = ${tile_dim_h},
+  .width = ${tile_dim_w},
+  .input_channel = ${tile_dim_nif},
+  .output_channel = ${tile_dim_nof}
+};
+
+static const Layer body = {
+  .input = {
+    .height = ${x_tile_size_h},
+    .width = ${x_tile_size_w},
+    .channel = ${x_tile_size_nif},
+    .channel_size = ${x_tile_size_nif_byte}
+  },
+  .output = {
+    .height = ${y_tile_size_h},
+    .width = ${y_tile_size_w},
+    .channel = ${y_tile_size_nof},
+    .channel_size = ${y_tile_size_nof_byte}
+  }
+};
+
+static const Layer border = {
+  .input = {
+    .height = ${x_tile_size_h_last},
+    .width = ${x_tile_size_w_last},
+    .channel = ${x_tile_size_nif_last},
+    .channel_size = ${x_tile_size_nif_byte_last}
+  },
+  .output = {
+    .height = ${y_tile_size_h_last},
+    .width = ${y_tile_size_w_last},
+    .channel = ${y_tile_size_nof_last},
+    .channel_size = ${y_length_nof_byte_last}
+  }
+};
+
+
+static void load_input_async(Layer tile, Layer body, Layer layer, TileIndex index) {
+  // additionally overlap by padding for the first tile after a border one
+  // this because in the first tile we use less pixels from x_buffer, since we have the ones of padding
+  const int x_offset_h = index.height > 0 ? layer.padding.top : 0;
+  const int x_offset_w = index.width > 0 ? layer.padding.left : 0;
+
+  dma_transfer_async((DmaTransferConf) {
+    .ext = dory_get_tile_3d(layer.addr.input,
+                            index.height, index.width, index.input_channel,
+                            body.input.height, body.input.width, body.input.channel,
+                            layer.input.width, layer.input.channel,
+                            ${conv_overlap1}, ${conv_overlap2}, 0,
+                            x_offset_h, x_offset_w, 0,
+                            ${x_data_size_byte}),
+    .loc = tile.addr.input,
+    .number_of_2d_copies = tile.input.height,
+    .number_of_1d_copies = tile.input.width,
+    .length_1d_copy = tile.input.channel_size,
+    .hwc_to_chw = 0,
+    .stride_2d = ${x_stride_w_byte},
+    .stride_1d = ${x_stride_c_byte},
+    .dir = 1
+  });
+}
+
+static void store_output_async(Layer tile, Layer body, Layer layer, TileIndex index) {
+  dma_transfer_async((DmaTransferConf) {
+    .ext = dory_get_tile_3d(layer.addr.output,
+                            index.height, index.width, index.output_channel,
+                            body.output.height, body.output.width, body.output.channel,
+                            layer.output.width, layer.output.channel,
+                            0, 0, 0,
+                            0, 0, 0,
+                            ${y_data_size_byte}),
+    .loc = tile.addr.output,
+    .number_of_2d_copies = tile.output.height,
+    .number_of_1d_copies = tile.output.width,
+    .length_1d_copy = tile.output.channel_size,
+    .hwc_to_chw = 0,
+    .stride_2d = ${y_stride_w_byte},
+    .stride_1d = ${y_stride_c_byte},
+    .dir = 0
+  }); 
+}
+
+
+static void kernel(Layer tile) {
+  % if 'Max' in optional:
+  % if optional_type == 'mixed-sw':
+  pulp_nn_maxpool_${data_type_y[0]}${y_data_size_byte}(
+  % elif optional_type == 'mixed-hw':
+  xpulp_nn_maxpool_${data_type_y[0]}${y_data_size_byte}(
+  % else:
+  pulp_nn_maxpool(
+  % endif
+  % else:
+  % if 'mixed' in optional_type:
+  ${"x" if "hw" in optional_type else ""}pulp_nn_avgpool_${data_type_x[0]}${x_data_size_byte}_${data_type_y[0]}${y_data_size_byte}(
+  % else:
+  pulp_nn_avgpool(
+  % endif
+  % endif
+    tile.addr.input, tile.addr.output,
+    % if 'Max' not in optional:
+    ${out_mul},
+    ${out_shift},
+    ${out_add},
+  % endif
+    tile.input.width,
+    tile.input.height,
+    tile.input.channel,
+    tile.output.width,
+    tile.output.height,
+    ${fs2},
+    ${fs1},
+    tile.padding.top,
+    tile.padding.bottom,
+    tile.padding.left,
+    tile.padding.right,
+    ${stride},
+    ${stride}${"," if "Max" not in optional else ""}
+% if 'Max' not in optional:
+    ${FLAG_RELU}
+% endif
+  );
+}
+
+typedef struct PoolingArgs {
+  Layer tile;
+} PoolingArgs;
+
+static void pooling(void * args) {
+  PoolingArgs * poolingArgs = (PoolingArgs *)args;
+  kernel(poolingArgs->tile);
+}
+
+
+void __attribute__ ((noinline)) ${func_name}(
   void *args
 ) {
   unsigned int *real_arg = (unsigned int *) args;
@@ -42,167 +182,53 @@ void ${func_name}(
   unsigned int l1_buffer =(unsigned int)  real_arg[7];
   unsigned int hyperram =(unsigned int)  real_arg[8];
   unsigned int out_shift_in = (unsigned int) real_arg[10];
-  int p_r, p_l, p_t, p_b;
-  unsigned short x_tile_size_nif;
-  unsigned short x_tile_size_h;
-  unsigned short x_tile_size_w;
-  unsigned short x_tile_size_byte;
-  unsigned short x_length_h_px;
-  unsigned short x_length_nif_byte;
-  int pad_offset_h, pad_offset_w;
-  ${type} *x;
-  ${type} *y;
-  int y_tile_size_nof;
-  int y_tile_size_h;
-  int y_tile_size_w;
-  int y_tile_size_byte;
-  int y_length_h_px;
-  int y_length_nof_byte;
- ${type} *im2col;
-  im2col = l1_buffer + ${buffer_l1_all};
-  DmaTransferConf transferConf_x, transferConf_y;
-  // copy first tiles
-  //l2_x has input activations
 
-  transferConf_x.hwc_to_chw = 0;
-  transferConf_x.stride_2d = ${x_stride_w_byte};
-  transferConf_x.stride_1d = ${x_stride_c_byte};
-  transferConf_x.dir = 1;
+  Layer layer = {
+    .addr = {
+      .input = l2_x,
+      .output = l2_y
+    },
+    .input = {
+      .width = ${x_w},
+      .channel = ${nif}
+    },
+    .output = {
+      .width = ${y_w},
+      .channel = ${nof}
+    },
+    .padding = {
+        .top    = ${padding_top},
+        .right  = ${padding_right},
+        .bottom = ${padding_bottom},
+        .left   = ${padding_left}
+    }
+  };
 
-  transferConf_y.hwc_to_chw = 0;
-  transferConf_y.stride_2d = ${y_stride_w_byte};
-  transferConf_y.stride_1d = ${y_stride_c_byte};
-  transferConf_y.dir = 0;
+  pi_team_config_offload(NUM_CORES);
 
-  // tile loop indeces
-  int _i_nof_load=0, _i_nif_load=0, _i_h_load=0, _i_w_load=0;
+  DmaTransfer transfer = dma_transfer_create();
 
-  // last-tile flags
-  int last_nof, last_nif, last_h, last_w;
-  int iter;
+  TileIndex index = { .height = 0, .width = 0, .input_channel = 0, .output_channel = 0 };
+
+  const int total_tiles = index_end.output_channel * index_end.height * index_end.width * index_end.input_channel;
+
   // tile loop nest
-  for(iter=0; iter<${tile_dim_nof}*${tile_dim_h}*${tile_dim_w}; iter++) {
-    last_nof = (_i_nof_load+1 == ${tile_dim_nof}) ? 1 : 0;
-    last_nif = (_i_nof_load+1 == ${tile_dim_nif}) ? 1 : 0;
-    last_h = (_i_h_load+1 == ${tile_dim_h}) ? 1 : 0;
-    last_w = (_i_w_load+1 == ${tile_dim_w}) ? 1 : 0;
+  for(int iter=0; iter<total_tiles; iter++) {
+    Address addr = {
+      .input = l1_buffer + ${l1_x_offset},
+      .output = l1_buffer + ${l1_y_offset}
+    };
+    Layer tile = tile_create(index, index_end, body, border, layer, addr);
 
-    x_tile_size_nif = (last_nif) ? ${x_tile_size_nif_last} : ${x_tile_size_nif};
-    x_tile_size_h   = (last_h)   ? ${x_tile_size_h_last} : ${x_tile_size_h};
-    x_tile_size_w   = (last_w)   ? ${x_tile_size_w_last} : ${x_tile_size_w};
-    x_tile_size_byte = x_tile_size_nif*x_tile_size_h*x_tile_size_w*${x_data_size_byte}/8;
-    x_length_nif_byte = (last_nif)   ? ${x_tile_size_nif_byte_last} : ${x_tile_size_nif_byte};
-    // additionally overlap by padding for the first tile after a border one
-    //this because in the first tile we use less pixels from x_buffer, since we have the ones of padding
-    pad_offset_h=0, pad_offset_w=0;
-    if(_i_h_load > 0)
-      pad_offset_h = ${padding_top};
-    if(_i_w_load > 0)
-      pad_offset_w = ${padding_left};
+    load_input_async(tile, body, layer, index);
 
-    if (pi_core_id() == 0) {
-      DmaTransfer transfer = dma_transfer_create();
-      transferConf_x.ext = dory_get_tile_3d(l2_x, _i_h_load, _i_w_load, _i_nif_load, ${x_tile_size_h}, ${x_tile_size_w}, ${x_tile_size_nif}, ${x_w}, ${nif},  ${conv_overlap1}, ${conv_overlap2},0, pad_offset_h, pad_offset_w, 0, ${x_data_size_byte});
-      transferConf_x.loc = (l1_buffer + ${l1_x_offset});
-      transferConf_x.number_of_2d_copies = x_tile_size_h;
-      transferConf_x.number_of_1d_copies = x_tile_size_w;
-      transferConf_x.length_1d_copy = x_length_nif_byte;
-      dma_transfer_async(transferConf_x);
-      dma_transfer_wait(transfer);
-    }
+    dma_transfer_wait(transfer);
+    PoolingArgs poolingArgs = { .tile = tile };
+    pi_team_offload_preset(pooling, &poolingArgs);
+    pi_team_offload_wait();
 
-    y_tile_size_h   = (last_h)   ? ${y_tile_size_h_last} : ${y_tile_size_h};
-    y_tile_size_w   = (last_w)   ? ${y_tile_size_w_last} : ${y_tile_size_w};
+    store_output_async(tile, body, layer, index);
 
-    x = (${type} *) (l1_buffer + ${l1_x_offset});
-    y = (${type} *) (l1_buffer + ${l1_y_offset});
-
-
-    y_tile_size_nof = (last_nof) ? ${y_tile_size_nof_last} : ${y_tile_size_nof};
-    y_tile_size_h   = (last_h)   ? ${y_tile_size_h_last} : ${y_tile_size_h};
-    y_tile_size_w   = (last_w)   ? ${y_tile_size_w_last} : ${y_tile_size_w};
-    y_tile_size_byte = y_tile_size_nof*y_tile_size_h*y_tile_size_w*${y_data_size_byte}/8;
-    y_length_nof_byte = (last_nof)   ? ${y_length_nof_byte_last} : ${y_tile_size_nof_byte};
-    p_r = 0;
-    p_l = 0;
-    p_t = 0;
-    p_b = 0;
-    if (_i_h_load == 0)
-      p_t = ${padding_top};
-    if (_i_w_load == 0)
-      p_l = ${padding_left};
-    if (_i_h_load == ${tile_dim_h}-1)
-      p_b = ${padding_bottom};
-    if (_i_w_load == ${tile_dim_w}-1)
-      p_r = ${padding_right};
-    pi_cl_team_barrier(0);
-
-// aggiungere padding su tutti i lati, acc_out, and filter asymettric
-  % if 'Max' in optional:
-    % if optional_type == 'mixed-sw':
-    pulp_nn_maxpool_${data_type_y[0]}${y_data_size_byte}(
-    % elif optional_type == 'mixed-hw':
-    xpulp_nn_maxpool_${data_type_y[0]}${y_data_size_byte}(
-    % else:
-    pulp_nn_maxpool(
-    % endif
-  % else:
-    % if 'mixed' in optional_type:
-    ${"x" if "hw" in optional_type else ""}pulp_nn_avgpool_${data_type_x[0]}${x_data_size_byte}_${data_type_y[0]}${y_data_size_byte}(
-    % else:
-    pulp_nn_avgpool(
-    % endif
-  % endif
-    x, y,
-    % if 'Max' not in optional:
-    ${out_mul},
-    ${out_shift},
-    ${out_add},
-  % endif
-    x_tile_size_w,
-    x_tile_size_h,
-    x_tile_size_nif,
-    y_tile_size_w,
-    y_tile_size_h,
-    ${fs2},
-    ${fs1},
-    p_t,
-    p_b,
-    p_l,
-    p_r,
-    ${stride},
-    ${stride}${"," if "Max" not in optional else ""}
-% if 'Max' not in optional:
-    ${FLAG_RELU}
-% endif
-    );
-    pi_cl_team_barrier(0);
-
-    // transfering of output to L2
-    if (pi_core_id() == 0) {
-      DmaTransfer transfer = dma_transfer_create();
-      transferConf_y.ext = dory_get_tile_3d(l2_y, _i_h_load, _i_w_load, _i_nof_load, ${y_tile_size_h}, ${y_tile_size_w}, ${y_tile_size_nof}, ${y_w}, ${nof}, 0, 0, 0, 0, 0, 0, ${y_data_size_byte});
-      transferConf_y.loc = (l1_buffer + ${l1_y_offset});
-      transferConf_y.number_of_2d_copies = y_tile_size_h;
-      transferConf_y.number_of_1d_copies = y_tile_size_w;
-      transferConf_y.length_1d_copy = y_length_nof_byte;
-      dma_transfer_async(transferConf_y);
-      dma_transfer_wait(transfer);
-    }
-
-    // loop nest is nof,h,w,(nif=0)
-    _i_w_load += 1;
-    if(_i_w_load==${tile_dim_w})
-    {
-      _i_w_load = 0;
-      _i_h_load += 1;
-      if(_i_h_load==${tile_dim_h})
-      {
-        _i_h_load = 0;
-        _i_nif_load += 1;
-        _i_nof_load += 1;
-      }
-    }
-    pi_cl_team_barrier(0);
+    index = tile_index_get_next(index, index_end);
   }
 }

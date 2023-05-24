@@ -26,259 +26,163 @@
 #include "dory_get_tile.h"
 #include "dory_dma.h"
 #include "pulp_nn_kernels.h"
+#include "tile_index.h"
+#include "layer.h"
 
 % if ULTRA_VERBOSE:
 #define VERBOSE_PRINT(...) printf(__VA_ARGS__)
 % endif
 
-void ${func_name}(
-  void *args
-) {
-  //////////////////////////////////////////////////////////////////////////
-  // arguments assigning: keeping same interface between L2 and L3 memory //
-  //////////////////////////////////////////////////////////////////////////
-  unsigned int *real_arg = (unsigned int *) args;
-  unsigned int l3_x =(unsigned int)  real_arg[0];
-  unsigned int l3_y =(unsigned int)  real_arg[1];
-  unsigned int l3_W =(unsigned int)  real_arg[2];
-  unsigned int l2_x =(unsigned int)  real_arg[3];
-  unsigned int l2_x_2 =(unsigned int)  real_arg[4];
-  unsigned int l2_y =(unsigned int)  real_arg[5];
-  unsigned int l2_W =(unsigned int)  real_arg[6];
-  unsigned int l1_buffer =(unsigned int)  real_arg[7];
-  unsigned int hyperram =(unsigned int)  real_arg[8];
-  unsigned int out_mult_in =(unsigned int)  real_arg[9];
-  unsigned int out_shift_in = (unsigned int) real_arg[10];
 
-  /////////////////////
-  // DMA declaration //
-  /////////////////////
-  volatile DmaTransferConf transferConf_k, transferConf_lambda;
-  volatile DmaTransferConf transferConf_W, transferConf_x, transferConf_y;
-% if has_bias == 1:
-  volatile DmaTransferConf transferConf_bias;
-  transferConf_bias.hwc_to_chw = 0;
-  transferConf_bias.stride_2d = 0;
-  transferConf_bias.stride_1d = 0;
-  transferConf_bias.dir = 1;
+static const TileIndex index_end = {
+  .height = ${tile_dim_h},
+  .width = ${tile_dim_w},
+  .input_channel = ${tile_dim_nif},
+  .output_channel = ${tile_dim_nof},
+};
 
-% endif
-  transferConf_k.hwc_to_chw = 0;
-  transferConf_k.stride_2d = 0;
-  transferConf_k.stride_1d = 0;
-  transferConf_k.number_of_2d_copies = 1;
-  transferConf_k.number_of_1d_copies = 1;
-  transferConf_k.dir = 1;
-
-  transferConf_lambda.hwc_to_chw = 0;
-  transferConf_lambda.stride_2d = 0;
-  transferConf_lambda.stride_1d = 0;
-  transferConf_lambda.number_of_2d_copies = 1;
-  transferConf_lambda.number_of_1d_copies = 1;
-  transferConf_lambda.dir = 1;
-  
-  % if flag_DW == 1:
-  transferConf_x.hwc_to_chw = 1;
-  % else:
-  transferConf_x.hwc_to_chw = 0;
-  % endif  
-  transferConf_x.stride_2d = ${x_stride_w_byte};
-  transferConf_x.stride_1d = ${x_stride_c_byte};
-  transferConf_x.dir = 1;
-  
-  transferConf_W.hwc_to_chw = 0;
-  transferConf_W.stride_2d = ${W_stride_nof_byte};
-  transferConf_W.stride_1d = ${W_stride_hw_byte};
-  % if flag_DW == 0:
-  transferConf_W.number_of_2d_copies = ${W_tile_size_nof};
-  transferConf_W.number_of_1d_copies = ${fs1 * fs2};
-% else:
-  transferConf_W.number_of_2d_copies = 1;
-  transferConf_W.number_of_1d_copies = 1;
-% endif
-  transferConf_W.dir = 1;
-  
-  transferConf_y.hwc_to_chw = 0;
-  transferConf_y.stride_2d = ${y_stride_w_byte};
-  transferConf_y.stride_1d = ${y_stride_c_byte};
-  transferConf_y.dir = 0;
-
-  volatile int p_r, p_l, p_t, p_b;
-  volatile  unsigned short x_tile_size_nif;
-  volatile unsigned short  x_tile_size_h;
-  volatile unsigned short  x_tile_size_w;
-  volatile unsigned short  x_tile_size_byte;
-  volatile unsigned short  x_length_nif_byte;
-  volatile int pad_offset_h, pad_offset_w;
-  volatile unsigned short  W_tile_size_nof;
-  volatile unsigned short  W_tile_size_nif;
-  volatile unsigned short  W_tile_size_byte;
-  volatile unsigned short W_length_nif_byte;
-  volatile ${type} *x, *W, *y, *b;
-% if FLAG_BATCHNORM == 1:
-% if act_dim_bit == 32:
-  volatile int32_t *k;
-  volatile int32_t *lambda;
-% else:
-  volatile int64_t *k;
-  volatile int64_t *lambda;
-% endif
-% endif
-  volatile int y_tile_size_nof;
-  volatile int y_tile_size_h;
-  volatile int y_tile_size_w;
-  volatile int y_tile_size_byte;
-  volatile int y_length_nof_byte;
-  // last-tile flags
-  int iter;
-  // tile loop indeces
-  int _i_nof_load=0, _i_nif_load=0, _i_h_load=0, _i_w_load=0;
-  int _i_nof_exec=1, _i_nif_exec=1, _i_h_exec=1, _i_w_exec=1;
-% if has_bias == 1:
-  int has_bias = 1;
-% endif
-  volatile ${type} *im2col;
-  im2col = l1_buffer + ${buffer_l1_all};
-% if flag_DW == 1:
-  volatile ${type} *pwt_buffer;
-  pwt_buffer = im2col + ${im2col_dim};
-% endif
-% if FLAG_RELU == 1:
-  uint16_t out_mult = out_mult_in;
-% endif
-  uint16_t out_shift = out_shift_in;
-
-  ////////////////////////////
-  // First tile transfering //
-  ////////////////////////////
-% if has_bias == 1:
-  if (pi_core_id() == 0) {
-    DmaTransfer transfer = dma_transfer_create();
-    transferConf_bias.ext = (uint32_t) l2_W+${l2_off_bias};
-    transferConf_bias.loc = (uint32_t) (l1_buffer + ${l1_b_offset});
-    transferConf_bias.number_of_2d_copies = 1;
-    transferConf_bias.number_of_1d_copies = 1;
-    transferConf_bias.length_1d_copy = (uint16_t) ${b_size_byte};
-    dma_transfer_async(transferConf_bias);
-    dma_transfer_wait(transfer);
+static const Layer body = {
+  .input = {
+    .height = ${x_tile_size_h},
+    .width = ${x_tile_size_w},
+    .channel = ${x_tile_size_nif},
+    .channel_size = ${x_tile_size_nif_byte}
+  },
+  .output = {
+    .height = ${y_tile_size_h},
+    .width = ${y_tile_size_w},
+    .channel = ${y_tile_size_nof},
+    .channel_size = ${y_tile_size_nof_byte}
+  },
+  .weights = {
+    .output_channel = ${W_tile_size_nof},
+    .input_channel = ${W_tile_size_nif},
+    .input_channel_size = ${W_tile_nif_byte}
   }
+};
 
-% endif
-  pi_cl_team_barrier(0);
+static const Layer border = {
+  .input = {
+    .height = ${x_tile_size_h_last},
+    .width = ${x_tile_size_w_last},
+    .channel = ${x_tile_size_nif_last},
+    .channel_size = ${x_tile_size_nif_byte_last}
+  },
+  .output = {
+    .height = ${y_tile_size_h_last},
+    .width = ${y_tile_size_w_last},
+    .channel = ${y_tile_size_nof_last},
+    .channel_size = ${y_length_nof_byte_last}
+  },
+  .weights = {
+    .output_channel = ${W_tile_size_nof_last},
+    .input_channel = ${W_tile_size_nif_last},
+    .input_channel_size = ${W_tile_size_nif_byte_last}
+  }
+};
 
-% if flag_DW == 0:
-  int total_tiles = ${tile_dim_nof * tile_dim_nif * tile_dim_h * tile_dim_w};
-% else:
-  int total_tiles = ${tile_dim_nof * tile_dim_h * tile_dim_w};
-% endif
-  // tile loop nest
-  for(iter=0; iter < total_tiles; iter++) {
-    // check if last in any dimension
-      x_tile_size_nif = (_i_nif_load+1 == ${tile_dim_nif}) ? ${x_tile_size_nif_last} : ${x_tile_size_nif};
-      x_tile_size_h   = (_i_h_load+1 == ${tile_dim_h})   ? ${x_tile_size_h_last} : ${x_tile_size_h};
-      x_tile_size_w   = (_i_w_load+1 == ${tile_dim_w})   ? ${x_tile_size_w_last} : ${x_tile_size_w};
-      x_tile_size_byte = x_tile_size_nif*x_tile_size_h*x_tile_size_w*${x_data_size_byte}/8;
-      x_length_nif_byte = (_i_nif_load+1 == ${tile_dim_nif})   ? ${x_tile_size_nif_byte_last} : ${x_tile_size_nif_byte};
-      // additionally overlap by padding for the first tile after a border one
-      //this because in the first tile we use less pixels from x_buffer, since we have the ones of padding
-      pad_offset_h=0, pad_offset_w=0;
-      if(_i_h_load > 0)
-        pad_offset_h = ${padding_top};
-      if(_i_w_load > 0)
-        pad_offset_w = ${padding_left};
-      y_tile_size_h   = (_i_h_load+1 == ${tile_dim_h})   ? ${y_tile_size_h_last} : ${y_tile_size_h};
-      y_tile_size_w   = (_i_w_load+1 == ${tile_dim_w})   ? ${y_tile_size_w_last} : ${y_tile_size_w};
-      y_tile_size_nof = (_i_nof_load+1 == ${tile_dim_nof}) ? ${y_tile_size_nof_last} : ${y_tile_size_nof};
-      y_tile_size_byte = y_tile_size_nof*y_tile_size_h*y_tile_size_w*${y_data_size_byte}/8;
-      y_length_nof_byte = (_i_nof_load+1 == ${tile_dim_nof})   ? ${y_length_nof_byte_last} : ${y_tile_size_nof_byte};
-      W_tile_size_nof = (_i_nof_load+1 == ${tile_dim_nof}) ? ${W_tile_size_nof_last} : ${W_tile_size_nof};
-      W_tile_size_nif = (_i_nif_load+1 == ${tile_dim_nif}) ? ${W_tile_size_nif_last} : ${W_tile_size_nif};
-      % if flag_DW == 1:
-      W_tile_size_byte = W_tile_size_nof*W_tile_size_nif*${fs1}*${fs2};
-      % else:
-      W_tile_size_byte = W_tile_size_nof*W_tile_size_nif*${W_data_size_byte}*${fs1}*${fs2}/8;
-      % endif
-      W_length_nif_byte = (_i_nif_load+1 == ${tile_dim_nif}) ? ${W_tile_size_nif_byte_last} : ${W_tile_nif_byte};
-      // transfer of next input tile in double buffering
-      if (pi_core_id() == 0) {
-        if (_i_nif_load!=_i_nif_exec || _i_w_load!=_i_w_exec || _i_h_load!=_i_h_exec)
-        {
-          DmaTransfer transfer = dma_transfer_create();
-          transferConf_x.ext = dory_get_tile_3d(l2_x, _i_h_load, _i_w_load, _i_nif_load, ${x_tile_size_h}, ${x_tile_size_w}, ${x_tile_size_nif}, ${x_w}, ${nif*g},  ${conv_overlap1}, ${conv_overlap2},0, pad_offset_h, pad_offset_w, 0, ${x_data_size_byte});
-          transferConf_x.loc = (l1_buffer + ${l1_x_offset});
-          transferConf_x.number_of_2d_copies = x_tile_size_h;
-          transferConf_x.number_of_1d_copies = x_tile_size_w;
-          transferConf_x.length_1d_copy = x_length_nif_byte;
-          dma_transfer_async(transferConf_x);
-          dma_transfer_wait(transfer);
-        }
-        // transfer of next weight tile if changed input or output channels
-        if (_i_nif_load!=_i_nif_exec || _i_nof_load!=_i_nof_exec)
-        {
-          DmaTransfer transfer = dma_transfer_create();
-          % if flag_DW == 0:
-          transferConf_W.ext = dory_get_tile_3d(l2_W, _i_nof_load, 0, _i_nif_load, ${W_tile_size_nof}, ${fs1}*${fs2}, ${W_tile_size_nif}, ${fs1}*${fs2}, ${nif}, 0,0,0,0,0,0, ${W_data_size_byte});
-          % else:
-          transferConf_W.ext = dory_get_tile_3d(l2_W, _i_nof_load, 0, 0, ${W_tile_size_nof}, ${fs1}*${fs2}, ${W_tile_size_nif}, ${fs1}*${fs2}, ${nif}, 0,0,0,0,0,0, ${W_data_size_byte});
-          % endif
-          transferConf_W.loc = (l1_buffer + ${l1_W_offset});
-          % if flag_DW == 0:
-          transferConf_W.number_of_2d_copies = W_tile_size_nof;
-          transferConf_W.length_1d_copy = W_length_nif_byte;
-          % else:
-          transferConf_W.length_1d_copy = (int) W_tile_size_nof * ${W_data_size_byte} * ${ fs1 * fs2} / 8;
-          % endif
-          dma_transfer_async(transferConf_W);
-          % if FLAG_BATCHNORM == 1:
 
-          transferConf_k.ext = (uint32_t) l2_W+${l2_off_k} + ${k_tile_size_byte_transfer}*_i_nof_load;
-          transferConf_k.loc = (uint32_t) l1_buffer + ${l1_k_offset};
-          transferConf_k.length_1d_copy = (uint16_t) W_tile_size_nof * ${int(act_dim_bit/8)};
-          dma_transfer_async(transferConf_k);
+static void load_input_async(Layer tile, Layer body, Layer layer, TileIndex index) {
+  // additionally overlap by padding for the first tile after a border one
+  // this because in the first tile we use less pixels from x_buffer, since we have the ones of padding
+  const int x_offset_h = index.height > 0 ? layer.padding.top : 0;
+  const int x_offset_w = index.width > 0 ? layer.padding.left : 0;
 
-          transferConf_lambda.ext = (uint32_t) l2_W+${l2_off_lambda} + ${lambda_tile_size_byte_transfer}*_i_nof_load;
-          transferConf_lambda.loc = (uint32_t) l1_buffer + ${l1_lambda_offset};
-          transferConf_lambda.length_1d_copy = (uint16_t) W_tile_size_nof * ${int(act_dim_bit/8)};
-          dma_transfer_async(transferConf_lambda);
-          % endif
-          dma_transfer_wait(transfer);
-        }
-      }
-    // creation of the pointers to input, output, weights, lambda and k
-    % if flag_DW == 1:
-    asm volatile("": : :"memory");
-    % endif
-    x = (${type} *) (l1_buffer + ${l1_x_offset});
-    % if FLAG_BATCHNORM == 1:
-    % if act_dim_bit == 32:
-    k = (int32_t *) (l1_buffer + ${l1_k_offset});
-    lambda = (int32_t *) (l1_buffer + ${l1_lambda_offset});
+  dma_transfer_async((DmaTransferConf) {
+    .ext = dory_get_tile_3d(layer.addr.input,
+                            index.height, index.width, index.input_channel,
+                            body.input.height, body.input.width, body.input.channel,
+                            layer.input.width, layer.input.channel,
+                            ${conv_overlap1}, ${conv_overlap2}, 0,
+                            x_offset_h, x_offset_w, 0,
+                            ${x_data_size_byte}),
+    .loc = tile.addr.input,
+    .number_of_2d_copies = tile.input.height,
+    .number_of_1d_copies = tile.input.width,
+    .length_1d_copy = tile.input.channel_size,
+    .hwc_to_chw = ${flag_DW},
+    .stride_2d = ${x_stride_w_byte},
+    .stride_1d = ${x_stride_c_byte},
+    .dir = 1
+  });
+}
+
+static void store_output_async(Layer tile, Layer body, Layer layer, TileIndex index) {
+  dma_transfer_async((DmaTransferConf) {
+    .ext = dory_get_tile_3d(layer.addr.output,
+                            index.height, index.width, index.output_channel,
+                            body.output.height, body.output.width, body.output.channel,
+                            layer.output.width, layer.output.channel,
+                            0, 0, 0,
+                            0, 0, 0,
+                            ${y_data_size_byte}),
+    .loc = tile.addr.output,
+    .number_of_2d_copies = tile.output.height,
+    .number_of_1d_copies = tile.output.width,
+    .length_1d_copy = tile.output.channel_size,
+    .hwc_to_chw = 0,
+    .stride_2d = ${y_stride_w_byte},
+    .stride_1d = ${y_stride_c_byte},
+    .dir = 0
+  }); 
+}
+
+static void load_weights_async(Layer tile, Layer body, Layer layer, TileIndex index) {
+  dma_transfer_async((DmaTransferConf) {
+    .ext = dory_get_tile_3d(layer.addr.weights,
+                            % if flag_DW == 0:
+                            index.output_channel, 0, index.input_channel,
+                            % else:
+                            index.output_channel, 0, 0,
+                            % endif
+                            body.weights.output_channel, ${fs1}*${fs2}, body.weights.input_channel,
+                            ${fs1}*${fs2}, ${nif},
+                            0, 0, 0,
+                            0, 0, 0,
+                            ${W_data_size_byte}),
+    .loc = tile.addr.weights,
+    % if flag_DW == 0:
+    .number_of_2d_copies = tile.weights.output_channel,
+    .number_of_1d_copies = ${fs1 * fs2},
+    .length_1d_copy = tile.weights.input_channel_size,
     % else:
-    k = (int64_t *) (l1_buffer + ${l1_k_offset});
-    lambda = (int64_t *) (l1_buffer + ${l1_lambda_offset});
+    .number_of_2d_copies = 1,
+    .number_of_1d_copies = 1,
+    .length_1d_copy = (int) tile.weights.output_channel * ${W_data_size_byte} * ${fs1}*${fs2} / 8,
     % endif
-    % endif
-    % if has_bias == 1:
-    b = (${type} *) (l1_buffer + ${l1_b_offset} + _i_nof_load*${bias_tile_size_byte});
-    % endif
-    W = (${type} *) (l1_buffer + ${l1_W_offset});
-    y = (${type} *) (l1_buffer + ${l1_y_offset});
-    p_r = 0;
-    p_l = 0;
-    p_t = 0;
-    p_b = 0;
-    if (_i_h_load == 0)
-      p_t = ${padding_top};
-    if (_i_w_load == 0)
-      p_l = ${padding_left};
-    if (_i_h_load == ${tile_dim_h}-1)
-      p_b = ${padding_bottom};
-    if (_i_w_load == ${tile_dim_w}-1)
-      p_r = ${padding_right};
-    pi_cl_team_barrier(0);
-    % if tile_dim_nof*tile_dim_nif*tile_dim_h*tile_dim_w == 1 or flag_DW == 1:
-    asm volatile("": : :"memory");
-    % endif
+    .hwc_to_chw = 0,
+    .stride_2d = ${W_stride_nof_byte},
+    .stride_1d = ${W_stride_hw_byte},
+    .dir = 1
+  });
+  % if FLAG_BATCHNORM == 1:
+
+  dma_transfer_1d_async((DmaTransferConf) {
+    .ext = layer.addr.scale + ${k_tile_size_byte_transfer}*index.output_channel,
+    .loc = tile.addr.scale,
+    .length_1d_copy = tile.weights.output_channel * ${int(act_dim_bit/8)},
+    .dir = 1
+  });
+
+  dma_transfer_1d_async((DmaTransferConf) {
+    .ext = layer.addr.bias + ${lambda_tile_size_byte_transfer}*index.output_channel,
+    .loc = tile.addr.bias,
+    .length_1d_copy = tile.weights.output_channel * ${int(act_dim_bit/8)},
+    .dir = 1
+  });
+  % endif
+}
+
+static void load_bias_async(Layer tile, Layer layer) {
+  dma_transfer_1d_async((DmaTransferConf) {
+    .ext = layer.addr.bias,
+    .loc = tile.addr.bias,
+    .length_1d_copy = ${b_size_byte},
+    .dir = 1
+  });
+}
+
+static void kernel(Layer tile, void * im2col, void * pwt_buffer) {
   % if flag_DW == 0 and optional_type == '8bit' and (fs1*fs2>1 or stride>1):
     pulp_nn_conv_Ho_parallel(
   % elif flag_DW == 0 and optional_type == '8bit' and fs1*fs2==1  and 'FullyConnected' not in func_name:
@@ -303,101 +207,180 @@ void ${func_name}(
     ${"x" if 'hw' in optional_type else ""}pulp_nn_depthwise_${data_type_x[0]}${x_data_size_byte}_${data_type_y[0]}${y_data_size_byte}_${data_type_weights[0]}${W_data_size_byte}(
   % endif
   % if 'Gemm' in func_name or 'FullyConnected' in func_name:
+      tile.addr.input,
       % if has_bias:
-      x, b, y, W,
+      tile.addr.bias,
       % else:
-      x, 0, y, W,
+      NULL,
       % endif
+      tile.addr.output,
+      tile.addr.weights,
       % if FLAG_BATCHNORM == 1 and y_data_size_byte != 32:
-      k, lambda,
+      tile.addr.scale, tile.addr.bias,
       % elif y_data_size_byte != 32:
       0, 0,
       % endif
       % if y_data_size_byte != 32:
-        % if FLAG_RELU == 1:
-      out_mult, out_shift,
-        % else:
-        1, out_shift,
-        % endif
+      ${out_mul}, ${out_shift},
       % endif
-      x_tile_size_nif, y_tile_size_nof${"," if y_data_size_byte != 32 else ""}
+      tile.input.channel, tile.output.channel${"," if y_data_size_byte != 32 else ""}
       % if y_data_size_byte != 32:
       ${FLAG_RELU}, ${FLAG_BATCHNORM}
       % endif
       );
   % else:
-      x, im2col,
+      tile.addr.input,
+      im2col,
       % if has_bias:
-      b,
+      tile.addr.bias,
       % else:
       NULL,
       % endif
-      y, W,
+      tile.addr.output,
+      tile.addr.weights,
       % if flag_DW == 1:
       pwt_buffer,
       % endif
       % if FLAG_BATCHNORM == 1:
-      k, lambda,
+      tile.addr.scale, tile.addr.bias,
       % else:
-      0, 0,
+      NULL, NULL,
       % endif
-      out_mult, out_shift,
-      x_tile_size_w, x_tile_size_h, x_tile_size_nif,
-      y_tile_size_w, y_tile_size_h, y_tile_size_nof,
+      ${out_mul}, ${out_shift},
+      tile.input.width, tile.input.height, tile.input.channel,
+      tile.output.width, tile.output.height, tile.output.channel,
       ${fs2}, ${fs1},
-      p_t, p_b, p_l, p_r, ${stride}, ${stride},
+      tile.padding.top, tile.padding.bottom, tile.padding.left, tile.padding.right, ${stride}, ${stride},
       ${FLAG_RELU}, ${FLAG_BATCHNORM}
       );
   % endif
-    pi_cl_team_barrier(0);
+}
 
-    if (pi_core_id() == 0) {
-      % if tile_dim_nif != 1 and flag_DW == 0:
-      if(_i_nif_load == 0) 
-      {
+typedef struct ConvolutionArgs {
+  Layer tile;
+  void * im2col;
+  void * pwt_buffer;
+} ConvolutionArgs;
+
+static void convolution(void * args) {
+  ConvolutionArgs * convolutionArgs = (ConvolutionArgs *)args;
+  kernel(convolutionArgs->tile, convolutionArgs->im2col, convolutionArgs->pwt_buffer);
+}
+
+
+void __attribute__ ((noinline)) ${func_name}(void *args) {
+  //////////////////////////////////////////////////////////////////////////
+  // arguments assigning: keeping same interface between L2 and L3 memory //
+  //////////////////////////////////////////////////////////////////////////
+  unsigned int *real_arg = (unsigned int *) args;
+  unsigned int l3_x =(unsigned int)  real_arg[0];
+  unsigned int l3_y =(unsigned int)  real_arg[1];
+  unsigned int l3_W =(unsigned int)  real_arg[2];
+  unsigned int l2_x =(unsigned int)  real_arg[3];
+  unsigned int l2_x_2 =(unsigned int)  real_arg[4];
+  unsigned int l2_y =(unsigned int)  real_arg[5];
+  unsigned int l2_W =(unsigned int)  real_arg[6];
+  unsigned int l1_buffer =(unsigned int)  real_arg[7];
+  unsigned int hyperram =(unsigned int)  real_arg[8];
+
+  const Layer layer = {
+    .addr = {
+      .input = l2_x,
+      .weights = l2_W,
+      % if FLAG_BATCHNORM == 1:
+      .scale = l2_W + ${l2_off_k},
+      .bias = l2_W+${l2_off_lambda},
       % endif
-        DmaTransfer transfer = dma_transfer_create();
-        transferConf_y.ext = dory_get_tile_3d(l2_y, _i_h_load, _i_w_load, _i_nof_load, ${y_tile_size_h}, ${y_tile_size_w}, ${y_tile_size_nof}, ${y_w}, ${int(nof*factor)}, 0, 0, 0, 0, 0, 0, ${y_data_size_byte});
-        transferConf_y.loc = (l1_buffer + ${l1_y_offset});
-        transferConf_y.number_of_2d_copies = y_tile_size_h;
-        transferConf_y.number_of_1d_copies = y_tile_size_w;
-        transferConf_y.length_1d_copy = y_length_nof_byte;
-        dma_transfer_async(transferConf_y); 
-        dma_transfer_wait(transfer);  
-      % if tile_dim_nif != 1 and flag_DW == 0:
-      }
+      % if has_bias == 1:
+      .bias = l2_W+${l2_off_bias},
       % endif
+      .output = l2_y
+    },
+    .input = {
+      .width = ${x_w},
+      .channel = ${nif*g}
+    },
+    .output = {
+      .width = ${y_w},
+      .channel = ${int(nof*factor)}
+    },
+    .padding = {
+        .top    = ${padding_top},
+        .right  = ${padding_right},
+        .bottom = ${padding_bottom},
+        .left   = ${padding_left}
     }
-    // update prev iterators
+  };
 
-    _i_nof_exec = _i_nof_load;
-    _i_nif_exec = _i_nif_load;
-    _i_h_exec = _i_h_load;
-    _i_w_exec = _i_w_load;
-  % if tile_dim_nif != 1 and flag_DW == 0:
-    // loop nest is nof,h,w,nif
-    _i_nif_load += 1;
-    if(_i_nif_load==${tile_dim_nif}) 
+  pi_team_config_offload(NUM_CORES);
+
+  DmaTransfer transfer = dma_transfer_create();
+
+  TileIndex index_load = { .height = 0, .width = 0, .input_channel = 0, .output_channel = 0 };
+  TileIndex index_exec = { .height = 1, .width = 1, .input_channel = 1, .output_channel = 1 };
+
+  void * im2col = l1_buffer + ${buffer_l1_all};
+  void * pwt_buffer = \
+% if flag_DW == 1:
+im2col + ${im2col_dim};
+% else:
+NULL;
+% endif
+
+  const int total_tiles = index_end.output_channel * index_end.input_channel * index_end.height * index_end.width;
+
+  // tile loop nest
+  for(int iter=0; iter < total_tiles; iter++) {
+    Address addr = {
+      .input = l1_buffer + ${l1_x_offset},
+      .weights = l1_buffer + ${l1_W_offset},
+      % if FLAG_BATCHNORM == 1:
+      .scale = l1_buffer + ${l1_k_offset},
+      .bias = l1_buffer + ${l1_lambda_offset},
+      % endif
+      % if has_bias == 1:
+      .bias = l1_buffer + ${l1_b_offset} + index_load.output_channel * ${bias_tile_size_byte},
+      % endif
+      .output = l1_buffer + ${l1_y_offset}
+    };
+    Layer tile = tile_create(index_load, index_end, body, border, layer, addr);
+
+    % if has_bias == 1:
+    if (iter == 0) {
+      load_bias_async(tile, layer);
+    }
+    % endif
+
+    // transfer of next input tile in double buffering
+    if (index_load.input_channel!=index_exec.input_channel || index_load.width!=index_exec.width || index_load.height!=index_exec.height)
     {
-      _i_nif_load = 0;
-  % endif
-      _i_w_load += 1;
-      if(_i_w_load==${tile_dim_w}) 
-      {
-        _i_w_load = 0;
-        _i_h_load += 1;
-        if(_i_h_load==${tile_dim_h}) 
-        {
-          _i_h_load = 0;
-      % if flag_DW == 1:
-        _i_nif_load += 1;
-      % endif
-          _i_nof_load += 1;
-        }
-      }
-  % if tile_dim_nif != 1 and flag_DW == 0:
+      load_input_async(tile, body, layer, index_load);
     }
-  % endif 
-    pi_cl_team_barrier(0);
+    // transfer of next weight tile if changed input or output channels
+    if (index_load.input_channel!=index_exec.input_channel || index_load.output_channel!=index_exec.output_channel)
+    {
+      load_weights_async(tile, body, layer, index_load);
+    }
+
+    ConvolutionArgs convolutionArgs = {
+      .tile = tile,
+      .im2col = im2col,
+      .pwt_buffer = pwt_buffer
+    };
+    dma_transfer_wait(transfer);
+    pi_team_offload_preset(convolution, &convolutionArgs);
+    pi_team_offload_wait();
+
+    % if tile_dim_nif != 1 and flag_DW == 0:
+    if(index_load.input_channel == 0) 
+    {
+    % endif
+      store_output_async(tile, body, layer, index_load);
+    % if tile_dim_nif != 1 and flag_DW == 0:
+    }
+    % endif
+
+    index_exec = index_load;
+    index_load = tile_index_get_next(index_load, index_end);
   }
 }
