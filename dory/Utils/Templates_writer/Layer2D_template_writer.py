@@ -364,6 +364,8 @@ def print_template_layer(node, layer_type, tmpl_dir, out_dir, double_buffering =
     tk['lambda_tile_size_byte'] = 0
     tk['k_size_byte'] = 0
     tk['lambda_size_byte'] = 0
+    tk['k_tile_size_byte_transfer'] = 0
+    tk['lambda_tile_size_byte_transfer'] = 0
     if "Pool" not in node.name:
         if tk['FLAG_BATCHNORM'] == 1:
             tk['k_size_byte'] = k_buffer_size

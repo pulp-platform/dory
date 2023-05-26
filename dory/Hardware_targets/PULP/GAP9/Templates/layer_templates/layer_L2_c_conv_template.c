@@ -28,6 +28,7 @@
 #include "pulp_nn_kernels.h"
 #include "tile_index.h"
 #include "layer.h"
+#include "double_buffer.h"
 
 % if ULTRA_VERBOSE:
 #define VERBOSE_PRINT(...) printf(__VA_ARGS__)
@@ -312,12 +313,29 @@ void __attribute__ ((noinline)) ${func_name}(void *args) {
     }
   };
 
+  DoubleBuffer db_input = {
+    .addrs = { l1_buffer + ${l1_x_offset}, l1_buffer + ${l1_x_offset} + ${x_tile_size_byte} },
+    .index = 0
+  };
+  DoubleBuffer db_output = {
+    .addrs = { l1_buffer + ${l1_y_offset}, l1_buffer + ${l1_y_offset} + ${y_tile_size_byte} },
+    .index = 0
+  };
+  DoubleBuffer db_weights = {
+    .addrs = { l1_buffer + ${l1_W_offset}, l1_buffer + ${l1_W_offset} + ${W_tile_size_byte + k_tile_size_byte_transfer + lambda_tile_size_byte_transfer} },
+    .index = 0
+  };
+
   pi_team_config_offload(NUM_CORES);
 
   DmaTransfer transfer = dma_transfer_create();
 
-  TileIndex index_load = { .height = 0, .width = 0, .input_channel = 0, .output_channel = 0 };
-  TileIndex index_exec = { .height = 1, .width = 1, .input_channel = 1, .output_channel = 1 };
+  Layer tile_prev;
+  TileIndex index_prev = { .height = 0, .width = 0, .input_channel = 0, .output_channel = 0 };
+  TileIndex index = { .height = 0, .width = 0, .input_channel = 0, .output_channel = 0 };
+
+  int is_input_load = 1, is_weights_load = 1;
+  int is_output_store = 0;
 
   void * im2col = l1_buffer + ${buffer_l1_all};
   void * pwt_buffer = \
@@ -332,18 +350,18 @@ NULL;
   // tile loop nest
   for(int iter=0; iter < total_tiles; iter++) {
     Address addr = {
-      .input = l1_buffer + ${l1_x_offset},
-      .weights = l1_buffer + ${l1_W_offset},
+      .input = double_buffer_get_addr(db_input),
+      .weights = double_buffer_get_addr(db_weights),
       % if FLAG_BATCHNORM == 1:
-      .scale = l1_buffer + ${l1_k_offset},
-      .bias = l1_buffer + ${l1_lambda_offset},
+      .scale = double_buffer_get_addr(db_weights) + ${W_tile_size_byte},
+      .bias = double_buffer_get_addr(db_weights) + ${W_tile_size_byte} + ${k_tile_size_byte_transfer},
       % endif
       % if has_bias == 1:
-      .bias = l1_buffer + ${l1_b_offset} + index_load.output_channel * ${bias_tile_size_byte},
+      .bias = l1_buffer + ${l1_b_offset} + index.output_channel * ${bias_tile_size_byte},
       % endif
-      .output = l1_buffer + ${l1_y_offset}
+      .output = double_buffer_get_addr(db_output)
     };
-    Layer tile = tile_create(index_load, index_end, body, border, layer, addr);
+    Layer tile = tile_create(index, index_end, body, border, layer, addr);
 
     % if has_bias == 1:
     if (iter == 0) {
@@ -351,15 +369,11 @@ NULL;
     }
     % endif
 
-    // transfer of next input tile in double buffering
-    if (index_load.input_channel!=index_exec.input_channel || index_load.width!=index_exec.width || index_load.height!=index_exec.height)
-    {
-      load_input_async(tile, body, layer, index_load);
+    if (is_input_load) {
+      load_input_async(tile, body, layer, index);
     }
-    // transfer of next weight tile if changed input or output channels
-    if (index_load.input_channel!=index_exec.input_channel || index_load.output_channel!=index_exec.output_channel)
-    {
-      load_weights_async(tile, body, layer, index_load);
+    if (is_weights_load) {
+      load_weights_async(tile, body, layer, index);
     }
 
     ConvolutionArgs convolutionArgs = {
@@ -367,20 +381,39 @@ NULL;
       .im2col = im2col,
       .pwt_buffer = pwt_buffer
     };
+
     dma_transfer_wait(transfer);
-    pi_team_offload_preset(convolution, &convolutionArgs);
-    pi_team_offload_wait();
 
-    % if tile_dim_nif != 1 and flag_DW == 0:
-    if(index_load.input_channel == 0) 
-    {
-    % endif
-      store_output_async(tile, body, layer, index_load);
-    % if tile_dim_nif != 1 and flag_DW == 0:
+    if (iter > 0) {
+      pi_team_offload_wait();
     }
-    % endif
 
-    index_exec = index_load;
-    index_load = tile_index_get_next(index_load, index_end);
+    pi_team_offload_preset(convolution, &convolutionArgs);
+
+    if (is_output_store) {
+      store_output_async(tile_prev, body, layer, index_prev);
+    }
+
+    tile_prev = tile;
+    index_prev = index;
+    index = tile_index_get_next(index, index_end);
+
+    is_input_load = index.input_channel!=index_prev.input_channel || index.width!=index_prev.width || index.height!=index_prev.height;
+    is_weights_load = index.input_channel!=index_prev.input_channel || index.output_channel!=index_prev.output_channel;
+    is_output_store = 1;
+
+    if (is_input_load) {
+      double_buffer_increment(&db_input);
+    }
+    if (is_weights_load) {
+      double_buffer_increment(&db_weights);
+    }
+    if (is_output_store) {
+      double_buffer_increment(&db_output);
+    }
   }
+
+  pi_team_offload_wait();
+  store_output_async(tile_prev, body, layer, index_prev);
+  dma_transfer_wait(transfer);
 }
