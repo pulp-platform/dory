@@ -265,34 +265,68 @@ static void convolution(void * args) {
   kernel(convolutionArgs->tile, convolutionArgs->im2col, convolutionArgs->pwt_buffer);
 }
 
+typedef struct WorkerArgs {
+  uint32_t l1_buffer;
+  DoubleBuffer db_tile;
+} WorkerArgs;
 
-void __attribute__ ((noinline)) ${func_name}(void *args) {
-  //////////////////////////////////////////////////////////////////////////
-  // arguments assigning: keeping same interface between L2 and L3 memory //
-  //////////////////////////////////////////////////////////////////////////
-  unsigned int *real_arg = (unsigned int *) args;
-  unsigned int l3_x =(unsigned int)  real_arg[0];
-  unsigned int l3_y =(unsigned int)  real_arg[1];
-  unsigned int l3_W =(unsigned int)  real_arg[2];
-  unsigned int l2_x =(unsigned int)  real_arg[3];
-  unsigned int l2_x_2 =(unsigned int)  real_arg[4];
-  unsigned int l2_y =(unsigned int)  real_arg[5];
-  unsigned int l2_W =(unsigned int)  real_arg[6];
-  unsigned int l1_buffer =(unsigned int)  real_arg[7];
-  unsigned int hyperram =(unsigned int)  real_arg[8];
+static void worker(void * args) {
+  WorkerArgs * workerArgs = (WorkerArgs *)args;
+
+  void * im2col = workerArgs->l1_buffer + ${buffer_l1_all};
+  void * pwt_buffer = \
+% if flag_DW == 1:
+im2col + ${im2col_dim};
+% else:
+NULL;
+% endif
+
+  DoubleBuffer db_tile = workerArgs->db_tile;
+
+  const int total_tiles = index_end.output_channel * index_end.input_channel * index_end.height * index_end.width;
+
+  // tile loop nest
+  for(int iter=0; iter < total_tiles; iter++) {
+    pi_cl_team_barrier_cc();
+
+    ConvolutionArgs convolutionArgs = {
+      .tile = *(Layer *)double_buffer_get_addr(db_tile),
+      .im2col = im2col,
+      .pwt_buffer = pwt_buffer
+    };
+    
+    convolution(&convolutionArgs);
+
+    double_buffer_increment(&db_tile);
+  }
+
+  // Barrier for the last store to know the convolution is finished
+  pi_cl_team_barrier_cc();
+}
+
+typedef struct ClusterControlArgs {
+  uint32_t l2_x;
+  uint32_t l2_W;
+  uint32_t l2_y;
+  uint32_t l1_buffer;
+  DoubleBuffer db_tile;
+} ClusterControlArgs;
+
+static void cluster_control(void * args) {
+  ClusterControlArgs * clusterControlArgs = (ClusterControlArgs *)args;
 
   const Layer layer = {
     .addr = {
-      .input = l2_x,
-      .weights = l2_W,
+      .input = clusterControlArgs->l2_x,
+      .weights = clusterControlArgs->l2_W,
       % if FLAG_BATCHNORM == 1:
-      .scale = l2_W + ${l2_off_k},
-      .bias = l2_W+${l2_off_lambda},
+      .scale = clusterControlArgs->l2_W + ${l2_off_k},
+      .bias = clusterControlArgs->l2_W+${l2_off_lambda},
       % endif
       % if has_bias == 1:
-      .bias = l2_W+${l2_off_bias},
+      .bias = clusterControlArgs->l2_W+${l2_off_bias},
       % endif
-      .output = l2_y
+      .output = clusterControlArgs->l2_y
     },
     .input = {
       .width = ${x_w},
@@ -311,36 +345,27 @@ void __attribute__ ((noinline)) ${func_name}(void *args) {
   };
 
   DoubleBuffer db_input = {
-    .addrs = { l1_buffer + ${l1_x_offset}, l1_buffer + ${l1_x_offset} + ${x_tile_size_byte} },
+    .addrs = { clusterControlArgs->l1_buffer + ${l1_x_offset}, clusterControlArgs->l1_buffer + ${l1_x_offset} + ${x_tile_size_byte} },
     .index = 0
   };
   DoubleBuffer db_output = {
-    .addrs = { l1_buffer + ${l1_y_offset}, l1_buffer + ${l1_y_offset} + ${y_tile_size_byte} },
+    .addrs = { clusterControlArgs->l1_buffer + ${l1_y_offset}, clusterControlArgs->l1_buffer + ${l1_y_offset} + ${y_tile_size_byte} },
     .index = 0
   };
   DoubleBuffer db_weights = {
-    .addrs = { l1_buffer + ${l1_W_offset}, l1_buffer + ${l1_W_offset} + ${W_tile_size_byte + k_tile_size_byte_transfer + lambda_tile_size_byte_transfer} },
+    .addrs = { clusterControlArgs->l1_buffer + ${l1_W_offset}, clusterControlArgs->l1_buffer + ${l1_W_offset} + ${W_tile_size_byte + k_tile_size_byte_transfer + lambda_tile_size_byte_transfer} },
     .index = 0
   };
 
-  pi_team_config_offload(NUM_CORES);
-
   DmaTransfer transfer = dma_transfer_create();
 
-  Layer tile_prev;
+  DoubleBuffer db_tile = clusterControlArgs->db_tile;
+  Layer * tile_prev_ptr;
   TileIndex index_prev = { .height = 0, .width = 0, .input_channel = 0, .output_channel = 0 };
   TileIndex index = { .height = 0, .width = 0, .input_channel = 0, .output_channel = 0 };
 
   int is_input_load = 1, is_weights_load = 1;
   int is_output_store = 0;
-
-  void * im2col = l1_buffer + ${buffer_l1_all};
-  void * pwt_buffer = \
-% if flag_DW == 1:
-im2col + ${im2col_dim};
-% else:
-NULL;
-% endif
 
   const int total_tiles = index_end.output_channel * index_end.input_channel * index_end.height * index_end.width;
 
@@ -373,25 +398,20 @@ NULL;
       load_weights_async(tile, body, layer, index);
     }
 
-    ConvolutionArgs convolutionArgs = {
-      .tile = tile,
-      .im2col = im2col,
-      .pwt_buffer = pwt_buffer
-    };
+    Layer * tile_ptr = (Layer *)double_buffer_get_addr(db_tile);
+    *tile_ptr = tile;
 
     dma_transfer_wait(transfer);
 
-    if (iter > 0) {
-      pi_team_offload_wait();
-    }
-
-    pi_team_offload_preset(convolution, &convolutionArgs);
+    pi_cl_team_barrier_cc();
 
     if (is_output_store) {
-      store_output_async(tile_prev, body, layer, index_prev);
+      store_output_async(*tile_prev_ptr, body, layer, index_prev);
     }
 
-    tile_prev = tile;
+    // Prepare next iteration
+
+    tile_prev_ptr = tile_ptr;
     index_prev = index;
     index = tile_index_get_next(index, index_end);
 
@@ -408,9 +428,60 @@ NULL;
     if (is_output_store) {
       double_buffer_increment(&db_output);
     }
+    double_buffer_increment(&db_tile);
   }
 
-  pi_team_offload_wait();
-  store_output_async(tile_prev, body, layer, index_prev);
+  pi_cl_team_barrier_cc();
+  store_output_async(*tile_prev_ptr, body, layer, index_prev);
   dma_transfer_wait(transfer);
+}
+
+typedef struct ClusterArgs {
+  uint32_t l2_x;
+  uint32_t l2_W;
+  uint32_t l2_y;
+  uint32_t l1_buffer;
+  DoubleBuffer db_tile;
+} ClusterArgs;
+
+static void cluster(void * args) {
+  ClusterArgs * clusterArgs = (ClusterArgs *)args;
+
+  if (pi_core_id() == 8) {
+    ClusterControlArgs clusterControlArgs = {
+      .l2_x = clusterArgs->l2_x,
+      .l2_W = clusterArgs->l2_W,
+      .l2_y = clusterArgs->l2_y,
+      .l1_buffer = clusterArgs->l1_buffer,
+      .db_tile = clusterArgs->db_tile
+    };
+    cluster_control(&clusterControlArgs);
+  } else {
+    WorkerArgs workerArgs = {
+      .l1_buffer = clusterArgs->l1_buffer,
+      .db_tile = clusterArgs->db_tile
+    };
+    worker(&workerArgs);
+  }
+}
+
+void __attribute__ ((noinline)) ${func_name}(void *args) {
+  //////////////////////////////////////////////////////////////////////////
+  // arguments assigning: keeping same interface between L2 and L3 memory //
+  //////////////////////////////////////////////////////////////////////////
+  unsigned int *real_arg = (unsigned int *) args;
+  unsigned int l1_buffer = real_arg[7];
+
+  Layer tiles[2];
+  DoubleBuffer db_tile = { .addrs = { &tiles[0], &tiles[1] }, .index = 0 };
+
+  ClusterArgs clusterArgs = {
+    .l2_x = real_arg[3],
+    .l2_W = real_arg[6],
+    .l2_y = real_arg[5],
+    .l1_buffer = real_arg[7],
+    .db_tile = db_tile
+  };
+
+  pi_cl_team_fork_cc(NUM_CORES, cluster, &clusterArgs);
 }
