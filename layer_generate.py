@@ -247,8 +247,6 @@ def create_layer(i_layer, layer_node, dory_node, network_dir, input=None, weight
         sys.exit(-1)
 
     
-    y = y.type(y_type)
-
     y_signed = layer_node.output_activation_type == 'int'
 
     if  dory_node:
@@ -288,7 +286,7 @@ def create_layer(i_layer, layer_node, dory_node, network_dir, input=None, weight
         'layout': ''
     }
 
-
+    y = y.type(y_type)
 
     y_save = y.permute(0, 2, 3, 1) if not is_fc else y
     y_save = y_save.flatten().numpy()
