@@ -393,7 +393,11 @@ NULL;
 
     tile_prev = tile;
     index_prev = index;
+    % if flag_DW == 0:
     index = tile_index_get_next(index, index_end);
+    % else:
+    index = tile_index_get_next_dw(index, index_end);
+    % endif
 
     is_input_load = index.input_channel!=index_prev.input_channel || index.width!=index_prev.width || index.height!=index_prev.height;
     is_weights_load = index.input_channel!=index_prev.input_channel || index.output_channel!=index_prev.output_channel;
