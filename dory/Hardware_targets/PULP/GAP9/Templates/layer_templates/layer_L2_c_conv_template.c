@@ -342,7 +342,11 @@ im2col + ${im2col_dim};
 NULL;
 % endif
 
+% if flag_DW == 1:
+  const int total_tiles = index_end.output_channel * index_end.height * index_end.width;
+% else:
   const int total_tiles = index_end.output_channel * index_end.input_channel * index_end.height * index_end.width;
+% endif
 
   // tile loop nest
   for(int iter=0; iter < total_tiles; iter++) {
