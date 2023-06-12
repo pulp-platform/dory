@@ -1,5 +1,6 @@
 import re
 import math
+import numpy as np
 
 from Utils.Templates_writer.TemplateWriter import TemplateWriter
 
@@ -182,7 +183,12 @@ class TemplateWriter2D_L2(TemplateWriter):
             n_out = node.tiling_dimensions["L2"]["weights_dimensions"][0]
         else:
             n_out = node.tiling_dimensions["L2"]["output_dimensions"][0]
-        h_out = node.tiling_dimensions["L2"]["output_dimensions"][1]
+
+        if node.tiling_dimensions["L2"]["db_x"] > 1 and node.tiling_dimensions["L2"]["db_y"] == 1:
+            h_out  = int(np.floor((node.tiling_dimensions["L2"]["input_dimensions"][1] - (ks[0] - 1) + (s[0] - 1)) / s[0]))
+        else:
+            h_out = node.tiling_dimensions["L2"]["output_dimensions"][1]
+
         w_out = node.tiling_dimensions["L2"]["output_dimensions"][2]
         tile_n_out = node.tiling_dimensions["L1"]["output_dimensions"][0]
         tile_h_out = node.tiling_dimensions["L1"]["output_dimensions"][1]
