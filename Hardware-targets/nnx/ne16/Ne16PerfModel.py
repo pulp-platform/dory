@@ -11,17 +11,19 @@ class Ne16PerfModel:
     FIFO_LATENCY = 6
     SHIFTER_COUNT = 4
     ADDER_COUNT = 8
+    MULTIPLIER_COUNT = 4
     MEMORY_THROUGHPUT = 256  # bits per cycle
     WEIGHTS_BITWIDTH = 8
     INPUT_BITWIDTH = 8
     OUTPUT_BITWIDTH = 8
 
-    def __init__(self, operation, kernel_shape, depthwise=False, nq_shift=False, nq_bias=False):
+    def __init__(self, operation, kernel_shape, depthwise=False, nq_shift=False, nq_bias=False, nq_bits=32):
         self.operation = operation
         self.kernel_shape = kernel_shape
         self.depthwise = depthwise
         self.nq_shift = nq_shift
         self.nq_bias = nq_bias
+        self.nq_bits = nq_bits
         self.layer = (
                 self.OUTPUT_BUFFER_SHAPE[0],
                 self.OUTPUT_BUFFER_SHAPE[1],
@@ -30,6 +32,7 @@ class Ne16PerfModel:
 
     def set_layer(self, layer):
         self.layer = layer
+        return self
 
     def set_subtile(self, h_out=None, w_out=None, k_out=None, k_in=None):
         h_out = h_out if h_out is not None else self.OUTPUT_BUFFER_SHAPE[0]
@@ -74,7 +77,7 @@ class Ne16PerfModel:
         return 0 if not self.nq_bias else 8 + div_and_ceil(k, self.ADDER_COUNT)
 
     def nq_scale_latency(self, k):
-        return 9 + k
+        return 9 + div_and_ceil(k * (self.nq_bits // 8), self.MULTIPLIER_COUNT)
 
     def normquant_latency(self, k):
         return self.nq_shift_latency + self.nq_scale_latency(k) + self.nq_bias_latency(k)
@@ -224,6 +227,12 @@ class Ne16PerfModel:
         h_in, w_in, k_in = self.layer_shape_in
         mem = h_in * w_in * k_in + h_out * w_out * k_out + self.kernel_shape[0] * self.kernel_shape[1] * k_out * k_in
         return (mem / bandwidth) * dma_stall
+
+
+ne16Model3x3 = Ne16PerfModel('conv', (3, 3), depthwise=False)
+ne16Model1x1 = Ne16PerfModel('conv', (1, 1), depthwise=False)
+ne16Model3x3dw = Ne16PerfModel('conv', (3, 3), depthwise=True)
+
 
 if __name__ == "__main__":
     # layer = (Ho, Wo, Ko, Ki)
