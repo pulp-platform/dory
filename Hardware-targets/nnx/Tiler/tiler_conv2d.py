@@ -171,7 +171,7 @@ class Tiler_Conv2D:
 
             heuristics = self.acc.heuristic_l2((h_in, w_in, n_in), (h_out, w_out, n_out),
                                                (tile_h_in, tile_w_in, tile_n_in), (tile_h_out, tile_w_out, tile_n_out),
-                                               total_size, L2_memory, ks)
+                                               total_size, L2_memory, s, ks)
 
             solver.Add(obj_expr == heuristics)
 
@@ -234,7 +234,8 @@ class Tiler_Conv2D:
         if self.node.tiling_dimensions["L3"]["output_dimensions"][1] > self.node.tiling_dimensions["L2"]["output_dimensions"][1]:
             h_in   = self.node.tiling_dimensions["L2"]["output_dimensions"][1] * s[0] + (ks[0] - 1) - (s[0] - 1)
             in_mem = int(self.node.tiling_dimensions["L2"]["input_activation_memory"] / self.node.tiling_dimensions["L2"]["input_dimensions"][1] * h_in)
-        if self.node.tiling_dimensions["L3"]["input_dimensions"][1] > self.node.tiling_dimensions["L2"]["input_dimensions"][1]:
+        if self.node.tiling_dimensions["L3"]["input_dimensions"][1] > self.node.tiling_dimensions["L2"]["input_dimensions"][1] or \
+                (self.node.tiling_dimensions["L2"]["db_x"] > 1 and self.node.tiling_dimensions["L2"]["db_y"] == 1):
             h_out  = int(np.floor((self.node.tiling_dimensions["L2"]["input_dimensions"][1] - (ks[0] - 1) + (s[0] - 1)) / s[0]))
             out_mem = int(self.node.tiling_dimensions["L2"]["output_activation_memory"] / self.node.tiling_dimensions["L2"]["output_dimensions"][1] * h_out)
         if "Addition" not in self.node.name and "Pool" not in self.node.name:
@@ -297,37 +298,12 @@ class Tiler_Conv2D:
             tile_n_out_pw0 = solver.IntVar(1, self.node.output_channels_list[0], 'tile_n_out_pw0')
             n_in_pw1 = self.node.input_channels_list[2]
 
-        def rem(a, b):
-            """Remainder w/o 0
-            Return remainder or if the remainder is 0, `b`.
-            """
-            return ((a - 1) % b) + 1
-
-        border_tile_out_shape = [rem(solver.IntConst(layer), tile) \
-            for layer, tile in zip(layer_out_shape, tile_out_shape)]
-        border_tile_in_shape = [rem(solver.IntConst(layer), tile) \
-            for layer, tile in zip(layer_in_shape, tile_in_shape)]
-
         ###############################################
         ##### GEOMETRICAL CONSTRAINTS #################
         ###############################################
-        # Spatially tile only if h_in and w_in are bigger than input buffer size
-        # is_h_tiling = in_dim[0] > ne16.INPUT_BUFFER_H
-        # if not is_h_tiling:
-        #     solver.Add(tile_h_in == in_dim[0])
-        #     solver.Add(tile_h_out == out_dim[0])
-        #
-        # is_w_tiling = in_dim[1] > ne16.INPUT_BUFFER_W
-        # if not is_w_tiling:
-        #     solver.Add(tile_w_in == in_dim[1])
-        #     solver.Add(tile_w_out == out_dim[1])
 
-        #solver.Add(tile_h_out * s[0] == (tile_h_in - (ks[0] - 1) + (s[0] - 1)))
-        #solver.Add(tile_w_out * s[1] == (tile_w_in - (ks[1] - 1) + (s[1] - 1)))
-        #solver.Add(tile_h_out * s[0] + (ks[0] - 1) - (s[0] - 1) == tile_h_in)
-        #solver.Add(tile_w_out * s[1] - (ks[1] - 1) + (s[1] - 1) == tile_w_in)
         solver.Add(tile_h_in == solver.ConditionalExpression(tile_h_out < h_out, tile_h_out * s[0] + (ks[0] - 1) - (s[0] - 1), h_in))
-        solver.Add(tile_w_in == solver.ConditionalExpression(tile_w_out < w_out, tile_w_out * s[1] - (ks[1] - 1) + (s[1] - 1), w_in))
+        solver.Add(tile_w_in == solver.ConditionalExpression(tile_w_out < w_out, tile_w_out * s[1] + (ks[1] - 1) - (s[1] - 1), w_in))
 
         if "PointwiseDepthwisePointwise" in self.node.name:
             solver.Add(tile_n_in == n_in)
@@ -407,18 +383,68 @@ class Tiler_Conv2D:
         ###############################################
         obj_expr = solver.IntVar(0, 1000000000000, "obj_expr")
 
-        if "DepthwisePointwise" in self.node.name:
-            heuristic = self.acc.heuristic_l1_dw_pw
-        else:
-            heuristic = self.acc.heuristic_l1
-
-        heuristics = heuristic(layer_in_shape, layer_out_shape,
-                               tile_in_shape, tile_out_shape,
-                               border_tile_in_shape, border_tile_out_shape,
-                               total_size, L1_memory, ks, g, s)
+        def rem(a, b):
+            """Remainder w/o 0
+            Return remainder or if the remainder is 0, `b`.
+            """
+            return ((a - 1) % b) + 1
 
         if "PointwiseDepthwisePointwise" in self.node.name:
-            heuristics += self.acc.heuristic_l1_pw_dw_pw(tile_n_out_pw0, self.node.output_channels_list[0])
+            heuristic_args = [
+                    # PW0
+                    ((h_in, w_in, n_in),
+                     (h_in, w_in, n_in_pw1),
+                     (tile_h_in, tile_w_in, n_in),
+                     (tile_h_in, tile_w_in, tile_n_out_pw0),
+                     [1, 1], 1, 1),
+                    # DW
+                    ((h_in, w_in, n_in_pw1),
+                     (h_out, w_out, n_in_pw1),
+                     (tile_h_in, tile_w_in, tile_n_out_pw0),
+                     (tile_h_out, tile_w_out, tile_n_out_pw0),
+                     ks, g, s),
+                    # PW1
+                    ((h_out, w_out, n_in_pw1),
+                     (h_out, w_out, n_out),
+                     (tile_h_out, tile_w_out, n_in_pw1),
+                     (tile_h_out, tile_w_out, tile_n_out),
+                     [1, 1], 1, 1)
+                    ]
+        elif "DepthwisePointwise" in self.node.name:
+            heuristic_args = [
+                    # DW
+                    ((h_in, w_in, n_in),
+                     (h_out, w_out, n_in),
+                     (tile_h_in, tile_w_in, tile_n_in),
+                     (tile_h_out, tile_w_out, tile_n_in),
+                     ks, g, s),
+                    # PW
+                    ((h_out, w_out, n_in),
+                     (h_out, w_out, n_out),
+                     (tile_h_out, tile_w_out, n_in),
+                     (tile_h_out, tile_w_out, tile_n_out),
+                     [1, 1], 1, 1)
+                    ]
+        else:
+            heuristic_args = [
+                    ((h_in, w_in, n_in),
+                     (h_out, w_out, n_out),
+                     (tile_h_in, tile_w_in, tile_n_in),
+                     (tile_h_out, tile_w_out, tile_n_out),
+                     ks, g, s)
+                    ]
+
+        heuristics = self.acc.heuristic_total_size(total_size, L1_memory)
+        for layer_in, layer_out, tile_in, tile_out, ks, g, s in heuristic_args:
+            border_out = [rem(solver.IntConst(layer), tile)
+                          for layer, tile in zip(layer_out, tile_out)]
+            border_in = [rem(solver.IntConst(layer), tile)
+                         for layer, tile in zip(layer_in, tile_in)]
+
+            heuristics += self.acc.heuristic_tile_shape(layer_in, layer_out,
+                                                        tile_in, tile_out,
+                                                        border_in, border_out,
+                                                        ks, self.node.weight_bits, g, s)
 
         modifier = 1000000
         heuristics_sum = sum([int(modifier * h["prio"]) * h["value"] for h in heuristics])

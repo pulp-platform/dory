@@ -373,7 +373,11 @@ static void layer_task_fork(void *args) {
                 load_weights_async(tile_dw, &tile_status_dw, kernel_dw, weights_ki_size_dw);
                 dma_mutex_unlock();
 
-                execute_stride2x2_prepare(tile_dw, kernel_dw, &nnx_tasks_dw[i_buff_dw]); // TODO
+                % if stride == 2:
+                execute_stride2x2_prepare(tile_dw, kernel_dw, &nnx_tasks_dw[i_buff_dw]);
+                % else:
+                execute_prepare(tile_dw, &nnx_tasks_dw[i_buff_dw]);
+                % endif
                 nnx_conv_set_strides(&nnx_tasks_dw[i_buff_dw], tile_dw.input.channel, tile_dw.input.width, tile_dw.input.channel,
                                      tile_dw.output.width, body_pw.input.channel);
 
@@ -425,8 +429,12 @@ static void layer_task_fork(void *args) {
             for (int i_tile_dw = 0; i_tile_dw < end_index_dw.output_channel; i_tile_dw++) {
                 monitor_consume_begin(monitor.input);
                 monitor_produce_begin(monitor.job_dw);
+                % if stride == 2:
                 nnx_job_ids_dw[i_buff_dw] = 
                     execute_stride2x2_blocking(nnx_tasks_dw[i_buff_dw], tiles_dw[i_buff_dw], kernel_dw, body_pw.input.channel);
+                % else:
+                nnx_job_ids_dw[i_buff_dw] = execute_async(nnx_tasks_dw[i_buff_dw]);
+                % endif
                 monitor_produce_end(monitor.job_dw);
                 i_buff_dw = inc(i_buff_dw, BUFFER_SIZE);
             }

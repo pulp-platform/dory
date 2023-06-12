@@ -59,6 +59,7 @@ class Pattern_rewriter:
         node.op_type = "BNRelu" + convs[0].op_type
         node.output_index = self.graph[indexes[-1]].output_index
         node.output_channels = convs[-1].output_channels
+        node.output_dimensions = convs[-1].output_dimensions
         node.input_channels_list = [conv.input_channels for conv in convs]
         node.output_channels_list = [conv.output_channels for conv in convs]
         node.MACs = sum([conv.MACs for conv in convs])
@@ -116,6 +117,7 @@ class Pattern_rewriter:
         node.op_type = "BNRelu" + convs[0].op_type
         node.output_index = self.graph[indexes[-1]].output_index
         node.output_channels = convs[-1].output_channels
+        node.output_dimensions = convs[-1].output_dimensions
         node.MACs = sum([conv.MACs for conv in convs])
 
         # delete consts

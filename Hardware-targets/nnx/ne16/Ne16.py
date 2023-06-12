@@ -1,7 +1,13 @@
 import numpy as np
 import random
 from ..Accelerator import Accelerator
-from ..Util import *
+from ..Util import (
+        maximize_divisibility_w_prio,
+        maximize_size_w_prio,
+        maximize_divisibility_or_max_w_prio,
+        minimize_size_w_prio,
+        div_and_ceil,
+        )
 from .Ne16PerfModel import Ne16PerfModel
 
 
@@ -32,11 +38,16 @@ class Ne16(Accelerator):
     def heuristic_l2(self,
                      layer_in_shape, layer_out_shape,
                      tile_in_shape, tile_out_shape,
-                     total_size, mem_size, ks=None, modifier=1000000):
+                     total_size, mem_size, s, ks, modifier=1000000):
+
+        subtile_out_shape = (2 if s == [2, 2] else self.OUTPUT_BUFFER_SHAPE[0],
+                             2 if s == [2, 2] else self.OUTPUT_BUFFER_SHAPE[1],
+                             self.OUTPUT_BUFFER_SHAPE[2])
+
         heuristics = [
             # Geometrical shape of tiles
-            maximize_divisibility_w_prio(tile_out_shape[2], self.OUTPUT_BUFFER_SHAPE[2], prio=1),
-            maximize_divisibility_w_prio(tile_out_shape[0], self.OUTPUT_BUFFER_SHAPE[0], prio=1.5),
+            maximize_divisibility_w_prio(tile_out_shape[2], subtile_out_shape[2], prio=4),
+            maximize_divisibility_w_prio(tile_out_shape[0], subtile_out_shape[0], prio=5),
             maximize_size_w_prio(tile_out_shape[2], max=layer_out_shape[2], prio=0.5),
             # Total dimension of tile
             maximize_size_w_prio(total_size, max=mem_size, prio=1)
@@ -44,45 +55,41 @@ class Ne16(Accelerator):
 
         return sum([int(modifier * h["prio"]) * h["value"] for h in heuristics])
 
-    def heuristic_l1_dw_pw(self,
-                           layer_in_shape, layer_out_shape,
-                           tile_in_shape, tile_out_shape,
-                           border_tile_in_shape, border_tile_out_shape,
-                           total_size, mem_size, ks, g, s):
-        layer_latency = 0
-        tile_latency = 0
-        ne16_model_dw = Ne16PerfModel('conv', ks, depthwise=g>1, nq_bias=True)
-        ne16_model_dw.set_layer(layer_out_shape[0:2] + (layer_in_shape[2], layer_in_shape[2]))
-        layer_latency += ne16_model_dw.latency
-        ne16_model_dw.set_layer(tile_out_shape[0:2] + (tile_in_shape[2], tile_in_shape[2]))
-        tile_latency += ne16_model_dw.latency
+    def heuristic_total_size(self, total_size, mem_size):
+        return [
+            # Bigger tile size
+            maximize_size_w_prio(total_size, max=mem_size, prio=0.5)
+        ]
 
-        ne16_model_pw = Ne16PerfModel('conv', [1, 1], depthwise=False, nq_bias=True)
-        ne16_model_pw.set_layer(layer_out_shape + (layer_in_shape[2], ))
-        layer_latency += ne16_model_pw.latency
-        ne16_model_pw.set_layer(tile_out_shape + (layer_in_shape[2], ))
-        tile_latency += ne16_model_pw.latency
+    def heuristic_tile_shape(self,
+                             layer_in_shape, layer_out_shape,
+                             tile_in_shape, tile_out_shape,
+                             border_tile_in_shape, border_tile_out_shape,
+                             ks, qw, g, s):
+
+        ne16_model = Ne16PerfModel('conv', ks, depthwise=g > 1, nq_bias=True)
+        ne16_model.set_layer(layer_out_shape + (layer_in_shape[2], ))
+        layer_latency = ne16_model.latency
+        ne16_model.set_layer(tile_out_shape + (tile_in_shape[2], ))
 
         def mem_occupancy(in_shape, out_shape):
             def size(shape):
                 return shape[0] * shape[1] * shape[2]
 
             return size(in_shape) + size(out_shape) + \
-                    self.weights_size(out_shape[2], in_shape[2], ks, 8, True) + \
-                    self.weights_size(out_shape[2], in_shape[2], [1, 1], 8, False)
+                self.weights_size(out_shape[2], in_shape[2], ks, qw, dw=g > 1)
 
         layer_size = mem_occupancy(layer_in_shape, layer_out_shape)
         tile_size = mem_occupancy(tile_in_shape, tile_out_shape)
         border_tile_size = mem_occupancy(border_tile_in_shape, border_tile_out_shape)
 
-        subtile_out_shape = (6 if s == [2, 2] else self.OUTPUT_BUFFER_SHAPE[0],
-                             6 if s == [2, 2] else self.OUTPUT_BUFFER_SHAPE[1],
+        subtile_out_shape = (2 if s == [2, 2] else self.OUTPUT_BUFFER_SHAPE[0],
+                             2 if s == [2, 2] else self.OUTPUT_BUFFER_SHAPE[1],
                              self.OUTPUT_BUFFER_SHAPE[2])
 
         subtile_in_shape = (self.INPUT_BUFFER_H, self.INPUT_BUFFER_W, self.TP_IN)
 
         return [
-            # TODO: Add heuristic that prefers more width tiles then height - less switching on borders
             maximize_divisibility_or_max_w_prio(tile_out_shape[0], subtile_out_shape[0],
                                                 max=layer_out_shape[0], prio=5),
 
@@ -94,27 +101,13 @@ class Ne16(Accelerator):
                                                 max=layer_in_shape[2], prio=3),
 
             maximize_divisibility_or_max_w_prio(tile_out_shape[2], subtile_out_shape[2],
-                                                max=layer_out_shape[2], prio=1),
+                                                max=layer_out_shape[2], prio=5),
 
             # Balance out body and border tile size
-            minimize_size_w_prio(tile_size - border_tile_size, max=layer_size, prio=4),
-
-            # Make tiled input channel same as border input channel, usefull only for DW tiles
-            #maximize_condition(tile_in_shape[2] == border_tile_in_shape[2], prio=1),
-
-            maximize_size_w_prio(tile_in_shape[2], layer_in_shape[2], prio=0.5),
+            minimize_size_w_prio(tile_size - border_tile_size, max=layer_size, prio=3),
 
             # Bigger latency -> more time to fetch data
-            maximize_size_w_prio(tile_latency, max=layer_latency, prio=1),
-
-            # Bigger tile size
-            maximize_size_w_prio(total_size, max=mem_size, prio=1)
-        ]
-
-    def heuristic_l1_pw_dw_pw(self, tile_n_out_pw0, n_out):
-        return [
-            maximize_divisibility_or_max_w_prio(tile_n_out_pw0, self.OUTPUT_BUFFER_SHAPE[2],
-                                                max=n_out, prio=1)
+            maximize_size_w_prio(ne16_model.latency, max=layer_latency, prio=2),
         ]
 
     def heuristic_l1(self,
@@ -164,7 +157,7 @@ class Ne16(Accelerator):
             maximize_size_w_prio(ne16_model.latency, max=layer_latency, prio=5),
 
             # Bigger tile size
-            maximize_size_w_prio(total_size, max=mem_size, prio=1)
+            maximize_size_w_prio(total_size, max=mem_size, prio=0.5)
         ]
 
     # assuming torch shapes, w must already be in uint format!

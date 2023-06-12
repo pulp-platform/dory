@@ -80,7 +80,7 @@ static const Layer body_pw0 = {
     .input = {
         .height = ${x_tile_size_h},
         .width = ${x_tile_size_w},
-        .channel = ${nif*g} // TODO ?
+        .channel = ${nif*g}
     },
     .output = {
         .height = ${x_tile_size_h},
@@ -144,7 +144,7 @@ static const Layer body_pw1 = {
     .input = {
         .height = ${y_tile_size_h},
         .width = ${y_tile_size_w},
-        .channel = ${x_tile_size_nif_pw1} // TODO ?
+        .channel = ${x_tile_size_nif_pw1}
     },
     .output = {
         .height = ${y_tile_size_h},
@@ -444,7 +444,7 @@ static void layer_task_fork(void *args) {
 
             dma_mutex_lock();
             DmaTransfer transfer_input = dma_transfer_create();
-            load_input_async(tile_input, tile_status_pw0, body_pw0, layer_pw0, kernel_pw0);
+            load_input_async(tile_input, tile_status_pw0, body_pw0, layer_dw, kernel_pw0); // layer_dw because of padding
             dma_mutex_unlock();
 
             for (int i_tile_pw0_dw = 0; i_tile_pw0_dw < end_index_pw0.output_channel; i_tile_pw0_dw++) {
@@ -488,7 +488,7 @@ static void layer_task_fork(void *args) {
                 dma_mutex_unlock();
 
                 % if stride == 2:
-                execute_stride2x2_prepare(tile_dw, kernel_dw, &nnx_task_dw); // TODO
+                execute_stride2x2_prepare(tile_dw, kernel_dw, &nnx_task_dw);
                 % else:
                 execute_prepare(tile_dw, &nnx_task_dw);
                 % endif
@@ -500,7 +500,7 @@ static void layer_task_fork(void *args) {
                 dma_mutex_unlock();
 
                 % if stride == 2:
-                execute_stride2x2_blocking(nnx_task_dw, tile_dw, kernel_dw);
+                execute_stride2x2_blocking(nnx_task_dw, tile_dw, kernel_dw, body_pw1.input.channel);
                 % else:
                 execute_async(nnx_task_dw);
                 % endif
