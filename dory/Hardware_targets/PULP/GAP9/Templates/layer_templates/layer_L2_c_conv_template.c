@@ -332,7 +332,6 @@ void __attribute__ ((noinline)) ${func_name}(void *args) {
   TileIndex index = { .height = 0, .width = 0, .input_channel = 0, .output_channel = 0 };
 
   int is_input_load = 1, is_weights_load = 1;
-  int is_output_store = 0;
 
   void * im2col = l1_buffer + ${buffer_l1_all};
   void * pwt_buffer = \
@@ -391,7 +390,7 @@ NULL;
 
     pi_team_offload_preset(convolution, &convolutionArgs);
 
-    if (is_output_store) {
+    if (iter > 0) {
       store_output_async(tile_prev, body, layer, index_prev);
     }
 
@@ -405,7 +404,6 @@ NULL;
 
     is_input_load = index.input_channel!=index_prev.input_channel || index.width!=index_prev.width || index.height!=index_prev.height;
     is_weights_load = index.input_channel!=index_prev.input_channel || index.output_channel!=index_prev.output_channel;
-    is_output_store = 1;
 
     if (is_input_load) {
       double_buffer_increment(&db_input);
@@ -413,9 +411,7 @@ NULL;
     if (is_weights_load) {
       double_buffer_increment(&db_weights);
     }
-    if (is_output_store) {
-      double_buffer_increment(&db_output);
-    }
+    double_buffer_increment(&db_output);
   }
 
   pi_team_offload_wait();
