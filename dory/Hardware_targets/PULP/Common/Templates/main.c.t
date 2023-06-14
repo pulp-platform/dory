@@ -94,12 +94,16 @@ void application(void * arg) {
 int main () {
 #ifndef TARGET_CHIP_FAMILY_GAP9
   PMU_set_voltage(1000, 0);
+#endif
   pi_time_wait_us(10000);
   pi_freq_set(PI_FREQ_DOMAIN_FC, ${fc_frequency});
   pi_time_wait_us(10000);
   pi_freq_set(PI_FREQ_DOMAIN_CL, ${cl_frequency});
   pi_time_wait_us(10000);
-#endif
+% if periph_frequency is not None:
+  pi_freq_set(PI_FREQ_DOMAIN_PERIPH, ${periph_frequency});
+  pi_time_wait_us(10000);
+% endif
 
 % if sdk == 'pulp-sdk':
   #if __PLATFORM__ == ARCHI_PLATFORM_FPGA

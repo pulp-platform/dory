@@ -33,8 +33,9 @@
 		"8bits": 32,
 		"float32": null
 	},
-	"core frequency": 100000000,
-	"accelerator frequency": 100000000,
+	"core frequency": 50000000,
+	"accelerator frequency": 50000000,
+	"peripheral frequency": 50000000,
 	"HW specific parameters":{
 		"accelerator core0 stack": 3500,
 		"accelerator core1-7 stack": 3400

@@ -66,6 +66,10 @@ def print_template_network(
     tk['files_list'] = utils.print_file_list(file_list_w)
     tk['fc_frequency'] = HW_description["core frequency"]
     tk['cl_frequency'] = HW_description["accelerator frequency"]
+    if "peripheral frequency" in HW_description:
+        tk['periph_frequency'] = HW_description["peripheral frequency"]
+    else:
+        tk['periph_frequency'] = None
     tk['sdk'] = HW_description["software development kit"]["name"]
     list_h = list(set(list_h))
     tk['list_h'] = list_h
