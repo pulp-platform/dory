@@ -178,7 +178,10 @@ void ${prefix}network_run_cluster(void *args) {
   int z = 0;
   int end_left = 0;
   % endif
+
+  pi_perf_conf(1<<PI_PERF_CYCLES);
   int perf_cyc = 0;
+  int io_cyc = 0;
 /* ---------------------------------- */
 /* --------- SECTION 0 END ---------- */
 /* ---------------------------------- */
@@ -192,16 +195,16 @@ void ${prefix}network_run_cluster(void *args) {
 /* ---------------------------------- */
   % if not l3_supported:
   L2_input = L2_input_h;
-% endif
+  % endif
   directional_allocator_init(l2_buffer, l2_buffer_size);
 
 /* ---------------------------------- */
 /* --------- SECTION 1 END ---------- */
 /* ---------------------------------- */
-% if 'Yes' in performance or 'Perf_final' in verbose_level:
+  % if 'Yes' in performance or 'Perf_final' in verbose_level:
   // perf measurement begin
   ${prefix}cycle_network_execution = 0;
-% endif
+  % endif
 /* MAIN SECTION
   - for loop over all the layers of the network
   - double buffering using L3
@@ -211,6 +214,14 @@ void ${prefix}network_run_cluster(void *args) {
 /* ---------------------------------- */
 /* -------- SECTION 2 BEGIN --------- */
 /* ---------------------------------- */
+
+  // IO cycle cycle measurement start
+  % if 'Yes' in performance or 'Perf_final' in verbose_level:
+  pi_perf_reset();
+  pi_perf_stop();
+  pi_perf_start();
+  % endif
+
   int weight_l_cnt = 0; // count how many layers with weights we have processed to increment the weights_L3 pointer
   for (int i = 0; i < ${len(DORY_HW_graph)}; i++) {
 /* MEMORY ALLOCATION
@@ -230,28 +241,34 @@ void ${prefix}network_run_cluster(void *args) {
       cl_ram_read(L2_weights, L3_weights_curr, weights_size[i]);
     % else:
     L2_weights = Weights_name[i];
-% endif
+    % endif
 
 % if 'Check_all' in verbose_level:
 #ifdef VERBOSE
-        % if l3_supported:
+    % if 'Yes' in performance or 'Perf_final' in verbose_level:
+    pi_perf_stop();
+    % endif
+    % if l3_supported:
     if (L3_input_layers[i] == 1)
       printf("Input in L3\n");
     else
-% endif
+    % endif
     if (i == 0 || branch_change[i-1] == 0) {
       checksum("L2 input", L2_input, activations_size[i], activations_checksum[i][exec]);
-% if l3_supported:
+      % if l3_supported:
       if (allocate_layer[i] == 1)
-% else:
+      % else:
       if (layer_with_weights[i])
-% endif
+      % endif
         checksum("L2 weights", L2_weights, weights_size[i], weights_checksum[i]);
       else
         printf("Weights in L3\n");
     }
     else
       printf("Switching branch, already checked activation\n");
+    % if 'Yes' in performance or 'Perf_final' in verbose_level:
+    pi_perf_start();
+    % endif
 #endif
 % endif
 
@@ -268,27 +285,37 @@ void ${prefix}network_run_cluster(void *args) {
       .layer_id = i
     };
 
+    % if 'Yes' in performance or 'Perf_final' in verbose_level:
+    pi_perf_stop();
+    io_cyc += pi_perf_read(PI_PERF_CYCLES);
+    % endif
+
 /*
 - Execution of the layers_pointers
 */
-% if 'Yes' in performance or 'Perf_final' in verbose_level:
+    % if 'Yes' in performance or 'Perf_final' in verbose_level:
     // perf measurement begin
-    pi_perf_conf(1<<PI_PERF_CYCLES);
     pi_perf_reset();
     pi_perf_stop();
     pi_perf_start();
-% endif
+    % endif
     ${prefix}execute_layer_fork((void *) &largs);
-% if 'Yes' in performance or 'Perf_final' in verbose_level:
+    % if 'Yes' in performance or 'Perf_final' in verbose_level:
     // performance measurements: end
     pi_perf_stop();
     perf_cyc =  pi_perf_read(PI_PERF_CYCLES);
     ${prefix}cycle_network_execution += perf_cyc;
-% endif
+    % endif
 
-% if 'Yes' in performance:
+    % if 'Yes' in performance:
     print_perf(Layers_name[i], perf_cyc, NODEs_MACS[i]);
-% endif
+    % endif
+
+    % if 'Yes' in performance or 'Perf_final' in verbose_level:
+    pi_perf_reset();
+    pi_perf_stop();
+    pi_perf_start();
+    % endif
 
     // TODO: What error?
     // prevents error from compiler
@@ -300,23 +327,29 @@ void ${prefix}network_run_cluster(void *args) {
     asm volatile("": : :"memory");
 
 #ifdef VERBOSE
+    % if 'Yes' in performance or 'Perf_final' in verbose_level:
+    pi_perf_stop();
+    % endif
     printf("Layer %s %d ended: \n", Layers_name[i], i);
-% if 'Check_all' in verbose_level:
+    % if 'Check_all' in verbose_level:
     % if l3_supported:
     if (L3_output_layers[i]==1) {
       printf("Output in L3. Expected checksum: %d\n", activations_out_checksum[i][exec]);
     } else {
-% endif
+    % endif
       checksum(i + 1 < ${len(DORY_HW_graph)} ? "L2 output" : "final output",
                L2_output, activations_out_size[i], activations_out_checksum[i][exec]);
-      % if l3_supported:
+    % if l3_supported:
     }
-% endif
+    % endif
     printf("\n");
-% elif 'Last' in verbose_level:
+    % elif 'Last' in verbose_level:
     if (i == ${len(DORY_HW_graph) - 1})
         checksum("final layer", L2_output, activations_out_size[i], activations_out_checksum[i][exec]);
-% endif
+    % endif
+    % if 'Yes' in performance or 'Perf_final' in verbose_level:
+    pi_perf_start();
+    % endif
 #endif
 
     // Free memory
@@ -328,7 +361,7 @@ void ${prefix}network_run_cluster(void *args) {
     if (branch_input[i] == 1)
       dfree(bypass_dimension, dir);
     L2_input = L2_output;
-% if not l3_supported:
+    % if not l3_supported:
     if  (branch_output[i]==1)
       {
         bypass_activations = L2_output;
@@ -337,10 +370,10 @@ void ${prefix}network_run_cluster(void *args) {
 
     if (i > 0 && branch_output[i-1] == 0 && branch_change[i-1] == 0)
       dfree(activations_size[i], dir);
-% endif
+    % endif
     // Residual connections
     if (i < ${len(DORY_HW_graph) - 1}) {
- % if l3_supported:
+      % if l3_supported:
       if (branch_input[i+1] == 1) {
         bypass_activations = dmalloc(bypass_dimension, !dir);
         residual_number--;
@@ -358,12 +391,12 @@ void ${prefix}network_run_cluster(void *args) {
         residual_number++;
         bypass_dimension = activations_out_size[i];
       } else
-    if (branch_output[i]==1 || branch_change[i] == 1) {
-        layers_pointers[residual_number] = cl_ram_malloc(activations_out_size[i]);
-        cl_ram_write(layers_pointers[residual_number], L2_output, activations_out_size[i]);
-        residual_number++;
-        bypass_dimension = activations_out_size[i];
-    }
+      if (branch_output[i]==1 || branch_change[i] == 1) {
+          layers_pointers[residual_number] = cl_ram_malloc(activations_out_size[i]);
+          cl_ram_write(layers_pointers[residual_number], L2_output, activations_out_size[i]);
+          residual_number++;
+          bypass_dimension = activations_out_size[i];
+      }
 
       if (branch_change[i]==1) {
         dfree(activations_out_size[i], !dir);
@@ -373,16 +406,14 @@ void ${prefix}network_run_cluster(void *args) {
       }
       if (L3_output_layers[i] == 1)
         dfree(activations_out_size[i], !dir);
- % else:
+      % else:
 
-      if  (branch_output[i]==1)
-      {
+      if  (branch_output[i]==1) {
         left_branch_nodes = 0;
         right_branch_nodes = 0;
         z = i+1;
         end_left = 0;
-        while (branch_input[z] == 0)
-        {
+        while (branch_input[z] == 0) {
           if (end_left == 0)
             left_branch_nodes+=1;
           else
@@ -397,22 +428,32 @@ void ${prefix}network_run_cluster(void *args) {
           dir = !dir;
       }
 
-      if  (branch_change[i]==1)
-      {
+      if  (branch_change[i]==1) {
         L2_input = bypass_activations;
         bypass_activations = L2_output;
         bypass_dimension = activations_out_size[i];
         if (right_branch_nodes % 2 == 1)
           dir = !dir;
       }
-% endif
+      % endif
     }
-% if l3_supported:
+    % if l3_supported:
     if (layer_with_weights[i])
        L3_weights_curr += L3_weights_size[weight_l_cnt++];
-% endif
+    % endif
     dir = !dir;
   }
+
+  % if 'Yes' in performance or 'Perf_final' in verbose_level:
+  pi_perf_stop();
+  io_cyc += pi_perf_read(PI_PERF_CYCLES);
+  % endif
+  % if 'Yes' in performance:
+  print_perf("IO wait", io_cyc, 0 /*ops*/);
+  % endif
+  % if 'Perf_final' in verbose_level:
+  ${prefix}cycle_network_execution += io_cyc;
+  % endif
 
   //memcpy(L2_output, l2_final_output, activations_out_size[${len(DORY_HW_graph)-1}]); // BUGGY!
   for (int i=0; i<activations_out_size[${len(DORY_HW_graph)-1}]; i++)
