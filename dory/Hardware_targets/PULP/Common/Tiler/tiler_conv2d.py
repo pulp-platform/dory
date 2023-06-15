@@ -27,7 +27,7 @@ import os
 import sys
 from ortools.constraint_solver import pywrapcp
 from ortools.constraint_solver import solver_parameters_pb2
-CORES = 4
+CORES = 8
 
 
 class Tiler_Conv2D_PULP():
