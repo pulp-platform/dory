@@ -72,25 +72,27 @@ def network_generate(frontend, target, conf_file, verbose_level='Check_all+Perf_
 
 if __name__ == '__main__':
     Frontends = ["NEMO", "Quantlab"]
-    Hardware_targets = ["PULP.GAP8", "PULP.GAP8_L2", "PULP.PULP_gvsoc", "nnx.ne16", "Occamy", "Diana.Diana_TVM", "Diana.Diana_SoC"]
+    Hardware_targets = ["PULP.GAP8", "PULP.GAP8_L2", "PULP.PULP_gvsoc", "PULP.GAP9", "nnx.ne16", "Occamy", "Diana.Diana_TVM", "Diana.Diana_SoC"]
+    verbose_levels = ["None", "Perf_final", "Check_all+Perf_final", "Last+Perf_final"]
+    optional_choices = ["auto", "8bit", "mixed-hw", "mixed-sw"]
 
     parser = argparse.ArgumentParser(formatter_class=RawTextHelpFormatter)
     parser.add_argument('frontend', type=str, choices=Frontends, help='Frontend from which the onnx is produced and from which the network has been trained')
     parser.add_argument('hardware_target', type=str, choices=Hardware_targets, help='Hardware platform for which the code is optimized')
     parser.add_argument('config_file', type=str, help='Path to the JSON file that specifies the ONNX file of the network and other information.')
-    parser.add_argument('--verbose_level', default='Check_all+Perf_final',
+    parser.add_argument('--verbose_level', choices=verbose_levels, default='Check_all+Perf_final',
                         help="None: No_printf.\n"
                              "Perf_final: only total performance\n"
                              "Check_all+Perf_final: all check + final performances \n"
                              "Last+Perf_final: all check + final performances \n"
                              "Extract the parameters from the onnx model")
-    parser.add_argument('--perf_layer', default='No', help='Yes: MAC/cycles per layer. No: No perf per layer.')
-    parser.add_argument('--optional', default='auto',
+    parser.add_argument('--perf_layer', action='store_true', help='Print the performance of each layer.')
+    parser.add_argument('--optional', default='auto', choices=optional_choices,
                         help='auto (based on layer precision, 8bits or mixed-sw), 8bit, mixed-hw, mixed-sw')
     parser.add_argument('--app_dir', default='./application', help='Path to the generated application. Default: ./application')
     parser.add_argument('--prefix', default="", help='Prefix to prepend to network-specific generated functions', type=str)
 
     args = parser.parse_args()
 
-    network_generate(args.frontend, args.hardware_target, args.config_file, args.verbose_level, args.perf_layer,
+    network_generate(args.frontend, args.hardware_target, args.config_file, args.verbose_level, 'Yes' if args.perf_layer else 'No',
                      args.optional, args.app_dir, args.prefix)

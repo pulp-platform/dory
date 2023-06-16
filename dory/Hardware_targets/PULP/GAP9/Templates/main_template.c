@@ -1,0 +1,1 @@
+../../Common/Templates/main.c.t

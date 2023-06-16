@@ -244,6 +244,9 @@ def print_template_layer(node, layer_type, tmpl_dir, out_dir, double_buffering =
         tk["outmul"] = node.outmul["value"]
         tk["outadd"] = node.outadd["value"]
         tk["outshift"] = node.outshift["value"]
+
+    tk['out_mul'] = node.outmul["value"] if 'outmul' in node.constant_names else 1
+    tk['out_add'] = node.outadd["value"] if 'outadd' in node.constant_names else 0
     tk['out_shift'] = node.outshift["value"] if 'outshift' in node.constant_names else 0
 
     DW = tk['flag_DW']
@@ -361,6 +364,8 @@ def print_template_layer(node, layer_type, tmpl_dir, out_dir, double_buffering =
     tk['lambda_tile_size_byte'] = 0
     tk['k_size_byte'] = 0
     tk['lambda_size_byte'] = 0
+    tk['k_tile_size_byte_transfer'] = 0
+    tk['lambda_tile_size_byte_transfer'] = 0
     if "Pool" not in node.name:
         if tk['FLAG_BATCHNORM'] == 1:
             tk['k_size_byte'] = k_buffer_size
@@ -432,10 +437,6 @@ def print_template_layer(node, layer_type, tmpl_dir, out_dir, double_buffering =
     elif "Pool" in node.name:
         buffer_l1_all = x_buffer_size + y_buffer_size + tk['k_tile_size_byte'] + tk['lambda_tile_size_byte'] + 40 + tk['b_size_byte']
     tk['buffer_l1_all'] = buffer_l1_all
-
-    # only used for avg pool layers
-    tk['out_add'] = node.outadd["value"] if 'outadd' in node.constant_names else 0
-    tk['out_mul'] = node.outmul["value"] if 'outmul' in node.constant_names else 1
 
     tk['conv1d'] = node.conv1d
     tk['dilations'] = node.dilations
