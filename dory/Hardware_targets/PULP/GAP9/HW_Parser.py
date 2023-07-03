@@ -15,12 +15,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dory.Hardware_targets.PULP.Common import onnx_manager_PULP
-from dory.Hardware_targets.PULP.GAP8.HW_Pattern_rewriter import Pattern_rewriter
-from dory.Hardware_targets.PULP.GAP8.Tiler import Tiler
+from dory.Hardware_targets.PULP.Common import onnx_manager_PULP
+from dory.Hardware_targets.PULP.GAP9.HW_Pattern_rewriter import Pattern_rewriter
+from dory.Hardware_targets.PULP.GAP9.Tiler import Tiler
 import os
 
-class onnx_manager(onnx_manager_PULP):
+
+class onnx_manager(onnx_manager_PULP):
+
     def get_file_path(self):
         return "/".join(os.path.realpath(__file__).split("/")[:-1])
 
