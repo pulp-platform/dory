@@ -21,6 +21,7 @@
 from .tiler_conv2d import Tiler_Conv2D_PULP as Tiler_Conv2D
 from .tiler_pool2d import Tiler_Pool2D_PULP as Tiler_Pool2D
 from .tiler_add import Tiler_Add_PULP as Tiler_Add
+from .tiler_fused import Tiler_Fused_PULP as Tiler_Fused
 
 
 class Tiler_PULP:
@@ -41,6 +42,8 @@ class Tiler_PULP:
             return Tiler_Pool2D(self).get_tiling(level)
         elif 'Addition' in self.HW_node.name:
             return Tiler_Add(self).get_tiling(level)
+        elif 'Fused' in self.HW_node.name:
+            return Tiler_Fused(self).get_tiling(level)
         else:
             print("Not supported Layer.")
             return None

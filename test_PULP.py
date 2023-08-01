@@ -19,7 +19,8 @@ networks = [
                 'conf_file': './dory/dory_examples/config_files/config_DVS_CNN_9inputs_L2.json',
                 'optional': 'mixed-hw'
             },
-            "checksum_final": 'OK'
+            "checksum_final": 'OK',
+        "compat": ["pulp-sdk"]
     },
     {
             "network_args":
@@ -29,7 +30,8 @@ networks = [
                 'conf_file': './dory/dory_examples/config_files/config_DVS_CNN_9inputs_L3.json',
                 'optional': 'mixed-hw'
             },
-            "checksum_final": 'OK'
+            "checksum_final": 'OK',
+        "compat": ["pulp-sdk"]
     },
     {
 
@@ -40,7 +42,8 @@ networks = [
                 'conf_file': './dory/dory_examples/config_files/config_Quantlab_MV1_fast_xpnn.json',
                 'optional': 'mixed-hw'
             },
-            "checksum_final": 'OK'
+            "checksum_final": 'OK',
+        "compat": ["pulp-sdk"]
     },
     {
         "network_args":
@@ -49,7 +52,8 @@ networks = [
                 'target': 'PULP.GAP8',
                 'conf_file': './dory/dory_examples/config_files/config_NEMO_Penguinet_64.json'
             },
-        "checksum_final": 'OK'
+        "checksum_final": 'OK',
+        "compat": ["gap-sdk"]
     },
     {
         "network_args":
@@ -58,7 +62,8 @@ networks = [
                 'target': 'PULP.GAP8',
                 'conf_file': './dory/dory_examples/config_files/config_NEMO_dronet.json'
             },
-        "checksum_final": 'OK'
+        "checksum_final": 'OK',
+        "compat": ["gap-sdk"]
     },
     {
         "network_args":
@@ -68,7 +73,8 @@ networks = [
                 'conf_file': './dory/dory_examples/config_files/config_Quantlab_MV1_4bits.json',
                 'optional': 'mixed-sw'
             },
-        "checksum_final": 'OK'
+        "checksum_final": 'OK',
+        "compat": ["pulp-sdk"]
     },
     {
         "network_args":
@@ -78,7 +84,8 @@ networks = [
                 'conf_file': './dory/dory_examples/config_files/config_Quantlab_MV1_8bits.json',
                 'optional': 'mixed-sw'
             },
-        "checksum_final": 'OK'
+        "checksum_final": 'OK',
+        "compat": ["pulp-sdk"]
     },
     {
         "network_args":
@@ -88,7 +95,8 @@ networks = [
                 'conf_file': './dory/dory_examples/config_files/config_Quantlab_MV2_4bits.json',
                 'optional': 'mixed-sw'
             },
-        "checksum_final": 'OK'
+        "checksum_final": 'OK',
+        "compat": ["pulp-sdk"]
     },
     {
         "network_args":
@@ -98,7 +106,8 @@ networks = [
                 'conf_file': './dory/dory_examples/config_files/config_Quantlab_MV2_8bits.json',
                 'optional': 'mixed-sw'
             },
-        "checksum_final": 'OK'
+        "checksum_final": 'OK',
+        "compat": ["pulp-sdk"]
     },
     {
         "network_args":
@@ -108,7 +117,8 @@ networks = [
                 'conf_file': './dory/dory_examples/config_files/config_Quantlab_MV1_8bits.json',
                 'optional': 'mixed-sw'
             },
-        "checksum_final": 'OK'
+        "checksum_final": 'OK',
+        "compat": ["gap-sdk"]
     }
 ]
 

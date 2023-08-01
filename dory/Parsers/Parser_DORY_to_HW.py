@@ -62,17 +62,45 @@ class Parser_DORY_to_HW:
         number_of_nodes = 0
         rule_found = False
         DORY_node_indexes_to_export = []
+        ### Need a logic to support for fused kernels. A rule, can contain one other rule internally. You should always check if it is the "bigger rule"
+        ## We check for the number of nodes in the rule.
         for key, rule in self.rules.items():
             DORY_node_indexes = []
             DORY_node_indexes.append(input_index)
+
             if rule["number_of_nodes"] == 1 and input_node.name in rule["nodes_name"]:
-                rule_found = key
+                optional_failed = 0
+                if "optional" in rule.keys():
+                    for parameter in rule["optional"].keys():
+                        if input_node.__dict__[parameter] == rule["optional"][parameter][0]:
+                            pass
+                        else:
+                            optional_failed = 1
+                if optional_failed == 0:
+                    rule_found = key
+                
             elif input_node.name in rule["nodes_name"]:
                 node = input_node
-                match = 1
                 nodes = copy.deepcopy(rule["nodes_name"])
+                ### it should always start from nodes 0 of the rule. If two nodes from the rule have same name, it considers first index
                 index = nodes.index(node.name)
                 nodes[index] = "Match"
+                optional_failed = 0
+                if "optional" in rule.keys():
+                    for parameter in rule["optional"].keys():
+                        if rule["optional"][parameter][index] == 0:
+                            pass # don't care value
+                        elif isinstance(rule["optional"][parameter][index],str): # check with one other parameter of the layer
+                            if input_node.__dict__[parameter] == input_node.__dict__[rule["optional"][parameter][index]]:
+                                pass 
+                            else:
+                                optional_failed = 1
+                        elif input_node.__dict__[parameter] == rule["optional"][parameter][index]:
+                            pass
+                        else:
+                            optional_failed = 1
+                if optional_failed == 0:
+                    match = 1
                 while match == 1:
                     match = 0
                     inputs = rule["dependencies"][str(index)]["inputs"]
@@ -82,19 +110,49 @@ class Parser_DORY_to_HW:
                         node_to_search = nodes[int(nodes_index)]
                         for i,node_i in enumerate(self.DORY_Graph):
                             if node_i.output_index in int_index and node_i.name == node_to_search:
-                                nodes[int(nodes_index)] = "Match"
-                                match = 1
-                                DORY_node_indexes.append(i)
+                                optional_failed = 0
+                                if "optional" in rule.keys():
+                                    for parameter in rule["optional"].keys():
+                                        if rule["optional"][parameter][int(nodes_index)] == 0:
+                                            pass # don't care value
+                                        elif isinstance(rule["optional"][parameter][int(nodes_index)],str): # check with one other parameter of the layer
+                                            if node_i.__dict__[parameter] == node_i.__dict__[rule["optional"][parameter][int(nodes_index)]]:
+                                                pass 
+                                            else:
+                                                optional_failed = 1
+                                        elif node_i.__dict__[parameter] == rule["optional"][parameter][int(nodes_index)]:
+                                            pass
+                                        else:
+                                            optional_failed = 1
+                                if optional_failed == 0:
+                                    nodes[int(nodes_index)] = "Match"
+                                    match = 1
+                                    DORY_node_indexes.append(i)
                     for nodes_index in outputs:
                         out_index = node.output_index
                         node_to_search = nodes[int(nodes_index)]
                         for i,node_i in enumerate(self.DORY_Graph):
                             if out_index in node_i.input_indexes and node_i.name == node_to_search:
-                                nodes[int(nodes_index)] = "Match"
-                                match = 1
-                                DORY_node_indexes.append(i)
-                                node = node_i
-                                index = int(nodes_index)
+                                optional_failed = 0
+                                if "optional" in rule.keys():
+                                    for parameter in rule["optional"].keys():
+                                        if rule["optional"][parameter][int(nodes_index)] == 0:
+                                            pass # don't care value
+                                        elif isinstance(rule["optional"][parameter][int(nodes_index)],str): # check with one other parameter of the layer
+                                            if node_i.__dict__[parameter] == node_i.__dict__[rule["optional"][parameter][int(nodes_index)]]:
+                                                pass 
+                                            else:
+                                                optional_failed = 1
+                                        elif node_i.__dict__[parameter] == rule["optional"][parameter][int(nodes_index)]:
+                                            pass
+                                        else:
+                                            optional_failed = 1
+                                if optional_failed == 0:
+                                    nodes[int(nodes_index)] = "Match"
+                                    match = 1
+                                    DORY_node_indexes.append(i)
+                                    node = node_i
+                                    index = int(nodes_index)
                 if sum(x=="Match" for x in nodes) == len(nodes):
                     if number_of_nodes < rule["number_of_nodes"]:
                         rule_found = key
@@ -154,7 +212,7 @@ class Parser_DORY_to_HW:
     def add_tensors_memory_occupation_and_MACs(self):
         print("\nUpdating memory occupation and MACs of tensors in layers")
         for i, node in enumerate(self.DORY_Graph):
-            if "Convolution" in node.name or "FullyConnected" in node.name or "Add" in node.op_type or "Pooling" in node.name:
+            if "Fused" in node.name or "Convolution" in node.name or "FullyConnected" in node.name or "Add" in node.op_type or "Pooling" in node.name:
                 node.add_memory_and_MACs()
 
     def adjust_data_layout(self):
@@ -213,6 +271,9 @@ class Parser_DORY_to_HW:
         self.tiling()
         self.Printer_Frontend.print_json_from_DORY_graph("06_DORY_HW_tiled_graph", self.DORY_Graph)
         self.Printer_Frontend.print_onnx_from_DORY_graph("06_DORY_HW_tiled_graph", self.DORY_Graph)
+
+
+        QUA: capire come evitare di fare fusione quando layer non ci sta 
         self.renaming_weights()
         self.formatting_constant_parameters_tensors_and_activations()
         self.Printer_Frontend.print_json_from_DORY_graph("07_DORY_HW_with_checksums", self.DORY_Graph)

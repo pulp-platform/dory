@@ -104,6 +104,18 @@ class onnx_manager_PULP(Parser_DORY_to_HW):
                     transp = (0,2,3,1)
                     node.__dict__[weights_name]["value"] = np.transpose(node.__dict__[weights_name]["value"], transp)
                     node.__dict__[weights_name]["layout"] = "CoutKCin"
+            elif "DW-PW-Fused" in node.name:
+                for node_fused in ["node0", "node1"]:
+                    for name in node.__dict__[node_fused].constant_names:
+                        if name not in ["l","k","outshift","outmul"]:
+                            if "bias" not in name:
+                                weights_name = name
+                    if node.__dict__[node_fused].__dict__[weights_name]["layout"] == "CoutCinK":
+                        if node.conv1d:
+                            node.__dict__[node_fused].__dict__[weights_name]["value"] = node.__dict__[node_fused].__dict__[weights_name]["value"][:,:,None,:]
+                        transp = (0,2,3,1)
+                        node.__dict__[node_fused].__dict__[weights_name]["value"] = np.transpose(node.__dict__[node_fused].__dict__[weights_name]["value"], transp)
+                        node.__dict__[node_fused].__dict__[weights_name]["layout"] = "CoutKCin"
 
     def check_parameters(self):
         WARNINGS =0

@@ -76,25 +76,36 @@ class HW_node(DORY_node):
             self.tiling_dimensions["L{}".format(level-1)]["output_dimensions"] = output_dims
             if "Convolution" in self.name or "FullyConnected" in self.name:
                 self.tiling_dimensions["L{}".format(level-1)]["weights_dimensions"] = weights_dim
-                #groups = self.group if self.group < weights_dim[0] else
-                #weights_dim[0] # not really correct: If we tile a grouped
-                #conv, the effective number of groups is the higher of the two
-                #channel numbers
                 groups = self.group if all(self.group <= d for d in weights_dim) else max(weights_dim)
-
                 self.tiling_dimensions["L{}".format(level-1)]["weight_memory"] = np.prod(weights_dim)/groups*np.prod(self.kernel_shape)*self.weight_bits/8
+            elif "Fused" in self.name:
+                self.tiling_dimensions["L{}".format(level-1)]["weights_dimensions"] = weights_dim
+                groups0 = self.node0.group if all(self.node0.group <= d for d in weights_dim[-2:]) else max(weights_dim[-2:])
+                groups1 = self.node1.group if all(self.node1.group <= d for d in weights_dim[:2]) else max(weights_dim[:2])
+                self.tiling_dimensions["L{}".format(level-1)]["weight_memory"] = np.prod(weights_dim[-2:])/groups0*np.prod(self.node0.kernel_shape)*self.node0.weight_bits/8 + np.prod(weights_dim[:2])/groups1*np.prod(self.node1.kernel_shape)*self.node1.weight_bits/8 
             else:
                 self.tiling_dimensions["L{}".format(level-1)]["weight_memory"] = 0
             constants_memory = 0
             bias_memory = 0
-            for name in self.constant_names:
-                if name in ["l","k"]:
-                    constants_memory+=weights_dim[0]*self.constant_bits/8
-                if "bias" in name:
-                    if groups == 1:
-                        bias_memory+=weights_dim[0]*self.bias_bits/8
-                    else:
-                        bias_memory+=weights_dim[0]*self.bias_bits/8*16
+            if "Fused" in self.name:
+                for i,node_fused in enumerate(["node0", "node1"]):
+                    for name in self.__dict__[node_fused].constant_names:
+                        if name in ["l","k"]:
+                            constants_memory+=weights_dim[i]*self.__dict__[node_fused].constant_bits/8
+                        if "bias" in name:
+                            if groups == 1:
+                                bias_memory+=weights_dim[i]*self.__dict__[node_fused].bias_bits/8
+                            else:
+                                bias_memory+=weights_dim[i]*self.__dict__[node_fused].bias_bits/8*16
+            else:
+                for name in self.constant_names:
+                    if name in ["l","k"]:
+                        constants_memory+=weights_dim[0]*self.constant_bits/8
+                    if "bias" in name:
+                        if groups == 1:
+                            bias_memory+=weights_dim[0]*self.bias_bits/8
+                        else:
+                            bias_memory+=weights_dim[0]*self.bias_bits/8*16
 
             self.tiling_dimensions["L{}".format(level-1)]["bias_memory"] = int(bias_memory)
             self.tiling_dimensions["L{}".format(level-1)]["constants_memory"] = int(constants_memory)
@@ -231,9 +242,9 @@ class HW_node(DORY_node):
         node_dict["Layer_node_parameters"] = {}
         node_dict["Weights"] = {}
         for key, value in self.__dict__.items():
-            if not isinstance(value, dict) and key != "name" and key in DORY_node().__dict__.keys():
+            if not isinstance(value, dict) and key not in ["name", "node0", "node1"] and key in DORY_node().__dict__.keys():
                 node_dict["DORY_node_parameters"][key] = value
-            elif not isinstance(value, dict) and key != "name" and key in Layer_node().__dict__.keys():
+            elif not isinstance(value, dict) and key not in ["name", "node0", "node1"] and key in Layer_node().__dict__.keys():
                 node_dict["Layer_node_parameters"][key] = value
             elif key == "tiling_dimensions":
                 node_dict["Tiling_parameters"] = {}

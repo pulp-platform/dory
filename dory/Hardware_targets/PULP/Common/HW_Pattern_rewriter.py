@@ -16,6 +16,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from dory.Parsers import Fused_node
+
 class Pattern_rewriter_PULP:
     def __init__(self, graph):
         self.graph = graph
@@ -27,6 +29,8 @@ class Pattern_rewriter_PULP:
             self.NodeRequant_pattern_rewriter(i)
         if rule in ["ConvolutionRelu", "FullyConnectedRelu", "AdditionRelu", "QAdditionRelu", "PoolingRelu"]:
             self.NodeRelu_pattern_rewriter(i)
+        if rule in ["DW-PW-Fused"]:
+            self.Double_node_BNRelu_pattern_rewriter(i, rule)
         return self.graph
 
     def NodeBNRelu_pattern_rewriter(self, i):
@@ -48,6 +52,36 @@ class Pattern_rewriter_PULP:
         for ele in sorted(i, reverse = True):
             del self.graph[ele]
         self.graph.insert(i[0], DORY_BNRelu_node)
+
+    def Double_node_BNRelu_pattern_rewriter(self, i, rule):
+        DORY_BNRelu_node = Fused_node.Fused_node()
+        for node in [0, 1]:
+            DORY_BNRelu_node.__dict__[f"node{str(node)}"] = self.graph[i[2*node]]
+            DORY_BNRelu_node.__dict__[f"node{str(node)}"].constant_bits = self.graph[i[2*node+1]].constant_bits
+            DORY_BNRelu_node.__dict__[f"node{str(node)}"].k = self.graph[i[2*node+1]].k
+            DORY_BNRelu_node.__dict__[f"node{str(node)}"].l = self.graph[i[2*node+1]].l
+            DORY_BNRelu_node.__dict__[f"node{str(node)}"].outshift = self.graph[i[2*node+1]].outshift
+            DORY_BNRelu_node.__dict__[f"node{str(node)}"].min = self.graph[i[2*node+1]].min
+            DORY_BNRelu_node.__dict__[f"node{str(node)}"].max = self.graph[i[2*node+1]].max
+            DORY_BNRelu_node.__dict__[f"node{str(node)}"].constant_names.append("k")
+            DORY_BNRelu_node.__dict__[f"node{str(node)}"].constant_names.append("l")
+            DORY_BNRelu_node.__dict__[f"node{str(node)}"].constant_names.append("outshift")
+            DORY_BNRelu_node.__dict__[f"node{str(node)}"].output_activation_bits = self.graph[i[2*node+1]].output_activation_bits
+            DORY_BNRelu_node.__dict__[f"node{str(node)}"].output_activation_type = self.graph[i[2*node+1]].output_activation_type
+        DORY_BNRelu_node.name = rule
+        DORY_BNRelu_node.op_type = rule
+        DORY_BNRelu_node.input_dimensions = DORY_BNRelu_node.node0.input_dimensions
+        DORY_BNRelu_node.input_activation_bits = DORY_BNRelu_node.node0.input_activation_bits
+        DORY_BNRelu_node.output_activation_bits = DORY_BNRelu_node.node1.output_activation_bits
+        DORY_BNRelu_node.input_indexes = self.graph[i[0]].input_indexes
+        DORY_BNRelu_node.output_index = self.graph[i[3]].output_index
+        DORY_BNRelu_node.output_channels = DORY_BNRelu_node.node1.output_channels
+        DORY_BNRelu_node.output_dimensions = DORY_BNRelu_node.node1.output_dimensions
+        DORY_BNRelu_node.constant_names = DORY_BNRelu_node.node0.constant_names + DORY_BNRelu_node.node1.constant_names
+        for ele in sorted(i, reverse = True):
+            del self.graph[ele]
+        self.graph.insert(i[0], DORY_BNRelu_node)
+
 
     def NodeRequant_pattern_rewriter(self, i):
         DORY_BNRelu_node = self.graph[i[0]]

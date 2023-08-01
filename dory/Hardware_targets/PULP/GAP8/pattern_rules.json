@@ -9,6 +9,22 @@
 				"outputs":[]}
 		}
 	},
+	"DW-PW-Fused": {
+		"comment": "-1 in groups points to the depthwise. 0 is don't care",
+		"number_of_nodes": 4,
+		"nodes_name": ["Convolution","BNRelu","Convolution","BNRelu"],
+		"optional": {"kernel_shape": [[3,3],0,[1,1],0], "group": ["input_channels",0,1,0]}, 
+		"dependencies": {
+			"0": {"inputs": [],
+				"outputs":["1"]},
+			"1": {"inputs": ["0"],
+				"outputs":["2"]},
+			"2": {"inputs": ["1"],
+				"outputs":["3"]},
+			"3": {"inputs": ["2"],
+				"outputs":[]}
+		}
+	},
 	"FullyConnectedBNRelu": {
 		"number_of_nodes": 2,
 		"nodes_name": ["FullyConnected","BNRelu"],
