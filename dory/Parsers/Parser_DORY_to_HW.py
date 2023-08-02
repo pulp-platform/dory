@@ -65,6 +65,8 @@ class Parser_DORY_to_HW:
         ### Need a logic to support for fused kernels. A rule, can contain one other rule internally. You should always check if it is the "bigger rule"
         ## We check for the number of nodes in the rule.
         for key, rule in self.rules.items():
+            if key == "DW-PW-Fused":
+                continue # Disable fusing
             DORY_node_indexes = []
             DORY_node_indexes.append(input_index)
 
@@ -271,13 +273,11 @@ class Parser_DORY_to_HW:
         self.tiling()
         self.Printer_Frontend.print_json_from_DORY_graph("06_DORY_HW_tiled_graph", self.DORY_Graph)
         self.Printer_Frontend.print_onnx_from_DORY_graph("06_DORY_HW_tiled_graph", self.DORY_Graph)
-
-
-        QUA: capire come evitare di fare fusione quando layer non ci sta 
         self.renaming_weights()
         self.formatting_constant_parameters_tensors_and_activations()
         self.Printer_Frontend.print_json_from_DORY_graph("07_DORY_HW_with_checksums", self.DORY_Graph)
         self.Printer_Frontend.print_onnx_from_DORY_graph("07_DORY_HW_with_checksums", self.DORY_Graph)
+        # QUA: capire come evitare di fare fusione quando layer non ci sta 
         self.check_graph()
         self.check_parameters()
         return self.DORY_Graph

@@ -24,7 +24,7 @@ import json
 import os
 
 # DORY modules
-from dory.Parsers import HW_node, Layer_node
+from dory.Parsers import HW_node, Layer_node, Fused_node
 from dory.Parsers.Parser_DORY_to_HW import Parser_DORY_to_HW
 from functools import partial
 
@@ -37,6 +37,7 @@ class onnx_manager_PULP(Parser_DORY_to_HW):
         layers_supported_by_HW_Backend_IR = ["Convolution", "Pooling", "FullyConnected", "Addition", "QAddition"]
         layers_supported_by_HW_Backend_IR+= ["ReluConvolution", "ReluPooling", "ReluFullyConnected", "ReluAddition", "ReluQAddition"]
         layers_supported_by_HW_Backend_IR+= ["BNReluConvolution", "RequantPooling", "BNReluFullyConnected", "BNReluAddition", "BNReluQAddition"]
+        layers_supported_by_HW_Backend_IR+= ["DW-PW-Fused"]
         file_path = self.get_file_path()
         pattern_rewriter = self.get_pattern_rewriter()
         with open(os.path.join(file_path, "pattern_rules.json")) as f:
@@ -118,18 +119,20 @@ class onnx_manager_PULP(Parser_DORY_to_HW):
                         node.__dict__[node_fused].__dict__[weights_name]["layout"] = "CoutKCin"
 
     def check_parameters(self):
-        WARNINGS =0
+        WARNINGS = 0
+        NOT_INITIALIZED_PARAMETERS = 0
         for node in self.DORY_Graph:
             for key, value in node.__dict__.items():
-                if key not in HW_node.HW_node(Layer_node.Layer_node(), self.HW_description).__dict__.keys() and key not in Layer_node.Layer_node().__dict__.keys():
+                if key not in HW_node.HW_node(Layer_node.Layer_node(), self.HW_description).__dict__.keys() and key not in Layer_node.Layer_node().__dict__.keys() and key not in Fused_node.Fused_node().__dict__.keys():
                     if key not in node.constant_names:
                         print("WARNING: DORY Backend. Attribute {} of Node {} is not inside the predefined parameters for DORY nodes.".format(key, node.name))
                         WARNINGS +=1
                 if isinstance(value,list):
                     if len(value) == 0:
-                        WARNINGS +=1
-                        print("WARNING: DORY Backend. Attribute {} of Node {} is an empty list.".format(key, node.name))
+                        NOT_INITIALIZED_PARAMETERS +=1
+                        # print("WARNING: DORY Backend. Attribute {} of Node {} is an empty list.".format(key, node.name))
                 if isinstance(value,type(None)):
-                    WARNINGS +=1
-                    print("WARNING: DORY Backend. Attribute {} of Node {} is still not initialized.".format(key, node.name))
+                    NOT_INITIALIZED_PARAMETERS +=1
+                    # print("WARNING: DORY Backend. Attribute {} of Node {} is still not initialized.".format(key, node.name))
         print("\nDORY checking of the attribute of the graph: {} WARNINGS\n".format(WARNINGS))
+        print("\nDORY checking of the attribute of the graph: {} NOT INITIALIZED PARAMETERS\n".format(NOT_INITIALIZED_PARAMETERS))

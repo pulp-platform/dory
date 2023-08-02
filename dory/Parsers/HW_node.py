@@ -51,6 +51,8 @@ class HW_node(DORY_node):
         if not isinstance(self.name, type(None)):
             if "Convolution" in self.name or "FullyConnected" in self.name:
                 self.tiling_dimensions["L{}".format(level+1)]["weights_dimensions"] = [self.output_channels, self.input_channels]
+            if "Fused" in self.name:
+                self.tiling_dimensions["L{}".format(level+1)]["weights_dimensions"] = [self.output_channels, self.node0.output_channels,self.input_channels]
         self.tiling_dimensions["L{}".format(level+1)]["input_dimensions"] = [self.input_channels] + self.input_dimensions
         self.tiling_dimensions["L{}".format(level+1)]["output_dimensions"] = [self.output_channels] + self.output_dimensions
         self.tiling_dimensions["L{}".format(level+1)]["weight_memory"] = self.weight_memory
@@ -121,6 +123,14 @@ class HW_node(DORY_node):
                         if len(self.__dict__[name]["value"].flatten()) > self.output_channels:
                             self.__dict__["weights"] = self.__dict__.pop(name)
                             self.constant_names[i] = "weights"
+        elif "Fused" in self.name:
+            for node in ["node0", "node1"]:
+                for i, name in enumerate(self.__dict__[node].constant_names):
+                    if name not in ["l","k","outshift","outmul","outadd"]:
+                        if "bias" not in name:
+                            if len(self.__dict__[node].__dict__[name]["value"].flatten()) > self.__dict__[node].output_channels:
+                                self.__dict__[node].__dict__["weights"] = self.__dict__[node].__dict__.pop(name)
+                                self.__dict__[node].constant_names[i] = "weights"
 
     @staticmethod
     def _compress(x, bits):
@@ -147,7 +157,8 @@ class HW_node(DORY_node):
 
     def add_checksum_w_integer(self):
         self.check_sum_w = 0
-
+        if "Fused" in self.name:
+            print(f"TO BE DEVELOPED: Not supported checksum of weights for Fused layers.")
         weight_name = ""
         if "Convolution" in self.name or "FullyConnected" in self.name:
             for name in self.constant_names:
@@ -173,15 +184,9 @@ class HW_node(DORY_node):
                     if "bias" in name:
                         bias_name = name
 
-        def to_byte(x, bits):
-            x = x.ravel().astype(np.int64 if bits > 32 else np.int32)
-            #### TO CHECK ORDER OF BIASES
-            return [np.uint8((el >> shift) & 255) for el in x for shift in range(0, bits, 8)]
-
         if bias_name in self.__dict__:
             self.__dict__[bias_name]["value"] = self._to_uint8(self.__dict__[bias_name]['value'].astype(np.int64).ravel(), self.bias_bits)
             self.check_sum_w += sum(self.__dict__[bias_name]["value"])
-
         if 'k' in self.__dict__:
             self.k["value"] = self._to_uint8(self.k['value'].astype(np.int64).ravel(), self.constant_bits)
             self.check_sum_w += sum(self.k["value"])

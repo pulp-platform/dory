@@ -27,7 +27,8 @@ import dory.Utils.Templates_writer.Makefile_template_writer as Makefile_writer
 
 
 
-class C_Parser_PULP(Parser_HW_to_C):
+class C_Parser_PULP(Parser_HW_to_C):
+
     # Used to manage the ONNX files. By now, supported Convolutions (PW and DW), Pooling, Fully Connected and Relu.
     def __init__(self, graph, config_file, config_file_dir, verbose_level, perf_layer, precision_library, app_directory, n_inputs=1):
 
@@ -41,7 +42,8 @@ class C_Parser_PULP(Parser_HW_to_C):
         try:
             db = HW_description['double_buffering']
         except KeyError:
-            print("C_Parser_PULP: Key 'double_buffering' not found in HW_description.json - setting to 2")
+            print("C_Parser_PULP: Key 'double_buffering' not found in HW_description.json - setting to 2")
+
             db = 2
         self.double_buffering = db
 
@@ -121,12 +123,29 @@ class C_Parser_PULP(Parser_HW_to_C):
 
             if n_memory_levels > 2 and (node.L3_input != 0 or (node.tiling_dimensions["L3"]["output_dimensions"] != node.tiling_dimensions["L2"]["output_dimensions"]) or (node.tiling_dimensions["L3"]["weights_dimensions"] != node.tiling_dimensions["L2"]["weights_dimensions"])):
                 Layer2D_writer.print_template_layer_L3(node, tmpl_dir, out_dir)
+                if "Fused" in node.name:
+                    ks =      node.node0.kernel_shape
+                    s =       node.node0.strides
+                    g =       node.node0.group
+                    padding = (np.asarray(node.node0.pads) + np.asarray(node.node1.pads)).tolist()
+                    h_intermediate_L2_recomputed = int(np.floor((node.tiling_dimensions["L2"]["input_dimensions"][1] - (ks[0] - 1) + (s[0] - 1)) / s[0]))
+                    h_out_L2_recomputed = int(np.floor((h_intermediate_L2_recomputed - (node.node1.kernel_shape[0] - 1) + (node.node1.strides[0] - 1)) / node.node1.strides[0]))
+                else:
+                    ks =      node.kernel_shape
+                    s =       node.strides
+                    g =       node.group
+                    padding =       node.pads
+                    h_out_L2_recomputed = int(np.floor((node.tiling_dimensions["L2"]["input_dimensions"][1] - node.kernel_shape[0] + node.strides[0]) / node.strides[0]))
                 if node.tiling_dimensions["L3"]["input_dimensions"][1] > node.tiling_dimensions["L2"]["input_dimensions"][1]:
-                    node.tiling_dimensions["L2"]["output_dimensions"][1]  = int(np.floor((node.tiling_dimensions["L2"]["input_dimensions"][1] - node.kernel_shape[0] + node.strides[0]) / node.strides[0]))
+                    node.tiling_dimensions["L2"]["output_dimensions"][1]  = h_out_L2_recomputed
                 if node.tiling_dimensions["L3"]["output_dimensions"][1] > node.tiling_dimensions["L2"]["output_dimensions"][1]:
-                    node.tiling_dimensions["L2"]["input_dimensions"][1]   = node.tiling_dimensions["L2"]["output_dimensions"][1] * node.strides[0] + node.kernel_shape[0] - node.strides[0]
+                    if "Fused" in node.name:
+                        h_intermediate_L2_recomputed = node.tiling_dimensions["L2"]["output_dimensions"][1] * node.node1.strides[0] + node.node1.kernel_shape[0] - node.node1.strides[0]
+                        h_in_L2_recomputed = h_intermediate_L2_recomputed * s[0] + ks[0] - s[0]
+                    else:
+                        h_in_L2_recomputed = node.tiling_dimensions["L2"]["output_dimensions"][1] * node.strides[0] + node.kernel_shape[0] - node.strides[0]
+                    node.tiling_dimensions["L2"]["input_dimensions"][1]   = h_in_L2_recomputed
                 node.name = node.name + "_L2"
-                padding = node.pads
                 node.pads = [0, padding[1], 0, padding[3]]
                 Layer2D_writer.print_template_layer(node, self.precision_library, tmpl_dir, out_dir, double_buffering=self.double_buffering)
                 node.name = node.name[:-3]
@@ -136,7 +155,7 @@ class C_Parser_PULP(Parser_HW_to_C):
                     Layer2D_writer.print_template_layer(node, self.precision_library, tmpl_dir, out_dir, double_buffering=self.double_buffering)
                     node.name = node.name[:-1] + "b"
                     node.pads = [0, padding[1], padding[2], padding[3]]
-                    node.tiling_dimensions["L2"]["input_dimensions"][1] -= (padding[2] - ((node.tiling_dimensions["L3"]["input_dimensions"][1] + padding[0] + padding[2]) - (node.tiling_dimensions["L3"]["output_dimensions"][1]* node.strides[0] + node.kernel_shape[0] - node.strides[0])))
+                    node.tiling_dimensions["L2"]["input_dimensions"][1] -= (padding[2] - ((node.tiling_dimensions["L3"]["input_dimensions"][1] + padding[0] + padding[2]) - (node.tiling_dimensions["L3"]["output_dimensions"][1]* s[0] + ks[0] - s[0])))
                     if node.tiling_dimensions["L1"]["input_dimensions"][1] > node.tiling_dimensions["L2"]["input_dimensions"][1]:
                         node.tiling_dimensions["L1"]["input_dimensions"][1] = node.tiling_dimensions["L2"]["input_dimensions"][1]
                     if node.tiling_dimensions["L1"]["output_dimensions"][1] > node.tiling_dimensions["L2"]["output_dimensions"][1]:
@@ -144,10 +163,27 @@ class C_Parser_PULP(Parser_HW_to_C):
                     Layer2D_writer.print_template_layer(node, self.precision_library, tmpl_dir, out_dir, double_buffering=self.double_buffering)
                     node.name = node.name[:-7]
             else:
+                if "Fused" in node.name:
+                    ks =      node.node0.kernel_shape
+                    s =       node.node0.strides
+                    g =       node.node0.group
+                    padding = (np.asarray(node.node0.pads) + np.asarray(node.node1.pads)).tolist()
+                    w_intermediate_L1_recomputed = int((node.tiling_dimensions["L1"]["input_dimensions"][2] + (padding[1] + padding[3]) - ks[1] + s[1]) / s[1])
+                    h_intermediate_L1_recomputed = int((node.tiling_dimensions["L1"]["input_dimensions"][1] + (padding[0] + padding[2]) - ks[0] + s[0]) / s[0])
+                    w_out_L1_recomputed = int((w_intermediate_L1_recomputed + (padding[1] + padding[3]) - node.node1.kernel_shape[1] + node.node1.strides[1]) / node.node1.strides[1])
+                    h_out_L1_recomputed = int((h_intermediate_L1_recomputed + (padding[0] + padding[2]) - node.node1.kernel_shape[0] + node.node1.strides[0]) / node.node1.strides[0])
+                else:
+                    ks =      node.kernel_shape
+                    s =       node.strides
+                    g =       node.group
+                    padding =       node.pads
+                    w_out_L1_recomputed = int((node.tiling_dimensions["L1"]["input_dimensions"][2] + (padding[1] + padding[3]) - ks[1] + s[1]) / s[1])
+                    h_out_L1_recomputed = int((node.tiling_dimensions["L1"]["input_dimensions"][1] + (padding[0] + padding[2]) - ks[0] + s[0]) / s[0])
+
                 if node.tiling_dimensions["L2"]["input_dimensions"][2] == node.tiling_dimensions["L1"]["input_dimensions"][2]:
-                    node.tiling_dimensions["L1"]["output_dimensions"][2] = int((node.tiling_dimensions["L1"]["input_dimensions"][2] + (node.pads[1] + node.pads[3]) - node.kernel_shape[1] + node.strides[1]) / node.strides[1])
+                    node.tiling_dimensions["L1"]["output_dimensions"][2] = w_out_L1_recomputed
                 if node.tiling_dimensions["L2"]["input_dimensions"][1] == node.tiling_dimensions["L1"]["input_dimensions"][1]:
-                    node.tiling_dimensions["L1"]["output_dimensions"][1] = int((node.tiling_dimensions["L1"]["input_dimensions"][1] + (node.pads[0] + node.pads[2]) - node.kernel_shape[0] + node.strides[0]) / node.strides[0])
+                    node.tiling_dimensions["L1"]["output_dimensions"][1] = h_out_L1_recomputed
                 Layer2D_writer.print_template_layer(node, self.precision_library, tmpl_dir, out_dir, double_buffering=self.double_buffering)
 
     def mapping_makefile(self):
@@ -160,6 +196,5 @@ class C_Parser_PULP(Parser_HW_to_C):
             prefix+"vars.mk",
             self.app_directory,
             template_location_rel="Templates/vars.mk_template")
-
 
 

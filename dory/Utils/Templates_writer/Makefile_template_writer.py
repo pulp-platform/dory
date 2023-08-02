@@ -32,7 +32,7 @@ def print_template_Makefile(
     tk = OrderedDict([])
     file_list_w = []
     for i, node in enumerate(graph):
-        if "Conv" in node.name or "FullyConnected" in node.name:
+        if "Conv" in node.name or "FullyConnected" in node.name or 'Fused' in node.name:
             file_list_w.append(node.prefixed_name+"_weights.hex")
 
     tk['n_inputs'] = graph[0].n_test_inputs
