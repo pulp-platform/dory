@@ -65,8 +65,8 @@ class Parser_DORY_to_HW:
         ### Need a logic to support for fused kernels. A rule, can contain one other rule internally. You should always check if it is the "bigger rule"
         ## We check for the number of nodes in the rule.
         for key, rule in self.rules.items():
-            if key == "DW-PW-Fused":
-                continue # Disable fusing
+            # if key == "DW-PW-Fused":
+            #     continue # Disable fusing
             DORY_node_indexes = []
             DORY_node_indexes.append(input_index)
 

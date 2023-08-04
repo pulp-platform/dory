@@ -530,7 +530,6 @@ class Tiler_Fused_PULP():
                 tile_w_out = int((tile_w_intermediate -(ks1[1] - 1) + (p1[1] + p1[3]) + (s1[0] - 1))/s1[0])
 
             return ([tile_n_out, tile_n_in], [tile_n_in, tile_h_in, tile_w_in], [tile_n_out, tile_h_out, tile_w_out])
-        import pdb;pdb.set_trace()
         print("  Conv2d ERROR: no L2-L1 tiling found of layer {} with dimensions {} / {}, input / output channels {} / {}. Exiting...".format(self.HW_node.__dict__["name"], self.HW_node.node0.__dict__["input_dimensions"], self.HW_node.node1.__dict__["output_dimensions"], self.HW_node.node0.__dict__["input_channels"], self.HW_node.node1.__dict__["output_channels"] ))
         os._exit(0)
         return None

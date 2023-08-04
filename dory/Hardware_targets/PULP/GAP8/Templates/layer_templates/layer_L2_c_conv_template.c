@@ -399,8 +399,6 @@ void ${func_name}(
     pi_cl_team_barrier(0);
   }
 
-% if not TEST:
   // wait for final write
   dory_dma_free(&DMA_copy_y);
-% endif
 }
