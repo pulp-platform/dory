@@ -103,7 +103,6 @@ def print_template_layer_Fused(node, layer_type, tmpl_dir, out_dir, double_buffe
     tk['W_data_type_0'] = dt_W0
     tk['x_data_type_0'] = dt_x0
     tk['y_data_type_0'] = dt_y0
-    tk['activation_data_bit_0'] = ds_act0
     tk['l2_b_size_byte_0'] = 0
     if tk['has_bias_0'] == 1:
         tk['l2_off_bias_0'] = int(math.ceil(out_ch0 * in_ch0 * ks0[0] * ks0[1] * ds_W0 / 8.0 ))
@@ -225,7 +224,7 @@ def print_template_layer_Fused(node, layer_type, tmpl_dir, out_dir, double_buffe
     tk['l1_lambda_size_0'] = 0
     if tk['FLAG_BATCHNORM_0'] == 1:
         tk['l1_k_size_0'] = int(math.ceil(tk['l1_W_output_channels_0'] * ds_act0 / 8.0))
-        tk['l1_k_size_0'] = int(math.ceil(tk['l1_W_output_channels_0'] * ds_act0 / 8.0))
+        tk['l1_lambda_size_0'] = int(math.ceil(tk['l1_W_output_channels_0'] * ds_act0 / 8.0))
     if tk['has_bias_0'] == 1:
         tk['l1_bias_size_0'] = tk['l1_W_output_channels_0'] * int(ds_bias0 / 8.0)
     # W parameters node1
@@ -239,7 +238,7 @@ def print_template_layer_Fused(node, layer_type, tmpl_dir, out_dir, double_buffe
     tk['l1_lambda_size_1'] = 0
     if tk['FLAG_BATCHNORM_1'] == 1:
         tk['l1_k_size_1'] = int(math.ceil(tk['l1_W_output_channels_1'] * ds_act1 / 8.0))
-        tk['l1_k_size_1'] = int(math.ceil(tk['l1_W_output_channels_1'] * ds_act1 / 8.0))
+        tk['l1_lambda_size_1'] = int(math.ceil(tk['l1_W_output_channels_1'] * ds_act1 / 8.0))
     if tk['has_bias_1'] == 1:
         tk['l1_bias_size_1'] = tk['l1_W_output_channels_1'] * int(ds_bias1 / 8.0)
 
@@ -284,11 +283,11 @@ def print_template_layer_Fused(node, layer_type, tmpl_dir, out_dir, double_buffe
     else:
         tk['l1_b_offset_0'] = tk['l1_lambda_offset_0'] + W_buffer_size_0 + 8
     tk['l1_W_offset_1'] = tk['l1_y_offset'] + W_buffer_size_0 + 8 + k_buffer_size_0 + 8 + lambd_buffer_size_0  + 8 + bias_size_0  + 8
-    if tk['FLAG_BATCHNORM_0'] == 1:
-        tk['l1_k_offset_0'] = tk['l1_W_offset_1'] + W_buffer_size_1 + 8
-        tk['l1_lambda_offset_0'] = tk['l1_k_offset_0'] + k_buffer_size_1 + 8
-    if tk['has_bias_0'] == 1:
-        tk['l1_b_offset_0'] = tk['l1_W_offset_1'] + W_buffer_size_1 + 8 + k_buffer_size_1 + 8 + lambd_buffer_size_1  + 8
+    if tk['FLAG_BATCHNORM_1'] == 1:
+        tk['l1_k_offset_1'] = tk['l1_W_offset_1'] + W_buffer_size_1 + 8
+        tk['l1_lambda_offset_1'] = tk['l1_k_offset_0'] + k_buffer_size_1 + 8
+    if tk['has_bias_1'] == 1:
+        tk['l1_b_offset_1'] = tk['l1_W_offset_1'] + W_buffer_size_1 + 8 + k_buffer_size_1 + 8 + lambd_buffer_size_1  + 8
 
     l = ""
     for k, v in tk.items():

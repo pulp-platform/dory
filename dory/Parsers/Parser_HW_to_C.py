@@ -88,22 +88,41 @@ class Parser_HW_to_C:
     def create_hex_weights_files(self):
         print("\nGenerating .hex weight files.")
         for i, node in enumerate(self.HWgraph):
-            constants = [0, 0, 0, 0]
-            for name in node.constant_names:
-                if "weight" in name:
-                    constants[0] = name
-                elif "bias" in name:
-                    constants[1] = name
-                elif "k" == name:
-                    constants[2] = name
-                elif "l" == name:
-                    constants[3] = name
-            weights = np.asarray([])
-            for i in np.arange(4):
-                if constants[i]!= 0:
-                    weights = np.concatenate((weights,node.__dict__[constants[i]]["value"]))
-            while len(weights) % 4 != 0:
-                weights = np.concatenate((weights, np.asarray([0])))
+            if "Fused" in node.name:
+                constants = [0, 0, 0, 0, 0, 0, 0, 0]
+                for i,node_fused in enumerate(["node0", "node1"]):
+                    for name in node.__dict__[node_fused].constant_names:
+                        if "weight" in name:
+                            constants[4*i+0] = name
+                        elif "bias" in name:
+                            constants[4*i+1] = name
+                        elif "k" == name:
+                            constants[4*i+2] = name
+                        elif "l" == name:
+                            constants[4*i+3] = name
+                    weights = np.asarray([])
+                    for i in np.arange(8):
+                        if constants[i]!= 0:
+                            weights = np.concatenate((weights,node.__dict__[node_fused].__dict__[constants[i]]["value"]))
+                    while len(weights) % 4 != 0:
+                        weights = np.concatenate((weights, np.asarray([0])))
+            else:
+                constants = [0, 0, 0, 0]
+                for name in node.constant_names:
+                    if "weight" in name:
+                        constants[0] = name
+                    elif "bias" in name:
+                        constants[1] = name
+                    elif "k" == name:
+                        constants[2] = name
+                    elif "l" == name:
+                        constants[3] = name
+                weights = np.asarray([])
+                for i in np.arange(4):
+                    if constants[i]!= 0:
+                        weights = np.concatenate((weights,node.__dict__[constants[i]]["value"]))
+                while len(weights) % 4 != 0:
+                    weights = np.concatenate((weights, np.asarray([0])))
             if weights.shape[0] != 0:
                 string_layer = node.prefixed_name + "_weights.hex"
                 save_s = os.path.join(self.hex_dir, string_layer)

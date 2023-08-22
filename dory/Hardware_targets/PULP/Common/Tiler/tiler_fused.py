@@ -68,7 +68,7 @@ class Tiler_Fused_PULP():
         # tiling for L3-L2 management
         buffer_total = self.HW_node.input_activation_memory + self.HW_node.output_activation_memory + self.HW_node.weight_memory + self.HW_node.bias_memory + self.HW_node.constants_memory
         if (buffer_total <= L2_memory) and input_L3==0:
-            return ([self.HW_node.output_channels, self.HW_node.input_channels], [self.HW_node.input_channels, self.HW_node.input_dimensions[0], self.HW_node.input_dimensions[1]], [self.HW_node.output_channels, self.HW_node.output_dimensions[0], self.HW_node.output_dimensions[1]])
+            return ([self.HW_node.output_channels, self.HW_node.node0.output_channels, self.HW_node.input_channels], [self.HW_node.input_channels, self.HW_node.input_dimensions[0], self.HW_node.input_dimensions[1]], [self.HW_node.output_channels, self.HW_node.output_dimensions[0], self.HW_node.output_dimensions[1]])
         else:
             db_W = 1
             db_O = 1

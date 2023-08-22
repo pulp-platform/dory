@@ -29,7 +29,7 @@ class Pattern_rewriter_PULP:
             self.NodeRequant_pattern_rewriter(i)
         if rule in ["ConvolutionRelu", "FullyConnectedRelu", "AdditionRelu", "QAdditionRelu", "PoolingRelu"]:
             self.NodeRelu_pattern_rewriter(i)
-        if rule in ["DW-PW-Fused"]:
+        if rule in ["DW_PW_Fused"]:
             self.Double_node_BNRelu_pattern_rewriter(i, rule)
         return self.graph
 

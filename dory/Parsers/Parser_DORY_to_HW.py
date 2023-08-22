@@ -30,7 +30,7 @@ from dory.Utils.DORY_utils import Printer
 
 class Parser_DORY_to_HW:
     # Used to manage the ONNX files. By now, supported Convolutions (PW and DW), Pooling, Fully Connected and Relu.
-    def __init__(self, graph, rules, Pattern_rewriter, supported_nodes, HW_description, network_directory, config_file, Tiler, n_inputs=1):
+    def __init__(self, graph, rules, Pattern_rewriter, supported_nodes, HW_description, network_directory, config_file, Tiler, n_inputs=1, enable_fusion = 0):
         self.supported_nodes = supported_nodes
         self.DORY_Graph = graph
         self.Printer_Frontend = Printer("logs/HW_related")
@@ -40,6 +40,7 @@ class Parser_DORY_to_HW:
         self.network_directory = network_directory
         self.config_file = config_file
         self.n_inputs = n_inputs
+        self.enable_fusion = enable_fusion
         HW_node.Tiler = Tiler
 
     def mapping_to_HW_nodes(self):
@@ -65,8 +66,38 @@ class Parser_DORY_to_HW:
         ### Need a logic to support for fused kernels. A rule, can contain one other rule internally. You should always check if it is the "bigger rule"
         ## We check for the number of nodes in the rule.
         for key, rule in self.rules.items():
-            # if key == "DW-PW-Fused":
-            #     continue # Disable fusing
+            # I would propose 3 alternatives
+            # 0. No Fusion at all
+            # 1. Fusion only when performance are maximized
+            # 2. Fusion when a "constraint" is respected
+            # 3. Fusion always when you can 
+            # Higher the value of the enable_fusion constant, higher is the fusion.
+            
+            ##### WARNING: ONLY 0 AND 3 IMPLEMENTED NOW
+            
+            if not self.enable_fusion:
+                if key == "DW_PW_Fused":
+                    continue # Disable fusing
+            else:
+                if key == "DW_PW_Fused":
+                    try: #check if the smallest tile fit L1
+                        self.DORY_Graph[input_index].input_channels
+                        self.DORY_Graph[input_index].output_channels
+                        self.DORY_Graph[input_index+2].input_channels
+                        self.DORY_Graph[input_index+2].output_channels
+                        # define a L1 constraint. 36k right now
+                        L1_constraint = 36000
+                        im2col_1 = 8 * (3 * (self.DORY_Graph[input_index].input_dimensions[0] + 2) + 3)
+                        im2col_2 = self.DORY_Graph[input_index+2].input_channels * 8 * 2
+                        input_activation = self.DORY_Graph[input_index].input_channels * 3 * 3
+                        w_1 = self.DORY_Graph[input_index].input_channels * 3 * 3
+                        w_2 = self.DORY_Graph[input_index + 2].input_channels
+                        c_1 = self.DORY_Graph[input_index].output_channels * 2 * int(self.DORY_Graph[input_index+1].__dict__["constant_bits"]/8)
+                        c_2 = 1 * 2 * 8
+                        if w_1 + w_2 + input_activation + im2col_1 + im2col_2 + c_1 + c_2 > L1_constraint:
+                            continue
+                    except: 
+                        continue
             DORY_node_indexes = []
             DORY_node_indexes.append(input_index)
 

@@ -45,7 +45,7 @@ class Fused_node(Layer_node):
                 self.__dict__[node].add_existing_parameter("bias_memory", int(bias_memory))
                 self.__dict__[node].add_existing_parameter("constants_memory", int(constants_memory))
         self.add_existing_parameter("MACs", self.node0.MACs + self.node1.MACs)
-        self.add_existing_parameter("weight_memory", self.node0.MACs + self.node1.MACs)
+        self.add_existing_parameter("weight_memory", self.node0.weight_memory + self.node1.weight_memory)
         self.add_existing_parameter("input_activation_memory", self.node0.input_activation_memory)
         self.add_existing_parameter("output_activation_memory", self.node1.output_activation_memory)
         self.add_existing_parameter("bias_memory", self.node0.bias_memory + self.node1.bias_memory)

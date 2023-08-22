@@ -33,11 +33,11 @@ from functools import partial
 class onnx_manager_PULP(Parser_DORY_to_HW):
 
     # Used to manage the ONNX files. By now, supported Convolutions (PW and DW), Pooling, Fully Connected and Relu.
-    def __init__(self, graph, config_file, config_file_dir, n_inputs=1):
+    def __init__(self, graph, config_file, config_file_dir, n_inputs=1, enable_fusion = 0):
         layers_supported_by_HW_Backend_IR = ["Convolution", "Pooling", "FullyConnected", "Addition", "QAddition"]
         layers_supported_by_HW_Backend_IR+= ["ReluConvolution", "ReluPooling", "ReluFullyConnected", "ReluAddition", "ReluQAddition"]
         layers_supported_by_HW_Backend_IR+= ["BNReluConvolution", "RequantPooling", "BNReluFullyConnected", "BNReluAddition", "BNReluQAddition"]
-        layers_supported_by_HW_Backend_IR+= ["DW-PW-Fused"]
+        layers_supported_by_HW_Backend_IR+= ["DW_PW_Fused"]
         file_path = self.get_file_path()
         pattern_rewriter = self.get_pattern_rewriter()
         with open(os.path.join(file_path, "pattern_rules.json")) as f:
@@ -63,7 +63,7 @@ class onnx_manager_PULP(Parser_DORY_to_HW):
         tiler = partial(tiler, double_buffering=self.double_buffering)
         
         super().__init__(graph, rules, pattern_rewriter, layers_supported_by_HW_Backend_IR, HW_description,
-                         os.path.join(config_file_dir, os.path.dirname(config_file["onnx_file"])), config_file, tiler, n_inputs)
+                         os.path.join(config_file_dir, os.path.dirname(config_file["onnx_file"])), config_file, tiler, n_inputs, enable_fusion)
 
     def get_file_path(self):
         raise NotImplementedError("To be implemented by child class!")
@@ -105,7 +105,7 @@ class onnx_manager_PULP(Parser_DORY_to_HW):
                     transp = (0,2,3,1)
                     node.__dict__[weights_name]["value"] = np.transpose(node.__dict__[weights_name]["value"], transp)
                     node.__dict__[weights_name]["layout"] = "CoutKCin"
-            elif "DW-PW-Fused" in node.name:
+            elif "DW_PW_Fused" in node.name:
                 for node_fused in ["node0", "node1"]:
                     for name in node.__dict__[node_fused].constant_names:
                         if name not in ["l","k","outshift","outmul"]:

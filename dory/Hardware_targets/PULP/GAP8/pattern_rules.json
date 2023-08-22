@@ -9,7 +9,7 @@
 				"outputs":[]}
 		}
 	},
-	"DW-PW-Fused": {
+	"DW_PW_Fused": {
 		"comment": "-1 in groups points to the depthwise. 0 is don't care",
 		"number_of_nodes": 4,
 		"nodes_name": ["Convolution","BNRelu","Convolution","BNRelu"],

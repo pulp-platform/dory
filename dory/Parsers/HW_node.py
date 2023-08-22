@@ -74,6 +74,7 @@ class HW_node(DORY_node):
         #  ATTENTION MEMORY L3 --> TILE MEMORY DIMENSION --> Decide how to set. Re-init the whole memory?
         for level in np.arange(self.HW_description["memory"]["levels"],1, -1):
             (weights_dim, input_dims, output_dims) = self.Tiler(self, previous_node, config_file["code reserved space"]).get_tiling(level)
+
             self.tiling_dimensions["L{}".format(level-1)]["input_dimensions"] = input_dims
             self.tiling_dimensions["L{}".format(level-1)]["output_dimensions"] = output_dims
             if "Convolution" in self.name or "FullyConnected" in self.name:
@@ -147,7 +148,6 @@ class HW_node(DORY_node):
 
     @staticmethod
     def _to_uint8(x, bits):
-        #import ipdb; ipdb.set_trace()
         n_mult = bits//8
         x = np.tile(x[:, None], (1, n_mult))
         shifts = np.tile(8 * np.arange(n_mult), (x.shape[0], 1))
@@ -157,43 +157,72 @@ class HW_node(DORY_node):
 
     def add_checksum_w_integer(self):
         self.check_sum_w = 0
-        if "Fused" in self.name:
-            print(f"TO BE DEVELOPED: Not supported checksum of weights for Fused layers.")
-        weight_name = ""
         if "Convolution" in self.name or "FullyConnected" in self.name:
+            weight_name = ""
+            bias_name = ""
             for name in self.constant_names:
                 if name not in ["l","k","outshift","outmul","outadd"]:
                     if "bias" not in name:
                         weight_name = name
-        if weight_name in self.__dict__:
-            if self.weight_bits < 8 and self.group > 1:
-                self.__dict__[weight_name]["value"] = np.asarray(self.__dict__[weight_name]["value"])
-                self.__dict__[weight_name]["value"] = self.__dict__[weight_name]["value"].reshape(self.__dict__[weight_name]["value"].shape[0]//2,2,self.__dict__[weight_name]["value"].shape[1],self.__dict__[weight_name]["value"].shape[2],self.__dict__[weight_name]["value"].shape[3]).transpose(0,2,3,1,4).flatten()
-            else:
-                self.__dict__[weight_name]["value"] = self.__dict__[weight_name]["value"].flatten()
-            # self.__dict__[weight_name+"_raw"] = self.__dict__[weight_name]
-            self.__dict__[weight_name]["value"] = self.__dict__[weight_name]["value"].astype(np.uint8)
-            if self.weight_bits != 8:
-                self.__dict__[weight_name]["value"] = self._compress(self.__dict__[weight_name]["value"], self.weight_bits)
-            self.check_sum_w += sum(self.__dict__[weight_name]["value"])
-
-        bias_name = ""
-        if "Convolution" in self.name or "FullyConnected" in self.name:
+            if weight_name in self.__dict__:
+                if self.weight_bits < 8 and self.group > 1:
+                    self.__dict__[weight_name]["value"] = np.asarray(self.__dict__[weight_name]["value"])
+                    self.__dict__[weight_name]["value"] = self.__dict__[weight_name]["value"].reshape(self.__dict__[weight_name]["value"].shape[0]//2,2,self.__dict__[weight_name]["value"].shape[1],self.__dict__[weight_name]["value"].shape[2],self.__dict__[weight_name]["value"].shape[3]).transpose(0,2,3,1,4).flatten()
+                else:
+                    self.__dict__[weight_name]["value"] = self.__dict__[weight_name]["value"].flatten()
+                # self.__dict__[weight_name+"_raw"] = self.__dict__[weight_name]
+                self.__dict__[weight_name]["value"] = self.__dict__[weight_name]["value"].astype(np.uint8)
+                if self.weight_bits != 8:
+                    self.__dict__[weight_name]["value"] = self._compress(self.__dict__[weight_name]["value"], self.weight_bits)
+                self.check_sum_w += sum(self.__dict__[weight_name]["value"])
             for name in self.constant_names:
                 if name not in ["l","k","outshift","outmul","outadd"]:
                     if "bias" in name:
                         bias_name = name
+            if bias_name in self.__dict__:
+                self.__dict__[bias_name]["value"] = self._to_uint8(self.__dict__[bias_name]['value'].astype(np.int64).ravel(), self.bias_bits)
+                self.check_sum_w += sum(self.__dict__[bias_name]["value"])
+            if 'k' in self.__dict__:
+                self.k["value"] = self._to_uint8(self.k['value'].astype(np.int64).ravel(), self.constant_bits)
+                self.check_sum_w += sum(self.k["value"])
 
-        if bias_name in self.__dict__:
-            self.__dict__[bias_name]["value"] = self._to_uint8(self.__dict__[bias_name]['value'].astype(np.int64).ravel(), self.bias_bits)
-            self.check_sum_w += sum(self.__dict__[bias_name]["value"])
-        if 'k' in self.__dict__:
-            self.k["value"] = self._to_uint8(self.k['value'].astype(np.int64).ravel(), self.constant_bits)
-            self.check_sum_w += sum(self.k["value"])
+            if 'l' in self.__dict__:
+                self.l["value"] = self._to_uint8(self.l['value'].astype(np.int64).ravel(), self.constant_bits)
+                self.check_sum_w += sum(self.l["value"])
 
-        if 'l' in self.__dict__:
-            self.l["value"] = self._to_uint8(self.l['value'].astype(np.int64).ravel(), self.constant_bits)
-            self.check_sum_w += sum(self.l["value"])
+        if "Fused" in self.name:
+            weight_name = ""
+            bias_name = ""
+            for node_fused in ["node0", "node1"]:
+                for name in self.__dict__[node_fused].constant_names:
+                    if name not in ["l","k","outshift","outmul","outadd"]:
+                        if "bias" not in name and node_fused == "node0":
+                            weight_name = name
+                if weight_name in self.__dict__[node_fused].__dict__:
+                    if self.__dict__[node_fused].weight_bits < 8 and self.__dict__[node_fused].group > 1:
+                        self.__dict__[node_fused].__dict__[weight_name]["value"] = np.asarray(self.__dict__[node_fused].__dict__[weight_name]["value"])
+                        self.__dict__[node_fused].__dict__[weight_name]["value"] = self.__dict__[node_fused].__dict__[weight_name]["value"].reshape(self.__dict__[node_fused].__dict__[weight_name]["value"].shape[0]//2,2,self.__dict__[node_fused].__dict__[weight_name]["value"].shape[1],self.__dict__[node_fused].__dict__[weight_name]["value"].shape[2],self.__dict__[node_fused].__dict__[weight_name]["value"].shape[3]).transpose(0,2,3,1,4).flatten()
+                    else:
+                        self.__dict__[node_fused].__dict__[weight_name]["value"] = self.__dict__[node_fused].__dict__[weight_name]["value"].flatten()
+                    # self.__dict__[weight_name+"_raw"] = self.__dict__[weight_name]
+                    self.__dict__[node_fused].__dict__[weight_name]["value"] = self.__dict__[node_fused].__dict__[weight_name]["value"].astype(np.uint8)
+                    if self.__dict__[node_fused].weight_bits != 8:
+                        self.__dict__[node_fused].__dict__[weight_name]["value"] = self._compress(self.__dict__[node_fused].__dict__[weight_name]["value"], self.__dict__[node_fused].weight_bits)
+                    self.check_sum_w += sum(self.__dict__[node_fused].__dict__[weight_name]["value"])
+                for name in self.__dict__[node_fused].constant_names:
+                    if name not in ["l","k","outshift","outmul","outadd"]:
+                        if "bias" in name:
+                            bias_name = name
+                if bias_name in self.__dict__[node_fused].__dict__:
+                    self.__dict__[node_fused].__dict__[bias_name]["value"] = self._to_uint8(self.__dict__[node_fused].__dict__[bias_name]['value'].astype(np.int64).ravel(), self.__dict__[node_fused].bias_bits)
+                    self.check_sum_w += sum(self.__dict__[node_fused].__dict__[bias_name]["value"])
+                if 'k' in self.__dict__[node_fused].__dict__:
+                    self.__dict__[node_fused].k["value"] = self._to_uint8(self.__dict__[node_fused].k['value'].astype(np.int64).ravel(), self.__dict__[node_fused].constant_bits)
+                    self.check_sum_w += sum(self.__dict__[node_fused].k["value"])
+
+                if 'l' in self.__dict__[node_fused].__dict__:
+                    self.__dict__[node_fused].l["value"] = self._to_uint8(self.__dict__[node_fused].l['value'].astype(np.int64).ravel(), self.__dict__[node_fused].constant_bits)
+                    self.check_sum_w += sum(self.__dict__[node_fused].l["value"])
 
     def add_checksum_activations_integer(self, load_directory, node_number, n_inputs=1):
         ###########################################################################

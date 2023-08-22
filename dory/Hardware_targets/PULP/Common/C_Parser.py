@@ -120,7 +120,6 @@ class C_Parser_PULP(Parser_HW_to_C):
         n_memory_levels = self.HW_description['memory']['levels']
         for i, node in enumerate(self.HWgraph):
             self.copy_backend_files(node)
-
             if n_memory_levels > 2 and (node.L3_input != 0 or (node.tiling_dimensions["L3"]["output_dimensions"] != node.tiling_dimensions["L2"]["output_dimensions"]) or (node.tiling_dimensions["L3"]["weights_dimensions"] != node.tiling_dimensions["L2"]["weights_dimensions"])):
                 Layer2D_writer.print_template_layer_L3(node, tmpl_dir, out_dir)
                 if "Fused" in node.name:
