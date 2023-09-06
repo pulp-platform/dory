@@ -86,7 +86,7 @@ static int L3_output_layers[${len(DORY_HW_graph)}] = {\
 };
 static int allocate_layer[${len(DORY_HW_graph)}] = {\
 % for node in DORY_HW_graph:
-% if node.tiling_dimensions["L3"]["weights_dimensions"] == node.tiling_dimensions["L2"]["weights_dimensions"] and ('FullyConnected' in node.name or 'Conv' in node.name):
+% if node.tiling_dimensions["L3"]["weights_dimensions"] == node.tiling_dimensions["L2"]["weights_dimensions"] and ('FullyConnected' in node.name or 'Conv' in node.name or 'Fused' in node.name):
 1${'' if loop.last else ', '}\
 % else:
 0${'' if loop.last else ', '}\
@@ -214,6 +214,7 @@ static int NODEs_MACS[${len(DORY_HW_graph)}] = {\
 ${node.MACs}${'' if loop.last else ', '}\
 % endfor
 };
+static int NODEs_cycles[${len(DORY_HW_graph)}];
 % endif
 #endif
 

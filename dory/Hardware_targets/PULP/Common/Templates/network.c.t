@@ -133,6 +133,10 @@ void ${prefix}network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final
   cluster_task.slave_stack_size = ${slave_stack};
   pi_cluster_send_task_to_cl(&cluster_dev, &cluster_task);
   pi_cluster_close(&cluster_dev);
+% if 'Yes' in performance:
+  for (int i = 0; i < ${len(DORY_HW_graph)}; i++)
+    print_perf(Layers_name[i], NODEs_cycles[i], NODEs_MACS[i]);
+% endif
   % if 'Perf_final' in verbose_level:
   print_perf("Final", ${prefix}cycle_network_execution, ${MACs});
   % endif
@@ -276,10 +280,11 @@ void ${prefix}network_run_cluster(void *args) {
     pi_perf_stop();
     perf_cyc =  pi_perf_read(PI_PERF_CYCLES);
     ${prefix}cycle_network_execution += perf_cyc;
+    NODEs_cycles[i] = perf_cyc;
 % endif
 
 % if 'Yes' in performance:
-    print_perf(Layers_name[i], perf_cyc, NODEs_MACS[i]);
+    printf("\n%s Done\n", Layers_name[i]);
 % endif
 
     // TODO: What error?

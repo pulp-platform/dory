@@ -27,10 +27,16 @@ import copy
 from .HW_node import HW_node
 from dory.Utils.DORY_utils import Printer
 
+def maximum(a, b):
+     
+    if a >= b:
+        return a
+    else:
+        return b
 
 class Parser_DORY_to_HW:
     # Used to manage the ONNX files. By now, supported Convolutions (PW and DW), Pooling, Fully Connected and Relu.
-    def __init__(self, graph, rules, Pattern_rewriter, supported_nodes, HW_description, network_directory, config_file, Tiler, n_inputs=1, enable_fusion = 0):
+    def __init__(self, graph, rules, Pattern_rewriter, supported_nodes, HW_description, network_directory, config_file, Tiler, n_inputs=1, enable_fusion_DW_PW = 0, enable_fusion_PW_DW = 0):
         self.supported_nodes = supported_nodes
         self.DORY_Graph = graph
         self.Printer_Frontend = Printer("logs/HW_related")
@@ -40,7 +46,8 @@ class Parser_DORY_to_HW:
         self.network_directory = network_directory
         self.config_file = config_file
         self.n_inputs = n_inputs
-        self.enable_fusion = enable_fusion
+        self.enable_fusion_DW_PW = enable_fusion_DW_PW
+        self.enable_fusion_PW_DW = enable_fusion_PW_DW
         HW_node.Tiler = Tiler
 
     def mapping_to_HW_nodes(self):
@@ -75,7 +82,7 @@ class Parser_DORY_to_HW:
             
             ##### WARNING: ONLY 0 AND 3 IMPLEMENTED NOW
             
-            if not self.enable_fusion:
+            if not self.enable_fusion_DW_PW:
                 if key == "DW_PW_Fused":
                     continue # Disable fusing
             else:
@@ -87,14 +94,39 @@ class Parser_DORY_to_HW:
                         self.DORY_Graph[input_index+2].output_channels
                         # define a L1 constraint. 36k right now
                         L1_constraint = 36000
-                        im2col_1 = 8 * (3 * (self.DORY_Graph[input_index].input_dimensions[0] + 2) + 3)
-                        im2col_2 = self.DORY_Graph[input_index+2].input_channels * 8 * 2
+                        im2col = 8 * (3 * (self.DORY_Graph[input_index].input_channels + 2) + 3)
+                        support_buffer = self.DORY_Graph[input_index].input_channels * 4 * 3
                         input_activation = self.DORY_Graph[input_index].input_channels * 3 * 3
                         w_1 = self.DORY_Graph[input_index].input_channels * 3 * 3
                         w_2 = self.DORY_Graph[input_index + 2].input_channels
                         c_1 = self.DORY_Graph[input_index].output_channels * 2 * int(self.DORY_Graph[input_index+1].__dict__["constant_bits"]/8)
                         c_2 = 1 * 2 * 8
-                        if w_1 + w_2 + input_activation + im2col_1 + im2col_2 + c_1 + c_2 > L1_constraint:
+                        sum1 = w_1 + w_2 + input_activation + im2col + support_buffer + c_1 + c_2
+                        if sum1 > L1_constraint:
+                            continue
+                    except: 
+                        continue
+
+            if not self.enable_fusion_PW_DW:
+                if key == "PW_DW_Fused":
+                    continue # Disable fusing
+            else:
+                if key == "PW_DW_Fused":
+                    try: #check if the smallest tile fit L1
+                        self.DORY_Graph[input_index].input_channels
+                        self.DORY_Graph[input_index].output_channels
+                        self.DORY_Graph[input_index+2].input_channels
+                        self.DORY_Graph[input_index+2].output_channels
+                        # define a L1 constraint. 36k right now
+                        L1_constraint = 36000
+                        im2col = 8 * (3 * (self.DORY_Graph[input_index+2].input_dimensions[0] + 2) + 3)
+                        support_buffer = self.DORY_Graph[input_index].input_channels * 8 * 3
+                        input_activation = self.DORY_Graph[input_index].input_channels * 3 * 3
+                        w_1 = self.DORY_Graph[input_index].input_channels * 3 * 3
+                        w_2 = self.DORY_Graph[input_index + 2].input_channels
+                        c_1 = self.DORY_Graph[input_index].output_channels * 2 * int(self.DORY_Graph[input_index+1].__dict__["constant_bits"]/8)
+                        c_2 = 1 * 2 * 8
+                        if w_1 + w_2 + input_activation + im2col + support_buffer + c_1 + c_2 > L1_constraint:
                             continue
                     except: 
                         continue

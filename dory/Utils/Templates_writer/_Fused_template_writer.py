@@ -26,6 +26,13 @@ import sys
 import os
 import re
 
+def maximum(a, b):
+     
+    if a >= b:
+        return a
+    else:
+        return b
+    
 def print_template_layer_Fused(node, layer_type, tmpl_dir, out_dir, double_buffering = 2):
     #### Parameters for the fused layer 
     name_layer = node.prefixed_name + '.h'
@@ -43,7 +50,7 @@ def print_template_layer_Fused(node, layer_type, tmpl_dir, out_dir, double_buffe
     tk['number_of_clusters'] = node.HW_description["HW specific parameters"]["clusters"] if "clusters" in node.HW_description["HW specific parameters"].keys() else 1
     tk['optional_type'] = layer_type
     tk['func_name'] = node.prefixed_name
-    tk['type'] = f"{node.input_activation_type}8_t" if node.input_activation_type in ["int", "uint"] else "float"
+    tk['type'] = f"{node.input_activation_type}8_t" if node.input_activation_type in ["int", "uint"] else "int8_t"
     if node.HW_description['memory']['levels'] > 2:
         tk['factor'] = node.tiling_dimensions["L3"]["output_dimensions"][0] / node.tiling_dimensions["L2"]["weights_dimensions"][0]
     else:
@@ -55,6 +62,7 @@ def print_template_layer_Fused(node, layer_type, tmpl_dir, out_dir, double_buffe
     ks0            = node.node0.kernel_shape
     s0             = node.node0.strides
     tk['flag_DW_0'] = 1 if node.node0.group > 1 else 0
+    tk['flag_DW_1'] = 1 if node.node1.group > 1 else 0
     inp_dim0       = node.tiling_dimensions["L2"]["input_dimensions"][1:]
     out_dim0       = [int(np.floor((node.tiling_dimensions["L2"]["input_dimensions"][1] - (ks0[0] - 1) + (s0[0] - 1)) / s0[0])), int(np.floor((node.tiling_dimensions["L2"]["input_dimensions"][2] - (ks0[1] - 1) + (s0[1] - 1)) / s0[1]))]
     in_ch0         = node.tiling_dimensions["L2"]["input_dimensions"][0]
@@ -108,8 +116,8 @@ def print_template_layer_Fused(node, layer_type, tmpl_dir, out_dir, double_buffe
         tk['l2_off_bias_0'] = int(math.ceil(out_ch0 * in_ch0 * ks0[0] * ks0[1] * ds_W0 / 8.0 ))
         tk['l2_b_size_byte_0'] = int(out_ch0)* int(ds_bias0 / 8.0)
     if tk['FLAG_BATCHNORM_0'] == 1:
-        tk['l2_off_k_0'] = int(math.ceil(out_ch0 * in_ch0 * ks0[0] * ks0[1] * ds_W0 / 8.0 + tk['l2_b_size_byte_0']))
-        tk['l2_off_lambda_0'] = int(math.ceil((out_ch0 * in_ch0 * ks0[0] * ks0[1] * ds_W0 + out_ch0 * ds_act0) / 8.0 + tk['l2_b_size_byte_0']))
+        tk['l2_off_k_0'] = int(math.ceil(out_ch0 * in_ch0 / g0 * ks0[0] * ks0[1] * ds_W0 / 8.0 + tk['l2_b_size_byte_0']))
+        tk['l2_off_lambda_0'] = int(math.ceil((out_ch0 * in_ch0 / g0 * ks0[0] * ks0[1] * ds_W0 + out_ch0 * ds_act0) / 8.0 + tk['l2_b_size_byte_0']))
     tk['l2_output_channels_0'] = out_ch0
     tk['l2_x_h_0'] = inp_dim0[0]
     tk['l2_x_w_0'] = inp_dim0[1]
@@ -135,6 +143,7 @@ def print_template_layer_Fused(node, layer_type, tmpl_dir, out_dir, double_buffe
     out_dim1       = node.tiling_dimensions["L2"]["output_dimensions"][1:]
     in_ch1         = out_ch0
     out_ch1        = node.tiling_dimensions["L2"]["weights_dimensions"][0]
+    g1             = node.node1.group
     p1             = node.node1.pads
     padding_top1   = p1[0]; padding_left1 = p1[1]; padding_bottom1 = p1[2]; padding_right1 = p1[3]
     conv_overlaph1 = 2 * (ks1[0] // 2) + ks1[0] % 2 - 1 - (s1[0] - 1)
@@ -180,8 +189,8 @@ def print_template_layer_Fused(node, layer_type, tmpl_dir, out_dir, double_buffe
         tk['l2_off_bias_1'] = int(math.ceil(out_ch1 * in_ch1 * ks1[0] * ks1[1] * ds_W1 / 8.0 ))
         tk['l2_b_size_byte_1'] = int(out_ch1)* int(ds_bias1 / 8.0)
     if tk['FLAG_BATCHNORM_1'] == 1:
-        tk['l2_off_k_1'] = int(math.ceil(out_ch1 * in_ch1 * ks1[0] * ks1[1] * ds_W1 / 8.0 + tk['l2_b_size_byte_1']))
-        tk['l2_off_lambda_1'] = int(math.ceil((out_ch1 * in_ch1 * ks1[0] * ks1[1] * ds_W1 + out_ch1 * ds_act1) / 8.0 + tk['l2_b_size_byte_1']))
+        tk['l2_off_k_1'] = int(math.ceil(out_ch1 * in_ch1 / g1 * ks1[0] * ks1[1] * ds_W1 / 8.0 + tk['l2_b_size_byte_1']))
+        tk['l2_off_lambda_1'] = int(math.ceil((out_ch1 * in_ch1 / g1 * ks1[0] * ks1[1] * ds_W1 + out_ch1 * ds_act1) / 8.0 + tk['l2_b_size_byte_1']))
     tk['l2_output_channels_1'] = out_ch1
     tk['l2_x_h_1'] = inp_dim1[0]
     tk['l2_x_w_1'] = inp_dim1[1]
@@ -228,7 +237,7 @@ def print_template_layer_Fused(node, layer_type, tmpl_dir, out_dir, double_buffe
     if tk['has_bias_0'] == 1:
         tk['l1_bias_size_0'] = tk['l1_W_output_channels_0'] * int(ds_bias0 / 8.0)
     # W parameters node1
-    tk['l1_W_input_channels_1'] = tk['l1_output_channels'] if tk['flag_DW_1'] == 1 else tk['l2_output_channels_0']
+    tk['l1_W_input_channels_1'] = tk['l2_input_channels_1']
     tk['l1_W_input_channels_last_1'] = tk['l1_output_channels_last'] if tk['flag_DW_1'] == 1 else tk['l2_output_channels_0']
     tk['l1_W_output_channels_1'] = tk['l1_output_channels']
     tk['l1_W_output_channels_last_1'] = tk['l1_output_channels_last']
@@ -267,11 +276,12 @@ def print_template_layer_Fused(node, layer_type, tmpl_dir, out_dir, double_buffe
         bias_size_0 = tk['l2_output_channels_0'] * int(ds_bias0 / 8.0)
     if tk['has_bias_1'] == 1:
         bias_size_1 = tk['l2_output_channels_1'] * int(ds_bias1 / 8.0)
-
-    tk['im2col_dim_0'] = (8 * (ks0[0] * (tk['l1_x_h'] + padding_bottom0 + padding_top0) + ks0[0])) * int( 8 / min(ds_x0, ds_y0, ds_W0))
-    tk['im2col_dim_1'] = (8 * (ks1[0] * (tk['l1_x_h'] + padding_bottom1 + padding_top1) + ks1[0])) * int( 8 / min(ds_x1, ds_y1, ds_W1))
+    if tk['g_0'] == 1:
+        im2col_dimension = 2 * 8 * np.prod(ks0) * tk['l1_input_channels']
+    else:
+        im2col_dimension = 8 * (ks0[0] * (tk['l1_input_channels'] + p0[0] + p0[2]) + ks0[0])
+    tk['im2col_dim'] = im2col_dimension
     tk['buffer_l1_all'] = x_buffer_size + y_buffer_size + W_buffer_size_0 + W_buffer_size_1 + k_buffer_size_0 + lambd_buffer_size_0 + bias_size_0 + k_buffer_size_1 + lambd_buffer_size_1 + bias_size_1 + 40
-
     tk['l1_x_offset'] = 0
     tk['l1_y_offset'] = x_buffer_size + 8
     tk['l1_W_offset_0'] = tk['l1_y_offset'] + y_buffer_size + 8

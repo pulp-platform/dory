@@ -30,7 +30,7 @@ import dory.Utils.Templates_writer.Makefile_template_writer as Makefile_writer
 class C_Parser_PULP(Parser_HW_to_C):
 
     # Used to manage the ONNX files. By now, supported Convolutions (PW and DW), Pooling, Fully Connected and Relu.
-    def __init__(self, graph, config_file, config_file_dir, verbose_level, perf_layer, precision_library, app_directory, n_inputs=1):
+    def __init__(self, graph, config_file, config_file_dir, verbose_level, perf_layer, precision_library, app_directory, kernel_directory, n_inputs=1):
 
         file_path = self.get_file_path()
         with open(os.path.join(file_path, "HW_description.json")) as f:
@@ -38,7 +38,7 @@ class C_Parser_PULP(Parser_HW_to_C):
         self.precision_library = precision_library
         self.source_Constant_bits_library = config_file["BNRelu_bits"]
         self.config_file = config_file
-        super().__init__(graph, os.path.join(config_file_dir, os.path.dirname(config_file["onnx_file"])), HW_description, verbose_level, perf_layer, "Makefile", app_directory, n_inputs)
+        super().__init__(graph, os.path.join(config_file_dir, os.path.dirname(config_file["onnx_file"])), HW_description, verbose_level, perf_layer, "Makefile", app_directory, kernel_directory, n_inputs)
         try:
             db = HW_description['double_buffering']
         except KeyError:
@@ -51,6 +51,18 @@ class C_Parser_PULP(Parser_HW_to_C):
         raise NotImplementedError("To be implemented by child class!")
 
     def copy_backend_files(self, node):
+        root = self.get_file_path()
+        files_fused = os.path.join(root, '../Backend_Kernels/kernel-fusion/fused-pulp-nn/')
+        files = os.path.join(root, self.kernel_directory)
+        
+        for file in os.listdir(os.path.join(files_fused, "include")):
+            file_to_copy = os.path.join(files_fused, "include", file)
+            os.system('cp "{}" {}'.format(file_to_copy, os.path.join(self.app_directory, self.inc_dir_rel)))
+        for subdir in ["convolution", "fused", "matmul"]:
+            for file in os.listdir(os.path.join(files_fused, "src", subdir)):
+                file_to_copy = os.path.join(files_fused, "src", subdir, file)
+                os.system('cp "{}" {}'.format(file_to_copy, os.path.join(self.app_directory, self.src_dir_rel)))
+
         if self.precision_library == 'auto':
             self.precision_library = '8bit'
             if "Addition" not in node.name and "Pool" not in node.name:
@@ -59,24 +71,16 @@ class C_Parser_PULP(Parser_HW_to_C):
             else:
                 if node.get_parameter('output_activation_bits') < 8 or node.get_parameter('input_activation_bits') < 8:
                     self.precision_library = 'mixed-sw'
-
-        root = self.get_file_path()
-        if self.precision_library == "8bit":
-            files = os.path.join(root, "../Backend_Kernels/pulp-nn/")
-        elif self.precision_library == "mixed-sw":
-            files = os.path.join(root, "../Backend_Kernels/pulp-nn-mixed/XpulpV2/")
-        elif self.precision_library == "mixed-hw":
-            files = os.path.join(root, "../Backend_Kernels/pulp-nn-mixed/XpulpNN/")
         if os.listdir(os.path.join(files, "{}bit/include".format(self.source_Constant_bits_library)))[0] not in os.listdir(self.inc_dir):
             for file in os.listdir(os.path.join(files, "{}bit/include".format(self.source_Constant_bits_library))):
                 file_to_copy = os.path.join(files, "{}bit/include".format(self.source_Constant_bits_library), file)
                 os.system('cp "{}" {}'.format(file_to_copy, os.path.join(self.app_directory, self.inc_dir_rel)))
-        if self.precision_library == "8bit":
+        if self.kernel_directory == "../Backend_Kernels/pulp-nn/":
             if os.listdir(os.path.join(files, "{}bit/src".format(self.source_Constant_bits_library)))[0] not in os.listdir(os.path.join(self.app_directory, self.src_dir_rel)):
                 for file in os.listdir(os.path.join(files, "{}bit/src".format(self.source_Constant_bits_library))):
                     file_to_copy = os.path.join(files, "{}bit/src".format(self.source_Constant_bits_library), file)
                     os.system('cp "{}" {}'.format(file_to_copy, os.path.join(self.app_directory, self.src_dir_rel)))
-        elif self.precision_library in ["mixed-sw", "mixed-hw"]:
+        elif "../Backend_Kernels/pulp-nn-mixed/" in self.kernel_directory:
             Input_bits = str(node.get_parameter('input_activation_bits'))
             Output_bits = str(node.get_parameter('output_activation_bits'))
             Input_type = node.get_parameter('input_activation_type')[0]

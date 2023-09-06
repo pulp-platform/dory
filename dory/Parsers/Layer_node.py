@@ -125,7 +125,7 @@ class Layer_node(DORY_node):
             if self.group == 1:
                 self.add_existing_parameter("weight_memory", int(self.output_channels*self.input_channels*np.prod(self.kernel_shape)/self.group*self.weight_bits/8))
             else:
-                self.add_existing_parameter("weight_memory", int(self.output_channels*self.input_channels*np.prod(self.kernel_shape)/self.group*16*self.weight_bits/8))
+                self.add_existing_parameter("weight_memory", int(self.output_channels*self.input_channels*np.prod(self.kernel_shape)/self.group*self.weight_bits/8))
         else:
             self.add_existing_parameter("MACs", int(0))
             self.add_existing_parameter("weight_memory", int(0))

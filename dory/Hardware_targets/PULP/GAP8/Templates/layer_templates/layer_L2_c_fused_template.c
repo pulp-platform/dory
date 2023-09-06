@@ -154,6 +154,7 @@ void ${func_name}(
   volatile unsigned short y_tile_size_w;
   volatile unsigned short W_tile_size_nof_0, W_tile_size_nof_1;
   volatile unsigned short W_tile_size_nif_0, W_tile_size_nif_1;
+  int n_rows;
   volatile ${type} *x, *W0, *W1, *y, *b0, *b1;
 % if FLAG_BATCHNORM_0 == 1:
   volatile int${activation_data_bit_0}_t *k0;
@@ -168,17 +169,10 @@ void ${func_name}(
   // tile loop indeces
   int _i_nof_load=0, _i_nif_load=0, _i_h_load=0, _i_w_load=0;
   int _i_nof_exec=1, _i_nif_exec=1, _i_h_exec=1, _i_w_exec=1;
-  volatile ${type} *im2col0, *im2col1;
-  im2col0 = l1_buffer + ${buffer_l1_all};
-  im2col1 = im2col1 + ${buffer_l1_all + im2col_dim_0};
-% if flag_DW_0 == 1:
-  volatile ${type} *pwt_buffer0;
-  pwt_buffer0 = im2col1 + ${im2col_dim_1};
-% endif
-% if flag_DW_1 == 1:
-  volatile ${type} *pwt_buffer1;
-  pwt_buffer1 = im2col1 + ${im2col_dim_1};
-% endif
+  volatile ${type} *im2col, *support_buffer;
+  //// TO FIX: RIGHT NOW THE CONSTRAINT FOR THE SUPPORT BUFFER IS NOT WORKING PERFECTLY
+  im2col = l1_buffer + ${buffer_l1_all};
+  support_buffer = l1_buffer + ${buffer_l1_all};// + im2col_dim};
 
   //////////////////////
   // Bias transfering //
@@ -251,14 +245,14 @@ void ${func_name}(
         dory_dma_memcpy_async(&DMA_copy_W_0);
         dory_dma_barrier(&DMA_copy_W_0);
         % if FLAG_BATCHNORM_0 == 1:
-
-        DMA_copy_k_0.ext = (uint32_t) l2_W+${l2_off_k_0} + ${l1_k_size_0}*_i_nof_load;
+        // TO FIX!!!!!!!!!!!!!!!!!!!!
+        DMA_copy_k_0.ext = (uint32_t) l2_W;//+${l2_off_k_0} + ${l1_k_size_0}*_i_nof_load;
         DMA_copy_k_0.loc = (uint32_t) l1_buffer + ${l1_k_offset_0};
         DMA_copy_k_0.length_1d_copy = (uint16_t) W_tile_size_nof_0 * ${int(activation_data_bit_0/8)};
         dory_dma_memcpy_async(&DMA_copy_k_0);
         dory_dma_barrier(&DMA_copy_k_0);
 
-        DMA_copy_lambda_0.ext = (uint32_t) l2_W+${l2_off_lambda_0} + ${l1_lambda_size_0}*_i_nof_load;
+        DMA_copy_lambda_0.ext = (uint32_t) l2_W;//+${l2_off_lambda_0} + ${l1_lambda_size_0}*_i_nof_load;
         DMA_copy_lambda_0.loc = (uint32_t) l1_buffer + ${l1_lambda_offset_0};
         DMA_copy_lambda_0.length_1d_copy = (uint16_t) W_tile_size_nof_0 * ${int(activation_data_bit_0/8)};
         dory_dma_memcpy_async(&DMA_copy_lambda_0);
@@ -328,12 +322,40 @@ void ${func_name}(
     W0 = (${type} *) (l1_buffer + ${l1_W_offset_0});
     W1 = (${type} *) (l1_buffer + ${l1_W_offset_1});
     y = (${type} *) (l1_buffer + ${l1_y_offset});
+    n_rows = y_tile_size_h > 4 ? 4 : y_tile_size_h;
 
     pi_cl_team_barrier(0);
     asm volatile("": : :"memory");
-    ////////////
-    // KERNEL //
-    ////////////
+% if "PW_DW" in func_name:
+    pulp_nn_pw_dw_HWC_HWC_CHW_channels_lazy(
+% elif "DW_PW" in func_name:
+    pulp_nn_dw_pw_CHW_CHW_HWC_rows_lazy(
+% endif
+      x,
+      im2col, // 8xKS x KS
+      support_buffer, // RIGHE_DW_OUT x CH_IN x W_OUT x H_OUT
+      b1,
+      b0,
+      y,
+      W0,
+      W1,
+      k0,
+      k1,
+      lambda0,
+      lambda1,
+      out_mult,
+      out_mult,
+      out_shift,
+      out_shift,
+      x_tile_size_w, x_tile_size_h, x_tile_size_nif,
+      y_tile_size_w, y_tile_size_h, y_tile_size_nof,
+      ${fsy0}, ${fsx0},
+      p_t_0, p_b_0, p_l_0, p_r_0,
+      ${stride_0}, ${stride_0},
+      ${FLAG_RELU_0}, ${FLAG_RELU_1}, 
+      ${FLAG_BATCHNORM_0}, ${FLAG_BATCHNORM_1},
+      n_rows);
+
     pi_cl_team_barrier(0);
 
     DMA_copy_y.ext = dory_get_tile_3d(l2_y, _i_h_load, _i_w_load, _i_nof_load, ${l1_y_h}, ${l1_y_w}, ${l1_output_channels}, ${l2_y_w_1}, ${int(l2_output_channels_1 * factor)}, 0, 0, 0, 0, 0, 0, ${y_data_bit_1});

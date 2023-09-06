@@ -28,20 +28,20 @@ import json
 from importlib import import_module
 
 
-def dory_to_c(graph, target, conf, confdir, verbose_level, perf_layer, optional, appdir, n_inputs, abilitate_fusion):
+def dory_to_c(graph, target, conf, confdir, verbose_level, perf_layer, optional, appdir, kerneldir, n_inputs, enable_fusion_DW_PW, enable_fusion_PW_DW):
     # Including and running the transformation from DORY IR to DORY HW IR
     onnx_manager = import_module(f'dory.Hardware_targets.{target}.HW_Parser')
     dory_to_dory_hw = onnx_manager.onnx_manager
-    graph = dory_to_dory_hw(graph, conf, confdir, n_inputs, abilitate_fusion).full_graph_parsing()
+    graph = dory_to_dory_hw(graph, conf, confdir, n_inputs, enable_fusion_DW_PW, enable_fusion_PW_DW).full_graph_parsing()
 
     # Deployment of the model on the target architecture
     onnx_manager = import_module(f'dory.Hardware_targets.{target}.C_Parser')
     dory_hw_to_c = onnx_manager.C_Parser
-    dory_hw_to_c(graph, conf, confdir, verbose_level, perf_layer, optional, appdir, n_inputs).full_graph_parsing()
+    dory_hw_to_c(graph, conf, confdir, verbose_level, perf_layer, optional, appdir, kerneldir, n_inputs).full_graph_parsing()
 
 
 def network_generate(frontend, target, conf_file, verbose_level='Check_all+Perf_final', perf_layer='No', optional='auto',
-                     appdir='./application', prefix="", enable_fusion = 0):
+                     appdir='./application', kerneldir='../Backend_Kernels/pulp-nn/', prefix="", enable_fusion_DW_PW = 0, enable_fusion_PW_DW = 0):
     print(f"Using {frontend} as frontend. Targeting {target} platform. ")
 
     if len(prefix) > 0 and prefix[-1] != "_":
@@ -66,7 +66,7 @@ def network_generate(frontend, target, conf_file, verbose_level='Check_all+Perf_
     onnx_to_dory = onnx_manager.onnx_manager
     graph = onnx_to_dory(onnx_file, conf, prefix).full_graph_parsing()
 
-    dory_to_c(graph, target, conf, confdir, verbose_level, perf_layer, optional, appdir, n_inputs, enable_fusion)
+    dory_to_c(graph, target, conf, confdir, verbose_level, perf_layer, optional, appdir, kerneldir, n_inputs, enable_fusion_DW_PW, enable_fusion_PW_DW)
 
 
 if __name__ == '__main__':
@@ -89,10 +89,12 @@ if __name__ == '__main__':
     parser.add_argument('--optional', default='auto', choices=optional_choices,
                         help='auto (based on layer precision, 8bits or mixed-sw), 8bit, mixed-hw, mixed-sw')
     parser.add_argument('--app_dir', default='./application', help='Path to the generated application. Default: ./application')
+    parser.add_argument('--kernel_dir', default='../Backend_Kernels/pulp-nn/', help='Path to the backend kernels. Default: ../Backend_Kernels/pulp-nn/')
     parser.add_argument('--prefix', default="", help='Prefix to prepend to network-specific generated functions', type=str)
-    parser.add_argument('--enable_fusion', default=0, help='Enable or Disable kernel fusion', type=int)
+    parser.add_argument('--enable_fusion_DW_PW', default=0, help='Enable or Disable kernel fusion', type=int)
+    parser.add_argument('--enable_fusion_PW_DW', default=0, help='Enable or Disable kernel fusion', type=int)
 
     args = parser.parse_args()
 
     network_generate(args.frontend, args.hardware_target, args.config_file, args.verbose_level, 'Yes' if args.perf_layer else 'No',
-                     args.optional, args.app_dir, args.prefix, args.enable_fusion)
+                     args.optional, args.app_dir, args.kernel_dir, args.prefix, args.enable_fusion_DW_PW, args.enable_fusion_PW_DW)
