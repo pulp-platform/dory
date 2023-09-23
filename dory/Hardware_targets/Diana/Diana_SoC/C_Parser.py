@@ -30,6 +30,7 @@ import copy
 from dory.Parsers.Parser_HW_to_C import Parser_HW_to_C
 import dory.Utils.Templates_writer.Layer2D_template_writer as Layer2D_writer
 import dory.Utils.Templates_writer.writer_utils as utils
+from dory.Utils.Templates_writer.TemplateWriter import TemplateWriter
 import dory.Hardware_targets.Diana.Diana_SoC.weights_encoder_analog as ana_enc
 
 # Directory
@@ -45,6 +46,9 @@ class C_Parser(Parser_HW_to_C):
         self.source_Constant_bits_library = config_file["BNRelu_bits"]
         self.config_file = config_file
         super().__init__(graph, os.path.join(config_file_dir, os.path.dirname(config_file["onnx_file"])), HW_description, verbose_level, perf_layer, "Makefile", app_directory)
+
+    def get_file_path(self):
+        return "/".join(os.path.realpath(__file__).split("/")[:-1])
 
     def copy_backend_files(self, node):
         root = os.path.dirname(__file__)
@@ -69,8 +73,6 @@ class C_Parser(Parser_HW_to_C):
 
     def mapping_layers_to_C_files(self):
         print("\nMapping the layers files to their templates and copying the kernels associated.")
-        tmpl_dir = os.path.join(os.path.dirname(__file__), 'Templates/layer_templates')
-        out_dir = '{}'.format(self.app_directory)
         precision_library = self.precision_library
         h_files = []; c_files = []
         for i, node in enumerate(self.HWgraph):
@@ -81,9 +83,12 @@ class C_Parser(Parser_HW_to_C):
                         precision_library = 'ternary'
             self.copy_backend_files(node)
             node.skip_L2_L1 = False
-            h_layer, c_layer = Layer2D_writer.print_template_layer(node, precision_library, tmpl_dir, out_dir, 1)
-            h_files.append(h_layer)
-            c_files.append(c_layer)
+            tk = Layer2D_writer.print_template_layer(node, precision_library, 1)
+            tm = self.l2_template_mapping(node, precision_library)
+            TemplateWriter.write(tk, tm)
+            dest_files = list(tm.keys())
+            h_files.append(dest_files[1])
+            c_files.append(dest_files[0])
         return h_files, c_files
 
     def create_hex_weights_files(self):
