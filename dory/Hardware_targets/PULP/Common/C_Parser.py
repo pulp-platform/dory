@@ -19,12 +19,13 @@
 import json
 import os
 import numpy as np
+import shutil
 
 # DORY modules
 from dory.Parsers.Parser_HW_to_C import Parser_HW_to_C
 import dory.Utils.Templates_writer.Layer2D_template_writer as Layer2D_writer
 import dory.Utils.Templates_writer.Makefile_template_writer as Makefile_writer
-
+import dory.Hardware_targets.PULP.Backend_Kernels.BackendKernelsAdapter as BackendKernelsAdapter
 
 
 class C_Parser_PULP(Parser_HW_to_C):
@@ -58,58 +59,22 @@ class C_Parser_PULP(Parser_HW_to_C):
                 if node.get_parameter('output_activation_bits') < 8 or node.get_parameter('input_activation_bits') < 8:
                     self.precision_library = 'mixed-sw'
 
-        root = self.get_file_path()
         if self.precision_library == "8bit":
-            files = os.path.join(root, "../Backend_Kernels/pulp-nn/")
+            backendKernelsAdapter = BackendKernelsAdapter.PulpNNAdapter("pulp-nn", node, self.source_Constant_bits_library)
         elif self.precision_library == "mixed-sw":
-            files = os.path.join(root, "../Backend_Kernels/pulp-nn-mixed/XpulpV2/")
+            backendKernelsAdapter = BackendKernelsAdapter.PulpMixedAdapter("pulp-nn-mixed", node, self.source_Constant_bits_library, "sw")
         elif self.precision_library == "mixed-hw":
-            files = os.path.join(root, "../Backend_Kernels/pulp-nn-mixed/XpulpNN/")
-        if os.listdir(os.path.join(files, "{}bit/include".format(self.source_Constant_bits_library)))[0] not in os.listdir(self.inc_dir):
-            for file in os.listdir(os.path.join(files, "{}bit/include".format(self.source_Constant_bits_library))):
-                file_to_copy = os.path.join(files, "{}bit/include".format(self.source_Constant_bits_library), file)
-                os.system('cp "{}" {}'.format(file_to_copy, os.path.join(self.app_directory, self.inc_dir_rel)))
-        if self.precision_library == "8bit":
-            if os.listdir(os.path.join(files, "{}bit/src".format(self.source_Constant_bits_library)))[0] not in os.listdir(os.path.join(self.app_directory, self.src_dir_rel)):
-                for file in os.listdir(os.path.join(files, "{}bit/src".format(self.source_Constant_bits_library))):
-                    file_to_copy = os.path.join(files, "{}bit/src".format(self.source_Constant_bits_library), file)
-                    os.system('cp "{}" {}'.format(file_to_copy, os.path.join(self.app_directory, self.src_dir_rel)))
-        elif self.precision_library in ["mixed-sw", "mixed-hw"]:
-            Input_bits = str(node.get_parameter('input_activation_bits'))
-            Output_bits = str(node.get_parameter('output_activation_bits'))
-            Input_type = node.get_parameter('input_activation_type')[0]
-            Output_type = node.get_parameter('output_activation_type')[0]
-            out = "_" + Output_type + Output_bits
-            in_out = "_" + Input_type + Input_bits + out
-            maybe_x = 'x' if self.precision_library == "mixed-hw" else ''
-            if "Addition" in node.name:
-                in1_in2_out = "_" + Input_type + Input_bits + "_" + node.get_parameter('second_input_activation_type')[0] + str(node.get_parameter('second_input_activation_bits')) + "_" + Output_type + Output_bits
-                file = f'Add/{maybe_x}pulp_nn_add{in1_in2_out}.c'
-            elif "Pool" in node.name and "Max" in node.op_type:
-                file = f'Pooling/MaxPool/{maybe_x}pulp_nn_maxpool{out}.c'
-            elif "Pool" in node.name and ("Avg" in node.op_type or "Average" in node.op_type):
-                file = f'Pooling/AvgPool/{maybe_x}pulp_nn_avgpool{in_out}.c'
+            backendKernelsAdapter = BackendKernelsAdapter.PulpMixedAdapter("pulp-nn-mixed", node, self.source_Constant_bits_library, "hw")
+        else:
+            raise ValueError(f"Unrecognised backend library: {self.precision_library}")
 
-            in_out_weights = "_" + Input_type + Input_bits + "_" + Output_type + Output_bits + "_" + node.get_parameter('weight_type')[0] + str(node.get_parameter('weight_bits'))
-            if "Conv" in node.name and node.group > 1:
-                file = f'Depthwise/{maybe_x}pulp_nn_depthwise{in_out_weights}.c'
-            elif "Conv" in node.name and node.group == 1:
-                if node.conv1d and self.precision_library == 'mixed-hw':
-                    file = f'Convolution/xpulp_nn_conv1d{in_out_weights}.c'
-                else:
-                    file = f'Convolution/{maybe_x}pulp_nn_conv{in_out_weights}.c'
-            elif "FullyConnected" in node.name and node.output_activation_bits == 32: 
-                file = f'LinearNoQuant/{maybe_x}pulp_nn_linear{in_out_weights}.c'
-            elif "FullyConnected" in node.name:
-                file = f'LinearQuant/{maybe_x}pulp_nn_linear{in_out_weights}.c'
-            file_to_copy = os.path.join(files, "{}bit/src".format(self.source_Constant_bits_library), file)
-            os.system('cp "{}" {}'.format(file_to_copy, os.path.join(self.app_directory, self.src_dir_rel)))
-            if ("Conv" in node.name or "FullyConnected" in node.name) and node.get_parameter('output_activation_bits') != 32:
-                in_bits_matmul = "8" if self.precision_library == "mixed-sw" else str(Input_bits)
-                in_out_weights = "_" + Input_type + in_bits_matmul + "_" + Output_type + Output_bits + "_" + node.get_parameter('weight_type')[0] + str(node.get_parameter('weight_bits'))
-                file = f'MatrixMultiplication/{maybe_x}pulp_nn_matmul{in_out_weights}.c'
-                file_to_copy = os.path.join(files, "{}bit/src".format(self.source_Constant_bits_library), file)
-                os.system('cp "{}" {}'.format(file_to_copy, os.path.join(self.app_directory, self.src_dir_rel)))
+        src_dir = os.path.join(self.app_directory, self.src_dir_rel)
+        for file in backendKernelsAdapter.get_src_files():
+            shutil.copy(file, src_dir)
+
+        inc_dir = os.path.join(self.app_directory, self.inc_dir_rel)
+        for file in backendKernelsAdapter.get_inc_files():
+            shutil.copy(file, inc_dir)
 
     def mapping_layers_to_C_files(self):
         print("\nMapping the layers files to their templates and copying the kernels associated.")
