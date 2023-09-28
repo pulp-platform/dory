@@ -166,3 +166,35 @@ class PulpMixedAdapter(PulpNNAdapter):
         src_files = [os.path.join(self._src_dir(), file) for file in src_files]
 
         return src_files
+
+
+class PulpNNXAdapter(BackendKernelsAdapter):
+    def __init__(self, dirname: str, node: HW_node, accelerator_name: Literal["ne16"]):
+        self.accelerator_name = accelerator_name
+        super().__init__(dirname, node)
+
+    def _check_valid_node(self, node: HW_node) -> None:
+        if self.accelerator_name == "ne16":
+            assert True  # TODO
+
+    def _get_ne16_src_files(self) -> List[str]:
+        return ["src/pulp_nnx_ne16.c", "ne16/hal/ne16_hal.c"]
+
+    def _get_ne16_inc_files(self) -> List[str]:
+        return [
+            "ne16/gvsoc/ne16_gvsoc_logging.h",
+            "ne16/hal/ne16_defs.h",
+            "ne16/hal/ne16_hal.h",
+        ]
+
+    def _get_src_files(self) -> List[str]:
+        src_files = ["util/pulp_nnx_util.c"]
+        if self.accelerator_name == "ne16":
+            src_files += self._get_ne16_src_files()
+        return [os.path.join(self._root_dir(), file) for file in src_files]
+
+    def _get_inc_files(self) -> List[str]:
+        inc_files = ["inc/pulp_nnx.h", "util/pulp_nnx_util.h"]
+        if self.accelerator_name == "ne16":
+            inc_files += self._get_ne16_inc_files()
+        return [os.path.join(self._root_dir(), file) for file in inc_files]

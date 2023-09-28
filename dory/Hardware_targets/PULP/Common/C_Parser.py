@@ -69,6 +69,8 @@ class C_Parser_PULP(Parser_HW_to_C):
             backendKernelsAdapter = BackendKernelsAdapter.PulpMixedAdapter("pulp-nn-mixed", node, self.source_Constant_bits_library, "sw")
         elif backend_library == "mixed-hw":
             backendKernelsAdapter = BackendKernelsAdapter.PulpMixedAdapter("pulp-nn-mixed", node, self.source_Constant_bits_library, "hw")
+        elif backend_library == "ne16":
+            backendKernelsAdapter = BackendKernelsAdapter.PulpNNXAdapter("pulp-nnx", node, "ne16")
         else:
             raise ValueError(f"Unrecognised backend library: {backend_library}")
 
