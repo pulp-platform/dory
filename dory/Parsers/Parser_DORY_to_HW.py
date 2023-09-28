@@ -160,22 +160,22 @@ class Parser_DORY_to_HW:
     def adjust_data_layout(self):
         print("\nTo be implemented in the target backend")
 
+    # Override if you want to instanciate a different type of HW_node
+    def transform_nodes_to_hw_nodes(self):
+        self.DORY_Graph = [HW_node(node, self.HW_description) for node in self.DORY_Graph]
+
     def tiling(self):
         ####################################################################################
         ###### SECTION 3: PARSING OF EACH LAYER INDEPENDENT. TILING + LAYER CREATION  ######
         ####################################################################################
         print("\nInsert tiling parameters per layer inside graph nodes")
-        for i, node_to_tile in enumerate(self.DORY_Graph):            
+        prev = None
+        for node in self.DORY_Graph:
             ######################## NEED A  FIX ####################################################
             #### OTHERWISE ONLY WEIGHT < L2/2 GO in L2 --> much more L3 tiling not needed############
             #########################################################################################
-            New_HW_node = HW_node(node_to_tile, self.HW_description)
-            if i > 0:
-                New_HW_node.create_tiling_dimensions(previous_node, self.config_file)
-            else:
-                New_HW_node.create_tiling_dimensions(New_HW_node, self.config_file)
-            previous_node = New_HW_node
-            self.DORY_Graph[i] = New_HW_node
+            node.create_tiling_dimensions(prev if prev else node, self.config_file)
+            prev = node
 
     def renaming_weights(self):
         print("\nDORY Backend: Renaming Weights tensors.")
@@ -210,6 +210,7 @@ class Parser_DORY_to_HW:
         self.add_tensors_memory_occupation_and_MACs()
         self.Printer_Frontend.print_json_from_DORY_graph("05_DORY_HW_graph_added_tensors_dim", self.DORY_Graph)
         self.Printer_Frontend.print_onnx_from_DORY_graph("05_DORY_HW_graph_added_tensors_dim", self.DORY_Graph)
+        self.transform_nodes_to_hw_nodes()
         self.tiling()
         self.Printer_Frontend.print_json_from_DORY_graph("06_DORY_HW_tiled_graph", self.DORY_Graph)
         self.Printer_Frontend.print_onnx_from_DORY_graph("06_DORY_HW_tiled_graph", self.DORY_Graph)

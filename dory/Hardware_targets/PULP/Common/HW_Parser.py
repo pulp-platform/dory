@@ -73,37 +73,41 @@ class onnx_manager_PULP(Parser_DORY_to_HW):
     def get_tiler(self):
         raise NotImplementedError("To be implemented by child class!")
 
-    def adjust_data_layout(self):
-        print("\nGAP8 Backend: Adjusting Data Layout to HWC and CoutKCin.")
+    def _get_weights_attr(self, node):
+        weights_name = None
+        for name in node.constant_names:
+            if name not in ["l","k","outshift","outmul"]:
+                if "bias" not in name:
+                    weights_name = name
+        assert weights_name is not None, f"Node  {node.name} of op {node.op_type} doesn't have weights."
+        return getattr(node, weights_name)
 
+    def adjust_node_data_layout(self, node, node_id):
+        if "FullyConnected" in node.name:
+            weights = self._get_weights_attr(node)
+            if weights["layout"] == "CinCout":
+                weights["value"] = weights["value"].T
+                weights["layout"] = "CoutCin"
+            prev_node = self.DORY_Graph[node_id-1]
+            if node_id != 0 and prev_node.layout == "CHW":
+                temp = weights["value"]
+                temp = temp.reshape(node.output_channels, prev_node.output_channels, prev_node.output_dimensions[0], prev_node.output_dimensions[1])
+                temp = np.transpose(temp, (0, 2, 3, 1))
+                temp = temp.flatten()
+                weights["value"] = temp
+                # needed to compute final checksum for <8b layers
+        elif "Convolution" in node.name:
+            weights = self._get_weights_attr(node)
+            if weights["layout"] == "CoutCinK":
+                if node.conv1d:
+                    weights["value"] = weights["value"][:,:,None,:]
+                weights["value"] = np.transpose(weights["value"], (0,2,3,1))
+                weights["layout"] = "CoutKCin"
+
+    def adjust_data_layout(self):
+        print("\nPULP Backend: Adjusting Data Layout to HWC and CoutKCin.")
         for i, node in enumerate(self.DORY_Graph):
-            if "FullyConnected" in node.name:
-                for name in node.constant_names:
-                    if name not in ["l","k","outshift","outmul"]:
-                        if "bias" not in name:
-                            weights_name = name
-                if node.__dict__[weights_name]["layout"] == "CinCout":
-                    node.__dict__[weights_name]["value"] = node.__dict__[weights_name]["value"].T
-                    node.__dict__[weights_name]["layout"] = "CoutCin"
-                if i != 0 and self.DORY_Graph[i-1].layout == "CHW":
-                    temp = node.__dict__[weights_name]["value"]
-                    prev_node = self.DORY_Graph[i-1]
-                    temp = temp.reshape(node.output_channels, prev_node.output_channels, prev_node.output_dimensions[0], prev_node.output_dimensions[1])
-                    temp = np.transpose(temp, (0, 2, 3, 1))
-                    temp = temp.flatten()
-                    node.__dict__[weights_name]["value"] = temp
-                    # needed to compute final checksum for <8b layers
-            elif "Convolution" in node.name:
-                for name in node.constant_names:
-                    if name not in ["l","k","outshift","outmul"]:
-                        if "bias" not in name:
-                            weights_name = name
-                if node.__dict__[weights_name]["layout"] == "CoutCinK":
-                    if node.conv1d:
-                        node.__dict__[weights_name]["value"] = node.__dict__[weights_name]["value"][:,:,None,:]
-                    transp = (0,2,3,1)
-                    node.__dict__[weights_name]["value"] = np.transpose(node.__dict__[weights_name]["value"], transp)
-                    node.__dict__[weights_name]["layout"] = "CoutKCin"
+             self.adjust_node_data_layout(node, i)
 
     def check_parameters(self):
         WARNINGS =0
