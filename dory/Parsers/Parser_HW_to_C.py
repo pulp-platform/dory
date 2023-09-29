@@ -69,6 +69,27 @@ class Parser_HW_to_C:
             self.save_string_for_Makefile,
             self.app_directory)
 
+    def l2_c_template(self, node, backend_library):
+        if "Pool" in node.name:
+            if(backend_library == '1D_Conv'):
+                return "pooling_layer_1D_template.c"
+            else:
+                return "layer_L2_c_pooling_template.c"
+        elif "Addition" in node.name:
+            if(backend_library == '1D_Conv'):
+                return "add_layer_1D_template.c"
+            else:
+                return "layer_L2_c_addition_template.c"
+        else:
+            return "layer_L2_c_conv_template.c"
+
+    def l2_template_mapping(self, node, backend_library):
+        tmpl_c = self.l2_c_template(node, backend_library)
+        return {
+            os.path.join(self.src_dir, node.prefixed_name + ".c"): os.path.join(self.tmpl_dir, tmpl_c),
+            os.path.join(self.inc_dir, node.prefixed_name + ".h"): os.path.join(self.tmpl_dir, "layer_L2_h_template.h"),
+        }
+
     def mapping_layers_to_C_files(self):
         print("\nTo be implemented in the target backend")
 
@@ -144,6 +165,13 @@ class Parser_HW_to_C:
     @property
     def hex_dir(self):
         return os.path.join(self.app_directory, self.hex_dir_rel)
+
+    def get_file_path(self):
+        raise NotImplementedError("To be implemented by child class!")
+
+    @property
+    def tmpl_dir(self):
+        return os.path.realpath(os.path.join(self.get_file_path(), 'Templates/layer_templates'))
 
     def full_graph_parsing(self):
         print("#####################################################")

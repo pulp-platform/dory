@@ -25,6 +25,7 @@ import shutil
 from dory.Parsers.Parser_HW_to_C import Parser_HW_to_C
 import dory.Utils.Templates_writer.Layer2D_template_writer as Layer2D_writer
 import dory.Utils.Templates_writer.Makefile_template_writer as Makefile_writer
+from dory.Utils.Templates_writer.TemplateWriter import TemplateWriter
 import dory.Hardware_targets.PULP.Backend_Kernels.BackendKernelsAdapter as BackendKernelsAdapter
 
 
@@ -58,9 +59,6 @@ class C_Parser_PULP(Parser_HW_to_C):
                     precision_library = 'mixed-sw'
         return precision_library
 
-    def get_file_path(self):
-        raise NotImplementedError("To be implemented by child class!")
-
     def node_backend_library(self, node):
         return self.precision_library
 
@@ -74,25 +72,27 @@ class C_Parser_PULP(Parser_HW_to_C):
         else:
             raise ValueError(f"Unrecognised backend library: {backend_library}")
 
-        src_dir = os.path.join(self.app_directory, self.src_dir_rel)
         for file in backendKernelsAdapter.get_src_files():
-            shutil.copy(file, src_dir)
+            shutil.copy(file, self.src_dir)
 
-        inc_dir = os.path.join(self.app_directory, self.inc_dir_rel)
         for file in backendKernelsAdapter.get_inc_files():
-            shutil.copy(file, inc_dir)
+            shutil.copy(file, self.inc_dir)
+
+    def l2_template_keywords(self, node, backend_library):
+        return Layer2D_writer.print_template_layer(node, backend_library, double_buffering=self.double_buffering)
 
     def mapping_layers_to_C_files(self):
         print("\nMapping the layers files to their templates and copying the kernels associated.")
-        tmpl_dir = os.path.realpath(os.path.join(self.get_file_path(), 'Templates/layer_templates'))
-        out_dir = self.app_directory
         n_memory_levels = self.HW_description['memory']['levels']
+
         for i, node in enumerate(self.HWgraph):
             backend_library = self.node_backend_library(node)
             self.copy_backend_files(node, backend_library)
 
             if n_memory_levels > 2 and (node.L3_input != 0 or (node.tiling_dimensions["L3"]["output_dimensions"] != node.tiling_dimensions["L2"]["output_dimensions"]) or (node.tiling_dimensions["L3"]["weights_dimensions"] != node.tiling_dimensions["L2"]["weights_dimensions"])):
-                Layer2D_writer.print_template_layer_L3(node, tmpl_dir, out_dir)
+                tk = Layer2D_writer.print_template_layer_L3(node)
+                TemplateWriter.write(tk, {os.path.join(self.src_dir, node.prefixed_name + ".c"): os.path.join(self.tmpl_dir, "layer_L3_c_template.c"),
+                                          os.path.join(self.inc_dir, node.prefixed_name + ".h"): os.path.join(self.tmpl_dir, "layer_L3_h_template.h")})
                 if node.tiling_dimensions["L3"]["input_dimensions"][1] > node.tiling_dimensions["L2"]["input_dimensions"][1]:
                     node.tiling_dimensions["L2"]["output_dimensions"][1]  = int(np.floor((node.tiling_dimensions["L2"]["input_dimensions"][1] - node.kernel_shape[0] + node.strides[0]) / node.strides[0]))
                 if node.tiling_dimensions["L3"]["output_dimensions"][1] > node.tiling_dimensions["L2"]["output_dimensions"][1]:
@@ -100,12 +100,14 @@ class C_Parser_PULP(Parser_HW_to_C):
                 node.name = node.name + "_L2"
                 padding = node.pads
                 node.pads = [0, padding[1], 0, padding[3]]
-                Layer2D_writer.print_template_layer(node, backend_library, tmpl_dir, out_dir, double_buffering=self.double_buffering)
+                tk = self.l2_template_keywords(node, backend_library)
+                TemplateWriter.write(tk, self.l2_template_mapping(node, backend_library))
                 node.name = node.name[:-3]
                 if padding[0] > 0:
                     node.name = node.name + "_L2_p_t"
                     node.pads = [padding[0], padding[1], 0, padding[3]]
-                    Layer2D_writer.print_template_layer(node, backend_library, tmpl_dir, out_dir, double_buffering=self.double_buffering)
+                    tk = self.l2_template_keywords(node, backend_library)
+                    TemplateWriter.write(tk, self.l2_template_mapping(node, backend_library))
                     node.name = node.name[:-1] + "b"
                     node.pads = [0, padding[1], padding[2], padding[3]]
                     node.tiling_dimensions["L2"]["input_dimensions"][1] -= (padding[2] - ((node.tiling_dimensions["L3"]["input_dimensions"][1] + padding[0] + padding[2]) - (node.tiling_dimensions["L3"]["output_dimensions"][1]* node.strides[0] + node.kernel_shape[0] - node.strides[0])))
@@ -113,14 +115,16 @@ class C_Parser_PULP(Parser_HW_to_C):
                         node.tiling_dimensions["L1"]["input_dimensions"][1] = node.tiling_dimensions["L2"]["input_dimensions"][1]
                     if node.tiling_dimensions["L1"]["output_dimensions"][1] > node.tiling_dimensions["L2"]["output_dimensions"][1]:
                         node.tiling_dimensions["L1"]["output_dimensions"][1] = node.tiling_dimensions["L2"]["output_dimensions"][1]
-                    Layer2D_writer.print_template_layer(node, backend_library, tmpl_dir, out_dir, double_buffering=self.double_buffering)
+                    tk = self.l2_template_keywords(node, backend_library)
+                    TemplateWriter.write(tk, self.l2_template_mapping(node, backend_library))
                     node.name = node.name[:-7]
             else:
                 if node.tiling_dimensions["L2"]["input_dimensions"][2] == node.tiling_dimensions["L1"]["input_dimensions"][2]:
                     node.tiling_dimensions["L1"]["output_dimensions"][2] = int((node.tiling_dimensions["L1"]["input_dimensions"][2] + (node.pads[1] + node.pads[3]) - node.kernel_shape[1] + node.strides[1]) / node.strides[1])
                 if node.tiling_dimensions["L2"]["input_dimensions"][1] == node.tiling_dimensions["L1"]["input_dimensions"][1]:
                     node.tiling_dimensions["L1"]["output_dimensions"][1] = int((node.tiling_dimensions["L1"]["input_dimensions"][1] + (node.pads[0] + node.pads[2]) - node.kernel_shape[0] + node.strides[0]) / node.strides[0])
-                Layer2D_writer.print_template_layer(node, backend_library, tmpl_dir, out_dir, double_buffering=self.double_buffering)
+                tk = self.l2_template_keywords(node, backend_library)
+                TemplateWriter.write(tk, self.l2_template_mapping(node, backend_library))
 
     def mapping_makefile(self):
         super(C_Parser_PULP, self).mapping_makefile()
@@ -132,6 +136,3 @@ class C_Parser_PULP(Parser_HW_to_C):
             prefix+"vars.mk",
             self.app_directory,
             template_location_rel="Templates/vars.mk_template")
-
-
-

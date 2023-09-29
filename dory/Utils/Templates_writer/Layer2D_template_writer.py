@@ -26,7 +26,7 @@ import sys
 import os
 import re
 
-def print_template_layer_L3(node, tmpl_dir, out_dir):
+def print_template_layer_L3(node):
     ks =      node.kernel_shape
     s =       node.strides
     g =       node.group
@@ -36,6 +36,7 @@ def print_template_layer_L3(node, tmpl_dir, out_dir):
     conv_overlap2 = 2 * (ks[1] // 2) + ks[1] % 2 - 1 - (s[1] - 1)
     tk = OrderedDict([])
     tk['flag_DW'] = 1 if node.group > 1 else 0
+    tk['ULTRA_VERBOSE'] = False
 
     ################## NEED A REWRITING IN THIS TEMPLATE PART ######################
     #### VARIABLE CREATION FOR COMPATIBILITY WITH THE SECTION AFTER ################
@@ -137,20 +138,11 @@ def print_template_layer_L3(node, tmpl_dir, out_dir):
     tk['dim_out'] = int( n_out_L2 * w_out_L2 * h_out_L2 * node.output_activation_bits / 8 )
     tk['dim_in'] = int( n_in_L2 * w_in_L2 * h_in_L2 * node.input_activation_bits / 8 )
 
-    tmpl = Template(filename=os.path.join(tmpl_dir, "layer_L3_c_template.c"))
-    l = ""
-    s = tmpl.render(verbose_log=l, **tk)
-    save_string = os.path.join(out_dir, 'src', node.prefixed_name + '.c')
-    with open(save_string, "w") as f:
-        f.write(s)
-    tmpl = Template(filename=os.path.join(tmpl_dir, "layer_L3_h_template.h"))
-    l = ""
-    s = tmpl.render(verbose_log=l, **tk)
-    save_string = os.path.join(out_dir, 'inc', node.prefixed_name + '.h')
-    with open(save_string, "w") as f:
-        f.write(s)
+    tk['verbose_log'] = ""
 
-def print_template_layer(node, layer_type, tmpl_dir, out_dir, double_buffering = 2):
+    return tk
+
+def print_template_layer(node, layer_type, double_buffering = 2):
     ks =      node.kernel_shape
     inp_dim = node.tiling_dimensions["L2"]["input_dimensions"][1:]
     out_dim = node.tiling_dimensions["L2"]["output_dimensions"][1:]
@@ -172,6 +164,8 @@ def print_template_layer(node, layer_type, tmpl_dir, out_dir, double_buffering =
             tk['first_layer'] = 1
     else:
         tk['first_layer'] = 0
+    tk['ULTRA_VERBOSE'] = False
+    tk['verbose_log'] = ""
     tk['node'] = node
     tk['sdk'] = node.HW_description["software development kit"]["name"]
     tk['number_of_clusters'] = node.HW_description["HW specific parameters"]["clusters"] if "clusters" in node.HW_description["HW specific parameters"].keys() else 1
@@ -390,6 +384,8 @@ def print_template_layer(node, layer_type, tmpl_dir, out_dir, double_buffering =
     tk['l1_y_offset'] = x_buffer_size + 8
     if "Addition" in node.name:
         tk['l1_x2_offset'] = x_buffer_size + 8 + y_buffer_size + 8
+    if tk['FLAG_BATCHNORM'] == 1 and has_bias == 1:
+        breakpoint()
     if "Addition" not in node.name and "Pool" not in node.name:
         tk['l1_W_offset'] = x_buffer_size + 8 + y_buffer_size + 8
         if tk['FLAG_BATCHNORM'] == 1:
@@ -422,13 +418,8 @@ def print_template_layer(node, layer_type, tmpl_dir, out_dir, double_buffering =
 
     l = ""
     for k, v in tk.items():
-        try:
-            l += "// %s %d\n" % (k.ljust(30), v)
-        except TypeError:
-            try:
-                l += "// %s %d\n" % (k.ljust(30), v[0])
-            except TypeError:
-                l += "// %s %s\n" % (k.ljust(30), v)
+        l += f"// {k.ljust(30)} {v}\n"
+
     if "Addition" not in node.name and "Pool" not in node.name:
         buffer_l1_all = W_buffer_size + x_buffer_size + y_buffer_size + tk['k_tile_size_byte'] + tk['lambda_tile_size_byte'] + 40 + tk['b_size_byte']
         tk['im2col_dim'] = (8 * (fs1 * (tile_h_in + padding_bottom + padding_top) + fs1)) * int( 8 / min(ds_x, ds_y, ds_W))
@@ -441,27 +432,6 @@ def print_template_layer(node, layer_type, tmpl_dir, out_dir, double_buffering =
     tk['conv1d'] = node.conv1d
     tk['dilations'] = node.dilations
 
-    if "Addition" not in node.name and "Pool" not in node.name:
-        tmpl = Template(filename=os.path.join(tmpl_dir, "layer_L2_c_conv_template.c"))
-    elif "Pool" in node.name:
-        if(layer_type == '1D_Conv'):
-            tmpl = Template(filename=os.path.join(tmpl_dir, "pooling_layer_1D_template.c"))
-        else:
-            tmpl = Template(filename=os.path.join(tmpl_dir, "layer_L2_c_pooling_template.c"))
-    elif "Addition" in node.name:
-        if(layer_type == '1D_Conv'):
-            tmpl = Template(filename=os.path.join(tmpl_dir, "add_layer_1D_template.c"))
-        else:
-            tmpl = Template(filename=os.path.join(tmpl_dir, "layer_L2_c_addition_template.c"))
+    tk['verbose_log'] = l
 
-    s_c = tmpl.render(verbose_log=l, **tk)
-    save_string = os.path.join(out_dir, 'src', name_layer.replace(".h", ".c"))
-    with open(save_string, "w") as f:
-        f.write(s_c)
-    tmpl = Template(filename=os.path.join(tmpl_dir, "layer_L2_h_template.h"))
-    s = tmpl.render(verbose_log=l, **tk)
-    save_string = os.path.join(out_dir, 'inc', name_layer)
-    with open(save_string, "w") as f:
-        f.write(s)
-    return s, s_c
-
+    return tk

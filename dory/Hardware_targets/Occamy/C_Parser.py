@@ -26,6 +26,7 @@ import numpy as np
 # DORY modules
 from dory.Parsers.Parser_HW_to_C import Parser_HW_to_C
 import dory.Utils.Templates_writer.Layer2D_template_writer as Layer2D_writer
+from dory.Utils.Templates_writer.TemplateWriter import TemplateWriter
 
 # Directory
 file_path = "/".join(os.path.realpath(__file__).split("/")[:-1])
@@ -63,6 +64,8 @@ class C_Parser(Parser_HW_to_C):
                 node.tiling_dimensions["L1"]["output_dimensions"][2] = int((node.tiling_dimensions["L1"]["input_dimensions"][2] + (node.pads[1] + node.pads[3]) - node.kernel_shape[1] + node.strides[1]) / node.strides[1])
             if node.tiling_dimensions["L2"]["input_dimensions"][1] == node.tiling_dimensions["L1"]["input_dimensions"][1]:
                 node.tiling_dimensions["L1"]["output_dimensions"][1] = int((node.tiling_dimensions["L1"]["input_dimensions"][1] + (node.pads[0] + node.pads[2]) - node.kernel_shape[0] + node.strides[0]) / node.strides[0])
-            Layer2D_writer.print_template_layer(node, self.precision_library, tmpl_dir, out_dir)
+            tk = Layer2D_writer.print_template_layer(node, self.precision_library)
+            tm = self.l2_template_mapping(node, self.precision_library)
+            TemplateWriter.write(tk, tm)
 
 
