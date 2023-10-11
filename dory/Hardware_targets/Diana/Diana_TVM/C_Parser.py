@@ -133,7 +133,7 @@ class C_Parser(Parser_HW_to_C):
                         final_weights = []
                         for ch in range(int((node.output_channels+15)/16)):
                             for byte in range(4):
-                                final_weights.append(new_weights[(node.output_channels*byte + ch*16):(node.output_channels*byte + ch*16 + 16)])
+                                final_weights.append(new_weights[(16*byte + ch*16):(16*byte + ch*16 + 16)])
                     else:
                         new_weights = []
                         for pos in range(4):
