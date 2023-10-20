@@ -20,9 +20,6 @@
 #ifndef __${prefix.upper()}NETWORK_H__
 #define __${prefix.upper()}NETWORK_H__
 
-% if sdk == 'gap_sdk':
-#include "pulp.h"
-% endif
 <%
    l3_supported = DORY_HW_graph[0].HW_description['memory']['levels'] > 2
    single_input = n_inputs==1
@@ -31,6 +28,7 @@
 #include "${prefix}weights_definition.h"
 % endif
 #include <stddef.h>
+#include "pmsis.h"
 
 
 struct ${prefix}network_run_token {
