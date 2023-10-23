@@ -26,6 +26,7 @@
 #include "tile_index.h"
 #include "layer.h"
 #include "double_buffer.h"
+#include "net_utils.h"
 
 % if ULTRA_VERBOSE:
 #define VERBOSE_PRINT(...) printf(__VA_ARGS__)
@@ -270,29 +271,21 @@ void __attribute__ ((noinline)) ${func_name}(void *args) {
   //////////////////////////////////////////////////////////////////////////
   // arguments assigning: keeping same interface between L2 and L3 memory //
   //////////////////////////////////////////////////////////////////////////
-  unsigned int *real_arg = (unsigned int *) args;
-  unsigned int l3_x =(unsigned int)  real_arg[0];
-  unsigned int l3_y =(unsigned int)  real_arg[1];
-  unsigned int l3_W =(unsigned int)  real_arg[2];
-  unsigned int l2_x =(unsigned int)  real_arg[3];
-  unsigned int l2_x_2 =(unsigned int)  real_arg[4];
-  unsigned int l2_y =(unsigned int)  real_arg[5];
-  unsigned int l2_W =(unsigned int)  real_arg[6];
-  unsigned int l1_buffer =(unsigned int)  real_arg[7];
-  unsigned int hyperram =(unsigned int)  real_arg[8];
+  layer_args_t *layer_args = (layer_args_t *)args;
+  unsigned int l1_buffer = layer_args->L1_buffer;
 
   const Layer layer = {
     .addr = {
-      .input = l2_x,
-      .weights = l2_W,
+      .input = layer_args->L2_input,
+      .weights = layer_args->L2_weights,
       % if FLAG_BATCHNORM == 1:
-      .scale = l2_W + ${l2_off_k},
-      .bias = l2_W+${l2_off_lambda},
+      .scale = layer_args->L2_weights + ${l2_off_k},
+      .bias = layer_args->L2_weights + ${l2_off_lambda},
       % endif
       % if has_bias == 1:
-      .bias = l2_W+${l2_off_bias},
+      .bias = layer_args->L2_weights + ${l2_off_bias},
       % endif
-      .output = l2_y
+      .output = layer_args->L2_output
     },
     .input = {
       .width = ${x_w},

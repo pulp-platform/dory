@@ -96,6 +96,13 @@ void ${prefix}execute_layer_fork(void *args) {
   layer_args->L1_buffer = pmsis_l1_malloc(${l1_buffer});
 #endif
 
+  if (NULL == layer_args->L1_buffer) {
+#ifdef VERBOSE
+    printf("ERROR: Failed to allocate the L1 buffer.\n");
+#endif // VERBOSE
+    return;
+  }
+
   switch (layer_args->layer_id)
   {
 % for i in range(len(DORY_HW_graph)):
@@ -282,6 +289,7 @@ void ${prefix}network_run_cluster(void *args) {
       .L2_weights = (unsigned int) L2_weights,
       .L1_buffer = 0,
       .ram = (unsigned int) get_ram_ptr(),
+      .padding = NET_UTILS_PAD_TOP | NET_UTILS_PAD_BOTTOM,
       .layer_id = i
     };
 

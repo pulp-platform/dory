@@ -24,6 +24,7 @@
 #include "pulp_nn_kernels.h"
 #include "tile_index.h"
 #include "layer.h"
+#include "net_utils.h"
 
 % if ULTRA_VERBOSE:
 #define VERBOSE_PRINT(...) printf(__VA_ARGS__)
@@ -168,22 +169,13 @@ static void pooling(void * args) {
 void __attribute__ ((noinline)) ${func_name}(
   void *args
 ) {
-  unsigned int *real_arg = (unsigned int *) args;
-  unsigned int l3_x =(unsigned int)  real_arg[0];
-  unsigned int l3_y =(unsigned int)  real_arg[1];
-  unsigned int l3_W =(unsigned int)  real_arg[2];
-  unsigned int l2_x =(unsigned int)  real_arg[3];
-  unsigned int l2_x_2 =(unsigned int)  real_arg[4];
-  unsigned int l2_y =(unsigned int)  real_arg[5];
-  unsigned int l2_W =(unsigned int)  real_arg[6];
-  unsigned int l1_buffer =(unsigned int)  real_arg[7];
-  unsigned int hyperram =(unsigned int)  real_arg[8];
-  unsigned int out_shift_in = (unsigned int) real_arg[10];
+  layer_args_t *layer_args = (layer_args_t *)args;
+  unsigned int l1_buffer = layer_args->L1_buffer;
 
   Layer layer = {
     .addr = {
-      .input = l2_x,
-      .output = l2_y
+      .input = layer_args->L2_input,
+      .output = layer_args->L2_output
     },
     .input = {
       .width = ${x_w},
