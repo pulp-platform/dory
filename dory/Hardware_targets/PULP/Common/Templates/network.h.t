@@ -20,9 +20,6 @@
 #ifndef __${prefix.upper()}NETWORK_H__
 #define __${prefix.upper()}NETWORK_H__
 
-% if sdk == 'gap_sdk':
-#include "pulp.h"
-% endif
 <%
    l3_supported = DORY_HW_graph[0].HW_description['memory']['levels'] > 2
    single_input = n_inputs==1
@@ -31,6 +28,12 @@
 #include "${prefix}weights_definition.h"
 % endif
 #include <stddef.h>
+#include "pmsis.h"
+
+
+struct ${prefix}network_run_token {
+  struct pi_device cluster_dev;
+};
 
 
 % if l3_supported:
@@ -38,6 +41,8 @@ void ${prefix}network_terminate();
 void ${prefix}network_initialize();
 % endif
 void ${prefix}network_run_cluster(void * args);
+struct ${prefix}network_run_token ${prefix}network_run_async(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, int exec${", void *L2_input_h" if not l3_supported else ""});
+void network_run_wait(struct ${prefix}network_run_token token);
 void ${prefix}network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, int exec${", void *L2_input_h" if not l3_supported else ""});
 void ${prefix}execute_layer_fork(void *arg);
 

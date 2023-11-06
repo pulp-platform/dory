@@ -104,7 +104,7 @@ void ${prefix}execute_layer_fork(void *args) {
   if (pi_core_id() == 0) pmsis_l1_malloc_free(layer_args->L1_buffer, ${l1_buffer});
 }
 
-void ${prefix}network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, int exec${", void *L2_input_h" if not l3_supported else ""})
+struct ${prefix}network_run_token ${prefix}network_run_async(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, int exec${", void *L2_input_h" if not l3_supported else ""})
 {
   struct pi_device cluster_dev = {0};
   struct pi_cluster_conf conf;
@@ -132,10 +132,22 @@ void ${prefix}network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final
   cluster_task.stack_size = ${master_stack};
   cluster_task.slave_stack_size = ${slave_stack};
   pi_cluster_send_task_to_cl(&cluster_dev, &cluster_task);
-  pi_cluster_close(&cluster_dev);
+  return (struct ${prefix}network_run_token) {
+    .cluster_dev = cluster_dev
+  };
+}
+
+void ${prefix}network_run_wait(struct ${prefix}network_run_token token)
+{
+  pi_cluster_close(&token.cluster_dev);
   % if 'Perf_final' in verbose_level:
   print_perf("Final", ${prefix}cycle_network_execution, ${MACs});
   % endif
+}
+
+void ${prefix}network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, int exec${", void *L2_input_h" if not l3_supported else ""})
+{
+  ${prefix}network_run_wait(network_run_async(l2_buffer, l2_buffer_size, l2_final_output, exec${", L2_input_h" if not l3_supported else ""}));
 }
 
 void ${prefix}network_run_cluster(void *args) {
