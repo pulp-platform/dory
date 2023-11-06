@@ -11,3 +11,6 @@
 	path = dory/Hardware_targets/PULP/Backend_Kernels/pulp-nn-mixed
 	url = https://github.com/pulp-platform/pulp-nn-mixed.git
 	branch = main
+[submodule "dory/Hardware_targets/PULP/Backend_Kernels/pulp-nnx"]
+	path = dory/Hardware_targets/PULP/Backend_Kernels/pulp-nnx
+	url = git@github.com:pulp-platform/pulp-nnx.git

@@ -3,6 +3,14 @@
 #include <stddef.h>
 #include <stdint.h>
 
+// Padding flags
+
+#define NET_UTILS_PAD_TOP    (1 << 3)
+#define NET_UTILS_PAD_RIGHT  (1 << 2)
+#define NET_UTILS_PAD_BOTTOM (1 << 1)
+#define NET_UTILS_PAD_LEFT   (1 << 0)
+#define NET_UTILS_NO_PAD     (0)
+
 typedef struct {
   unsigned int L3_input;
   unsigned int L3_output;
@@ -13,6 +21,7 @@ typedef struct {
   unsigned int L2_weights;
   unsigned int L1_buffer;
   unsigned int ram;
+  unsigned int padding;
   unsigned int layer_id;
 } layer_args_t;
 
