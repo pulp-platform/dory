@@ -119,7 +119,7 @@ void ${prefix}execute_layer_fork(void *args) {
 #endif
 }
 
-void ${prefix}network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, int exec${", void *L2_input_h" if not l3_supported else ""})
+struct ${prefix}network_run_token ${prefix}network_run_async(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, int exec, int initial_dir${", void *L2_input_h" if not l3_supported else ""})
 {
   struct pi_device cluster_dev = {0};
   struct pi_cluster_conf conf;
@@ -135,8 +135,9 @@ void ${prefix}network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final
   args[1] = (unsigned int) l2_buffer_size;
   args[2] = (unsigned int) l2_final_output;
   args[3] = (unsigned int) exec;
+  args[4] = (unsigned int) initial_dir;
   % if not l3_supported:
-  args[4] = (unsigned int) L2_input_h;
+  args[5] = (unsigned int) L2_input_h;
   % endif
   // open cluster...
   pi_cluster_task(&cluster_task, ${prefix}network_run_cluster, args);
@@ -149,10 +150,22 @@ void ${prefix}network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final
 #endif
   cluster_task.slave_stack_size = ${slave_stack};
   pi_cluster_send_task_to_cl(&cluster_dev, &cluster_task);
-  pi_cluster_close(&cluster_dev);
+  return (struct ${prefix}network_run_token) {
+    .cluster_dev = cluster_dev
+  };
+}
+
+void ${prefix}network_run_wait(struct ${prefix}network_run_token token)
+{
+  pi_cluster_close(&token.cluster_dev);
   % if 'Perf_final' in verbose_level:
   print_perf("Final", ${prefix}cycle_network_execution, ${MACs});
   % endif
+}
+
+void ${prefix}network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, int exec, int initial_dir${", void *L2_input_h" if not l3_supported else ""})
+{
+  ${prefix}network_run_wait(network_run_async(l2_buffer, l2_buffer_size, l2_final_output, exec, initial_dir${", L2_input_h" if not l3_supported else ""}));
 }
 
 void ${prefix}network_run_cluster(void *args) {
@@ -161,8 +174,9 @@ void ${prefix}network_run_cluster(void *args) {
   size_t l2_buffer_size = (size_t) real_args[1];
   void * l2_final_output = (void *) real_args[2];
   int exec = (int) real_args[3];
+  int dir = (int) real_args[4];
   % if not l3_supported:
-  void * L2_input_h = (void *)real_args[4];
+  void * L2_input_h = (void *)real_args[5];
   % endif
 /*
   - initial buffer allocation L2 and L1
@@ -177,7 +191,6 @@ void ${prefix}network_run_cluster(void *args) {
   void *L3_weights_curr = L3_weights;
   void *bypass_activations = NULL;
 
-  int dir = 1;
   int residual_number = 0;
   int bypass_dimension = 0;
   % if not l3_supported:
