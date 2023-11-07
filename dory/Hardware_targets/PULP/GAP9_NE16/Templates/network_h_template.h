@@ -1,1 +1,1 @@
-../../GAP9/Templates/network_h_template.h
+../../Common/Templates/network.h.t

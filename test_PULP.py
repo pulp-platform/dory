@@ -163,7 +163,7 @@ def test_network(network, capsys, compat, appdir):
     try:
         proc = subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=360)
     except subprocess.CalledProcessError as e:
-        assert False, f"Building application failed with exit status {e.returncode}\nBuild error:\n{e.stderr}"
+        assert False, f"Building application failed with exit status {e.returncode}\nBuild output:\n{e.stdout}\nBuild error:\n{e.stderr}"
     except subprocess.TimeoutExpired as e:
         print(f"Test timed out...\nSTDOUT:")
         if e.output is not None:
