@@ -98,9 +98,8 @@ class Parser_HW_to_C:
 
     def copy_utils_files(self):
         print("\nCopying Utils.")
-        utils_files_dir = os.path.join(os.path.dirname(__file__), '../Hardware_targets', self.HW_description["name"], 'Utils_files')
-        for file in os.listdir(utils_files_dir):
-            file_to_copy = os.path.join(utils_files_dir, file)
+        for file in os.listdir(self.utils_files_dir):
+            file_to_copy = os.path.join(self.utils_files_dir, file)
             if file_to_copy[-1] == 'c':
                 os.system('cp -L "{}" {}'.format(file_to_copy, self.src_dir))
             elif file_to_copy[-1] == 'h':
@@ -172,6 +171,10 @@ class Parser_HW_to_C:
     @property
     def tmpl_dir(self):
         return os.path.realpath(os.path.join(self.get_file_path(), 'Templates/layer_templates'))
+
+    @property
+    def utils_files_dir(self):
+        return os.path.realpath(os.path.join(self.get_file_path(), 'Utils_files'))
 
     def full_graph_parsing(self):
         print("#####################################################")

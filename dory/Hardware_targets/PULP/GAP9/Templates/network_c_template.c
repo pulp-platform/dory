@@ -127,6 +127,9 @@ struct ${prefix}network_run_token ${prefix}network_run_async(void *l2_buffer, si
   // First open the cluster
   pi_cluster_conf_init(&conf);
   conf.id=0;
+#ifdef TARGET_CHIP_FAMILY_GAP9
+  conf.icache_conf = PI_CLUSTER_MASTER_CORE_ICACHE_ENABLE | PI_CLUSTER_ICACHE_PREFETCH_ENABLE | PI_CLUSTER_ICACHE_ENABLE;
+#endif
 <%
     n_args = 4 if l3_supported else 5
 %>\
