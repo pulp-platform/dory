@@ -7,6 +7,6 @@ else
     echo "No container name supplied; building with name 'dory_docker'"
 fi
 
-docker -t $CONTAINER_NAME - < Dockerfile
+docker build -t $CONTAINER_NAME - < Dockerfile
 
 echo "Done - built container with name $CONTAINER_NAME"
