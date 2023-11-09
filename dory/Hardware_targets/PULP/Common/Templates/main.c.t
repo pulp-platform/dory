@@ -95,6 +95,8 @@ void application(void * arg) {
 int main () {
 #ifndef TARGET_CHIP_FAMILY_GAP9
   PMU_set_voltage(1000, 0);
+#else
+  pi_pmu_voltage_set(PI_PMU_VOLTAGE_DOMAIN_CHIP, PI_PMU_VOLT_800);
 #endif
   pi_time_wait_us(10000);
   pi_freq_set(PI_FREQ_DOMAIN_FC, ${fc_frequency});
