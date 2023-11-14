@@ -53,11 +53,11 @@ static void *L3_input = NULL;
 static void *L3_output = NULL;
 % if 'Yes' in performance or 'Perf_final' in verbose_level:
 int ${prefix}cycle_network_execution;
-% endif
-% if l3_supported:
-/* Moves the weights and the biases from hyperflash to hyperram */
-void ${prefix}network_initialize() {
 
+% endif
+/* Moves the weights and the biases from hyperflash to hyperram */
+void ${prefix}network_initialize(${prefix}network_t * network) {
+  % if l3_supported:
   L3_weights = ram_malloc(L3_WEIGHTS_SIZE);
   L3_input = ram_malloc(L3_INPUT_SIZE);
   L3_output = ram_malloc(L3_OUTPUT_SIZE);
@@ -74,19 +74,32 @@ void ${prefix}network_initialize() {
     L3_weights_size[i] = size;
     w_ptr += size;
   }
-}
-% endif
 
-% if l3_supported:
+  % endif
+  network->cluster_dev = (struct pi_device){0};
+  struct pi_cluster_conf conf;
+  pi_cluster_conf_init(&conf);
+  conf.id=0;
+  pi_open_from_conf(&network->cluster_dev, &conf);
+  if (pi_cluster_open(&network->cluster_dev))
+    return;
+
+  network->cluster_task = (struct pi_cluster_task){0};
+#ifndef TARGET_CHIP_FAMILY_GAP9
+  network->cluster_task.stack_size = ${master_stack};
+#endif
+  network->cluster_task.slave_stack_size = ${slave_stack};
+}
+
 /* Remove RAM memory */
-void ${prefix}network_terminate() {
+void ${prefix}network_terminate(${prefix}network_t * network) {
   % if l3_supported:
   ram_free(L3_weights, L3_WEIGHTS_SIZE);
   ram_free(L3_input, L3_INPUT_SIZE);
   ram_free(L3_output, L3_OUTPUT_SIZE);
   % endif
+  pi_cluster_close(&network->cluster_dev);
 }
-% endif
 
 void ${prefix}execute_layer_fork(void *args) {
   layer_args_t *layer_args = (layer_args_t *)args;
@@ -119,67 +132,32 @@ void ${prefix}execute_layer_fork(void *args) {
 #endif
 }
 
-struct ${prefix}network_run_token ${prefix}network_run_async(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, int exec, int initial_dir${", void *L2_input_h" if not l3_supported else ""})
-{
-  struct pi_device cluster_dev = {0};
-  struct pi_cluster_conf conf;
-  struct pi_cluster_task cluster_task = {0};
-  // First open the cluster
-  pi_cluster_conf_init(&conf);
-  conf.id=0;
-#ifdef TARGET_CHIP_FAMILY_GAP9
-  conf.icache_conf = PI_CLUSTER_MASTER_CORE_ICACHE_ENABLE | PI_CLUSTER_ICACHE_PREFETCH_ENABLE | PI_CLUSTER_ICACHE_ENABLE;
-#endif
-<%
-    n_args = 4 if l3_supported else 5
-%>\
-  unsigned int args[${n_args}];
-  args[0] = (unsigned int) l2_buffer;
-  args[1] = (unsigned int) l2_buffer_size;
-  args[2] = (unsigned int) l2_final_output;
-  args[3] = (unsigned int) exec;
-  args[4] = (unsigned int) initial_dir;
-  % if not l3_supported:
-  args[5] = (unsigned int) L2_input_h;
-  % endif
-  // open cluster...
-  pi_cluster_task(&cluster_task, ${prefix}network_run_cluster, args);
-  pi_open_from_conf(&cluster_dev, &conf);
-  if (pi_cluster_open(&cluster_dev))
-    return;
-  // Then offload an entry point, this will get executed on the cluster controller
-#ifndef TARGET_CHIP_FAMILY_GAP9
-  cluster_task.stack_size = ${master_stack};
-#endif
-  cluster_task.slave_stack_size = ${slave_stack};
-  pi_cluster_send_task_to_cl(&cluster_dev, &cluster_task);
-  return (struct ${prefix}network_run_token) {
-    .cluster_dev = cluster_dev
-  };
+void ${prefix}network_run_async(${prefix}network_t * network, ${prefix}network_args_t * args) {
+  pi_cluster_task(&network->cluster_task, ${prefix}network_run_cluster, args);
+  pi_cluster_send_task_to_cl(&network->cluster_dev, &network->cluster_task);
 }
 
-void ${prefix}network_run_wait(struct ${prefix}network_run_token token)
-{
-  pi_cluster_close(&token.cluster_dev);
+void ${prefix}network_run_wait(${prefix}network_t * network) {
+  pi_task_block(&network->cluster_task);
   % if 'Perf_final' in verbose_level:
   print_perf("Final", ${prefix}cycle_network_execution, ${MACs});
   % endif
 }
 
-void ${prefix}network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, int exec, int initial_dir${", void *L2_input_h" if not l3_supported else ""})
-{
-  ${prefix}network_run_wait(network_run_async(l2_buffer, l2_buffer_size, l2_final_output, exec, initial_dir${", L2_input_h" if not l3_supported else ""}));
+void ${prefix}network_run(${prefix}network_t * network, ${prefix}network_args_t * args) {
+  ${prefix}network_run_async(network, args);
+  ${prefix}network_run_wait(network);
 }
 
-void ${prefix}network_run_cluster(void *args) {
-  unsigned int * real_args = (unsigned int *) args;
-  void * l2_buffer = (void *) real_args[0];
-  size_t l2_buffer_size = (size_t) real_args[1];
-  void * l2_final_output = (void *) real_args[2];
-  int exec = (int) real_args[3];
-  int dir = (int) real_args[4];
+void ${prefix}network_run_cluster(void * args) {
+  ${prefix}network_args_t * network_args = (${prefix}network_args_t *) args;
+  void * l2_buffer = network_args->l2_buffer;
+  size_t l2_buffer_size = network_args->l2_buffer_size;
+  void * l2_final_output = network_args->l2_final_output;
+  int exec = network_args->exec;
+  int dir = network_args->initial_allocator_dir;
   % if not l3_supported:
-  void * L2_input_h = (void *)real_args[5];
+  void * L2_input_h = network_args->l2_input_h;
   % endif
 /*
   - initial buffer allocation L2 and L1
