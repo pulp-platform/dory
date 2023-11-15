@@ -41,5 +41,6 @@
 	},
     "double_buffering": 1,
     "split_ints": true,
-    "blocking_dma_transfers": true
+    "blocking_dma_transfers": true,
+    "mchan_check_end_policy": "polled"
 }

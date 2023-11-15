@@ -39,5 +39,6 @@
 		"accelerator core1-7 stack": 3600		
 	},
     "split_ints": true,
-    "blocking_dma_transfers": false
+    "blocking_dma_transfers": false,
+    "mchan_check_end_policy": "event"
 }
