@@ -51,6 +51,11 @@ def print_template_Makefile(
     except KeyError:
         print("Makefile template writer: key 'single_core_dma' not found in HW description, using multi-core transfers!")
         single_core_dma = False
+    if 'mchan_check_end_policy' in HW_description:
+        supported_policies = ["polled", "event", "interrupt"]
+        assert HW_description['mchan_check_end_policy'] in supported_policies, \
+            f"Requested mchan check end policy {HW_description['mchan_check_end_policy']} not supported: {supported_policies}"
+        tk['mchan_check_end_policy'] = HW_description['mchan_check_end_policy']
     tk['single_core_dma'] = single_core_dma
     root = os.path.realpath(os.path.dirname(__file__))
     tmpl = Template(filename=os.path.join(root, "../../Hardware_targets", HW_description["name"], template_location_rel))

@@ -34,6 +34,6 @@
 		"accelerator core1-7 stack": 3400		
 	},
     "split_ints": true,
-    "double_buffering": 1
-
+    "double_buffering": 1,
+    "mchan_check_end_policy": "polled"
 }
