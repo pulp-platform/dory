@@ -167,13 +167,14 @@ class Pattern_rewriter:
 
         for key, value in self.graph[i[0]].__dict__.items():
             if isinstance(value, dict):
-                inmul1 = value["value"]
+                inmul1 = int(value["value"])
         for key, value in self.graph[i[2]].__dict__.items():
             if isinstance(value, dict):
-                inmul2 = value["value"]
+                inmul2 = int(value["value"])
         for key, value in self.graph[i[3]].__dict__.items():
             if isinstance(value, dict):
-                outshift = (value["value"][0] if isinstance(value["value"].tolist(),list) else value["value"])
+                outshift = int((value["value"][0] if isinstance(value["value"].tolist(),list) else value["value"]))
+
         DORY_QAdd_node.inmul1 = {}
         DORY_QAdd_node.inmul1["value"] = inmul1
         DORY_QAdd_node.inmul1["layout"] = ""
