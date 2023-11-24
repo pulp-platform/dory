@@ -41,11 +41,12 @@ class Parser_ONNX_to_DORY:
         self.layers_accepted = layers_accepted
         self.layers_neglected = layers_neglected
         self.layers_to_node = layers_to_node
-        self.layers_supported_by_DORY_Frontend_IR = ["Convolution", "Pooling", "FullyConnected", "Addition", "QAddition", "Relu", "BNRelu", "Requant"]
+        self.layers_supported_by_DORY_Frontend_IR = ["Convolution", "Pooling", "FullyConnected", "Addition", "QAddition", "Relu", "BNRelu", "Requant", "ChannelwiseThreshold2d"]
         self.rules = rules
         self.net_prefix = net_prefix
         print(f"onnx_to_dory net prefix: {net_prefix}")
         self.DORY_Graph = []
+
 
     def create_node(self, node_iterating, graph):
         '''
@@ -60,15 +61,21 @@ class Parser_ONNX_to_DORY:
         return new_node
 
     def ONNXtoDORY(self):
+        def pos_in_schedule(node: str) -> int:
+            for idx, node_iterating in enumerate(list(self.graph.graph.node)):
+                if node_iterating.output[0] == node:
+                    return idx
         ######### CREATING NODES ###########
         print("\nParsing ONNX Graph to create DORY graph.")
+        # make a dict that translates nodes to their order (basically
+        # topological order)
         for node_iterating in (self.graph.graph.node):
             ### check if the node is supported
             assert (node_iterating.op_type in self.layers_accepted), f"{node_iterating.op_type} not supported by DORY"
             ### Neglecting some nodes since they are not translated to any operation on any backend
             if node_iterating.op_type in self.layers_neglected:
                 for node in self.DORY_Graph[::-1]:
-                    if int(node_iterating.output[0]) > int(node.get_parameter('output_index')) and node.get_parameter("name") != "Constant":
+                    if pos_in_schedule(node_iterating.output[0]) > pos_in_schedule(node.get_parameter('output_index')) and node.get_parameter("name") != "Constant":
                         node.add_existing_parameter('output_index', node_iterating.output[0]) 
                         break
             # Adding a new layer
