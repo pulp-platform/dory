@@ -213,6 +213,9 @@ class HW_node(DORY_node):
 
             self.check_sum_in.append(int(sum(x)))
             outfile = f'out_layer{node_number}.txt' if n_inputs == 1 else f'out_{in_idx}_layer{node_number}.txt'
+            # quantlib hack
+            if not os.path.isfile(os.path.join(load_directory, outfile)):
+                outfile = "output.txt"
             try:
                 y = np.loadtxt(os.path.join(load_directory, outfile), delimiter=',', dtype=np.int64, usecols=[0])
             except ValueError:
