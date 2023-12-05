@@ -42,7 +42,7 @@ class onnx_manager(onnx_manager_gap9):
     def get_tiler(self):
         return Tiler_GAP9
 
-    def valid_ne16_node(self, node):
+    def valid_ne16_node(self, node, idx):
         try:
             Ne16TestConf(
                 in_height=node.input_dimensions[0],
@@ -60,19 +60,19 @@ class onnx_manager(onnx_manager_gap9):
                 bias_type=IntegerType(name=f"{node.constant_type}{node.bias_bits}"),
                 has_norm_quant=True, # TODO
                 has_bias=True,
-                has_relu=True
+                has_relu="Relu" in node.name
             )
             return True, ""
         except ValidationError as e:
-            msg = f"WARNING: Failed allocating node {node.name} to the NE16 accelerator. Errors:\n"
+            msg = f"WARNING: Failed allocating node {node.name}{idx} to the NE16 accelerator. Errors:\n"
             for error in e.errors():
                 msg += f" - {error['msg']}\n"
             msg += "\nNOTE: Falling back to cluster engine.\n"
             return False, msg
 
-    def engine_coloring(self, node):
+    def engine_coloring(self, node, idx):
         if "Conv" in node.op_type or "Convolution" in node.op_type:
-            is_valid, msg = self.valid_ne16_node(node)
+            is_valid, msg = self.valid_ne16_node(node, idx)
             if is_valid:
                 node.engine = "ne16"
                 return
@@ -83,8 +83,8 @@ class onnx_manager(onnx_manager_gap9):
     def mapping_to_HW_nodes(self):
         super().mapping_to_HW_nodes()
         print("\nPULP Backend: Assigning nodes to engines.")
-        for node in self.DORY_Graph:
-            self.engine_coloring(node)
+        for i, node in enumerate(self.DORY_Graph):
+            self.engine_coloring(node, i)
         assert all(hasattr(node, "engine") for node in self.DORY_Graph)
 
     def transform_nodes_to_hw_nodes(self):
