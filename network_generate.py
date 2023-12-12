@@ -72,7 +72,7 @@ def network_generate(frontend, target, conf_file, verbose_level='Check_all+Perf_
 
 if __name__ == '__main__':
     Frontends = ["NEMO", "Quantlab"]
-    Hardware_targets = ["PULP.GAP8", "PULP.GAP8_L2", "PULP.PULP_gvsoc", "PULP.GAP9", "PULP.GAP9_NE16", "Occamy", "Diana.Diana_TVM", "Diana.Diana_SoC"]
+    Hardware_targets = ["PULP.GAP8", "PULP.GAP8_L2", "PULP.PULP_gvsoc", "PULP.PULP_NE16", "PULP.GAP9", "PULP.GAP9_NE16", "Occamy", "Diana.Diana_TVM", "Diana.Diana_SoC"]
     verbose_levels = ["None", "Perf_final", "Check_all+Perf_final", "Last+Perf_final"]
     optional_choices = ["auto", "8bit", "mixed-hw", "mixed-sw"]
 
