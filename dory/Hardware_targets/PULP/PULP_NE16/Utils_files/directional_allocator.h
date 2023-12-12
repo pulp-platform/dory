@@ -1,0 +1,1 @@
+../../PULP_gvsoc/Utils_files/directional_allocator.h
