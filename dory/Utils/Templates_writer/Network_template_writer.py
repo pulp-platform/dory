@@ -31,7 +31,8 @@ def print_template_network(
     perf_layer,
         app_directory,
         inc_dir_rel,
-        src_dir_rel
+        src_dir_rel,
+    tmpl_dir
 ):
     # Generate the Network management c file.
     tk = OrderedDict([])
@@ -85,20 +86,19 @@ def print_template_network(
             except (TypeError, IndexError):
                 l += "// %s %s\n" % (k.ljust(30), v)
     tk['DORY_HW_graph'] = graph
-    root = os.path.realpath(os.path.dirname(__file__))
-    tmpl = Template(filename=os.path.join(root, "../../Hardware_targets", HW_description["name"], "Templates/network_c_template.c"))
+    tmpl = Template(filename=os.path.join(tmpl_dir, "network_c_template.c"))
     s = tmpl.render(verbose_log=l, **tk)
     save_string = os.path.join(app_directory, src_dir_rel, prefix + 'network.c')
     with open(save_string, "w") as f:
         f.write(s)
 
-    tmpl = Template(filename=os.path.join(root, "../../Hardware_targets", HW_description["name"], "Templates/network_h_template.h"))
+    tmpl = Template(filename=os.path.join(tmpl_dir, "network_h_template.h"))
     s = tmpl.render(verbose_log=l, **tk)
     save_string = os.path.join(app_directory, inc_dir_rel, prefix + 'network.h')
     with open(save_string, "w") as f:
         f.write(s)
 
-    tmpl = Template(filename=os.path.join(root, "../../Hardware_targets", HW_description["name"], "Templates/main_template.c"))
+    tmpl = Template(filename=os.path.join(tmpl_dir, "main_template.c"))
     s = tmpl.render(verbose_log=l, **tk)
     save_string = os.path.join(app_directory, src_dir_rel, prefix + 'main.c')
     with open(save_string, "w") as f:
