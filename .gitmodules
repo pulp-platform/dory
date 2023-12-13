@@ -13,4 +13,4 @@
 	branch = main
 [submodule "dory/Hardware_targets/PULP/Backend_Kernels/pulp-nnx"]
 	path = dory/Hardware_targets/PULP/Backend_Kernels/pulp-nnx
-	url = git@github.com:pulp-platform/pulp-nnx.git
+	url = https://github.com/pulp-platform/pulp-nnx.git
