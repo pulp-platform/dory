@@ -14,5 +14,6 @@ class onnx_manager(onnx_manager_gap9_ne16):
         return Tiler
 
     def engine_coloring(self, node, idx):
-        node.engine = "cluster"
-        print(f"NOTE: {node.name}{idx} will be executed on the cluster.")
+        #node.engine = "cluster"
+        #print(f"NOTE: {node.name}{idx} will be executed on the cluster.")
+        super().engine_coloring(node, idx)
