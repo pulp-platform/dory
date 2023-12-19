@@ -171,9 +171,6 @@ class Parser_DORY_to_HW:
         print("\nInsert tiling parameters per layer inside graph nodes")
         prev = None
         for node in self.DORY_Graph:
-            ######################## NEED A  FIX ####################################################
-            #### OTHERWISE ONLY WEIGHT < L2/2 GO in L2 --> much more L3 tiling not needed############
-            #########################################################################################
             node.create_tiling_dimensions(prev if prev else node, self.config_file)
             prev = node
 

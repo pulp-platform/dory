@@ -408,13 +408,10 @@ def print_template_layer(node, layer_type, double_buffering = 2):
     # x last
     tk['x_tile_size_nif_last'] = n_in % tile_n_in if (n_in % tile_n_in) > 0 else tile_n_in
     tk['x_tile_size_nif_byte_last'] = int(math.ceil(tk['x_tile_size_nif_last'] * ds_x / 8.0))
-    tk['x_tile_size_h_last'] = tk['y_tile_size_h_last'] * s[0] + ks[0] - s[0] - (padding_bottom - ((h_in + padding_bottom + padding_top) - (h_out* s[0] + ks[0] - s[0])))
-    tk['x_tile_size_w_last'] = tk['y_tile_size_w_last'] * s[1] + ks[1] - s[1] - (padding_right - ((w_in + padding_left + padding_right) - (w_out* s[1] + ks[1] - s[1])))
-    ## single tile execution
-    if tk['x_tile_size_h_last'] > tk['x_tile_size_h']:
-        tk['x_tile_size_h_last'] = tk['x_tile_size_h']
-    if tk['x_tile_size_w_last'] > tk['x_tile_size_w']:
-        tk['x_tile_size_w_last'] = tk['x_tile_size_w']
+    tk['x_tile_size_h_last'] = tk['y_tile_size_h_last'] * s[0] + ks[0] - s[0]
+    assert tk['x_tile_size_h_last'] >= 0 and tk['x_tile_size_h_last'] <= tk['x_tile_size_h']
+    tk['x_tile_size_w_last'] = tk['y_tile_size_w_last'] * s[1] + ks[1] - s[1]
+    assert tk['x_tile_size_w_last'] >= 0 and tk['x_tile_size_w_last'] <= tk['x_tile_size_w']
 
     l = ""
     for k, v in tk.items():
