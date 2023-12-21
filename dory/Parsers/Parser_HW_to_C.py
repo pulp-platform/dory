@@ -86,8 +86,8 @@ class Parser_HW_to_C:
     def l2_template_mapping(self, node, backend_library):
         tmpl_c = self.l2_c_template(node, backend_library)
         return {
-            os.path.join(self.src_dir, node.prefixed_name + ".c"): os.path.join(self.tmpl_dir, tmpl_c),
-            os.path.join(self.inc_dir, node.prefixed_name + ".h"): os.path.join(self.tmpl_dir, "layer_L2_h_template.h"),
+            os.path.join(self.src_dir, node.name + ".c"): os.path.join(self.tmpl_dir, tmpl_c),
+            os.path.join(self.inc_dir, node.name + ".h"): os.path.join(self.tmpl_dir, "layer_L2_h_template.h"),
         }
 
     def mapping_layers_to_C_files(self):
