@@ -17,6 +17,8 @@
 
 from dory.Hardware_targets.PULP.GAP9.C_Parser import C_Parser as C_Parser_gap9
 from dory.Hardware_targets.PULP.GAP9_NE16.Ne16_HW_node import Ne16_HW_node
+from dory.Utils.Templates_writer.TemplateWriter import TemplateWriter
+import dory.Utils.Templates_writer.Layer2D_template_writer as Layer2D_writer
 import os
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "Backend_Kernels", "pulp-nnx", "test"))
@@ -55,6 +57,38 @@ class C_Parser(C_Parser_gap9):
         if isinstance(node, Ne16_HW_node):
             tk = self.__nnx_vars(tk, node)
         return tk
+
+    def mapping_layers_to_C_files(self):
+        print("\nMapping the layers files to their templates and copying the kernels associated.")
+        n_memory_levels = self.HW_description['memory']['levels']
+
+        for i, node in enumerate(self.HWgraph):
+            backend_library = self.node_backend_library(node)
+            self.copy_backend_files(node, backend_library)
+
+            #if (node.kernel_shape[0] == 3 and node.group == 96):
+                #breakpoint()
+
+            if n_memory_levels > 2 and (node.L3_input != 0 or (node.tiling_dimensions["L3"]["output_dimensions"] != node.tiling_dimensions["L2"]["output_dimensions"]) or (node.tiling_dimensions["L3"]["weights_dimensions"] != node.tiling_dimensions["L2"]["weights_dimensions"])):
+                #breakpoint()
+                tk = Layer2D_writer.print_template_layer_L3(node)
+                TemplateWriter.write(tk, {os.path.join(self.src_dir, node.prefixed_name + ".c"): os.path.join(self.tmpl_dir, "layer_L3_c_template.c"),
+                                          os.path.join(self.inc_dir, node.prefixed_name + ".h"): os.path.join(self.tmpl_dir, "layer_L3_h_template.h")})
+                if node.tiling_dimensions["L3"]["input_dimensions"][1] > node.tiling_dimensions["L2"]["input_dimensions"][1]:
+                    node.tiling_dimensions["L2"]["output_dimensions"][1] = (node.tiling_dimensions["L2"]["input_dimensions"][1] - node.kernel_shape[0] + node.strides[0]) // node.strides[0]
+                if node.tiling_dimensions["L3"]["output_dimensions"][1] > node.tiling_dimensions["L2"]["output_dimensions"][1]:
+                    node.tiling_dimensions["L2"]["input_dimensions"][1] = node.tiling_dimensions["L2"]["output_dimensions"][1] * node.strides[0] + node.kernel_shape[0] - node.strides[0]
+                node.name = node.name + "_L2"
+                tk = self.l2_template_keywords(node, backend_library)
+                TemplateWriter.write(tk, self.l2_template_mapping(node, backend_library))
+                node.name = node.name[:-3]
+            else:
+                if node.tiling_dimensions["L2"]["input_dimensions"][2] == node.tiling_dimensions["L1"]["input_dimensions"][2]:
+                    node.tiling_dimensions["L1"]["output_dimensions"][2] = int((node.tiling_dimensions["L1"]["input_dimensions"][2] + (node.pads[1] + node.pads[3]) - node.kernel_shape[1] + node.strides[1]) / node.strides[1])
+                if node.tiling_dimensions["L2"]["input_dimensions"][1] == node.tiling_dimensions["L1"]["input_dimensions"][1]:
+                    node.tiling_dimensions["L1"]["output_dimensions"][1] = int((node.tiling_dimensions["L1"]["input_dimensions"][1] + (node.pads[0] + node.pads[2]) - node.kernel_shape[0] + node.strides[0]) / node.strides[0])
+                tk = self.l2_template_keywords(node, backend_library)
+                TemplateWriter.write(tk, self.l2_template_mapping(node, backend_library))
 
     def __mem_tmpl_vars(self, tk, node, mem_level):
         mem_name = f'L{mem_level}'
