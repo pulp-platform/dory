@@ -65,6 +65,8 @@ class Tiler_Conv2D_Ne16:
         # We assume that the first nodes input is always in L2
         input_in_l2 = is_first_node or prev_tiling["L3"]["output_dimensions"] == prev_tiling["L2"]["output_dimensions"]
 
+        self.node.L3_input = not input_in_l2
+
         buffer_total = self.node.input_activation_memory + self.node.output_activation_memory + self.node.weight_memory + self.node.bias_memory + self.node.constants_memory
 
         # Don't tile if the whole thing fits into L2
