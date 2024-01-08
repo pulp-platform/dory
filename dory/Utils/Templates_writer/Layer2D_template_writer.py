@@ -25,6 +25,7 @@ import numpy as np
 import sys
 import os
 import re
+from dory.Hardware_targets.PULP.GAP9_NE16.Ne16_HW_node import Ne16_HW_node
 
 def print_template_layer_L3(node):
     ks =      node.kernel_shape
@@ -92,7 +93,7 @@ def print_template_layer_L3(node):
     tk['n_tile_x'] = factor_h_in
     tk['n_tile_y'] = factor_h_out
     tk['verbose'] = False
-    if tk['padding'] > 0:
+    if tk['padding'] > 0 and not isinstance(node, Ne16_HW_node):
         tk['func_name'] = [node.prefixed_name + "_L2", node.prefixed_name + "_L2_p_t", node.prefixed_name + "_L2_p_b"]
     else:
         tk['func_name'] = [node.prefixed_name + "_L2"]
@@ -408,10 +409,8 @@ def print_template_layer(node, layer_type, double_buffering = 2):
     # x last
     tk['x_tile_size_nif_last'] = n_in % tile_n_in if (n_in % tile_n_in) > 0 else tile_n_in
     tk['x_tile_size_nif_byte_last'] = int(math.ceil(tk['x_tile_size_nif_last'] * ds_x / 8.0))
-    tk['x_tile_size_h_last'] = tk['y_tile_size_h_last'] * s[0] + ks[0] - s[0]
-    assert tk['x_tile_size_h_last'] >= 0 and tk['x_tile_size_h_last'] <= tk['x_tile_size_h']
-    tk['x_tile_size_w_last'] = tk['y_tile_size_w_last'] * s[1] + ks[1] - s[1]
-    assert tk['x_tile_size_w_last'] >= 0 and tk['x_tile_size_w_last'] <= tk['x_tile_size_w']
+    tk['x_tile_size_h_last'] = min(tk['y_tile_size_h_last'] * s[0] + ks[0] - s[0], tile_h_in)
+    tk['x_tile_size_w_last'] = min(tk['y_tile_size_w_last'] * s[1] + ks[1] - s[1], tile_w_in)
 
     l = ""
     for k, v in tk.items():
