@@ -129,6 +129,8 @@ void __attribute__ ((noinline)) ${func_name_L3}(void *args)
   int offset_x = ${dim_in-int(conv_overlap1*n_in*w_in*BitIn/8) - int(padding*n_in*w_in*BitIn/8)};
 
   % if n_tile_x > 1:
+  uint32_t padding = tile_args.padding;
+
   // loop over input/output tiles
   for(int j = 0; j < ${n_tile_x}; j++) {
     // Fetching next input tile
@@ -199,6 +201,16 @@ else if (j == (${n_tile_y-1})) {
       ${func_name[0]}((void*)&tile_args);
     }    
 % else:
+    % if n_tile_x > 1:
+    // LMACAN: Hacky way to add the padding flag passing.
+    tile_args.padding = 0;
+    if (j == 0) {
+      tile_args.padding |= padding & NET_UTILS_PAD_TOP;
+    }
+    if (j == ${n_tile_x - 1}) {
+      tile_args.padding |= padding & NET_UTILS_PAD_BOTTOM;
+    }
+    % endif
     ${func_name[0]}(&tile_args);
 % endif
 
