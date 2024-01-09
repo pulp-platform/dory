@@ -33,8 +33,6 @@ def print_template_layer_L3(node):
     g =       node.group
     p =       node.pads
     padding_top = p[0]; padding_left = p[1]; padding_bottom = p[2]; padding_right = p[3];
-    conv_overlap1 = 2 * (ks[0] // 2) + ks[0] % 2 - 1 - (s[0] - 1)
-    conv_overlap2 = 2 * (ks[1] // 2) + ks[1] % 2 - 1 - (s[1] - 1)
     tk = OrderedDict([])
     tk['flag_DW'] = 1 if node.group > 1 else 0
     tk['ULTRA_VERBOSE'] = False
@@ -75,8 +73,8 @@ def print_template_layer_L3(node):
 
     ################################################################################
 
-    tk['conv_overlap1'] = conv_overlap1
-    tk['conv_overlap2'] = conv_overlap2
+    tk['conv_overlap1'] = ks[0] - s[0]
+    tk['conv_overlap2'] = ks[1] - s[1]
     tk['padding'] = padding_top
     if (node.L3_input):
         tk['input_L3'] = 1
@@ -151,11 +149,8 @@ def print_template_layer(node, layer_type, double_buffering = 2):
     s =       node.strides
     g =       node.group
     p =       node.pads
-    conv_overlap_h = 2 * (ks[0] // 2) + ks[0] % 2 - 1 - (s[0] - 1)
     padding_top = p[0]; padding_left = p[1]; padding_bottom = p[2]; padding_right = p[3];
     name_layer = node.prefixed_name + '.h'
-    conv_overlap1 = 2 * (ks[0] // 2) + ks[0] % 2 - 1 - (s[0] - 1)
-    conv_overlap2 = 2 * (ks[1] // 2) + ks[1] % 2 - 1 - (s[1] - 1)
     tk = OrderedDict([])
     if (re.search('.0',name_layer)):
         try:
@@ -178,8 +173,8 @@ def print_template_layer(node, layer_type, double_buffering = 2):
     tk['has_bias'] = int(len([1 for name in node.constant_names if "bias" in name])>0)
     tk['FLAG_RELU'] = 1 if 'outshift' in node.constant_names else 0
     tk['type'] = f"{node.input_activation_type}8_t" if node.input_activation_type in ["int", "uint"] else "float"
-    tk['conv_overlap1'] = conv_overlap1
-    tk['conv_overlap2'] = conv_overlap2
+    tk['conv_overlap1'] = ks[0] - s[0]
+    tk['conv_overlap2'] = ks[1] - s[1]
     tk['padding_top'] = padding_top
     tk['padding_bottom'] = padding_bottom
     tk['padding_left'] = padding_left
