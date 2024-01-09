@@ -113,3 +113,13 @@ class onnx_manager(onnx_manager_gap9):
         weights["value"] = Ne16.weight_unroll(weights["value"].astype(np.uint8),
                                               node.weight_bits, node.group > 1)
         weights["layout"] = "CoutCinMajKQwCinMin" # Ne16's special layout
+
+        self.adjust_padding(node)
+
+    def adjust_padding(self, node):
+        inp_dim = node.input_dimensions
+        ks = node.kernel_shape
+        s = node.strides
+        padding_top, padding_left, padding_bottom, padding_right = node.pads
+        node.pads[2] = padding_bottom if (inp_dim[0] - ks[0] + padding_top + padding_bottom) % s[0] == 0 else 0
+        node.pads[3] = padding_right if (inp_dim[1] - ks[1] + padding_left + padding_right) % s[1] == 0 else 0
