@@ -43,7 +43,7 @@ void ${prefix}network_initialize();
 void ${prefix}network_run_cluster(void * args);
 struct ${prefix}network_run_token ${prefix}network_run_async(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, int exec, int initial_dir${", void *L2_input_h" if not l3_supported else ""});
 void network_run_wait(struct ${prefix}network_run_token token);
-void ${prefix}network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, int exec, int initial_dir${", void *L2_input_h" if not l3_supported else ""});
+void ${prefix}network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, void ** L3_final_weights_curr, int exec, int initial_dir${", void *L2_input_h" if not l3_supported else ""});
 void ${prefix}execute_layer_fork(void *arg);
 
 % if l3_supported and not single_input:

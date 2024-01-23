@@ -136,6 +136,14 @@ struct ${prefix}network_run_token ${prefix}network_run_async(void *l2_buffer, si
   return (struct ${prefix}network_run_token) {
     .cluster_dev = cluster_dev
   };
+
+  // ODDA
+  // 9 layers with weights have been processed before FC layer 
+  int n_frozen_layers = 1; // Inference 
+  *L3_final_weights_curr = L3_weights;
+  for (int i = 0; i < ${len(DORY_HW_graph)} - n_frozen_layers - 1; i++){ // 1 layer (i.e., avgpool) has no weights, but is part of the graph
+    *L3_final_weights_curr += L3_weights_size[i]; 
+  }
 }
 
 void ${prefix}network_run_wait(struct ${prefix}network_run_token token)
@@ -146,7 +154,8 @@ void ${prefix}network_run_wait(struct ${prefix}network_run_token token)
   % endif
 }
 
-void ${prefix}network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, int exec, int initial_dir${", void *L2_input_h" if not l3_supported else ""})
+// ODDA
+void ${prefix}network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, void ** L3_final_weights_curr, int exec, int initial_dir${", void *L2_input_h" if not l3_supported else ""})
 {
   ${prefix}network_run_wait(network_run_async(l2_buffer, l2_buffer_size, l2_final_output, exec, initial_dir${", L2_input_h" if not l3_supported else ""}));
 }
@@ -215,7 +224,12 @@ void ${prefix}network_run_cluster(void *args) {
 /* -------- SECTION 2 BEGIN --------- */
 /* ---------------------------------- */
   int weight_l_cnt = 0; // count how many layers with weights we have processed to increment the weights_L3 pointer
-  for (int i = 0; i < ${len(DORY_HW_graph)}; i++) {
+
+  // ODDA
+  int n_frozen_layers = 1; // Inference
+  int n_inf_layers = ${len(DORY_HW_graph)} - n_frozen_layers; // Training
+
+  for (int i = 0; i < n_inf_layers; i++) {
 /* MEMORY ALLOCATION
   - allocate memory if layer is executed from L3;
   - allocate weights
