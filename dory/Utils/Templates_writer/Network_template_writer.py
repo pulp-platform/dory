@@ -18,6 +18,7 @@
 # limitations under the License.
 
 from mako.template import Template
+from mako import exceptions
 from collections import OrderedDict
 import os
 from . import writer_utils as utils
@@ -57,6 +58,8 @@ def print_template_network(
     list_h = []
     list_name = []
     for i, node in enumerate(graph):
+        print ("Inputs: ", node.n_test_inputs)
+        print ("Layer: ", node.prefixed_name)
         MACs += node.MACs
         if "Conv" in node.name or "FullyConnected" in node.name:
             file_list_w.append(node.prefixed_name+"_weights.hex")
@@ -70,6 +73,11 @@ def print_template_network(
     list_h = list(set(list_h))
     tk['list_h'] = list_h
     tk['func_name'] = list_name
+
+    # Patch handling layers preceded by Pad layer, for which no NEMO rule exists
+    if (graph[0].n_test_inputs is None):
+        graph[0].n_test_inputs = 1
+        
     tk['n_inputs'] = graph[0].n_test_inputs
     l = ""
     for k, v in tk.items():
@@ -89,7 +97,10 @@ def print_template_network(
         f.write(s)
 
     tmpl = Template(filename=os.path.join(root, "../../Hardware_targets", HW_description["name"], "Templates/network_h_template.h"))
-    s = tmpl.render(verbose_log=l, **tk)
+    try:
+        s = tmpl.render(verbose_log=l, **tk)    
+    except:
+        print (exceptions.text_error_template().render())
     save_string = os.path.join(app_directory, inc_dir_rel, prefix + 'network.h')
     with open(save_string, "w") as f:
         f.write(s)

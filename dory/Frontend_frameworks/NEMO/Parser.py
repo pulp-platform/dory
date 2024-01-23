@@ -54,6 +54,7 @@ class onnx_manager(Parser_ONNX_to_DORY):
             string_matching, indexes = self.pattern_matching(node, i)
             if isinstance(string_matching, str):
                 self.DORY_Graph = Pattern_rewriter(self.DORY_Graph).execute(string_matching, indexes)
+
         print("\nNEMO Frontend: Updating Add nodes with constants.")
         for i, node in enumerate(self.DORY_Graph):
             if "Addition" in node.name:
