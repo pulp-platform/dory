@@ -68,6 +68,7 @@ void application(void * arg) {
   % if l3_supported:
 
   void *ram_input = ram_malloc(input_size);
+  void *l3_buffer;
   % endif
 % if not single_input:
   for (int exec = 0; exec < ${n_inputs}; exec++) {
@@ -80,7 +81,7 @@ void application(void * arg) {
   % if l3_supported:
       ram_read(l2_buffer, ram_input, l2_input_size);
   % endif
-      ${prefix}network_run(l2_buffer, ${l2_buffer_size}, l2_buffer, ${"0" if single_input else "exec"}, initial_dir${f", {prefix}L2_input_h{' + exec * l2_input_size' if not single_input else ''}" if not l3_supported else ""});
+      ${prefix}network_run(l2_buffer, ${l2_buffer_size}, l2_buffer, l3_buffer, ${"0" if single_input else "exec"}, initial_dir${f", {prefix}L2_input_h{' + exec * l2_input_size' if not single_input else ''}" if not l3_supported else ""});
 
   % if not single_input:
   }

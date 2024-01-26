@@ -104,7 +104,7 @@ void ${prefix}execute_layer_fork(void *args) {
   if (pi_core_id() == 0) pmsis_l1_malloc_free(layer_args->L1_buffer, ${l1_buffer});
 }
 
-struct ${prefix}network_run_token ${prefix}network_run_async(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, int exec, int initial_dir${", void *L2_input_h" if not l3_supported else ""})
+struct ${prefix}network_run_token ${prefix}network_run_async(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, void **l3_buffer, int exec, int initial_dir${", void *L2_input_h" if not l3_supported else ""})
 {
   struct pi_device cluster_dev = {0};
   struct pi_cluster_conf conf;
@@ -140,9 +140,9 @@ struct ${prefix}network_run_token ${prefix}network_run_async(void *l2_buffer, si
   // ODDA
   // 9 layers with weights have been processed before FC layer 
   int n_frozen_layers = 1; // Inference 
-  *L3_final_weights_curr = L3_weights;
+  *l3_buffer = L3_weights;
   for (int i = 0; i < ${len(DORY_HW_graph)} - n_frozen_layers - 1; i++){ // 1 layer (i.e., avgpool) has no weights, but is part of the graph
-    *L3_final_weights_curr += L3_weights_size[i]; 
+    *l3_buffer += L3_weights_size[i]; 
   }
 }
 
@@ -155,9 +155,9 @@ void ${prefix}network_run_wait(struct ${prefix}network_run_token token)
 }
 
 // ODDA
-void ${prefix}network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, void ** L3_final_weights_curr, int exec, int initial_dir${", void *L2_input_h" if not l3_supported else ""})
+void ${prefix}network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, void **l3_buffer, int exec, int initial_dir${", void *L2_input_h" if not l3_supported else ""})
 {
-  ${prefix}network_run_wait(network_run_async(l2_buffer, l2_buffer_size, l2_final_output, exec, initial_dir${", L2_input_h" if not l3_supported else ""}));
+  ${prefix}network_run_wait(network_run_async(l2_buffer, l2_buffer_size, l2_final_output, l3_buffer, exec, initial_dir${", L2_input_h" if not l3_supported else ""}));
 }
 
 void ${prefix}network_run_cluster(void *args) {
