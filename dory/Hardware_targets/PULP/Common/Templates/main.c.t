@@ -64,11 +64,10 @@ void application(void * arg) {
 #endif
   size_t l2_input_size = ${int(DORY_HW_graph[0].tiling_dimensions["L2"]["input_activation_memory"])};
   size_t input_size = 1000000;
-  int initial_dir = 1;
   % if l3_supported:
 
   void *ram_input = ram_malloc(input_size);
-  void **l3_buffer;
+  void *l3_buffer;
   % endif
 % if not single_input:
   for (int exec = 0; exec < ${n_inputs}; exec++) {
@@ -97,7 +96,8 @@ int main () {
 #ifndef TARGET_CHIP_FAMILY_GAP9
   PMU_set_voltage(1000, 0);
 #else
-  pi_pmu_voltage_set(PI_PMU_VOLTAGE_DOMAIN_CHIP, PI_VOLT_800);
+  pi_pmu_voltage_set(PI_PMU_VOLTAGE_DOMAIN_CHIP, PI_VOLT_800); // GAP9
+  // pi_pmu_voltage_set(PI_PMU_VOLTAGE_DOMAIN_CHIP, PI_PMU_VOLT_800); // GAP8
 #endif
   pi_time_wait_us(10000);
   pi_freq_set(PI_FREQ_DOMAIN_FC, ${fc_frequency});
