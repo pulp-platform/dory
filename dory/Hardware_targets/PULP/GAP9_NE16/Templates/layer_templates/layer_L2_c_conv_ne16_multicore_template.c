@@ -182,8 +182,6 @@ static int inc(int index, int end) {
 
 #define BUFFER_SIZE (2)
 
-static DmaTransferConf store_conf[BUFFER_SIZE];
-
 static struct {
     Monitor input, output, store_conf;
 } monitor;
@@ -197,6 +195,7 @@ struct layer_task_fork_args_t {
     uint32_t padding;
     ne16_task_t (*ne16_tasks)[BUFFER_SIZE];
     Layer (*tiles)[BUFFER_SIZE];
+    DmaTransferConf (*store_conf)[BUFFER_SIZE];
 };
 
 
@@ -206,6 +205,7 @@ static void layer_task_fork(void *void_args) {
     struct layer_task_fork_args_t *args = (struct layer_task_fork_args_t *)void_args;
     ne16_task_t (*ne16_tasks)[BUFFER_SIZE] = args->ne16_tasks;
     Layer (*tiles)[BUFFER_SIZE] = args->tiles;
+    DmaTransferConf (*store_conf)[BUFFER_SIZE] = args->store_conf;
 
     // Loader
 
@@ -291,7 +291,7 @@ static void layer_task_fork(void *void_args) {
             monitor_produce_end(monitor.input);
 
             monitor_produce_begin(monitor.store_conf);
-            store_prepare(*tiles[i_buff], body, layer, tile_status.index, &store_conf[i_buff]);
+            store_prepare(*tiles[i_buff], body, layer, tile_status.index, store_conf[i_buff]);
             monitor_produce_end(monitor.store_conf);
 
             i_buff = inc(i_buff, BUFFER_SIZE);
@@ -334,7 +334,7 @@ static void layer_task_fork(void *void_args) {
 
             dma_mutex_lock();
             DmaTransfer transfer = dma_transfer_create();
-            dma_transfer_async(store_conf[i_buff]);
+            dma_transfer_async(*store_conf[i_buff]);
             dma_mutex_unlock();
 
             dma_mutex_lock();
@@ -400,6 +400,7 @@ void ${func_name}(void *args) {
     }
 
     Layer tiles[BUFFER_SIZE];
+    DmaTransferConf store_conf[BUFFER_SIZE];
 
     // Fork
 
@@ -411,6 +412,7 @@ void ${func_name}(void *args) {
         .padding = layer_args->padding,
         .ne16_tasks = ne16_tasks,
         .tiles = tiles,
+        .store_conf = store_conf,
     };
     pi_cl_team_fork(CORES, layer_task_fork, (void *)&layer_task_fork_args);
 
