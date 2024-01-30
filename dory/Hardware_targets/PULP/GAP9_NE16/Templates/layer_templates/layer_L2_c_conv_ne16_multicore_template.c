@@ -389,7 +389,6 @@ void ${func_name}(void *args) {
 
     const ne16_pulp_conf_t ne16_pulp_conf = {.max_stall = 8};
     ne16_nnx_init(ne16_pulp_get_dev(), &ne16_pulp_conf);
-    dma_mutex_init();
 
 
     // Fork
