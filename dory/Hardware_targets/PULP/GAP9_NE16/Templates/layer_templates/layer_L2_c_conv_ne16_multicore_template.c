@@ -182,7 +182,6 @@ static int inc(int index, int end) {
 
 #define BUFFER_SIZE (2)
 
-static Layer tiles[BUFFER_SIZE];
 static DmaTransferConf store_conf[BUFFER_SIZE];
 
 static struct {
@@ -196,7 +195,8 @@ struct layer_task_fork_args_t {
     uint32_t L2_output;
     uint32_t L1_buffer;
     uint32_t padding;
-    ne16_task_t (*ne16_tasks)[2];
+    ne16_task_t (*ne16_tasks)[BUFFER_SIZE];
+    Layer (*tiles)[BUFFER_SIZE];
 };
 
 
@@ -204,7 +204,8 @@ static void layer_task_fork(void *void_args) {
     const int total_tiles = end_index.height * end_index.width * end_index.output_channel;
 
     struct layer_task_fork_args_t *args = (struct layer_task_fork_args_t *)void_args;
-    ne16_task_t (*ne16_tasks)[2] = args->ne16_tasks;
+    ne16_task_t (*ne16_tasks)[BUFFER_SIZE] = args->ne16_tasks;
+    Layer (*tiles)[BUFFER_SIZE] = args->tiles;
 
     // Loader
 
@@ -274,10 +275,10 @@ static void layer_task_fork(void *void_args) {
             Layer tile = tile_create(tile_status.index, end_index, body, border, layer, local_addr);
 
             monitor_produce_begin(monitor.input);
-            tiles[i_buff] = tile;
+            *tiles[i_buff] = tile;
             dma_mutex_lock();
             DmaTransfer transfer = dma_transfer_create();
-            load_async(tiles[i_buff], &tile_status, body, layer, kernel);
+            load_async(*tiles[i_buff], &tile_status, body, layer, kernel);
             dma_mutex_unlock();
             % if stride == 1:
             execute_prepare(tile, &ne16_tasks[i_buff]);
@@ -290,7 +291,7 @@ static void layer_task_fork(void *void_args) {
             monitor_produce_end(monitor.input);
 
             monitor_produce_begin(monitor.store_conf);
-            store_prepare(tiles[i_buff], body, layer, tile_status.index, &store_conf[i_buff]);
+            store_prepare(*tiles[i_buff], body, layer, tile_status.index, &store_conf[i_buff]);
             monitor_produce_end(monitor.store_conf);
 
             i_buff = inc(i_buff, BUFFER_SIZE);
@@ -310,7 +311,7 @@ static void layer_task_fork(void *void_args) {
             % if stride == 1:
             execute_async(&ne16_tasks[i_buff]);
             % elif stride == 2:
-            execute_stride2x2_blocking(&ne16_tasks[i_buff], tiles[i_buff], kernel);
+            execute_stride2x2_blocking(&ne16_tasks[i_buff], *tiles[i_buff], kernel);
             % endif
 
             monitor_produce_end(monitor.output);
@@ -398,6 +399,7 @@ void ${func_name}(void *args) {
         ne16_task_set_weight_offset(&ne16_tasks[i], weightOffsetModeLayerWise, ${weight_offset});
     }
 
+    Layer tiles[BUFFER_SIZE];
 
     // Fork
 
@@ -408,6 +410,7 @@ void ${func_name}(void *args) {
         .L1_buffer = layer_args->L1_buffer,
         .padding = layer_args->padding,
         .ne16_tasks = ne16_tasks,
+        .tiles = tiles,
     };
     pi_cl_team_fork(CORES, layer_task_fork, (void *)&layer_task_fork_args);
 
