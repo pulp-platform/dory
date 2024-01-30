@@ -141,7 +141,6 @@ struct ${prefix}network_run_token ${prefix}network_run_async(void *l2_buffer, si
   args[1] = (unsigned int) l2_buffer_size;
   args[2] = (unsigned int) l2_final_output;
   args[3] = (unsigned int) exec;
-  args[4] = (unsigned int) initial_dir;
   % if not l3_supported:
   args[5] = (unsigned int) L2_input_h;
   % endif
