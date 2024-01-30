@@ -30,6 +30,8 @@ l3_supported = DORY_HW_graph[0].HW_description['memory']['levels'] > 2
 #include "directional_allocator.h"
 #include "mem.h"
 #include "dory_dma.h"
+#include "ne16_pulp_bsp.h"
+#include "pulp_nnx_ne16.h"
 #include <string.h>
 % for layer in list_h:
 #include "${layer}"
@@ -209,6 +211,11 @@ void ${prefix}network_run_cluster(void *args) {
 
   // dma init
   dma_mutex_init();
+
+  // ne16 init
+  const ne16_pulp_conf_t ne16_pulp_conf = {.max_stall = 8};
+  ne16_nnx_init(ne16_pulp_get_dev(), &ne16_pulp_conf);
+
 /* ---------------------------------- */
 /* --------- SECTION 0 END ---------- */
 /* ---------------------------------- */
@@ -505,4 +512,6 @@ void ${prefix}network_run_cluster(void *args) {
 /* ---------------------------------- */
 /* --------- SECTION 3 END ---------- */
 /* ---------------------------------- */
+
+  ne16_nnx_term(ne16_pulp_get_dev());
 }
