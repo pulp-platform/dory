@@ -182,10 +182,9 @@ static int inc(int index, int end) {
 
 #define BUFFER_SIZE (2)
 
-static struct {
+typedef struct {
     Monitor input, output, store_conf;
-} monitor;
-
+} TaskMonitors;
 
 struct layer_task_fork_args_t {
     uint32_t L2_input;
@@ -196,6 +195,7 @@ struct layer_task_fork_args_t {
     ne16_task_t *ne16_tasks;
     Layer *tiles;
     DmaTransferConf *store_conf;
+    TaskMonitors *monitor;
 };
 
 
@@ -206,6 +206,7 @@ static void layer_task_fork(void *void_args) {
     ne16_task_t *ne16_tasks = args->ne16_tasks;
     Layer *tiles = args->tiles;
     DmaTransferConf *store_conf = args->store_conf;
+    TaskMonitors *monitor = args->monitor;
 
     // Loader
 
@@ -274,7 +275,7 @@ static void layer_task_fork(void *void_args) {
             const Address local_addr = tile_status_get_addr(tile_status, buffer_addresses);
             Layer tile = tile_create(tile_status.index, end_index, body, border, layer, local_addr);
 
-            monitor_produce_begin(monitor.input);
+            monitor_produce_begin(monitor->input);
             tiles[i_buff] = tile;
             dma_mutex_lock();
             DmaTransfer transfer = dma_transfer_create();
@@ -288,11 +289,11 @@ static void layer_task_fork(void *void_args) {
             dma_mutex_lock();
             dma_transfer_wait(transfer);
             dma_mutex_unlock();
-            monitor_produce_end(monitor.input);
+            monitor_produce_end(monitor->input);
 
-            monitor_produce_begin(monitor.store_conf);
+            monitor_produce_begin(monitor->store_conf);
             store_prepare(tiles[i_buff], body, layer, tile_status.index, &store_conf[i_buff]);
-            monitor_produce_end(monitor.store_conf);
+            monitor_produce_end(monitor->store_conf);
 
             i_buff = inc(i_buff, BUFFER_SIZE);
             tile_status = tile_status_get_next(tile_status, end_index, layer, 0, kernel);
@@ -305,8 +306,8 @@ static void layer_task_fork(void *void_args) {
     if (pi_core_id() == EXECUTER_ID) {
         int i_buff = 0;
         for (int i_tile = 0; i_tile < total_tiles; i_tile++) {
-            monitor_consume_begin(monitor.input);
-            monitor_produce_begin(monitor.output);
+            monitor_consume_begin(monitor->input);
+            monitor_produce_begin(monitor->output);
 
             % if stride == 1:
             execute_async(&ne16_tasks[i_buff]);
@@ -314,7 +315,7 @@ static void layer_task_fork(void *void_args) {
             execute_stride2x2_blocking(&ne16_tasks[i_buff], tiles[i_buff], kernel);
             % endif
 
-            monitor_produce_end(monitor.output);
+            monitor_produce_end(monitor->output);
 
             i_buff = inc(i_buff, BUFFER_SIZE);
         }
@@ -326,11 +327,11 @@ static void layer_task_fork(void *void_args) {
     if (pi_core_id() == STORER_ID) {
         int i_buff = 0;
         for (int i_tile = 0; i_tile < total_tiles; i_tile++) {
-            monitor_consume_begin(monitor.store_conf);
-            monitor_consume_begin(monitor.output);
+            monitor_consume_begin(monitor->store_conf);
+            monitor_consume_begin(monitor->output);
 
             execute_wait(&ne16_tasks[i_buff]);
-            monitor_consume_end(monitor.input);
+            monitor_consume_end(monitor->input);
 
             dma_mutex_lock();
             DmaTransfer transfer = dma_transfer_create();
@@ -341,8 +342,8 @@ static void layer_task_fork(void *void_args) {
             dma_transfer_wait(transfer);
             dma_mutex_unlock();
 
-            monitor_consume_end(monitor.store_conf);
-            monitor_consume_end(monitor.output);
+            monitor_consume_end(monitor->store_conf);
+            monitor_consume_end(monitor->output);
 
             i_buff = inc(i_buff, BUFFER_SIZE);
         }
@@ -360,6 +361,7 @@ void ${func_name}(void *args) {
     layer_args_t *layer_args = (layer_args_t *)args;
 
     // Initialization
+    TaskMonitors monitor;
 
     int err = 0;
 
@@ -415,6 +417,7 @@ void ${func_name}(void *args) {
         .ne16_tasks = ne16_tasks,
         .tiles = tiles,
         .store_conf = store_conf,
+        .monitor = &monitor,
     };
     pi_cl_team_fork(CORES, layer_task_fork, (void *)&layer_task_fork_args);
 
