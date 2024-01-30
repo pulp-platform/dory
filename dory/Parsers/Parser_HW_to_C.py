@@ -57,6 +57,7 @@ class Parser_HW_to_C:
             self.config_file,
             self.verbose_level,
             self.perf_layer,
+            self.tmpl_dir,
             self.app_directory,
             self.inc_dir_rel,
             self.src_dir_rel)
@@ -86,8 +87,8 @@ class Parser_HW_to_C:
     def l2_template_mapping(self, node, backend_library):
         tmpl_c = self.l2_c_template(node, backend_library)
         return {
-            os.path.join(self.src_dir, node.name + ".c"): os.path.join(self.tmpl_dir, tmpl_c),
-            os.path.join(self.inc_dir, node.name + ".h"): os.path.join(self.tmpl_dir, "layer_L2_h_template.h"),
+            os.path.join(self.src_dir, node.name + ".c"): os.path.join(self.layer_tmpl_dir, tmpl_c),
+            os.path.join(self.inc_dir, node.name + ".h"): os.path.join(self.layer_tmpl_dir, "layer_L2_h_template.h"),
         }
 
     def mapping_layers_to_C_files(self):
@@ -170,7 +171,11 @@ class Parser_HW_to_C:
 
     @property
     def tmpl_dir(self):
-        return os.path.realpath(os.path.join(self.get_file_path(), 'Templates/layer_templates'))
+        return os.path.realpath(os.path.join(self.get_file_path(), 'Templates'))
+
+    @property
+    def layer_tmpl_dir(self):
+        return os.path.realpath(os.path.join(self.tmpl_dir, 'layer_templates'))
 
     @property
     def utils_files_dir(self):
