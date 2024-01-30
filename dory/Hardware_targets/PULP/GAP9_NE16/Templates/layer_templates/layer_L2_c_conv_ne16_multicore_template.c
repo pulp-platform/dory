@@ -339,10 +339,12 @@ static void layer_task_fork(void *args) {
 }
 
 void ${func_name}(void *args) {
-
     #ifdef DEBUG_GVSOC
     nnx_activate_gvsoc_logging(GVSOC_LOG_LEVEL_CONFIG, GVSOC_LOGGING_FORMAT_DECIMAL);
     #endif
+
+    ne16_dev_t *ne16_dev = ne16_pulp_get_dev();
+    hwpe_soft_clear(&ne16_dev->hwpe_dev);
 
     layer_args_t *layer_args = (layer_args_t *)args;
 
@@ -387,9 +389,6 @@ void ${func_name}(void *args) {
         ne16_task_set_weight_offset(&ne16_tasks[i], weightOffsetModeLayerWise, ${weight_offset});
     }
 
-    const ne16_pulp_conf_t ne16_pulp_conf = {.max_stall = 8};
-    ne16_nnx_init(ne16_pulp_get_dev(), &ne16_pulp_conf);
-
 
     // Fork
 
@@ -401,5 +400,4 @@ void ${func_name}(void *args) {
     monitor_term(monitor.input);
     monitor_term(monitor.output);
     monitor_term(monitor.store_conf);
-    ne16_nnx_term(ne16_pulp_get_dev());
 }
