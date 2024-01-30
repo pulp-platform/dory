@@ -206,6 +206,9 @@ void ${prefix}network_run_cluster(void *args) {
   pi_perf_conf(1<<PI_PERF_CYCLES);
   int perf_cyc = 0;
   int io_cyc = 0;
+
+  // dma init
+  dma_mutex_init();
 /* ---------------------------------- */
 /* --------- SECTION 0 END ---------- */
 /* ---------------------------------- */
