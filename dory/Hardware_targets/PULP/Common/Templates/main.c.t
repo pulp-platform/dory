@@ -64,6 +64,7 @@ void application(void * arg) {
 #endif
   size_t l2_input_size = ${int(DORY_HW_graph[0].tiling_dimensions["L2"]["input_activation_memory"])};
   size_t input_size = 1000000;
+  int initial_dir = 1;
   % if l3_supported:
 
   void *ram_input = ram_malloc(input_size);
