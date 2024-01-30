@@ -347,10 +347,12 @@ static void layer_task_fork(void *void_args) {
 }
 
 void ${func_name}(void *args) {
-
     #ifdef DEBUG_GVSOC
     nnx_activate_gvsoc_logging(GVSOC_LOG_LEVEL_CONFIG, GVSOC_LOGGING_FORMAT_DECIMAL);
     #endif
+
+    ne16_dev_t *ne16_dev = ne16_pulp_get_dev();
+    hwpe_soft_clear(&ne16_dev->hwpe_dev);
 
     layer_args_t *layer_args = (layer_args_t *)args;
 
@@ -391,7 +393,4 @@ void ${func_name}(void *args) {
         .monitor = layer_args->monitor,
     };
     pi_cl_team_fork(CORES, layer_task_fork, (void *)&layer_task_fork_args);
-
-
-    // Terminate
 }
