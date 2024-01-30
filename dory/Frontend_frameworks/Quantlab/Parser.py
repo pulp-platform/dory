@@ -93,7 +93,11 @@ class onnx_manager(Parser_ONNX_to_DORY):
                 # input 1 parameters
                 #### Look at the order of inputs in Onnx. If the lowest index
                 #is not the first argument, revert the order inmul1 and inmul2
-                if int(node.input_indexes[0]) > int(node.input_indexes[1]):
+                def pos_in_schedule(node: str) -> int:
+                    for idx, node_iterating in enumerate(list(self.graph.graph.node)):
+                        if node_iterating.output[0] == node:
+                            return idx
+                if pos_in_schedule(node.input_indexes[0]) > pos_in_schedule(node.input_indexes[1]):
                     temp_shift = node.in1_shift
                     temp_mul   = node.in1_mul
                     temp_add   = node.in1_add

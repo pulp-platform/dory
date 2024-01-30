@@ -60,6 +60,10 @@ class Parser_ONNX_to_DORY:
         return new_node
 
     def ONNXtoDORY(self):
+        def pos_in_schedule(node: str) -> int:
+            for idx, node_iterating in enumerate(list(self.graph.graph.node)):
+                if node_iterating.output[0] == node:
+                    return idx
         ######### CREATING NODES ###########
         print("\nParsing ONNX Graph to create DORY graph.")
         for node_iterating in (self.graph.graph.node):
@@ -68,7 +72,9 @@ class Parser_ONNX_to_DORY:
             ### Neglecting some nodes since they are not translated to any operation on any backend
             if node_iterating.op_type in self.layers_neglected:
                 for node in self.DORY_Graph[::-1]:
-                    if int(node_iterating.output[0]) > int(node.get_parameter('output_index')) and node.get_parameter("name") != "Constant":
+                    node_iter_output = pos_in_schedule(node_iterating.output[0])
+                    node_output_index = pos_in_schedule(node.get_parameter('output_index'))
+                    if node_iter_output > node_output_index and node.get_parameter("name") != "Constant":
                         node.add_existing_parameter('output_index', node_iterating.output[0]) 
                         break
             # Adding a new layer

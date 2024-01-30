@@ -72,6 +72,7 @@ class HW_node(DORY_node):
         #  ATTENTION MEMORY L3 --> TILE MEMORY DIMENSION --> Decide how to set. Re-init the whole memory?
         for level in np.arange(self.HW_description["memory"]["levels"],1, -1):
             (weights_dim, input_dims, output_dims) = self.Tiler(self, previous_node, config_file["code reserved space"]).get_tiling(level)
+            assert all(dim > 0 for dim in weights_dim + input_dims + output_dims)
             self.tiling_dimensions["L{}".format(level-1)]["input_dimensions"] = input_dims
             self.tiling_dimensions["L{}".format(level-1)]["output_dimensions"] = output_dims
             if "Convolution" in self.name or "FullyConnected" in self.name:
@@ -98,8 +99,8 @@ class HW_node(DORY_node):
 
             self.tiling_dimensions["L{}".format(level-1)]["bias_memory"] = int(bias_memory)
             self.tiling_dimensions["L{}".format(level-1)]["constants_memory"] = int(constants_memory)
-            self.tiling_dimensions["L{}".format(level-1)]["input_activation_memory"] = np.prod(self.tiling_dimensions["L{}".format(level-1)]["input_dimensions"])*self.input_activation_bits/8
-            self.tiling_dimensions["L{}".format(level-1)]["output_activation_memory"] = np.prod(self.tiling_dimensions["L{}".format(level-1)]["output_dimensions"])*self.output_activation_bits/8
+            self.tiling_dimensions["L{}".format(level-1)]["input_activation_memory"] = int(np.prod(self.tiling_dimensions["L{}".format(level-1)]["input_dimensions"])*self.input_activation_bits/8)
+            self.tiling_dimensions["L{}".format(level-1)]["output_activation_memory"] = int(np.prod(self.tiling_dimensions["L{}".format(level-1)]["output_dimensions"])*self.output_activation_bits/8)
 
     def rename_weights(self):
         weight_name = ""
@@ -213,6 +214,9 @@ class HW_node(DORY_node):
 
             self.check_sum_in.append(int(sum(x)))
             outfile = f'out_layer{node_number}.txt' if n_inputs == 1 else f'out_{in_idx}_layer{node_number}.txt'
+            # quantlib hack
+            if not os.path.isfile(os.path.join(load_directory, outfile)):
+                outfile = "output.txt"
             try:
                 y = np.loadtxt(os.path.join(load_directory, outfile), delimiter=',', dtype=np.int64, usecols=[0])
             except ValueError:

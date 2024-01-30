@@ -2,6 +2,7 @@
 #define __PERF_UTILS_H__
 #include <stddef.h>
 #include <stdint.h>
+#include "monitor.h"
 
 // Padding flags
 
@@ -10,6 +11,10 @@
 #define NET_UTILS_PAD_BOTTOM (1 << 1)
 #define NET_UTILS_PAD_LEFT   (1 << 0)
 #define NET_UTILS_NO_PAD     (0)
+
+typedef struct {
+    Monitor input, output, store_conf;
+} TaskMonitors;
 
 typedef struct {
   unsigned int L3_input;
@@ -23,6 +28,7 @@ typedef struct {
   unsigned int ram;
   unsigned int padding;
   unsigned int layer_id;
+  TaskMonitors *monitor;
 } layer_args_t;
 
 void print_perf(const char *name, const int cycles, const int macs);
