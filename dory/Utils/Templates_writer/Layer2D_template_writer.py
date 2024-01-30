@@ -290,6 +290,8 @@ def print_template_layer(node, layer_type, double_buffering = 2):
     tk['W_data_size_byte'] = ds_W
     tk['b_data_size_byte'] = ds_bias
     tk['W_tile_size_nof'] = tile_n_out 
+    if ds_W is not None:
+        tk['weight_offset'] = -(2**(ds_W-1))
     if tk['has_bias'] == 1:
         tk['b_size_byte'] = int(math.ceil(n_out * ds_bias / 8.0))
     else:

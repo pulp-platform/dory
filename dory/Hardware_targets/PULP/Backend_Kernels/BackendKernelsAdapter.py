@@ -177,24 +177,32 @@ class PulpNNXAdapter(BackendKernelsAdapter):
         if self.accelerator_name == "ne16":
             assert True  # TODO
 
-    def _get_ne16_src_files(self) -> List[str]:
-        return ["src/pulp_nnx_ne16.c", "ne16/hal/ne16_hal.c"]
-
-    def _get_ne16_inc_files(self) -> List[str]:
+    def _get_acc_src_files(self) -> List[str]:
         return [
-            "ne16/gvsoc/ne16_gvsoc_logging.h",
-            "ne16/hal/ne16_defs.h",
-            "ne16/hal/ne16_hal.h",
+            f"{self.accelerator_name}/hal/{self.accelerator_name}.c",
+            f"{self.accelerator_name}/hal/{self.accelerator_name}_task.c",
+            f"{self.accelerator_name}/bsp/{self.accelerator_name}_pulp_bsp.c",
+            f"src/pulp_nnx_{self.accelerator_name}.c",
+        ]
+
+    def _get_acc_inc_files(self) -> List[str]:
+        return [
+            f"{self.accelerator_name}/gvsoc/{self.accelerator_name}_gvsoc.h",
+            f"{self.accelerator_name}/hal/{self.accelerator_name}_task_defs.h",
+            f"{self.accelerator_name}/hal/{self.accelerator_name}.h",
+            f"{self.accelerator_name}/hal/{self.accelerator_name}_task.h",
+            f"{self.accelerator_name}/bsp/{self.accelerator_name}_pulp_bsp.h",
+            f"inc/pulp_nnx_{self.accelerator_name}.h",
         ]
 
     def _get_src_files(self) -> List[str]:
-        src_files = ["util/pulp_nnx_util.c"]
+        src_files = ["util/pulp_nnx_util.c", "util/hwpe.c"]
         if self.accelerator_name == "ne16":
-            src_files += self._get_ne16_src_files()
+            src_files += self._get_acc_src_files()
         return [os.path.join(self._root_dir(), file) for file in src_files]
 
     def _get_inc_files(self) -> List[str]:
-        inc_files = ["inc/pulp_nnx.h", "util/pulp_nnx_util.h"]
+        inc_files = ["util/pulp_nnx_util.h", "util/hwpe.h"]
         if self.accelerator_name == "ne16":
-            inc_files += self._get_ne16_inc_files()
+            inc_files += self._get_acc_inc_files()
         return [os.path.join(self._root_dir(), file) for file in inc_files]
