@@ -182,8 +182,6 @@ static int inc(int index, int end) {
 
 #define BUFFER_SIZE (2)
 
-static DmaTransferConf store_conf[BUFFER_SIZE];
-
 static struct {
     Monitor input, output, store_conf;
 } monitor;
@@ -197,6 +195,7 @@ struct layer_task_fork_args_t {
     uint32_t padding;
     ne16_task_t *ne16_tasks;
     Layer *tiles;
+    DmaTransferConf *store_conf;
 };
 
 
@@ -206,6 +205,7 @@ static void layer_task_fork(void *void_args) {
     struct layer_task_fork_args_t *args = (struct layer_task_fork_args_t *)void_args;
     ne16_task_t *ne16_tasks = args->ne16_tasks;
     Layer *tiles = args->tiles;
+    DmaTransferConf *store_conf = args->store_conf;
 
     // Loader
 
@@ -402,6 +402,7 @@ void ${func_name}(void *args) {
     }
 
     Layer tiles[BUFFER_SIZE];
+    DmaTransferConf store_conf[BUFFER_SIZE];
 
     // Fork
 
@@ -413,6 +414,7 @@ void ${func_name}(void *args) {
         .padding = layer_args->padding,
         .ne16_tasks = ne16_tasks,
         .tiles = tiles,
+        .store_conf = store_conf,
     };
     pi_cl_team_fork(CORES, layer_task_fork, (void *)&layer_task_fork_args);
 
