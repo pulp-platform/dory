@@ -216,6 +216,27 @@ void ${prefix}network_run_cluster(void *args) {
   const ne16_pulp_conf_t ne16_pulp_conf = {.max_stall = 8};
   ne16_nnx_init(ne16_pulp_get_dev(), &ne16_pulp_conf);
 
+  TaskMonitors monitor;
+
+  int err = 0;
+
+  if (err = monitor_init(&monitor.input, 2)) {
+      printf("Input monitor initialization failed with status %d.\n", err);
+      return;
+  }
+
+  if (err = monitor_init(&monitor.output, 2)) {
+      printf("Output monitor initialization failed with status %d.\n", err);
+      monitor_term(monitor.input);
+      return;
+  }
+
+  if (err = monitor_init(&monitor.store_conf, 2)) {
+      printf("Store conf monitor initialization failed with status %d.\n", err);
+      monitor_term(monitor.input);
+      monitor_term(monitor.output);
+      return;
+  }
 /* ---------------------------------- */
 /* --------- SECTION 0 END ---------- */
 /* ---------------------------------- */
@@ -317,7 +338,8 @@ void ${prefix}network_run_cluster(void *args) {
       .L1_buffer = 0,
       .ram = (unsigned int) get_ram_ptr(),
       .padding = NET_UTILS_PAD_TOP | NET_UTILS_PAD_BOTTOM,
-      .layer_id = i
+      .layer_id = i,
+      .monitor = &monitor,
     };
 
     % if 'Yes' in performance or 'Perf_final' in verbose_level:
@@ -514,4 +536,7 @@ void ${prefix}network_run_cluster(void *args) {
 /* ---------------------------------- */
 
   ne16_nnx_term(ne16_pulp_get_dev());
+  monitor_term(monitor.input);
+  monitor_term(monitor.output);
+  monitor_term(monitor.store_conf);
 }

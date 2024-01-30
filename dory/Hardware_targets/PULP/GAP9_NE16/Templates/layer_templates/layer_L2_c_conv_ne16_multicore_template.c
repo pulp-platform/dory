@@ -182,10 +182,6 @@ static int inc(int index, int end) {
 
 #define BUFFER_SIZE (2)
 
-typedef struct {
-    Monitor input, output, store_conf;
-} TaskMonitors;
-
 struct layer_task_fork_args_t {
     uint32_t L2_input;
     uint32_t L2_weights;
@@ -360,29 +356,6 @@ void ${func_name}(void *args) {
 
     layer_args_t *layer_args = (layer_args_t *)args;
 
-    // Initialization
-    TaskMonitors monitor;
-
-    int err = 0;
-
-    if (err = monitor_init(&monitor.input, BUFFER_SIZE)) {
-        printf("Input monitor initialization failed with status %d.\n", err);
-        return;
-    }
-
-    if (err = monitor_init(&monitor.output, BUFFER_SIZE)) {
-        printf("Output monitor initialization failed with status %d.\n", err);
-        monitor_term(monitor.input);
-        return;
-    }
-
-    if (err = monitor_init(&monitor.store_conf, BUFFER_SIZE)) {
-        printf("Store conf monitor initialization failed with status %d.\n", err);
-        monitor_term(monitor.input);
-        monitor_term(monitor.output);
-        return;
-    }
-
     // Init nnx tasks
     ne16_task_t ne16_tasks[BUFFER_SIZE];
     for (int i = 0; i < BUFFER_SIZE; i++) {
@@ -417,14 +390,10 @@ void ${func_name}(void *args) {
         .ne16_tasks = ne16_tasks,
         .tiles = tiles,
         .store_conf = store_conf,
-        .monitor = &monitor,
+        .monitor = layer_args->monitor,
     };
     pi_cl_team_fork(CORES, layer_task_fork, (void *)&layer_task_fork_args);
 
 
     // Terminate
-
-    monitor_term(monitor.input);
-    monitor_term(monitor.output);
-    monitor_term(monitor.store_conf);
 }
