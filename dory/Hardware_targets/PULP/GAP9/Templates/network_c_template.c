@@ -119,7 +119,7 @@ void ${prefix}execute_layer_fork(void *args) {
 #endif
 }
 
-struct ${prefix}network_run_token ${prefix}network_run_async(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, void **l3_buffer, int exec${", void *L2_input_h" if not l3_supported else ""})
+struct ${prefix}network_run_token ${prefix}network_run_async(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, void **l3_buffer, int exec, int initial_dir${", void *L2_input_h" if not l3_supported else ""})
 {
   struct pi_device cluster_dev = {0};
   struct pi_cluster_conf conf;
@@ -174,9 +174,9 @@ void ${prefix}network_run_wait(struct ${prefix}network_run_token token)
 }
 
 // ODDA
-void ${prefix}network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, void **l3_buffer, int exec${", void *L2_input_h" if not l3_supported else ""})
+void ${prefix}network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, void **l3_buffer, int exec, int initial_dir${", void *L2_input_h" if not l3_supported else ""})
 {
-  ${prefix}network_run_wait(network_run_async(l2_buffer, l2_buffer_size, l2_final_output, l3_buffer, exec${", L2_input_h" if not l3_supported else ""}));
+  ${prefix}network_run_wait(network_run_async(l2_buffer, l2_buffer_size, l2_final_output, l3_buffer, exec, initial_dir${", L2_input_h" if not l3_supported else ""}));
 }
 
 void ${prefix}network_run_cluster(void *args) {
