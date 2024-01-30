@@ -25,10 +25,10 @@ import sys
 
 from dory.Parsers.HW_node import HW_node
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "Backend_Kernels", "pulp-nnx", "test"))
-from Ne16TestClasses import Ne16TestConf
+from Ne16TestConf import Ne16TestConf
 from TestClasses import IntegerType
+from Ne16MemoryLayout import Ne16MemoryLayout
 from pydantic import ValidationError
-from Ne16 import Ne16
 
 
 class onnx_manager(onnx_manager_gap9):
@@ -110,7 +110,7 @@ class onnx_manager(onnx_manager_gap9):
         ## Unroll expects layout to be "CoutCinK"
         if weights["layout"] == "CoutKCin":
             weights["value"] = np.transpose(weights["value"], (0,3,1,2))
-        weights["value"] = Ne16.weight_unroll(weights["value"].astype(np.uint8),
+        weights["value"] = Ne16MemoryLayout.weightEncode(weights["value"].astype(np.uint8),
                                               node.weight_bits, node.group > 1)
         weights["layout"] = "CoutCinMajKQwCinMin" # Ne16's special layout
 

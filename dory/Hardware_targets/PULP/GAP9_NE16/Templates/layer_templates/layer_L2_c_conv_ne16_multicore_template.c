@@ -20,8 +20,15 @@
  */
 
 #include "${func_name}.h"
-#include "pulp_nnx.h"
+
+// ne16 includes
+#include "pulp_nnx_ne16.h"
 #include "pulp_nnx_util.h"
+#include "ne16_pulp_bsp.h"
+#include "ne16_task.h"
+#include "ne16.h"
+#include "hwpe.h"
+
 #include "network.h"
 #include "net_utils.h"
 #include "dory_dma.h"
@@ -105,7 +112,7 @@ static inline void load_weights_prepare(Layer tile, Kernel kernel,
                                         DmaTransferConf * const conf_bias
                                         ) {
     // Special because of accelerators special memory layout
-    const int size_weights = (kernel.groups > 1 ? divnceil(tile.output.channel, 16) : tile.output.channel) * ${l1_W_tile_ki_size};
+    const int size_weights = (kernel.groups > 1 ? nnx_calculate_number_of_tiles(tile.output.channel, 16) : tile.output.channel) * ${l1_W_tile_ki_size};
     const int size_scale = tile.output.channel * ${int(act_dim_bit/8)};
     const int size_bias = tile.output.channel * ${int(b_data_size_byte/8)};
 
@@ -176,12 +183,13 @@ static int inc(int index, int end) {
 #define BUFFER_SIZE (2)
 
 static Layer tiles[BUFFER_SIZE];
-static nnx_task_t nnx_tasks[BUFFER_SIZE];
+static ne16_task_t ne16_tasks[BUFFER_SIZE];
 static DmaTransferConf store_conf[BUFFER_SIZE];
 
 static struct {
     Monitor input, output, store_conf;
 } monitor;
+
 
 static void layer_task_fork(void *args) {
     const int total_tiles = end_index.height * end_index.width * end_index.output_channel;
@@ -262,9 +270,9 @@ static void layer_task_fork(void *args) {
             load_async(tiles[i_buff], &tile_status, body, layer, kernel);
             dma_mutex_unlock();
             % if stride == 1:
-            execute_prepare(tile, &nnx_tasks[i_buff]);
+            execute_prepare(tile, &ne16_tasks[i_buff]);
             % elif stride == 2:
-            execute_stride2x2_prepare(tile, kernel, &nnx_tasks[i_buff]);
+            execute_stride2x2_prepare(tile, kernel, &ne16_tasks[i_buff]);
             % endif
             dma_mutex_lock();
             dma_transfer_wait(transfer);
@@ -290,9 +298,9 @@ static void layer_task_fork(void *args) {
             monitor_produce_begin(monitor.output);
 
             % if stride == 1:
-            execute_async(&nnx_tasks[i_buff]);
+            execute_async(&ne16_tasks[i_buff]);
             % elif stride == 2:
-            execute_stride2x2_blocking(&nnx_tasks[i_buff], tiles[i_buff], kernel, tiles[i_buff].output.channel);
+            execute_stride2x2_blocking(&ne16_tasks[i_buff], tiles[i_buff], kernel);
             % endif
 
             monitor_produce_end(monitor.output);
@@ -310,7 +318,7 @@ static void layer_task_fork(void *args) {
             monitor_consume_begin(monitor.store_conf);
             monitor_consume_begin(monitor.output);
 
-            execute_wait(&nnx_tasks[i_buff]);
+            execute_wait(&ne16_tasks[i_buff]);
             monitor_consume_end(monitor.input);
 
             dma_mutex_lock();
@@ -362,24 +370,25 @@ void ${func_name}(void *args) {
 
     // Init nnx tasks
     for (int i = 0; i < BUFFER_SIZE; i++) {
-        nnx_task_init(&nnx_tasks[i],
-                ${fs1}, ${int(flag_DW)},
-                ${x_data_size_byte}, ${y_data_size_byte}, ${W_data_size_byte},
-                weightOffsetModeLayerWise, ${-(2**(W_data_size_byte-1))},
-                (nnx_quant_t) {
-                    .shift_amount = ${out_shift},
-                    .mode = quantMode8Bit,
-                    .function = quantFunctionRelu,
-                    .flag_rounding = NE16_FLAG_UNUSED
-                }, (nnx_norm_t) {
-                    .mode  = ${"normMode32Bit" if act_dim_bit == 32 else "normMode8Bit" if act_dim_bit == 8 else "NE16_FLAG_UNUSED"},
-                    .flag_bias  = NE16_FLAG_USED,
-                    .flag_shift = NE16_FLAG_UNUSED
-                }, ${stride});
+        ne16_task_init(&ne16_tasks[i]);
+        ne16_task_set_op_to_conv(&ne16_tasks[i], ${fs1}, ${int(flag_DW)}, ${stride});
+        ne16_task_set_bits(&ne16_tasks[i], ${x_data_size_byte}, ${y_data_size_byte}, ${W_data_size_byte});
+        ne16_task_set_norm_quant(
+            &ne16_tasks[i],
+            (ne16_quant_t) {
+                .shift_amount = ${out_shift},
+                .function = quantFunctionRelu, // todo: un-hardcode it
+                .flag_rounding = ne16TaskFlagFalse
+            }, (ne16_norm_t) {
+                .mode  = ${"normMode32Bit" if act_dim_bit == 32 else "normMode8Bit" if act_dim_bit == 8 else ""},
+                .flag_bias  = ne16TaskFlagTrue,
+                .flag_shift = ne16TaskFlagFalse
+            });
+        ne16_task_set_weight_offset(&ne16_tasks[i], weightOffsetModeLayerWise, ${weight_offset});
     }
 
-    const int max_stall = 8;
-    nnx_init(max_stall);
+    const ne16_pulp_conf_t ne16_pulp_conf = {.max_stall = 8};
+    ne16_nnx_init(ne16_pulp_get_dev(), &ne16_pulp_conf);
     dma_mutex_init();
 
 
@@ -393,5 +402,5 @@ void ${func_name}(void *args) {
     monitor_term(monitor.input);
     monitor_term(monitor.output);
     monitor_term(monitor.store_conf);
-    nnx_term();
+    ne16_nnx_term(ne16_pulp_get_dev());
 }
