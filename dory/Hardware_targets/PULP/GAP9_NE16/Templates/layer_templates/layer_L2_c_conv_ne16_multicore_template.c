@@ -183,7 +183,6 @@ static int inc(int index, int end) {
 #define BUFFER_SIZE (2)
 
 static Layer tiles[BUFFER_SIZE];
-static ne16_task_t ne16_tasks[BUFFER_SIZE];
 static DmaTransferConf store_conf[BUFFER_SIZE];
 
 static struct {
@@ -191,33 +190,44 @@ static struct {
 } monitor;
 
 
-static void layer_task_fork(void *args) {
+struct layer_task_fork_args_t {
+    uint32_t L2_input;
+    uint32_t L2_weights;
+    uint32_t L2_output;
+    uint32_t L1_buffer;
+    uint32_t padding;
+    ne16_task_t *ne16_tasks;
+};
+
+
+static void layer_task_fork(void *void_args) {
     const int total_tiles = end_index.height * end_index.width * end_index.output_channel;
+
+    struct layer_task_fork_args_t *args = (struct layer_task_fork_args_t *)void_args;
+    ne16_task_t *ne16_tasks = args->ne16_tasks;
 
     // Loader
 
     if (pi_core_id() == LOADER_ID) {
-        layer_args_t *layer_args = (layer_args_t *)args;
-
         Layer layer = {
             .addr = {
-                .input = layer_args->L2_input,
-                .weights = layer_args->L2_weights,
-                .scale = layer_args->L2_weights + ${l2_k_offset},
-                .bias = layer_args->L2_weights + ${l2_lambda_offset},
-                .output = layer_args->L2_output
+                .input = args->L2_input,
+                .weights = args->L2_weights,
+                .scale = args->L2_weights + ${l2_k_offset},
+                .bias = args->L2_weights + ${l2_lambda_offset},
+                .output = args->L2_output
             },
             .padding = {
-                .top    = layer_args->padding & NET_UTILS_PAD_TOP ? ${padding_top} : NE16_DONT_PAD,
+                .top    = args->padding & NET_UTILS_PAD_TOP ? ${padding_top} : NE16_DONT_PAD,
                 .right  = ${padding_right},
-                .bottom = layer_args->padding & NET_UTILS_PAD_BOTTOM ? ${padding_bottom} : NE16_DONT_PAD,
+                .bottom = args->padding & NET_UTILS_PAD_BOTTOM ? ${padding_bottom} : NE16_DONT_PAD,
                 .left   = ${padding_left}
             }
         };
 
         // Double buffer address init
 
-        const unsigned int l1_buffer = layer_args->L1_buffer;
+        const unsigned int l1_buffer = args->L1_buffer;
         const int l1_buffer_input = l1_buffer + ${l1_x_offset};
         const int l1_buffer_output = l1_buffer + ${l1_y_offset};
         const int l1_buffer_weights = l1_buffer + ${l1_W_offset};
@@ -371,6 +381,7 @@ void ${func_name}(void *args) {
     }
 
     // Init nnx tasks
+    ne16_task_t ne16_tasks[BUFFER_SIZE];
     for (int i = 0; i < BUFFER_SIZE; i++) {
         ne16_task_init(&ne16_tasks[i]);
         ne16_task_set_op_to_conv(&ne16_tasks[i], ${fs1}, ${int(flag_DW)}, ${stride});
@@ -392,7 +403,15 @@ void ${func_name}(void *args) {
 
     // Fork
 
-    pi_cl_team_fork(CORES, (void *)layer_task_fork, args);
+    struct layer_task_fork_args_t layer_task_fork_args = {
+        .L2_input = layer_args->L2_input,
+        .L2_weights = layer_args->L2_weights,
+        .L2_output = layer_args->L2_output,
+        .L1_buffer = layer_args->L1_buffer,
+        .padding = layer_args->padding,
+        .ne16_tasks = ne16_tasks,
+    };
+    pi_cl_team_fork(CORES, layer_task_fork, (void *)&layer_task_fork_args);
 
 
     // Terminate
