@@ -137,7 +137,8 @@ struct ${prefix}network_run_token ${prefix}network_run_async(void *l2_buffer, si
   args[0] = (unsigned int) l2_buffer;
   args[1] = (unsigned int) l2_buffer_size;
   args[2] = (unsigned int) l2_final_output;
-  args[3] = (unsigned int) exec;
+  args[3] = (unsigned int) l3_buffer;
+  args[4] = (unsigned int) exec;
   % if not l3_supported:
   args[5] = (unsigned int) L2_input_h;
   % endif
@@ -184,10 +185,11 @@ void ${prefix}network_run_cluster(void *args) {
   void * l2_buffer = (void *) real_args[0];
   size_t l2_buffer_size = (size_t) real_args[1];
   void * l2_final_output = (void *) real_args[2];
-  int exec = (int) real_args[3];
-  int dir = (int) real_args[4];
+  void ** l3_buffer = (void **) real_args[3];
+  int exec = (int) real_args[4];
+  int dir = (int) real_args[5];
   % if not l3_supported:
-  void * L2_input_h = (void *)real_args[5];
+  void * L2_input_h = (void *)real_args[6];
   % endif
 /*
   - initial buffer allocation L2 and L1
