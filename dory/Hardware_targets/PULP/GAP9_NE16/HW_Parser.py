@@ -60,7 +60,7 @@ class onnx_manager(onnx_manager_gap9):
                 bias_type=IntegerType(name=f"{node.constant_type}{node.bias_bits}"),
                 has_norm_quant=True, # TODO
                 has_bias=True,
-                has_relu="Relu" in node.name
+                has_relu=node.min >= 0
             )
             return True, ""
         except ValidationError as e:
