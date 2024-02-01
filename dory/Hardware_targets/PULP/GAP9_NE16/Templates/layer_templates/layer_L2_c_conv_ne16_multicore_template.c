@@ -366,7 +366,7 @@ void ${func_name}(void *args) {
             &ne16_tasks[i],
             (ne16_quant_t) {
                 .shift_amount = ${out_shift},
-                .function = quantFunctionRelu, // todo: un-hardcode it
+                .function = ${"quantFunctionIdentity" if node.min < 0 else "quantFunctionRelu"},
                 .flag_rounding = ne16TaskFlagFalse
             }, (ne16_norm_t) {
                 .mode  = ${"normMode32Bit" if act_dim_bit == 32 else "normMode8Bit" if act_dim_bit == 8 else ""},
