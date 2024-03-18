@@ -72,8 +72,8 @@ class C_Parser(C_Parser_gap9):
             if n_memory_levels > 2 and (node.L3_input != 0 or (node.tiling_dimensions["L3"]["output_dimensions"] != node.tiling_dimensions["L2"]["output_dimensions"]) or (node.tiling_dimensions["L3"]["weights_dimensions"] != node.tiling_dimensions["L2"]["weights_dimensions"])):
                 #breakpoint()
                 tk = Layer2D_writer.print_template_layer_L3(node)
-                TemplateWriter.write(tk, {os.path.join(self.src_dir, node.prefixed_name + ".c"): os.path.join(self.tmpl_dir, "layer_L3_c_template.c"),
-                                          os.path.join(self.inc_dir, node.prefixed_name + ".h"): os.path.join(self.tmpl_dir, "layer_L3_h_template.h")})
+                TemplateWriter.write(tk, {os.path.join(self.src_dir, node.prefixed_name + ".c"): os.path.join(self.layer_tmpl_dir, "layer_L3_c_template.c"),
+                                          os.path.join(self.inc_dir, node.prefixed_name + ".h"): os.path.join(self.layer_tmpl_dir, "layer_L3_h_template.h")})
                 if node.tiling_dimensions["L3"]["input_dimensions"][1] > node.tiling_dimensions["L2"]["input_dimensions"][1]:
                     node.tiling_dimensions["L2"]["output_dimensions"][1] = (node.tiling_dimensions["L2"]["input_dimensions"][1] - node.kernel_shape[0] + node.strides[0]) // node.strides[0]
                 if node.tiling_dimensions["L3"]["output_dimensions"][1] > node.tiling_dimensions["L2"]["output_dimensions"][1]:
