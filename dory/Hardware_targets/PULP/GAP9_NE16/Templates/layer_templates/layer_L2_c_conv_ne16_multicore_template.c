@@ -275,7 +275,7 @@ static void layer_task_fork(void *void_args) {
             tiles[i_buff] = tile;
             dma_mutex_lock();
             DmaTransfer transfer = dma_transfer_create();
-            load_async(tiles[i_buff], &tile_status, body, layer, kernel);
+            load_async(*tiles[i_buff], &tile_status, body, layer, kernel);
             dma_mutex_unlock();
             % if stride == 1:
             execute_prepare(tile, &ne16_tasks[i_buff]);
@@ -331,7 +331,7 @@ static void layer_task_fork(void *void_args) {
 
             dma_mutex_lock();
             DmaTransfer transfer = dma_transfer_create();
-            dma_transfer_async(store_conf[i_buff]);
+            dma_transfer_async(*store_conf[i_buff]);
             dma_mutex_unlock();
 
             dma_mutex_lock();
@@ -393,7 +393,6 @@ void ${func_name}(void *args) {
         .monitor = layer_args->monitor,
     };
     pi_cl_team_fork(CORES, layer_task_fork, (void *)&layer_task_fork_args);
-
-
     // Terminate
+
 }

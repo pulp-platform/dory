@@ -122,7 +122,7 @@ void ${prefix}execute_layer_fork(void *args) {
 #endif
 }
 
-struct ${prefix}network_run_token ${prefix}network_run_async(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, int exec, int initial_dir${", void *L2_input_h" if not l3_supported else ""})
+struct ${prefix}network_run_token ${prefix}network_run_async(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, void **l3_buffer, int exec, int initial_dir${", void *L2_input_h" if not l3_supported else ""})
 {
   struct pi_device cluster_dev = {0};
   struct pi_cluster_conf conf;
@@ -134,16 +134,17 @@ struct ${prefix}network_run_token ${prefix}network_run_async(void *l2_buffer, si
   conf.icache_conf = PI_CLUSTER_MASTER_CORE_ICACHE_ENABLE | PI_CLUSTER_ICACHE_PREFETCH_ENABLE | PI_CLUSTER_ICACHE_ENABLE;
 #endif
 <%
-    n_args = 4 if l3_supported else 5
+    n_args = 6 if l3_supported else 7
 %>\
   unsigned int args[${n_args}];
   args[0] = (unsigned int) l2_buffer;
   args[1] = (unsigned int) l2_buffer_size;
   args[2] = (unsigned int) l2_final_output;
-  args[3] = (unsigned int) exec;
-  args[4] = (unsigned int) initial_dir;
+  args[3] = (unsigned int) l3_buffer;
+  args[4] = (unsigned int) exec;
+  args[5] = (unsigned int) initial_dir;
   % if not l3_supported:
-  args[5] = (unsigned int) L2_input_h;
+  args[6] = (unsigned int) L2_input_h;
   % endif
   // open cluster...
   pi_cluster_task(&cluster_task, ${prefix}network_run_cluster, args);
@@ -159,6 +160,14 @@ struct ${prefix}network_run_token ${prefix}network_run_async(void *l2_buffer, si
   return (struct ${prefix}network_run_token) {
     .cluster_dev = cluster_dev
   };
+
+  // ODDA
+  // 9 layers with weights have been processed before FC layer 
+  int n_frozen_layers = 1; // Inference 
+  *l3_buffer = L3_weights;
+  for (int i = 0; i < ${len(DORY_HW_graph)} - n_frozen_layers - 1; i++){ // 1 layer (i.e., avgpool) has no weights, but is part of the graph
+    *l3_buffer += L3_weights_size[i]; 
+  }
 }
 
 void ${prefix}network_run_wait(struct ${prefix}network_run_token token)
@@ -169,9 +178,9 @@ void ${prefix}network_run_wait(struct ${prefix}network_run_token token)
   % endif
 }
 
-void ${prefix}network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, int exec, int initial_dir${", void *L2_input_h" if not l3_supported else ""})
+void ${prefix}network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, void **l3_buffer, int exec, int initial_dir${", void *L2_input_h" if not l3_supported else ""})
 {
-  ${prefix}network_run_wait(network_run_async(l2_buffer, l2_buffer_size, l2_final_output, exec, initial_dir${", L2_input_h" if not l3_supported else ""}));
+  ${prefix}network_run_wait(network_run_async(l2_buffer, l2_buffer_size, l2_final_output, l3_buffer, exec, initial_dir${", L2_input_h" if not l3_supported else ""}));
 }
 
 void ${prefix}network_run_cluster(void *args) {
@@ -179,10 +188,11 @@ void ${prefix}network_run_cluster(void *args) {
   void * l2_buffer = (void *) real_args[0];
   size_t l2_buffer_size = (size_t) real_args[1];
   void * l2_final_output = (void *) real_args[2];
-  int exec = (int) real_args[3];
-  int dir = (int) real_args[4];
+  void ** l3_buffer = (void **) real_args[3];
+  int exec = (int) real_args[4];
+  int dir = (int) real_args[5];
   % if not l3_supported:
-  void * L2_input_h = (void *)real_args[5];
+  void * L2_input_h = (void *)real_args[6];
   % endif
 /*
   - initial buffer allocation L2 and L1
@@ -278,7 +288,12 @@ void ${prefix}network_run_cluster(void *args) {
   % endif
 
   int weight_l_cnt = 0; // count how many layers with weights we have processed to increment the weights_L3 pointer
-  for (int i = 0; i < ${len(DORY_HW_graph)}; i++) {
+  
+  // ODDA
+  int n_frozen_layers = 1; // Inference
+  int n_inf_layers = ${len(DORY_HW_graph)} - n_frozen_layers; // Training
+
+  for (int i = 0; i < n_inf_layers; i++) {
 /* MEMORY ALLOCATION
   - allocate memory if layer is executed from L3;
   - allocate weights
