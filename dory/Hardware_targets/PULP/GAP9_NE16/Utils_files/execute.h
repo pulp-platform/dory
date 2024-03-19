@@ -17,11 +17,11 @@ static inline void execute_prepare(Layer tile, ne16_task_t *const task) {
                      tile.output.height, tile.output.width, tile.output.channel,
                      tile.output.width * tile.output.channel,
                      tile.output.channel, tile.padding.top, tile.padding.bottom,
-                     tile.padding.right, tile.padding.left);
-  ne16_task_set_ptrs(task, tile.addr.input, tile.input.width,
-                     tile.input.channel, tile.padding.top, tile.padding.left,
-                     tile.addr.output, tile.addr.weights, tile.addr.scale,
-                     0 /*shift_ptr*/, tile.addr.bias);
+                     tile.padding.left, tile.padding.right);
+  ne16_task_set_addr_conv(task, tile.addr.input, tile.input.width,
+                          tile.input.channel, tile.padding.top, tile.padding.left,
+                          tile.addr.output, tile.addr.weights);
+  ne16_task_set_addr_norm_quant(task, tile.addr.scale, 0 /*shift_addr*/, tile.addr.bias);
 }
 
 static inline void execute_async(ne16_task_t *task) {
@@ -37,11 +37,11 @@ static inline void execute_stride2x2_prepare(Layer tile, Kernel kernel,
       tile.output.height, tile.output.width, tile.output.channel,
       tile.output.width * tile.output.channel, tile.output.channel,
       kernel.shape.height, kernel.shape.width, tile.padding.top,
-      tile.padding.bottom, tile.padding.right, tile.padding.left);
-  ne16_task_set_ptrs(task, tile.addr.input, tile.input.width,
-                     tile.input.channel, tile.padding.top, tile.padding.left,
-                     tile.addr.output, tile.addr.weights, tile.addr.scale,
-                     0 /*shift_ptr*/, tile.addr.bias);
+      tile.padding.bottom, tile.padding.left, tile.padding.right);
+  ne16_task_set_addr_conv(task, tile.addr.input, tile.input.width,
+                          tile.input.channel, tile.padding.top, tile.padding.left,
+                          tile.addr.output, tile.addr.weights);
+  ne16_task_set_addr_norm_quant(task, tile.addr.scale, 0 /*shift_addr*/, tile.addr.bias);
 }
 
 static inline void execute_stride2x2_blocking(ne16_task_t *task, Layer tile,
