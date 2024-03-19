@@ -17,11 +17,9 @@
  * limitations under the License. 
  */
 #include "${func_name_L3}.h"
-#include "${func_name[0]}.h"
-% if len(func_name)>1:
-#include "${func_name[1]}.h"
-#include "${func_name[2]}.h"
-%endif
+% for name in func_name:
+#include "${name}.h"
+% endfor
 #include "dory_get_tile.h"
 #include "pmsis.h"
 #include "bsp/fs.h"

@@ -25,10 +25,10 @@ import sys
 
 from dory.Parsers.HW_node import HW_node
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "Backend_Kernels", "pulp-nnx", "test"))
-from Ne16TestClasses import Ne16TestConf
+from Ne16TestConf import Ne16TestConf
 from TestClasses import IntegerType
+from Ne16MemoryLayout import Ne16MemoryLayout
 from pydantic import ValidationError
-from Ne16 import Ne16
 
 
 class onnx_manager(onnx_manager_gap9):
@@ -42,7 +42,7 @@ class onnx_manager(onnx_manager_gap9):
     def get_tiler(self):
         return Tiler_GAP9
 
-    def valid_ne16_node(self, node):
+    def valid_ne16_node(self, node, idx):
         try:
             Ne16TestConf(
                 in_height=node.input_dimensions[0],
@@ -60,19 +60,19 @@ class onnx_manager(onnx_manager_gap9):
                 bias_type=IntegerType(name=f"{node.constant_type}{node.bias_bits}"),
                 has_norm_quant=True, # TODO
                 has_bias=True,
-                has_relu=True
+                has_relu=node.min >= 0
             )
             return True, ""
         except ValidationError as e:
-            msg = f"WARNING: Failed allocating node {node.name} to the NE16 accelerator. Errors:\n"
+            msg = f"WARNING: Failed allocating node {node.name}{idx} to the NE16 accelerator. Errors:\n"
             for error in e.errors():
                 msg += f" - {error['msg']}\n"
             msg += "\nNOTE: Falling back to cluster engine.\n"
             return False, msg
 
-    def engine_coloring(self, node):
+    def engine_coloring(self, node, idx):
         if "Conv" in node.op_type or "Convolution" in node.op_type:
-            is_valid, msg = self.valid_ne16_node(node)
+            is_valid, msg = self.valid_ne16_node(node, idx)
             if is_valid:
                 node.engine = "ne16"
                 return
@@ -83,8 +83,8 @@ class onnx_manager(onnx_manager_gap9):
     def mapping_to_HW_nodes(self):
         super().mapping_to_HW_nodes()
         print("\nPULP Backend: Assigning nodes to engines.")
-        for node in self.DORY_Graph:
-            self.engine_coloring(node)
+        for i, node in enumerate(self.DORY_Graph):
+            self.engine_coloring(node, i)
         assert all(hasattr(node, "engine") for node in self.DORY_Graph)
 
     def transform_nodes_to_hw_nodes(self):
@@ -110,6 +110,16 @@ class onnx_manager(onnx_manager_gap9):
         ## Unroll expects layout to be "CoutCinK"
         if weights["layout"] == "CoutKCin":
             weights["value"] = np.transpose(weights["value"], (0,3,1,2))
-        weights["value"] = Ne16.weight_unroll(weights["value"].astype(np.uint8),
+        weights["value"] = Ne16MemoryLayout.weightEncode(weights["value"].astype(np.uint8),
                                               node.weight_bits, node.group > 1)
         weights["layout"] = "CoutCinMajKQwCinMin" # Ne16's special layout
+
+        self.adjust_padding(node)
+
+    def adjust_padding(self, node):
+        inp_dim = node.input_dimensions
+        ks = node.kernel_shape
+        s = node.strides
+        padding_top, padding_left, padding_bottom, padding_right = node.pads
+        node.pads[2] = padding_bottom if (inp_dim[0] - ks[0] + padding_top + padding_bottom) % s[0] == 0 else 0
+        node.pads[3] = padding_right if (inp_dim[1] - ks[1] + padding_left + padding_right) % s[1] == 0 else 0

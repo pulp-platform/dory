@@ -91,62 +91,47 @@ class Tiler_Add_PULP():
         # return immediatly if the memory fits the L1
         if buffer_total <= L1_memory:
             return ([], self.HW_node.tiling_dimensions["L2"]["input_dimensions"] , self.HW_node.tiling_dimensions["L2"]["output_dimensions"] )
-        else:
-            db = self.double_buffering
+
+        db = self.double_buffering
 
         parameters = pywrapcp.Solver.DefaultSolverParameters()
         solver = pywrapcp.Solver("simple_CP", parameters)
 
-        # integer positive variables.
-        tile_n = solver.IntVar(1, in_ch, 'tile_n')
-        tile_h_in =  solver.IntVar(ks[0], inp_dim[0], 'tile_h_in')
-        tile_w_in =  solver.IntVar(ks[1], inp_dim[1], 'tile_w_in')
-        tile_h_out = solver.IntVar(1, out_dim[0], 'tile_h_out')
-        tile_w_out = solver.IntVar(1, out_dim[1], 'tile_w_out')
+        assert in_ch == out_ch
 
-        # scaling is used to ensure datasize is integer
-        solver.Add(tile_h_out == tile_h_in)
-        solver.Add(tile_w_out == tile_w_in)
-        solver.Add(tile_n == in_ch)
+        # integer positive variables.
+        tile_n = in_ch
+        tile_h = solver.IntVar(1, inp_dim[0], 'tile_h_in')
+        tile_w = inp_dim[1]
 
         # CONSTRAINTS: managing of correct dimensions (no decimal h_out and any
         # type of rounding)
-        input_tile_dimension  = (db * in_ch * tile_h_in * inp_dim[1] * self.HW_node.input_activation_bits + 7 ) // 8 # the 7 is to account for bit precision of 1, which still occupy an entire byte
-        output_tile_dimension = (db * out_ch * tile_h_out * out_dim[1] * self.HW_node.output_activation_bits + 7 ) // 8 # the 7 is to account for bit precision of 1, which still occupy an entire byte
+        input_tile_dimension  = (db * tile_n * tile_h * tile_w * self.HW_node.input_activation_bits + 7 ) // 8 # the 7 is to account for bit precision of 1, which still occupy an entire byte
+        output_tile_dimension = (db * tile_n * tile_h * tile_w * self.HW_node.output_activation_bits + 7 ) // 8 # the 7 is to account for bit precision of 1, which still occupy an entire byte
         constraint_all = input_tile_dimension * int(np.ceil(1+self.HW_node.second_input_activation_bits/self.HW_node.input_activation_bits)) + output_tile_dimension
         solver.Add(constraint_all <= L1_memory)
+
         # objective
         obj_expr = solver.IntVar(0, 1000000000000, "obj_expr")
-        solver.Add(obj_expr == 1000000 * constraint_all
-                   + 10 * tile_w_in
-                   + 1 * tile_h_in
-                   + 1000 * tile_n)
+        solver.Add(obj_expr == constraint_all)
         objective = solver.Maximize(obj_expr, 1)
 
-        decision_builder = solver.Phase([tile_n, tile_h_in, tile_w_in, tile_h_out, tile_w_out],
+        decision_builder = solver.Phase([tile_h],
                                         solver.CHOOSE_FIRST_UNBOUND,
                                         solver.ASSIGN_MIN_VALUE)
 
         # Create a solution collector.
         collector = solver.LastSolutionCollector()
         # Add the decision variables.
-        collector.Add(tile_n)
-        collector.Add(tile_h_in)
-        collector.Add(tile_w_in)
-        collector.Add(tile_h_out)
-        collector.Add(tile_w_out)
+        collector.Add(tile_h)
         # Add the objective.
         collector.AddObjective(obj_expr)
 
         solver.Solve(decision_builder, [objective, collector])
         if collector.SolutionCount() > 0:
             best_solution = collector.SolutionCount() - 1
-            tile_n = collector.Value(best_solution, tile_n)
-            tile_h_in = collector.Value(best_solution, tile_h_in)
-            tile_w_in = collector.Value(best_solution, tile_w_in)
-            tile_h_out = collector.Value(best_solution, tile_h_out)
-            tile_w_out = collector.Value(best_solution, tile_w_out)
-            return ([], [tile_n, tile_h_in, tile_w_in], [tile_n, tile_h_out, tile_w_out])
+            tile_h = collector.Value(best_solution, tile_h)
+            return ([], [tile_n, tile_h, tile_w], [tile_n, tile_h, tile_w])
         print("  Add ERROR: no tiling found. Exiting...")
         os._exit(0)
         return None

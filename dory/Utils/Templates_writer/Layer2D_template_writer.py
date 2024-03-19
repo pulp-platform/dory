@@ -25,6 +25,7 @@ import numpy as np
 import sys
 import os
 import re
+from dory.Hardware_targets.PULP.GAP9_NE16.Ne16_HW_node import Ne16_HW_node
 
 def print_template_layer_L3(node):
     ks =      node.kernel_shape
@@ -32,8 +33,6 @@ def print_template_layer_L3(node):
     g =       node.group
     p =       node.pads
     padding_top = p[0]; padding_left = p[1]; padding_bottom = p[2]; padding_right = p[3];
-    conv_overlap1 = 2 * (ks[0] // 2) + ks[0] % 2 - 1 - (s[0] - 1)
-    conv_overlap2 = 2 * (ks[1] // 2) + ks[1] % 2 - 1 - (s[1] - 1)
     tk = OrderedDict([])
     tk['flag_DW'] = 1 if node.group > 1 else 0
     tk['ULTRA_VERBOSE'] = False
@@ -74,8 +73,8 @@ def print_template_layer_L3(node):
 
     ################################################################################
 
-    tk['conv_overlap1'] = conv_overlap1
-    tk['conv_overlap2'] = conv_overlap2
+    tk['conv_overlap1'] = ks[0] - s[0]
+    tk['conv_overlap2'] = ks[1] - s[1]
     tk['padding'] = padding_top
     if (node.L3_input):
         tk['input_L3'] = 1
@@ -92,7 +91,7 @@ def print_template_layer_L3(node):
     tk['n_tile_x'] = factor_h_in
     tk['n_tile_y'] = factor_h_out
     tk['verbose'] = False
-    if tk['padding'] > 0:
+    if tk['padding'] > 0 and not isinstance(node, Ne16_HW_node):
         tk['func_name'] = [node.prefixed_name + "_L2", node.prefixed_name + "_L2_p_t", node.prefixed_name + "_L2_p_b"]
     else:
         tk['func_name'] = [node.prefixed_name + "_L2"]
@@ -150,11 +149,8 @@ def print_template_layer(node, layer_type, double_buffering = 2):
     s =       node.strides
     g =       node.group
     p =       node.pads
-    conv_overlap_h = 2 * (ks[0] // 2) + ks[0] % 2 - 1 - (s[0] - 1)
     padding_top = p[0]; padding_left = p[1]; padding_bottom = p[2]; padding_right = p[3];
     name_layer = node.prefixed_name + '.h'
-    conv_overlap1 = 2 * (ks[0] // 2) + ks[0] % 2 - 1 - (s[0] - 1)
-    conv_overlap2 = 2 * (ks[1] // 2) + ks[1] % 2 - 1 - (s[1] - 1)
     tk = OrderedDict([])
     if (re.search('.0',name_layer)):
         try:
@@ -177,8 +173,8 @@ def print_template_layer(node, layer_type, double_buffering = 2):
     tk['has_bias'] = int(len([1 for name in node.constant_names if "bias" in name])>0)
     tk['FLAG_RELU'] = 1 if 'outshift' in node.constant_names else 0
     tk['type'] = f"{node.input_activation_type}8_t" if node.input_activation_type in ["int", "uint"] else "float"
-    tk['conv_overlap1'] = conv_overlap1
-    tk['conv_overlap2'] = conv_overlap2
+    tk['conv_overlap1'] = ks[0] - s[0]
+    tk['conv_overlap2'] = ks[1] - s[1]
     tk['padding_top'] = padding_top
     tk['padding_bottom'] = padding_bottom
     tk['padding_left'] = padding_left
@@ -294,6 +290,8 @@ def print_template_layer(node, layer_type, double_buffering = 2):
     tk['W_data_size_byte'] = ds_W
     tk['b_data_size_byte'] = ds_bias
     tk['W_tile_size_nof'] = tile_n_out 
+    if ds_W is not None:
+        tk['weight_offset'] = -(2**(ds_W-1))
     if tk['has_bias'] == 1:
         tk['b_size_byte'] = int(math.ceil(n_out * ds_bias / 8.0))
     else:
@@ -408,13 +406,8 @@ def print_template_layer(node, layer_type, double_buffering = 2):
     # x last
     tk['x_tile_size_nif_last'] = n_in % tile_n_in if (n_in % tile_n_in) > 0 else tile_n_in
     tk['x_tile_size_nif_byte_last'] = int(math.ceil(tk['x_tile_size_nif_last'] * ds_x / 8.0))
-    tk['x_tile_size_h_last'] = tk['y_tile_size_h_last'] * s[0] + ks[0] - s[0] - (padding_bottom - ((h_in + padding_bottom + padding_top) - (h_out* s[0] + ks[0] - s[0])))
-    tk['x_tile_size_w_last'] = tk['y_tile_size_w_last'] * s[1] + ks[1] - s[1] - (padding_right - ((w_in + padding_left + padding_right) - (w_out* s[1] + ks[1] - s[1])))
-    ## single tile execution
-    if tk['x_tile_size_h_last'] > tk['x_tile_size_h']:
-        tk['x_tile_size_h_last'] = tk['x_tile_size_h']
-    if tk['x_tile_size_w_last'] > tk['x_tile_size_w']:
-        tk['x_tile_size_w_last'] = tk['x_tile_size_w']
+    tk['x_tile_size_h_last'] = min(tk['y_tile_size_h_last'] * s[0] + ks[0] - s[0], tile_h_in)
+    tk['x_tile_size_w_last'] = min(tk['y_tile_size_w_last'] * s[1] + ks[1] - s[1], tile_w_in)
 
     l = ""
     for k, v in tk.items():

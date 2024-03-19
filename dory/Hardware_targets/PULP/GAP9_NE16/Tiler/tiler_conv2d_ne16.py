@@ -65,14 +65,16 @@ class Tiler_Conv2D_Ne16:
         # We assume that the first nodes input is always in L2
         input_in_l2 = is_first_node or prev_tiling["L3"]["output_dimensions"] == prev_tiling["L2"]["output_dimensions"]
 
-        self.node.tiling_dimensions["L2"]["db_x"] = 1
-        self.node.tiling_dimensions["L2"]["db_y"] = 1
-        self.node.tiling_dimensions["L2"]["db_w"] = 1
+        self.node.L3_input = not input_in_l2
 
         buffer_total = self.node.input_activation_memory + self.node.output_activation_memory + self.node.weight_memory + self.node.bias_memory + self.node.constants_memory
 
         # Don't tile if the whole thing fits into L2
-        if (buffer_total <= L2_memory) and (input_in_l2 or is_first_node):
+        if (buffer_total <= L2_memory) and input_in_l2:
+            self.node.tiling_dimensions["L2"]["db_x"] = 1
+            self.node.tiling_dimensions["L2"]["db_y"] = 1
+            self.node.tiling_dimensions["L2"]["db_w"] = 1
+
             if "PointwiseDepthwisePointwise" in self.node.name:
                 return ([self.node.output_channels, self.node.input_channels],
                         [self.node.input_channels, self.node.input_dimensions[0], self.node.input_dimensions[1]],
@@ -94,7 +96,6 @@ class Tiler_Conv2D_Ne16:
         in_ch = self.node.input_channels
         s = self.node.strides
         g = self.node.group
-        p = self.node.pads
         depthwise = g > 1
 
         db_x = 1 if input_in_l2 else 2
@@ -113,16 +114,30 @@ class Tiler_Conv2D_Ne16:
             h_in = in_dim[0]
             w_in = in_dim[1]
             n_in = in_ch
-            tile_h_out = solver.IntVar(1, out_dim[0], 'tile_h_out')
+
+            # optimization variables
+            opt_vars = []
+
+            def add_var_cond(min: int, max: int, name: str, cond: bool):
+                if cond:
+                    var = solver.IntVar(min, max, name)
+                    opt_vars.append(var)
+                else:
+                    var = max
+                return var
+
+            tile_h_out = add_var_cond(1, h_out, 'tile_h_out', db_y > 1)
+            tile_n_out = add_var_cond(1, out_ch, 'tile_n_out', db_w > 1)
+            tile_h_in = add_var_cond(ks[0], h_in, 'tile_h_in', db_x > 1)
+
+            # We are not tiling width nor input channel
             tile_w_out = w_out
-            tile_n_out = solver.IntVar(1, out_ch, 'tile_n_out')
-            tile_h_in = solver.IntVar(in_dim[0] if input_in_l2 else ks[0], in_dim[0], 'tile_h_in')
             tile_w_in = w_in
             tile_n_in = tile_n_out if depthwise else n_in
 
             # size constraint
-            input_tile_dimension = db_x * n_in * tile_h_in * in_dim[1] * (self.node.input_activation_bits // 8)
-            output_tile_dimension = tile_h_out * db_y * n_out * out_dim[1] * (self.node.output_activation_bits // 8)
+            input_tile_dimension = db_x * n_in * tile_h_in * w_in * (self.node.input_activation_bits // 8)
+            output_tile_dimension = tile_h_out * db_y * n_out * w_out * (self.node.output_activation_bits // 8)
 
             if "DepthwisePointwise" in self.node.name:
                 weight_tile_dimension = db_w * (self.node.calculate_weights_size(tile_n_in, tile_n_in, ks, self.node.weight_bits, dw=True) +
@@ -148,22 +163,22 @@ class Tiler_Conv2D_Ne16:
 
             solver.Add(total_size <= L2_memory)
 
-            # geometrical constraint
-            if db_y == 1:
-                solver.Add(tile_h_out == h_out)
-            else:
+            # policy constraints
+            if db_y > 1:
                 solver.Add(solver.IntConst(h_out) % tile_h_out == 0)
 
-            if db_w == 1:
-                solver.Add(tile_n_out == out_ch)
-            else:
+            if db_w > 1:
                 solver.Add(solver.IntConst(n_out) % tile_n_out == 0)
 
-            if db_x == 2 and db_y == 2:
-                solver.Add(tile_h_out * s[0] == tile_h_in - (ks[0] - 1) + (s[0] - 1))
-
-            if db_x == 2:
+            if db_x > 1:
                 solver.Add(solver.IntConst(h_out) % ((tile_h_in - ks[0] + s[0]) // s[0]) == 0)
+
+            # geometrical constraints
+            if db_x > 1:
+                solver.Add((tile_h_in - ks[0]) % s[0] == 0)
+
+            if db_x > 1 and db_y > 1:
+                solver.Add(tile_h_in == tile_h_out * s[0] + (ks[0] - s[0]))
 
             # objective
             obj_expr = solver.IntVar(0, 100000000000000, "obj_expr")
@@ -177,7 +192,7 @@ class Tiler_Conv2D_Ne16:
 
             # maximize the objective
             objective = solver.Maximize(obj_expr, 1)
-            decision_builder = solver.Phase([tile_n_out, tile_h_in, tile_h_out],
+            decision_builder = solver.Phase(opt_vars,
                                             solver.CHOOSE_FIRST_UNBOUND,
                                             solver.ASSIGN_MIN_VALUE)
 
@@ -185,18 +200,20 @@ class Tiler_Conv2D_Ne16:
             collector = solver.LastSolutionCollector()
 
             # Add the decision variables.
-            collector.Add(tile_n_out)
-            collector.Add(tile_h_in)
-            collector.Add(tile_h_out)
+            for var in opt_vars:
+                collector.Add(var)
 
             # Add the objective.
             collector.AddObjective(obj_expr)
             solver.Solve(decision_builder, [objective, collector])
             if collector.SolutionCount() > 0:
                 best_solution = collector.SolutionCount() - 1
-                tile_n_out = collector.Value(best_solution, tile_n_out)
-                tile_h_in = collector.Value(best_solution, tile_h_in)
-                tile_h_out = collector.Value(best_solution, tile_h_out)
+                if db_y > 1:
+                    tile_h_out = collector.Value(best_solution, tile_h_out)
+                if db_w > 1:
+                    tile_n_out = collector.Value(best_solution, tile_n_out)
+                if db_x > 1:
+                    tile_h_in = collector.Value(best_solution, tile_h_in)
                 self.node.tiling_dimensions["L2"]["db_x"] = db_x
                 self.node.tiling_dimensions["L2"]["db_y"] = db_y
                 self.node.tiling_dimensions["L2"]["db_w"] = db_w
@@ -232,38 +249,55 @@ class Tiler_Conv2D_Ne16:
         # We are recalculating these variables because the output could be tiled but the input isn't or vice versa.
         in_mem = self.node.tiling_dimensions["L2"]["input_activation_memory"]
         out_mem = self.node.tiling_dimensions["L2"]["output_activation_memory"]
-        h_in   = self.node.tiling_dimensions["L2"]["input_dimensions"][1]
-        h_out   = self.node.tiling_dimensions["L2"]["output_dimensions"][1]
-        if self.node.tiling_dimensions["L3"]["output_dimensions"][1] > self.node.tiling_dimensions["L2"]["output_dimensions"][1]:
-            h_in   = self.node.tiling_dimensions["L2"]["output_dimensions"][1] * s[0] + (ks[0] - 1) - (s[0] - 1)
-            in_mem = int(self.node.tiling_dimensions["L2"]["input_activation_memory"] / self.node.tiling_dimensions["L2"]["input_dimensions"][1] * h_in)
-        if self.node.tiling_dimensions["L3"]["input_dimensions"][1] > self.node.tiling_dimensions["L2"]["input_dimensions"][1] or \
-                (self.node.tiling_dimensions["L2"]["db_x"] > 1 and self.node.tiling_dimensions["L2"]["db_y"] == 1):
-            h_out  = int(np.floor((self.node.tiling_dimensions["L2"]["input_dimensions"][1] - (ks[0] - 1) + (s[0] - 1)) / s[0]))
-            out_mem = int(self.node.tiling_dimensions["L2"]["output_activation_memory"] / self.node.tiling_dimensions["L2"]["output_dimensions"][1] * h_out)
+        h_in_l2 = self.node.tiling_dimensions["L2"]["input_dimensions"][1]
+        h_out_l2 = self.node.tiling_dimensions["L2"]["output_dimensions"][1]
+        h_in_l3 = self.node.tiling_dimensions["L3"]["input_dimensions"][1]
+        h_out_l3 = self.node.tiling_dimensions["L3"]["output_dimensions"][1]
+        ch_out_output = self.node.tiling_dimensions["L2"]["output_dimensions"][0]
+        ch_out_weights = self.node.tiling_dimensions["L2"]["weights_dimensions"][0]
+
+        # Fix output height if input height was not tiled
+        if h_out_l3 > h_out_l2 and h_in_l3 == h_in_l2:
+            h_in_l1 = h_out_l2 * s[0] + ks[0] - s[0]
+            in_mem = (in_mem // h_in_l2) * h_in_l1
+        else:
+            h_in_l1 = h_in_l2
+
+        # Fix input height if output height was not tiled
+        if h_in_l3 > h_in_l2 and h_out_l3 == h_out_l2:
+            h_out_l1 = (h_in_l2 - ks[0] + s[0]) // s[0]
+            out_mem = (out_mem // h_out_l2) * h_out_l1
+        else:
+            h_out_l1 = h_out_l2
+
+        # Fix if we tiled the weights output channel but not the output tiles channel
         if "Addition" not in self.node.name and "Pool" not in self.node.name:
-            out_mem = int(self.node.tiling_dimensions["L2"]["output_activation_memory"] / self.node.tiling_dimensions["L2"]["output_dimensions"][0] * self.node.tiling_dimensions["L2"]["weights_dimensions"][0])
+            out_mem = int((out_mem / ch_out_output) * ch_out_weights)
+
         buffer_total = self.node.tiling_dimensions["L2"]["weight_memory"] + self.node.tiling_dimensions["L2"]["constants_memory"] + self.node.tiling_dimensions["L2"]["bias_memory"] + in_mem + out_mem
+
+        if h_in_l3 > h_in_l2 or h_out_l3 > h_out_l2:
+            assert h_in_l1 == h_out_l1 * s[0] + ks[0] - s[0]
 
         # Add intermediate buffer
         if "PointwiseDepthwisePointwise" in self.node.name:
-            buffer_total += h_in * self.node.tiling_dimensions["L2"]["input_dimensions"][2] * self.node.output_channels_list[0]
-            buffer_total += h_out * self.node.tiling_dimensions["L2"]["output_dimensions"][2] * self.node.output_channels_list[0]
+            buffer_total += h_in_l1 * self.node.tiling_dimensions["L2"]["input_dimensions"][2] * self.node.output_channels_list[0]
+            buffer_total += h_out_l1 * self.node.tiling_dimensions["L2"]["output_dimensions"][2] * self.node.output_channels_list[0]
         elif "DepthwisePointwise" in self.node.name:
-            buffer_total += h_out * self.node.tiling_dimensions["L2"]["output_dimensions"][2] * self.node.tiling_dimensions["L2"]["output_dimensions"][0]
-
-        self.node.tiling_dimensions["L1"]["db_x"] = 1
-        self.node.tiling_dimensions["L1"]["db_y"] = 1
-        self.node.tiling_dimensions["L1"]["db_w"] = 1
+            buffer_total += h_out_l1 * self.node.tiling_dimensions["L2"]["output_dimensions"][2] * self.node.tiling_dimensions["L2"]["output_dimensions"][0]
 
         # return immediately if the memory fits the L1
         if buffer_total <= L1_memory:
+            self.node.tiling_dimensions["L1"]["db_x"] = 1
+            self.node.tiling_dimensions["L1"]["db_y"] = 1
+            self.node.tiling_dimensions["L1"]["db_w"] = 1
+
             return (self.node.tiling_dimensions["L2"]["weights_dimensions"],
                     [self.node.tiling_dimensions["L2"]["input_dimensions"][0],
-                     h_in,
+                     h_in_l1,
                      self.node.tiling_dimensions["L2"]["input_dimensions"][2]],
                     [out_ch,
-                     h_out,
+                     h_out_l1,
                      self.node.tiling_dimensions["L2"]["output_dimensions"][2]]
                     )
 
@@ -281,10 +315,10 @@ class Tiler_Conv2D_Ne16:
         ###############################################
         parameters = pywrapcp.Solver.DefaultSolverParameters()
         solver = pywrapcp.Solver("simple_CP", parameters)
-        h_in = h_in
+        h_in = h_in_l1
         w_in = in_dim[1]
         n_in = in_ch
-        h_out = h_out
+        h_out = h_out_l1
         w_out = out_dim[1]
         n_out = out_ch
         tile_h_out = solver.IntVar(1, out_dim[0], 'tile_h_out')

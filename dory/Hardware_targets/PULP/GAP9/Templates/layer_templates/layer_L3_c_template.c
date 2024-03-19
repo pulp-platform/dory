@@ -17,11 +17,9 @@
  * limitations under the License. 
  */
 #include "${func_name_L3}.h"
-#include "${func_name[0]}.h"
-% if len(func_name)>1:
-#include "${func_name[1]}.h"
-#include "${func_name[2]}.h"
-%endif
+% for name in func_name:
+#include "${name}.h"
+% endfor
 #include "dory_get_tile.h"
 #include "pmsis.h"
 #include "bsp/fs.h"
@@ -131,6 +129,8 @@ void __attribute__ ((noinline)) ${func_name_L3}(void *args)
   int offset_x = ${dim_in-int(conv_overlap1*n_in*w_in*BitIn/8) - int(padding*n_in*w_in*BitIn/8)};
 
   % if n_tile_x > 1:
+  uint32_t padding = tile_args.padding;
+
   // loop over input/output tiles
   for(int j = 0; j < ${n_tile_x}; j++) {
     // Fetching next input tile
@@ -187,6 +187,7 @@ void __attribute__ ((noinline)) ${func_name_L3}(void *args)
     tile_args.L2_output = dory_get_tile_3d(db[i_db_y].y, ${0 if n_tile_y > 1 else 'j'}, 0, k, ${h_out}, ${w_out}, ${n_out}, ${w_out}, ${n_out * n_tile_W}, 0, 0, 0, 0, 0, 0, ${y_data_size_byte});
     tile_args.L2_weights = db[i_db_w].w;
 
+% if len(func_name) > 1:
     if (j==0) {
       ${func_name[1] if (n_tile_x > 1 or n_tile_y > 1) and padding > 0 else func_name[0]}((void*)&tile_args);
     } \
@@ -199,6 +200,19 @@ else if (j == (${n_tile_y-1})) {
     } else {
       ${func_name[0]}((void*)&tile_args);
     }    
+% else:
+    % if n_tile_x > 1:
+    // LMACAN: Hacky way to add the padding flag passing.
+    tile_args.padding = 0;
+    if (j == 0) {
+      tile_args.padding |= padding & NET_UTILS_PAD_TOP;
+    }
+    if (j == ${n_tile_x - 1}) {
+      tile_args.padding |= padding & NET_UTILS_PAD_BOTTOM;
+    }
+    % endif
+    ${func_name[0]}(&tile_args);
+% endif
 
     % if n_tile_W > 1:
       // waiting for weights, lambda, and k
