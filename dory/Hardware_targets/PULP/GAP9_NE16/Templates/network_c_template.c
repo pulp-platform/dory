@@ -161,11 +161,8 @@ struct ${prefix}network_run_token ${prefix}network_run_async(void *l2_buffer, si
     .cluster_dev = cluster_dev
   };
 
-  // ODDA
-  // 9 layers with weights have been processed before FC layer 
-  int n_frozen_layers = 1; // Inference 
   *l3_buffer = L3_weights;
-  for (int i = 0; i < ${len(DORY_HW_graph)} - n_frozen_layers - 1; i++){ // 1 layer (i.e., avgpool) has no weights, but is part of the graph
+  for (int i = 0; i < ${len(DORY_HW_graph)}; i++){
     *l3_buffer += L3_weights_size[i]; 
   }
 }
@@ -288,12 +285,8 @@ void ${prefix}network_run_cluster(void *args) {
   % endif
 
   int weight_l_cnt = 0; // count how many layers with weights we have processed to increment the weights_L3 pointer
-  
-  // ODDA
-  int n_frozen_layers = 1; // Inference
-  int n_inf_layers = ${len(DORY_HW_graph)} - n_frozen_layers; // Training
 
-  for (int i = 0; i < n_inf_layers; i++) {
+  for (int i = 0; i < ${len(DORY_HW_graph)}; i++) {
 /* MEMORY ALLOCATION
   - allocate memory if layer is executed from L3;
   - allocate weights

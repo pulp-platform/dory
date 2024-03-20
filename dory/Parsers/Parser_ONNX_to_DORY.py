@@ -32,7 +32,7 @@ from dory.Utils.DORY_utils import Printer
 
 class Parser_ONNX_to_DORY:
     # Used to manage the ONNX files. By now, supported Convolutions (PW and DW), Pooling, Fully Connected and Relu.
-    def __init__(self, network, rules, layers_accepted, layers_neglected, layers_to_node, net_prefix=""):
+    def __init__(self, network, rules, layers_accepted, layers_neglected, layers_to_node, net_prefix="", n_trainable_layers=0):
         self.graph = onnx.load(network)
         self.Printer_Frontend = Printer("logs/Frontend")
         self.Printer_Frontend.print_onnx("Original_graph", self.graph)
@@ -44,6 +44,7 @@ class Parser_ONNX_to_DORY:
         self.layers_supported_by_DORY_Frontend_IR = ["Convolution", "Pooling", "FullyConnected", "Addition", "QAddition", "Relu", "BNRelu", "Requant"]
         self.rules = rules
         self.net_prefix = net_prefix
+        self.n_trainable_layers = n_trainable_layers
         print(f"onnx_to_dory net prefix: {net_prefix}")
         self.DORY_Graph = []
 
@@ -190,6 +191,9 @@ class Parser_ONNX_to_DORY:
                                     node.add_existing_parameter("branch_last", 1)
                                 else:
                                     nodes_scan_2.add_existing_parameter("branch_last", 1)  
+
+        # Remove trainable layers, handled externally
+        self.DORY_Graph = self.DORY_Graph[:len(self.DORY_Graph)-self.n_trainable_layers]
 
     def add_data_layout(self):
         print("\nTo be implemented in the target backend")
