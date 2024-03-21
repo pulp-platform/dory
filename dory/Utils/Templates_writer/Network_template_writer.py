@@ -51,6 +51,9 @@ def print_template_network(
     tk['verbose_level'] = verbose_level
     tk['performance'] = perf_layer
     tk['l1_buffer'] = HW_description["memory"]["L1"]["dimension"] - HW_description["HW specific parameters"]["accelerator core0 stack"] - 7 * HW_description["HW specific parameters"]["accelerator core1-7 stack"]
+    # tk['l1_buffer'] = tk['l1_buffer'] -  7000 # PULP TrainLib DSCNN S
+    # tk['l1_buffer'] = tk['l1_buffer'] - 17500 # PULP TrainLib DSCNN M
+    tk['l1_buffer'] = tk['l1_buffer'] - 28000 # PULP TrainLib DSCNN L
     tk['master_stack'] = HW_description["HW specific parameters"]["accelerator core0 stack"] 
     tk['slave_stack'] = HW_description["HW specific parameters"]["accelerator core1-7 stack"]
     tk['l2_buffer_size'] = HW_description["memory"]["L2"]["dimension"] - config_file["code reserved space"] 
