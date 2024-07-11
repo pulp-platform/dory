@@ -149,7 +149,9 @@ void ${prefix}network_run_wait(struct ${prefix}network_run_token token)
 {
   pi_cluster_close(&token.cluster_dev);
   % if 'Yes' in performance:
+  #ifdef VERBOSE
   print_perf("Final", ${prefix}cycle_network_execution, ${MACs});
+  #endif
   % endif
 }
 
@@ -303,7 +305,9 @@ void ${prefix}network_run_cluster(void *args) {
 % endif
 
 % if 'Yes' in performance:
+    #ifdef VERBOSE
     print_perf(Layers_name[i], perf_cyc, NODEs_MACS[i]);
+    #endif
 % endif
 
     // TODO: What error?
