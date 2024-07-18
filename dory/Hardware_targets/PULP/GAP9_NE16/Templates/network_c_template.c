@@ -174,7 +174,9 @@ void ${prefix}network_run_wait(struct ${prefix}network_run_token token)
 {
   pi_cluster_close(&token.cluster_dev);
   % if 'Perf_final' in verbose_level:
+  #ifdef VERBOSE
   print_perf("Final", ${prefix}cycle_network_execution, ${MACs});
+  #endif
   % endif
 }
 
@@ -376,7 +378,9 @@ void ${prefix}network_run_cluster(void *args) {
     % endif
 
     % if 'Yes' in performance:
+    #ifdef VERBOSE
     print_perf(Layers_name[i], perf_cyc, NODEs_MACS[i]);
+    #endif
     % endif
 
     % if 'Yes' in performance or 'Perf_final' in verbose_level:
@@ -517,7 +521,9 @@ void ${prefix}network_run_cluster(void *args) {
   io_cyc += pi_perf_read(PI_PERF_CYCLES);
   % endif
   % if 'Yes' in performance:
+  #ifdef VERBOSE
   print_perf("IO wait", io_cyc, 0 /*ops*/);
+  #endif
   % endif
   % if 'Perf_final' in verbose_level:
   ${prefix}cycle_network_execution += io_cyc;
