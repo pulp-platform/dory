@@ -95,9 +95,6 @@ void ${prefix}execute_layer_fork(void *args) {
 #else
   layer_args->L1_buffer = pmsis_l1_malloc(${l1_buffer});
 #endif
-  // PATCH: L1-only DSCNNL in Trainlib
-  // layer_args->L1_buffer = 0x100072B0;
-
 
   if (NULL == layer_args->L1_buffer) {
 #ifdef VERBOSE
