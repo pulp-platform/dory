@@ -93,7 +93,6 @@ void ${prefix}network_terminate() {
 
 void ${prefix}execute_layer_fork(void *args) {
   layer_args_t *layer_args = (layer_args_t *)args;
-
 #ifdef TARGET_CHIP_FAMILY_GAP9
   layer_args->L1_buffer = pi_cl_l1_malloc(NULL, ${l1_buffer});
 #else
