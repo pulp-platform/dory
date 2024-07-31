@@ -131,7 +131,7 @@ struct ${prefix}network_run_token ${prefix}network_run_async(void *l2_buffer, si
   conf.icache_conf = PI_CLUSTER_MASTER_CORE_ICACHE_ENABLE | PI_CLUSTER_ICACHE_PREFETCH_ENABLE | PI_CLUSTER_ICACHE_ENABLE;
 #endif
 <%
-    n_args = 6 if l3_supported else 7
+    n_args = 5 if l3_supported else 6
 %>\
   unsigned int args[${n_args}];
   args[0] = (unsigned int) l2_buffer;
@@ -168,7 +168,6 @@ void ${prefix}network_run_wait(struct ${prefix}network_run_token token)
   % endif
 }
 
-// ODDA
 void ${prefix}network_run(void *l2_buffer, size_t l2_buffer_size, void *l2_final_output, int exec, int initial_dir${", void *L2_input_h" if not l3_supported else ""})
 {
   ${prefix}network_run_wait(network_run_async(l2_buffer, l2_buffer_size, l2_final_output, exec, initial_dir${", L2_input_h" if not l3_supported else ""}));

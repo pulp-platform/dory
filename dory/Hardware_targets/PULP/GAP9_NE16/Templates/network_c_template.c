@@ -135,7 +135,7 @@ struct ${prefix}network_run_token ${prefix}network_run_async(void *l2_buffer, si
   conf.icache_conf = PI_CLUSTER_MASTER_CORE_ICACHE_ENABLE | PI_CLUSTER_ICACHE_PREFETCH_ENABLE | PI_CLUSTER_ICACHE_ENABLE;
 #endif
 <%
-    n_args = 6 if l3_supported else 7
+    n_args = 5 if l3_supported else 6
 %>\
   unsigned int args[${n_args}];
   args[0] = (unsigned int) l2_buffer;
