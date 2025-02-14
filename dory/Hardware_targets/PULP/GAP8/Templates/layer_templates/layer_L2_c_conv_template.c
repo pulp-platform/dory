@@ -145,10 +145,10 @@ void ${func_name}(
   int has_bias = 1;
 % endif
   volatile ${type} *im2col;
-  im2col = l1_buffer + ${buffer_l1_all};
+  im2col = l1_buffer;// + ${buffer_l1_all};
 % if flag_DW == 1:
   volatile ${type} *pwt_buffer;
-  pwt_buffer = im2col + ${im2col_dim};
+  pwt_buffer = im2col;// + ${im2col_dim};
 % endif
 % if FLAG_RELU == 1:
   uint16_t out_mult = out_mult_in;
@@ -298,7 +298,7 @@ void ${func_name}(
   % elif flag_DW == 1 and optional_type == '8bit' and fs1 == 3 and fs2 == 3 and stride==1:
     pulp_nn_depthwise_generic(
   % elif flag_DW == 1 and optional_type == '8bit' and fs1*fs2 < 4:
-    pulp_nn_depthwise_generic_less_4_weights(
+    pulp_nn_depthwise_generic(
   % elif flag_DW == 1 and optional_type == '8bit':
     pulp_nn_depthwise_generic(
   % elif flag_DW == 1 and 'mixed' in optional_type:

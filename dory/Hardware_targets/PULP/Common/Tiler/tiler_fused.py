@@ -29,7 +29,6 @@ from ortools.constraint_solver import pywrapcp
 from ortools.constraint_solver import solver_parameters_pb2
 
 CORES = 8
-IB_FACTOR = 4
 
 
 def maximum(a, b):
@@ -102,6 +101,10 @@ class Tiler_Fused_PULP():
         g2 = self.HW_node.node1.group
         p1 = self.HW_node.node0.pads
         p2 = self.HW_node.node1.pads
+        if g1 == 1:
+            IB_FACTOR = 8
+        elif g2 == 1:
+            IB_FACTOR = 4
 
         for iteration in range(0, 4):
             parameters = pywrapcp.Solver.DefaultSolverParameters()
@@ -264,12 +267,17 @@ class Tiler_Fused_PULP():
         ###############################################
         ##### L2 DIMENSIONS DEFINITION: EARLY EXIT ####
         ###############################################
+        if g0 == 1:
+            IB_FACTOR = 8
+        elif g1 == 1:
+            IB_FACTOR = 4
 
         if g0 == 1:
-            im2col_dim = CORES * (ks1[0] * (inp_dim[0] + p1[0] + p1[2]) + ks1[0])
+            im2col_dim = CORES * (ks1[0] * (in_ch + p1[0] + p1[2]) + ks1[0])
+            im2col_dim += inp_dim[0] * IB_FACTOR * inp_dim[1]
         else:
-            im2col_dim = CORES * (ks0[0] * (inp_dim[0] + p0[0] + p0[2]) + ks0[0])
-        
+            im2col_dim = CORES * (ks0[0] * (in_ch + p0[0] + p0[2]) + ks0[0])
+            im2col_dim += in_ch * IB_FACTOR * inp_dim[1]
         in_mem = self.HW_node.tiling_dimensions["L2"]["input_activation_memory"]
         out_mem = self.HW_node.tiling_dimensions["L2"]["output_activation_memory"]
         h_in   = self.HW_node.tiling_dimensions["L2"]["input_dimensions"][1]
@@ -304,10 +312,14 @@ class Tiler_Fused_PULP():
         tile_n_in =  solver.IntVar(1, in_ch, 'tile_n_in')
         tile_n_out = solver.IntVar(1, out_ch, 'tile_n_out')
         tile_n_intermediate = solver.IntVar(1, intermediate_ch, 'tile_n_intermediate')
-        tile_h_in =  solver.IntVar(ks0[0], inp_dim[0], 'tile_h_in')
-        tile_w_in =  solver.IntVar(ks0[1], inp_dim[1], 'tile_w_in')
-        tile_h_intermediate =  solver.IntVar(ks1[0], out_dim[0], 'tile_h_intermediate')
-        tile_w_intermediate =  solver.IntVar(ks1[1], out_dim[1], 'tile_w_intermediate')
+        tile_h_in =  solver.IntVar(ks0[0] - (p0[0] +p0[2]), inp_dim[0], 'tile_h_in')
+        tile_w_in =  solver.IntVar(ks0[1] - (p0[1] +p0[3]), inp_dim[1], 'tile_w_in')
+        if g0 == 1:
+            tile_h_intermediate =  solver.IntVar(ks1[0] - (p1[0] +p1[2]), inp_dim[0], 'tile_h_intermediate')
+            tile_w_intermediate =  solver.IntVar(ks1[1] - (p1[1] +p1[3]), inp_dim[1] , 'tile_w_intermediate')
+        if g1 == 1:
+            tile_h_intermediate =  solver.IntVar(ks1[0], out_dim[0], 'tile_h_intermediate')
+            tile_w_intermediate =  solver.IntVar(ks1[1], out_dim[1], 'tile_w_intermediate')
         tile_h_out = solver.IntVar(1, out_dim[0], 'tile_h_out')
         tile_w_out = solver.IntVar(1, out_dim[1], 'tile_w_out')
         zero_variable = solver.IntVar(0, 0, 'zero_variable')
@@ -334,10 +346,11 @@ class Tiler_Fused_PULP():
         # if a tile dimension is equal to the total input dimension in a
         # direction, padding must be counted as well. Otherwise we can
         # simply calculate "too few" outputs in one tiling iteration (???) 
-        # solver.Add(tile_h_intermediate * s0[0] == (tile_h_in - (ks0[0] - 1) + (s0[0] - 1) + (p0[0] + p0[2]) * (tile_h_in == inp_dim[0])))
-        # solver.Add(tile_w_intermediate * s0[1] == (tile_w_in - (ks0[1] - 1) + (s0[1] - 1) + (p0[1] + p0[3]) * (tile_w_in == inp_dim[1])))
-        solver.Add(tile_h_intermediate * s0[0] == (tile_h_in - (ks0[0] - 1) + (s0[0] - 1)))
-        solver.Add(tile_w_intermediate * s0[1] == (tile_w_in - (ks0[1] - 1) + (s0[1] - 1)))
+
+        solver.Add(tile_h_intermediate * s0[0] == (tile_h_in - (ks0[0] - 1) + (s0[0] - 1) + (p0[0] + p0[2]) * (tile_h_in == inp_dim[0]) // s0[0]))
+        solver.Add(tile_w_intermediate * s0[1] == (tile_w_in - (ks0[1] - 1) + (s0[1] - 1) + (p0[1] + p0[3]) * (tile_w_in == inp_dim[1]) // s0[1]))
+        # solver.Add(tile_h_intermediate * s0[0] == (tile_h_in - (ks0[0] - 1) + (s0[0] - 1)))
+        # solver.Add(tile_w_intermediate * s0[1] == (tile_w_in - (ks0[1] - 1) + (s0[1] - 1)))
         ####### LAYER 1
         if g1 == 1 or (intermediate_dim[0] > 32 and intermediate_dim[1] > 32):
             solver.Add(0 == (tile_h_intermediate - ks1[0]) % s1[0])
@@ -366,8 +379,10 @@ class Tiler_Fused_PULP():
 
         im2col_dimension = CORES * (ks0[0] * (tile_n_in + p0[0] + p0[2]) + ks0[0])
         # adding the overhead of the intermediate buffer
-        im2col_dimension += minimum(tile_h_in, IB_FACTOR) * tile_n_in * tile_w_in
-        
+        if g0 == 1:
+            im2col_dimension += minimum(tile_n_in, IB_FACTOR) * tile_h_in * tile_w_in
+        if g1 == 1:
+            im2col_dimension += minimum(tile_h_in, IB_FACTOR) * tile_n_in * tile_w_in
         constants_0 = 0
         for name in self.HW_node.node0.constant_names:
             if name in ["l","k"]:

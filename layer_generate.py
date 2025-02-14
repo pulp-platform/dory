@@ -301,14 +301,14 @@ def create_graph(params, network_dir):
     params_in['operation_type'] = 'Conv'
     params_in['input_bits'] = 2
     params_in['kernel_shape'] = [1,1]
-    params_in['weight_bits'] = 2
+    params_in['weight_bits'] = 8
     params_in['padding'] = 4*[0]
     params_in['output_bits'] = params['input_bits']
     params_in['output_type'] = params['input_type']
     params_in['stride'] = [1,1]
     params_in['input_channels'] = 4
     params_in['output_channels'] = params['input_channels']
-
+    params_in['group'] = 1
 
     in_layer_node = create_layer_node(params_in, 0)
     in_act_node = create_dory_node(params_in, 1)
@@ -325,7 +325,7 @@ def create_graph(params, network_dir):
     params_out['layer_type'] = 'FullyConnected'
     params_out['operation_type'] = 'Gemm'
     params_out['input_bits'] = params['output_bits']
-    params_out['weight_bits'] = 2
+    params_out['weight_bits'] = 8
     params_out['output_channels'] = 8
     params_out['stride'] = [1,1]
     params_out['kernel_shape'] = [1,1]
@@ -334,6 +334,7 @@ def create_graph(params, network_dir):
     # will give tiling issues...
     params_out['input_dimensions'] = [1,1]#layer_node.output_dimensions
     params_out['output_bits'] = 32
+    params_out['group'] = 1
     out_layer_node = create_layer_node(params_out, 4)
     with torch.no_grad():
         create_layer(2, out_layer_node, None, network_dir, input=layer_output)
@@ -354,6 +355,7 @@ if __name__ == '__main__':
                         help="None: No_printf.\nPerf_final: only total performance\nCheck_all+Perf_final: all check + final performances \nLast+Perf_final: all check + final performances \nExtract the parameters from the onnx model")
     parser.add_argument('--optional', default='8bit',
                         help='auto (based on layer precision, 8bits or mixed-sw), 8bit, mixed-hw, mixed-sw')
+    parser.add_argument('--kernel_dir', default='../Backend_Kernels/pulp-nn/', help='Path to the backend kernels. Default: ../Backend_Kernels/pulp-nn/')
     args = parser.parse_args()
 
     json_configuration_file_root = os.path.dirname(args.config_file)
@@ -376,4 +378,4 @@ if __name__ == '__main__':
     onnx_manager = importlib.import_module(f'dory.Hardware_targets.{args.hardware_target}.C_Parser')
     DORY_HW_to_C = onnx_manager.C_Parser
     DORY_Graph = DORY_HW_to_C(DORY_Graph, json_configuration_file, json_configuration_file_root,
-                              args.verbose_level, args.perf_layer, args.optional, args.app_dir).full_graph_parsing()
+                              args.verbose_level, args.perf_layer, args.optional, args.app_dir, args.kernel_dir).full_graph_parsing()

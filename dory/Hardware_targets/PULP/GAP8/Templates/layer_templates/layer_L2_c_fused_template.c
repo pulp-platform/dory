@@ -322,7 +322,11 @@ void ${func_name}(
     W0 = (${type} *) (l1_buffer + ${l1_W_offset_0});
     W1 = (${type} *) (l1_buffer + ${l1_W_offset_1});
     y = (${type} *) (l1_buffer + ${l1_y_offset});
+% if "PW_DW" in func_name:
+    n_rows = x_tile_size_nif > 8 ? 8 : x_tile_size_nif;
+% elif "DW_PW" in func_name:
     n_rows = y_tile_size_h > 4 ? 4 : y_tile_size_h;
+% endif
 
     pi_cl_team_barrier(0);
     asm volatile("": : :"memory");

@@ -243,7 +243,7 @@ class Tiler_Conv2D_PULP():
             im2col_dim = 2 * CORES * np.prod(ks) * in_ch * self.HW_node.input_activation_bits/8
             weight_full_prec_dim = 0
         else:
-            im2col_dim = CORES * (ks[0] * (inp_dim[0] + p[0] + p[2]) + ks[0]) * int( 8 / min(self.HW_node.input_activation_bits, self.HW_node.output_activation_bits, self.HW_node.weight_bits))
+            im2col_dim = CORES * (ks[0] * (in_ch + p[0] + p[2]) + ks[0]) * int( 8 / min(self.HW_node.input_activation_bits, self.HW_node.output_activation_bits, self.HW_node.weight_bits))
             weight_full_prec_dim = 8 * np.prod(ks) * int( 8 / min(self.HW_node.input_activation_bits, self.HW_node.output_activation_bits, self.HW_node.weight_bits))
             if self.HW_node.weight_bits == 8:
                  weight_full_prec_dim = 0
