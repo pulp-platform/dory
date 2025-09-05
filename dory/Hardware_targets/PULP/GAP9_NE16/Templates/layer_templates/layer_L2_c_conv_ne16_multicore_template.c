@@ -20,8 +20,15 @@
  */
 
 #include "${func_name}.h"
-#include "pulp_nnx.h"
+
+// ne16 includes
+#include "pulp_nnx_ne16.h"
 #include "pulp_nnx_util.h"
+#include "ne16_pulp_bsp.h"
+#include "ne16_task.h"
+#include "ne16.h"
+#include "hwpe.h"
+
 #include "network.h"
 #include "net_utils.h"
 #include "dory_dma.h"
@@ -105,7 +112,7 @@ static inline void load_weights_prepare(Layer tile, Kernel kernel,
                                         DmaTransferConf * const conf_bias
                                         ) {
     // Special because of accelerators special memory layout
-    const int size_weights = (kernel.groups > 1 ? divnceil(tile.output.channel, 16) : tile.output.channel) * ${l1_W_tile_ki_size};
+    const int size_weights = (kernel.groups > 1 ? nnx_calculate_number_of_tiles(tile.output.channel, 16) : tile.output.channel) * ${l1_W_tile_ki_size};
     const int size_scale = tile.output.channel * ${int(act_dim_bit/8)};
     const int size_bias = tile.output.channel * ${int(b_data_size_byte/8)};
 
@@ -175,41 +182,50 @@ static int inc(int index, int end) {
 
 #define BUFFER_SIZE (2)
 
-static Layer tiles[BUFFER_SIZE];
-static nnx_task_t nnx_tasks[BUFFER_SIZE];
-static DmaTransferConf store_conf[BUFFER_SIZE];
+struct layer_task_fork_args_t {
+    uint32_t L2_input;
+    uint32_t L2_weights;
+    uint32_t L2_output;
+    uint32_t L1_buffer;
+    uint32_t padding;
+    ne16_task_t *ne16_tasks;
+    Layer *tiles;
+    DmaTransferConf *store_conf;
+    TaskMonitors *monitor;
+};
 
-static struct {
-    Monitor input, output, store_conf;
-} monitor;
 
-static void layer_task_fork(void *args) {
+static void layer_task_fork(void *void_args) {
     const int total_tiles = end_index.height * end_index.width * end_index.output_channel;
+
+    struct layer_task_fork_args_t *args = (struct layer_task_fork_args_t *)void_args;
+    ne16_task_t *ne16_tasks = args->ne16_tasks;
+    Layer *tiles = args->tiles;
+    DmaTransferConf *store_conf = args->store_conf;
+    TaskMonitors *monitor = args->monitor;
 
     // Loader
 
     if (pi_core_id() == LOADER_ID) {
-        layer_args_t *layer_args = (layer_args_t *)args;
-
         Layer layer = {
             .addr = {
-                .input = layer_args->L2_input,
-                .weights = layer_args->L2_weights,
-                .scale = layer_args->L2_weights + ${l2_k_offset},
-                .bias = layer_args->L2_weights + ${l2_lambda_offset},
-                .output = layer_args->L2_output
+                .input = args->L2_input,
+                .weights = args->L2_weights,
+                .scale = args->L2_weights + ${l2_k_offset},
+                .bias = args->L2_weights + ${l2_lambda_offset},
+                .output = args->L2_output
             },
             .padding = {
-                .top    = layer_args->padding & NET_UTILS_PAD_TOP ? ${padding_top} : NE16_DONT_PAD,
+                .top    = args->padding & NET_UTILS_PAD_TOP ? ${padding_top} : NE16_DONT_PAD,
                 .right  = ${padding_right},
-                .bottom = layer_args->padding & NET_UTILS_PAD_BOTTOM ? ${padding_bottom} : NE16_DONT_PAD,
+                .bottom = args->padding & NET_UTILS_PAD_BOTTOM ? ${padding_bottom} : NE16_DONT_PAD,
                 .left   = ${padding_left}
             }
         };
 
         // Double buffer address init
 
-        const unsigned int l1_buffer = layer_args->L1_buffer;
+        const unsigned int l1_buffer = args->L1_buffer;
         const int l1_buffer_input = l1_buffer + ${l1_x_offset};
         const int l1_buffer_output = l1_buffer + ${l1_y_offset};
         const int l1_buffer_weights = l1_buffer + ${l1_W_offset};
@@ -255,25 +271,25 @@ static void layer_task_fork(void *args) {
             const Address local_addr = tile_status_get_addr(tile_status, buffer_addresses);
             Layer tile = tile_create(tile_status.index, end_index, body, border, layer, local_addr);
 
-            monitor_produce_begin(monitor.input);
+            monitor_produce_begin(monitor->input);
             tiles[i_buff] = tile;
             dma_mutex_lock();
             DmaTransfer transfer = dma_transfer_create();
             load_async(tiles[i_buff], &tile_status, body, layer, kernel);
             dma_mutex_unlock();
             % if stride == 1:
-            execute_prepare(tile, &nnx_tasks[i_buff]);
+            execute_prepare(tile, &ne16_tasks[i_buff]);
             % elif stride == 2:
-            execute_stride2x2_prepare(tile, kernel, &nnx_tasks[i_buff]);
+            execute_stride2x2_prepare(tile, kernel, &ne16_tasks[i_buff]);
             % endif
             dma_mutex_lock();
             dma_transfer_wait(transfer);
             dma_mutex_unlock();
-            monitor_produce_end(monitor.input);
+            monitor_produce_end(monitor->input);
 
-            monitor_produce_begin(monitor.store_conf);
+            monitor_produce_begin(monitor->store_conf);
             store_prepare(tiles[i_buff], body, layer, tile_status.index, &store_conf[i_buff]);
-            monitor_produce_end(monitor.store_conf);
+            monitor_produce_end(monitor->store_conf);
 
             i_buff = inc(i_buff, BUFFER_SIZE);
             tile_status = tile_status_get_next(tile_status, end_index, layer, 0, kernel);
@@ -286,16 +302,16 @@ static void layer_task_fork(void *args) {
     if (pi_core_id() == EXECUTER_ID) {
         int i_buff = 0;
         for (int i_tile = 0; i_tile < total_tiles; i_tile++) {
-            monitor_consume_begin(monitor.input);
-            monitor_produce_begin(monitor.output);
+            monitor_consume_begin(monitor->input);
+            monitor_produce_begin(monitor->output);
 
             % if stride == 1:
-            execute_async(&nnx_tasks[i_buff]);
+            execute_async(&ne16_tasks[i_buff]);
             % elif stride == 2:
-            execute_stride2x2_blocking(&nnx_tasks[i_buff], tiles[i_buff], kernel, tiles[i_buff].output.channel);
+            execute_stride2x2_blocking(&ne16_tasks[i_buff], tiles[i_buff], kernel);
             % endif
 
-            monitor_produce_end(monitor.output);
+            monitor_produce_end(monitor->output);
 
             i_buff = inc(i_buff, BUFFER_SIZE);
         }
@@ -307,11 +323,11 @@ static void layer_task_fork(void *args) {
     if (pi_core_id() == STORER_ID) {
         int i_buff = 0;
         for (int i_tile = 0; i_tile < total_tiles; i_tile++) {
-            monitor_consume_begin(monitor.store_conf);
-            monitor_consume_begin(monitor.output);
+            monitor_consume_begin(monitor->store_conf);
+            monitor_consume_begin(monitor->output);
 
-            execute_wait(&nnx_tasks[i_buff]);
-            monitor_consume_end(monitor.input);
+            execute_wait(&ne16_tasks[i_buff]);
+            monitor_consume_end(monitor->input);
 
             dma_mutex_lock();
             DmaTransfer transfer = dma_transfer_create();
@@ -322,8 +338,8 @@ static void layer_task_fork(void *args) {
             dma_transfer_wait(transfer);
             dma_mutex_unlock();
 
-            monitor_consume_end(monitor.store_conf);
-            monitor_consume_end(monitor.output);
+            monitor_consume_end(monitor->store_conf);
+            monitor_consume_end(monitor->output);
 
             i_buff = inc(i_buff, BUFFER_SIZE);
         }
@@ -331,67 +347,53 @@ static void layer_task_fork(void *args) {
 }
 
 void ${func_name}(void *args) {
-
     #ifdef DEBUG_GVSOC
     nnx_activate_gvsoc_logging(GVSOC_LOG_LEVEL_CONFIG, GVSOC_LOGGING_FORMAT_DECIMAL);
     #endif
 
+    ne16_dev_t *ne16_dev = ne16_pulp_get_dev();
+    hwpe_soft_clear(&ne16_dev->hwpe_dev);
+
     layer_args_t *layer_args = (layer_args_t *)args;
 
-    // Initialization
-
-    int err = 0;
-
-    if (err = monitor_init(&monitor.input, BUFFER_SIZE)) {
-        printf("Input monitor initialization failed with status %d.\n", err);
-        return;
-    }
-
-    if (err = monitor_init(&monitor.output, BUFFER_SIZE)) {
-        printf("Output monitor initialization failed with status %d.\n", err);
-        monitor_term(monitor.input);
-        return;
-    }
-
-    if (err = monitor_init(&monitor.store_conf, BUFFER_SIZE)) {
-        printf("Store conf monitor initialization failed with status %d.\n", err);
-        monitor_term(monitor.input);
-        monitor_term(monitor.output);
-        return;
-    }
-
     // Init nnx tasks
+    ne16_task_t ne16_tasks[BUFFER_SIZE];
     for (int i = 0; i < BUFFER_SIZE; i++) {
-        nnx_task_init(&nnx_tasks[i],
-                ${fs1}, ${int(flag_DW)},
-                ${x_data_size_byte}, ${y_data_size_byte}, ${W_data_size_byte},
-                weightOffsetModeLayerWise, ${-(2**(W_data_size_byte-1))},
-                (nnx_quant_t) {
-                    .shift_amount = ${out_shift},
-                    .mode = quantMode8Bit,
-                    .function = quantFunctionRelu,
-                    .flag_rounding = NE16_FLAG_UNUSED
-                }, (nnx_norm_t) {
-                    .mode  = ${"normMode32Bit" if act_dim_bit == 32 else "normMode8Bit" if act_dim_bit == 8 else "NE16_FLAG_UNUSED"},
-                    .flag_bias  = NE16_FLAG_USED,
-                    .flag_shift = NE16_FLAG_UNUSED
-                }, ${stride});
+        ne16_task_init(&ne16_tasks[i]);
+        ne16_task_set_op_to_conv(&ne16_tasks[i], ${fs1}, ${int(flag_DW)}, ${stride});
+        ne16_task_set_bits(&ne16_tasks[i], ${x_data_size_byte}, ${y_data_size_byte}, ${W_data_size_byte});
+        ne16_task_set_norm_quant(
+            &ne16_tasks[i],
+            (ne16_quant_t) {
+                .shift_amount = ${out_shift},
+                .function = ${"quantFunctionIdentity" if node.min < 0 else "quantFunctionRelu"},
+                .flag_rounding = ne16TaskFlagFalse
+            }, (ne16_norm_t) {
+                .mode  = ${"normMode32Bit" if act_dim_bit == 32 else "normMode8Bit" if act_dim_bit == 8 else ""},
+                .flag_bias  = ne16TaskFlagTrue,
+                .flag_shift = ne16TaskFlagFalse
+            });
+        ne16_task_set_weight_offset(&ne16_tasks[i], weightOffsetModeLayerWise, ${weight_offset});
     }
 
-    const int max_stall = 8;
-    nnx_init(max_stall);
-    dma_mutex_init();
-
+    Layer tiles[BUFFER_SIZE];
+    DmaTransferConf store_conf[BUFFER_SIZE];
 
     // Fork
 
-    pi_cl_team_fork(CORES, (void *)layer_task_fork, args);
+    struct layer_task_fork_args_t layer_task_fork_args = {
+        .L2_input = layer_args->L2_input,
+        .L2_weights = layer_args->L2_weights,
+        .L2_output = layer_args->L2_output,
+        .L1_buffer = layer_args->L1_buffer,
+        .padding = layer_args->padding,
+        .ne16_tasks = ne16_tasks,
+        .tiles = tiles,
+        .store_conf = store_conf,
+        .monitor = layer_args->monitor,
+    };
+    pi_cl_team_fork(CORES, layer_task_fork, (void *)&layer_task_fork_args);
 
 
     // Terminate
-
-    monitor_term(monitor.input);
-    monitor_term(monitor.output);
-    monitor_term(monitor.store_conf);
-    nnx_term();
 }

@@ -479,6 +479,12 @@ void ${prefix}network_run_cluster(void *args) {
   ${prefix}cycle_network_execution += io_cyc;
   % endif
 
+  % if 'Last' in verbose_level:
+  checksum("final output", L2_output,
+           activations_out_size[${len(DORY_HW_graph)-1}],
+           activations_out_checksum[${len(DORY_HW_graph)-1}][exec]);
+  % endif
+
   //memcpy(L2_output, l2_final_output, activations_out_size[${len(DORY_HW_graph)-1}]); // BUGGY!
   for (int i=0; i<activations_out_size[${len(DORY_HW_graph)-1}]; i++)
     *((uint8_t*)(l2_final_output+i)) = *((uint8_t*)(L2_output+i));
