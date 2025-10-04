@@ -42,16 +42,16 @@ unsigned int PMU_set_voltage(unsigned int Voltage, unsigned int CheckFrequencies
 
 
 void application(void * arg) {
-/*
-    Opening of Filesystem and Ram
-*/
-% if l3_supported:
+  % if l3_supported:
+  // Opening of Filesystem and Ram
   mem_init();
-  ${prefix}network_initialize();
+
   % endif
-  /*
-    Allocating space for input
-  */
+  // Initializing network
+  ${prefix}network_t network;
+  ${prefix}network_initialize(&network);
+
+  // Allocating space for input
   void *l2_buffer = pi_l2_malloc(${l2_buffer_size});
   if (NULL == l2_buffer) {
 #ifdef VERBOSE
@@ -64,7 +64,6 @@ void application(void * arg) {
 #endif
   size_t l2_input_size = ${int(DORY_HW_graph[0].tiling_dimensions["L2"]["input_activation_memory"])};
   size_t input_size = 1000000;
-  int initial_dir = 1;
   % if l3_supported:
 
   void *ram_input = ram_malloc(input_size);
@@ -80,15 +79,25 @@ void application(void * arg) {
   % if l3_supported:
       ram_read(l2_buffer, ram_input, l2_input_size);
   % endif
-      ${prefix}network_run(l2_buffer, ${l2_buffer_size}, l2_buffer, ${"0" if single_input else "exec"}, initial_dir${f", {prefix}L2_input_h{' + exec * l2_input_size' if not single_input else ''}" if not l3_supported else ""});
+      ${prefix}network_args_t args = {
+        .l2_buffer = l2_buffer,
+        .l2_buffer_size = ${l2_buffer_size},
+        .l2_final_output = l2_buffer,
+        .exec = ${"0" if single_input else "exec"},
+        .initial_allocator_dir = 1,
+        % if not l3_supported:
+        .l2_input_h = ${prefix}L2_input_h${' + exec * l2_input_size' if not single_input else ''}
+        % endif
+      };
+      ${prefix}network_run(&network, &args);
 
   % if not single_input:
   }
   % endif
   % if l3_supported:
   ram_free(ram_input, input_size);
-  ${prefix}network_terminate();
   % endif
+  ${prefix}network_terminate(&network);
   pi_l2_free(l2_buffer, ${l2_buffer_size});
 }
 
