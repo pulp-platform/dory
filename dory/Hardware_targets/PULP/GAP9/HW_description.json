@@ -43,5 +43,6 @@
     "double_buffering": 2,
     "split_ints": true,
     "blocking_dma_transfers": false,
-    "single_core_dma": true
+    "single_core_dma": true,
+    "mchan_check_end_policy": "event"
 }

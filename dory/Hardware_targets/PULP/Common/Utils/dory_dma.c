@@ -8,8 +8,6 @@
 // GAP8 hardware to be tested...
 #define MCHAN_BASE_ADDR (ARCHI_MCHAN_DEMUX_ADDR)  // CLUSTER_MCHAN_ADDR
 #endif
-#define MCHAN_EVENT
-//#define MCHAN_POLLED
 #ifdef MCHAN_EVENT
 #define MCHAN_EVENT_BIT (ARCHI_CL_EVT_DMA0)  // 8
 #endif

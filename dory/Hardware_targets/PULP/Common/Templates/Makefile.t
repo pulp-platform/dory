@@ -58,6 +58,9 @@ APP_CFLAGS += -DALWAYS_BLOCK_DMA_TRANSFERS
 % if single_core_dma:
 APP_CFLAGS += -DSINGLE_CORE_DMA
 % endif
+% if mchan_check_end_policy:
+APP_CFLAGS += -DMCHAN_${mchan_check_end_policy.upper()}
+% endif
 
 include ${prefix}vars.mk
 
